@@ -3,6 +3,7 @@ const { cricketGroupOf } = require('./sportsFixturesEspn');
 /** Dashboard-only ESPN adapter. Never changes the fixture/live-replay classifier. */
 const { f1Session } = require('./sportsFixtures');
 const { fetchFeed } = require('./sportFetch');
+const { espnState } = require('./espnState');
 const BASE = 'https://site.api.espn.com/apis/site/v2/sports/';
 const text = (v, max = 160) => typeof v === 'string' ? v.trim().slice(0, max) : '';
 const id = v => /^(?:[A-Za-z0-9_-]{1,80})$/.test(String(v ?? '')) ? String(v) : null;
@@ -13,18 +14,12 @@ const teamAliases = team => [...new Set(['displayName','shortDisplayName','name'
 function logo(v) {
     try { const u = new URL(v); return u.protocol === 'https:' && u.hostname === 'a.espncdn.com' ? u.href : null; } catch { return null; }
 }
+// #272 (0548): C-O's words are espnState's own; a break only with a label C-O lists (another pause is play, as before).
+const C_O_BREAKS = new Set(['Stumps', 'Half-time', 'Rain delay', 'Lunch', 'Tea', 'Innings break', 'Intermission', 'Delayed']);
 function statusOf(c, league) {
-    const s = c.status || {}, t = s.type || {}, description = `${t.name || ''} ${t.description || ''}`;
-    if (/cancel|abandon/i.test(description)) return ['cancelled'];
-    if (/postpon/i.test(description)) return ['postponed'];
-    if (/suspend/i.test(description)) return ['suspended'];
-    if (t.completed === true || t.state === 'post') return ['finished'];
-    if (t.state === 'pre' || (isCricket(league) && /^Starts (?:at|in)/i.test(s.summary || ''))) return ['scheduled'];
-    for (const [re, label] of [[/stumps/i,'Stumps'],[/half.?time/i,'Half-time'],[/rain/i,'Rain delay'],[/lunch/i,'Lunch'],[/tea\b/i,'Tea'],[/innings.?break/i,'Innings break'],[/intermission/i,'Intermission'],[/delay/i,'Delayed']]) {
-        if (re.test(description)) return ['break', label];
-    }
-    if (t.state === 'in') return ['live'];
-    return ['unknown'];
+    const { state, breakLabel } = espnState(c.status, { cricket: isCricket(league) });
+    if (state === 'break') return C_O_BREAKS.has(breakLabel) ? ['break', breakLabel] : ['live'];
+    return [state];
 }
 function safeClock(v, football) {
     const s = text(v, 24);

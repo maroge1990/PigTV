@@ -19,6 +19,7 @@
 const { createPageCache } = require('./sportPageCache');
 const espn = require('./sportsFixturesEspn');
 const overrun = require('./sportOverrun');
+const { espnState } = require('./espnState');
 
 const SITE = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl';
 const STANDINGS = 'https://site.api.espn.com/apis/v2/sports/football/nfl/standings?level=3';
@@ -42,7 +43,10 @@ const ms = (v) => { const t = Date.parse(v); return Number.isFinite(t) ? t : nul
 const colour = (v) => (/^[0-9a-f]{6}$/i.test(String(v || '')) ? String(v).toUpperCase() : null);
 const abbrOf = (team) => str(team?.abbreviation);
 
-const STATUS = { pre: 'scheduled', in: 'live', post: 'done' };
+// #272 (0548): C-Q's three words for espnState's: a pause or a suspension is still the game on (its detail says which); a
+// postponed or cancelled game is over for this week; unknown is shown by its kick-off, as before.
+const STATUS = { scheduled: 'scheduled', live: 'live', break: 'live', suspended: 'live', postponed: 'done', cancelled: 'done', finished: 'done',
+    unknown: 'scheduled' };
 
 /** One scoreboard event as a page game. `teams` collects each team's names, colour and logo. */
 function gameOf(event, teams, registerImage) {
@@ -62,15 +66,16 @@ function gameOf(event, teams, registerImage) {
     };
     const home = side('home'), away = side('away');
     if (!home || !away) return null;
-    const state = c.status?.type?.state;
-    const status = STATUS[state] || 'scheduled';
+    const { state } = espnState(c.status);
+    const status = STATUS[state];
     const start = ms(event.date || c.date);
     if (!Number.isFinite(start)) return null;
     // ESPN's own words: "Final", "Final/OT", "1st Quarter", "Halftime"; the clock separately.
     const period = num(c.status?.period);
     const clock = str(c.status?.displayClock);
     let detail = str(c.status?.type?.shortDetail);
-    if (status === 'done') detail = /OT/i.test(detail || '') ? 'Final · OT' : 'Final';
+    if (state === 'postponed' || state === 'cancelled') detail = state === 'postponed' ? 'Postponed' : 'Cancelled'; // #272: never "Final"
+    else if (status === 'done') detail = /OT/i.test(detail || '') ? 'Final · OT' : 'Final';
     else if (status === 'live' && period && clock && !/half/i.test(detail || '')) detail = `${period > 4 ? 'OT' : `Q${period}`} ${clock}`;
     else if (status === 'scheduled') detail = null;
     const sit = status === 'live' ? c.situation : null;

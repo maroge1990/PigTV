@@ -44,15 +44,11 @@ const time = (v) => { const t = Date.parse(v || ''); return Number.isFinite(t) ?
 
 const { personKey } = require('./textFold'); // accents, case, punctuation and the Nordic letters ignored
 
+const { espnState } = require('./espnState');
+/** #272 (0548): a match, bout, round or event in C-O/C-V's words: espnState's own, a pause in a match is play (no break of its own). */
 function stateOf(status) {
-    const t = status?.type || {}, said = `${t.name || ''} ${t.description || ''}`;
-    if (/cancel|abandon/i.test(said)) return 'cancelled';
-    if (/postpon/i.test(said)) return 'postponed';
-    if (/suspend/i.test(said)) return 'suspended';
-    if (t.completed === true || t.state === 'post') return 'finished';
-    if (t.state === 'pre') return 'scheduled';
-    if (t.state === 'in') return 'live';
-    return 'unknown';
+    const { state } = espnState(status);
+    return state === 'break' ? 'live' : state;
 }
 
 /** The names of one competitor: a player, or a doubles pair's two. */

@@ -23,6 +23,7 @@
 const { createPageCache } = require('./sportPageCache');
 const espn = require('./sportsFixturesEspn');
 const overrun = require('./sportOverrun');
+const { espnState } = require('./espnState');
 
 const BASE = 'https://site.api.espn.com/apis/site/v2/sports/cricket';
 const TIMEOUT_MS = 10000;
@@ -70,16 +71,17 @@ function formatOf(c) {
     return { test: 'test', odi: 'odi', t20: 't20', t20i: 't20', 'first-class': 'first-class', fc: 'first-class', 'list a': 'list-a', lista: 'list-a' }[key] || null;
 }
 
-const BREAKS = [[/stumps/i, 'Stumps'], [/lunch/i, 'Lunch'], [/\btea\b/i, 'Tea'], [/dinner/i, 'Dinner'], [/innings.?break/i, 'Innings break'],
-    [/rain/i, 'Rain delay'], [/delay/i, 'Delayed']];
+// #272 (0548): C-S's words for espnState's. A break only with a label C-S lists (another pause is play); a postponed,
+// cancelled or abandoned match is over (`done`, its summary says why), never scheduled at its old time; a suspended one
+// is still on; unknown is shown by its start, as before.
+const WORD = { scheduled: 'scheduled', live: 'live', break: 'break', suspended: 'live', postponed: 'done', cancelled: 'done', finished: 'done',
+    unknown: 'scheduled' };
+const BREAKS = new Set(['Stumps', 'Lunch', 'Tea', 'Dinner', 'Innings break', 'Rain delay', 'Delayed']);
 /** { status: scheduled | live | break | done, breakLabel }. ESPN keeps a Test at stumps "in" play, described "Stumps". */
 function statusOf(c) {
-    const s = c?.status || {}, t = s.type || {};
-    const description = `${t.name || ''} ${t.description || ''}`;
-    if (/cancel|abandon|no result/i.test(description) || t.completed === true || t.state === 'post') return { status: 'done', breakLabel: null };
-    if (t.state === 'pre' || /postpon/i.test(description) || /^Starts (?:at|in)/i.test(s.summary || '')) return { status: 'scheduled', breakLabel: null };
-    for (const [re, label] of BREAKS) if (re.test(t.description || '')) return { status: 'break', breakLabel: label };
-    return { status: t.state === 'in' ? 'live' : 'scheduled', breakLabel: null };
+    const { state, breakLabel } = espnState(c?.status, { cricket: true });
+    if (state === 'break') return BREAKS.has(breakLabel) ? { status: 'break', breakLabel } : { status: 'live', breakLabel: null };
+    return { status: WORD[state], breakLabel: null };
 }
 
 /** A competitor's innings in the order played: [{ runs, wickets, overs, declared, current }]. */
