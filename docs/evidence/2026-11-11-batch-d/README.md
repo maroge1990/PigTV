@@ -29,7 +29,7 @@ Not done, by Mark's choice: the NFL page keeps its own channel matcher (#296); F
 
 ## Gates
 
-`npm test`: 2,152 tests, 2,140 pass, 8 skipped, 4 fail in `recording-segments-media` on the build machine only (its ffmpeg writes AAC-LC; the same four fail there on 0533). `verify-build.sh` passes. CI (run 43003734909, on `00f1e50`, with ffmpeg): green, including those four tests.
+`npm test`: 2,152 tests, 2,140 pass, 8 skipped, 4 fail in `recording-segments-media` on the build machine only (its ffmpeg writes AAC-LC; the same four fail there on 0533). `verify-build.sh` passes. CI: the first run on `00f1e50` (43003734909) was red on one test file, `test/sports-store-rollback.test.js`, which fetched the old build's store with `git show` and so could not load in the CI image (no git, no history); the other 2,141 tests passed there, including those four, and no image was published. The test now reads the old store from a fixture (`test/fixtures/old-builds/8fb0648/`); the run on that commit is the one to read.
 
 ## The rig
 
