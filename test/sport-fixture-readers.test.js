@@ -121,7 +121,8 @@ function airing(title, start, league, hours = 3) {
     return { title, start, end: start + hours * H, parsed, kind: kind.kind, why: kind.why, flags: 0, order: order++, league, channel: { name: 'x' } };
 }
 
-const sides = list => (list || []).map(side => side.tokens.join(' '));
+// A team's alias sides as a set: the classifier asks only whether any of them matches (sportsClassify.aliasHit/aliasExact).
+const sides = list => (list || []).map(side => side.tokens.join(' ')).sort();
 /** The snapshot as plain, ordered data (the store's row order is not part of the answer). */
 function plainSnapshot(snap) {
     const out = {};
@@ -141,7 +142,9 @@ function plainSnapshot(snap) {
  * of known teams with no game; for F1 each session, a session at the wrong time and last weekend's race midweek. */
 function airingsFor(s, snap) {
     const now = Date.parse(s.now);
-    const games = (snap.get(s.league)?.fixtures || []);
+    // in a fixed order: the store's row order is not part of the answer
+    const name = f => f.teamsAliases ? f.teamsAliases.map(x => x[0].name).join(' v ') : f.session?.id || '';
+    const games = (snap.get(s.league)?.fixtures || []).slice().sort((a, b) => a.start - b.start || name(a).localeCompare(name(b)));
     const list = [];
     const prefix = ['Cricket', 'IPL', 'BBL'].includes(s.league) ? '' : `${s.league}: `;
     for (const f of games) {

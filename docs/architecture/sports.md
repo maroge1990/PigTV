@@ -116,6 +116,15 @@ within the days asked; that answer's time; the ids of the games it listed), the 
 While `loopDemand()` holds and it is before noon UTC it also asks the day 36 h back (every 30 min, ranked last). A card keeps
 `fixture: { end, locations, event }` (ESPN's own end, each side's town, an F1 session's event name), what the classifier reads.
 
+**The classifier reads the collector's store (#272, 0551).** With the collector on, `sportsFixtures.snapshot()` (read by
+`sportsEvents.buildEvents`, the one reader) takes each covered league's games from `sports_dashboard_catalog`: only the
+cards its last complete window listed (so a game ESPN no longer lists is gone, as the fixture refresh's full replace did),
+as `cardFixture` turns them into what `fixtureVerdict` reads (the card's names and aliases plus the side's town, ESPN's own
+end, an F1 session by its label, the place from the event's name). Coverage is `sports_dashboard_coverage`'s. A league the
+collector has not wholly answered yet reads `sport_fixtures` as before (bounded by its own window and age); with the
+collector off (`PIGTV_SPORTS_DASHBOARD=0`) everything does. Games are named by the collector's id (`espn:<path>:<id>`), the one
+recording rules, schedules and clients already hold; nothing ever referred to a fixture row's id.
+
 **One fetch (#272, 0547).** Every sport feed request (fixtures, the collector, the five pages, suggestions, the leagues' own
 feeds) goes through `services/sportFetch.js`: only the hosts and path prefixes it lists (`ALLOWED`: ESPN's `/apis/site/v2/sports/`
 and `/apis/v2/sports/` standings, the F1 core lookups, and each own feed's path), https, no redirect followed, the body read up to

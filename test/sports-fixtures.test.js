@@ -51,6 +51,13 @@ function cricketPanel() {
 }
 const H = 60 * 60 * 1000;
 const M = 60 * 1000;
+// #272 (0551): while the score collector is on, snapshot() reads its store (test/sport-facts-from-catalog.test.js); this
+// file pins the fixture refresh's own store, which is what snapshot() reads with the collector off (PIGTV_SPORTS_DASHBOARD=0).
+function legacySnapshot(leagues) {
+    const was = process.env.PIGTV_SPORTS_DASHBOARD;
+    process.env.PIGTV_SPORTS_DASHBOARD = '0';
+    try { return fixtures.snapshot(leagues); } finally { if (was === undefined) delete process.env.PIGTV_SPORTS_DASHBOARD; else process.env.PIGTV_SPORTS_DASHBOARD = was; }
+}
 
 /** Serve `handlers[urlSubstring] = json` (first match wins) from global.fetch, restoring it after `fn`. */
 async function withEspn(handlers, fn) {
@@ -167,7 +174,7 @@ test('refreshLeague: stores fixtures and teams, and snapshot() turns them into w
     await withEspn({ 'football/nfl/scoreboard': readFx('nfl-20260927'), 'football/nfl/teams': readFx('teams-nfl') }, () =>
         fixtures.refreshLeague('NFL', { now: Date.parse('2026-09-27T12:00Z') }));
 
-    const snap = fixtures.snapshot(new Set(['NFL']));
+    const snap = legacySnapshot(new Set(['NFL']));
     const nfl = snap.get('NFL');
     assert.ok(nfl, 'NFL is in the snapshot');
     assert.equal(nfl.fixtures.length, 4);
@@ -187,7 +194,7 @@ test('a failed league keeps its last good fixtures, and status carries the error
         fixtures.refreshLeague('NFL', { now: Date.parse('2026-09-27T12:00Z') }));
     await withEspn({}, () => fixtures.refreshLeague('NFL', { now: Date.parse('2026-09-27T13:00Z') }));
 
-    const snap = fixtures.snapshot(new Set(['NFL']));
+    const snap = legacySnapshot(new Set(['NFL']));
     assert.equal(snap.get('NFL').fixtures.length, 4, 'the last good fetch is still there');
     const status = fixtures.statusSummary().leagues.find(l => l.league === 'NFL');
     assert.ok(status.lastError, 'the failure is recorded');
@@ -196,7 +203,7 @@ test('a failed league keeps its last good fixtures, and status carries the error
 test('F1: sessions from the ESPN abbreviation, location from the event name via the guide\'s own title parser', async () => {
     await withEspn({ 'racing/f1/scoreboard': readFx('f1-scoreboard') }, () =>
         fixtures.refreshLeague('F1', { now: Date.parse('2026-09-25T00:00Z') }));
-    const f1 = fixtures.snapshot(new Set(['F1'])).get('F1');
+    const f1 = legacySnapshot(new Set(['F1'])).get('F1');
     assert.equal(f1.fixtures.length, 5);
     const race = f1.fixtures.find(f => f.session.id === 'race');
     assert.equal(race.session.label, 'Race');
@@ -212,7 +219,7 @@ test('international cricket: series discovered from the scorepanel, merged under
         // the other series in the fixture's scorepanel answer 404 (never fetched by this test) or empty
         'cricket/22547/scoreboard': { events: [] }, 'cricket/18479/scoreboard': { events: [] }, 'cricket/8656/scoreboard': { events: [] }
     }, () => fixtures.refreshCricket({ now: Date.parse('2026-09-27T12:00Z') }));
-    const cricket = fixtures.snapshot(new Set(['Cricket'])).get('Cricket');
+    const cricket = legacySnapshot(new Set(['Cricket'])).get('Cricket');
     assert.ok(cricket, 'Cricket is in the snapshot');
     assert.equal(cricket.fixtures.length, 1);
     assert.equal(cricket.fixtures[0].end, Date.parse('2026-10-01T23:59Z'), 'the real multi-day end is kept');
@@ -227,7 +234,7 @@ test('PIGTV_SPORT_FIXTURES=0 turns it off completely: no fetch, an empty snapsho
         global.fetch = async () => { fetched = true; return { ok: true, json: async () => ({}) }; };
         try { await fixtures.refreshAll(); } finally { global.fetch = original; load('services/espnRequestPolicy').reset(); }
         assert.equal(fetched, false, 'no request went out');
-        assert.deepEqual(fixtures.snapshot(new Set(['NFL'])), new Map());
+        assert.deepEqual(legacySnapshot(new Set(['NFL'])), new Map());
         assert.equal(fixtures.statusSummary().enabled, false);
     } finally {
         delete process.env.PIGTV_SPORT_FIXTURES;
@@ -254,7 +261,7 @@ test('matched: live at the real kickoff, replay a long way later, with the ESPN 
     const refreshedAt = Date.parse('2026-09-27T12:00Z');
     await withEspn({ 'football/nfl/scoreboard': readFx('nfl-20260927'), 'football/nfl/teams': readFx('teams-nfl') }, () =>
         fixtures.refreshLeague('NFL', { now: refreshedAt }));
-    const snap = fixtures.snapshot(new Set(['NFL']));
+    const snap = legacySnapshot(new Set(['NFL']));
     const kickoff = Date.parse('2026-09-27T17:00Z'); // Chargers at Bills
 
     // NFL's live hours are New York's (LIVE_HOURS); 17:00 UTC on 27 Sept 2026 is EDT 1 pm
@@ -283,7 +290,7 @@ test('not matched, but both teams are known to the league: ESPN says there is no
     const refreshedAt = Date.parse('2026-09-27T12:00Z');
     await withEspn({ 'football/nfl/scoreboard': readFx('nfl-20260927'), 'football/nfl/teams': readFx('teams-nfl') }, () =>
         fixtures.refreshLeague('NFL', { now: refreshedAt }));
-    const snap = fixtures.snapshot(new Set(['NFL']));
+    const snap = legacySnapshot(new Set(['NFL']));
     // Cardinals v Cowboys: real NFL teams (in the roster), but not one of this window's fixtures -
     // the old heuristics would call this live if it falls inside NFL's live hours (LIVE_HOURS).
     const insideHours = Date.parse('2026-09-27T18:00Z'); // 2 pm New York, inside NFL hours
@@ -295,7 +302,7 @@ test('0162: stale or out-of-window fixture data must never manufacture a replay 
     const refreshedAt = Date.parse('2026-09-27T12:00Z');
     await withEspn({ 'football/nfl/scoreboard': readFx('nfl-20260927'), 'football/nfl/teams': readFx('teams-nfl') }, () =>
         fixtures.refreshLeague('NFL', { now: refreshedAt }));
-    const snap = fixtures.snapshot(new Set(['NFL']));
+    const snap = legacySnapshot(new Set(['NFL']));
     const insideHours = Date.parse('2026-09-27T18:00Z'); // inside NFL hours; both teams known; not a fixture
 
     // ESPN's last successful fetch was 2 days before "now": too stale to trust an ABSENCE of a
@@ -320,7 +327,7 @@ test('not matched, and the teams are not ones ESPN knows for this league: falls 
     const refreshedAt = Date.parse('2026-09-27T12:00Z');
     await withEspn({ 'football/nfl/scoreboard': readFx('nfl-20260927'), 'football/nfl/teams': readFx('teams-nfl') }, () =>
         fixtures.refreshLeague('NFL', { now: refreshedAt }));
-    const snap = fixtures.snapshot(new Set(['NFL']));
+    const snap = legacySnapshot(new Set(['NFL']));
     const insideHours = Date.parse('2026-09-27T18:00Z');
     const [event] = resolve(snap, refreshedAt, airing('NFL: Rhinos v Sharks', insideHours, { league: 'NFL' }));
     assert.equal(event, 'event: a match-up', 'no ESPN verdict; (d) league hours decides, as before 0161');
@@ -341,7 +348,7 @@ test('F1: practice is told from the race by session, matched to the right Grand 
     const refreshedAt = Date.parse('2026-09-25T00:00Z');
     await withEspn({ 'racing/f1/scoreboard': readFx('f1-scoreboard') }, () =>
         fixtures.refreshLeague('F1', { now: refreshedAt }));
-    const snap = fixtures.snapshot(new Set(['F1']));
+    const snap = legacySnapshot(new Set(['F1']));
     const raceStart = Date.parse('2026-09-26T11:00Z');
     const fp2Start = Date.parse('2026-09-24T12:00Z');
 
@@ -364,7 +371,7 @@ test('0185: last weekend\'s grand prix shown again midweek is a replay, when ESP
     // Wednesday after the race: ESPN's window holds no F1 session at all.
     const refreshedAt = Date.parse('2026-09-30T00:00Z');
     await withEspn({ 'racing/f1/scoreboard': { events: [] } }, () => fixtures.refreshLeague('F1', { now: refreshedAt }));
-    const quiet = fixtures.snapshot(new Set(['F1']));
+    const quiet = legacySnapshot(new Set(['F1']));
     const midweek = Date.parse('2026-09-30T10:00Z');
     assert.deepEqual(resolve(quiet, refreshedAt, airing('F1: Azerbaijan GP', midweek, { league: 'F1' })),
         ['replay: ESPN has no F1 session at this time']);
@@ -379,7 +386,7 @@ test('0185: last weekend\'s grand prix shown again midweek is a replay, when ESP
     // F1 on at that time, and the guide may simply word the place differently.
     const weekend = Date.parse('2026-09-25T00:00Z');
     await withEspn({ 'racing/f1/scoreboard': readFx('f1-scoreboard') }, () => fixtures.refreshLeague('F1', { now: weekend }));
-    const busy = fixtures.snapshot(new Set(['F1']));
+    const busy = legacySnapshot(new Set(['F1']));
     const [other] = resolve(busy, weekend, airing('F1: Baku City Circuit Race', Date.parse('2026-09-26T11:00Z'), { league: 'F1' }));
     assert.match(other, /^event: /);
 });
@@ -398,12 +405,12 @@ test('0185: more leagues have ESPN fixtures; a league with several feeds (#195: 
         : p === 'soccer/fifa.worldq.afc' ? game('1', 'Australia', 'Japan') : p === 'soccer/fifa.friendly' ? game('2', 'England', 'Wales') : { events: [] }],
         [`${p}/teams`, null]]));
     await withEspn(answers(), () => fixtures.refreshLeague('Internationals', { now }));
-    const intl = fixtures.snapshot(new Set(['Internationals'])).get('Internationals');
+    const intl = legacySnapshot(new Set(['Internationals'])).get('Internationals');
     assert.equal(intl.fixtures.length, 2, 'both competitions');
     // One feed down: the others' answers are used, and (S5, 0248) the down feed's games are kept, not
     // dropped as if ESPN had said there were none.
     await withEspn(answers(['soccer/fifa.friendly']), () => fixtures.refreshLeague('Internationals', { now: now + H }));
-    const after = fixtures.snapshot(new Set(['Internationals'])).get('Internationals');
+    const after = legacySnapshot(new Set(['Internationals'])).get('Internationals');
     assert.equal(after.fixtures.length, 2);
     assert.equal(after.coverage.at, now, 'coverage still dates from the last complete refresh');
 });
@@ -415,7 +422,7 @@ test('a multi-day cricket Test: day 3 of a still-running match is live, not a re
         'cricket/24377/scoreboard': readFx('cricket-24377-20260927'),
         'cricket/22547/scoreboard': { events: [] }, 'cricket/18479/scoreboard': { events: [] }, 'cricket/8656/scoreboard': { events: [] }
     }, () => fixtures.refreshCricket({ now: refreshedAt }));
-    const snap = fixtures.snapshot(new Set(['Cricket']));
+    const snap = legacySnapshot(new Set(['Cricket']));
     // the match: India U19 v Australia U19, 2026-09-27T04:00Z to 2026-10-01T23:59Z
     const day1 = Date.parse('2026-09-27T04:00Z');
     const day3 = Date.parse('2026-09-29T04:00Z');
@@ -434,7 +441,7 @@ test('a multi-day cricket Test: day 3 of a still-running match is live, not a re
         'cricket/24377/scoreboard': readFx('cricket-24377-20260927'),
         'cricket/22547/scoreboard': { events: [] }, 'cricket/18479/scoreboard': { events: [] }, 'cricket/8656/scoreboard': { events: [] }
     }, () => fixtures.refreshCricket({ now: laterRefresh }));
-    const laterSnap = fixtures.snapshot(new Set(['Cricket']));
+    const laterSnap = legacySnapshot(new Set(['Cricket']));
     const afterEnd = Date.parse('2026-10-02T02:00Z'); // just over 2 h after the match's real end
     const [after] = resolve(laterSnap, laterRefresh, airing('India U19 v Australia U19', afterEnd, { league: 'Cricket', hours: 3 }));
     assert.match(after, /^replay: ESPN: the game started/, 'once the Test has finished, a later airing is a replay');
@@ -446,7 +453,7 @@ test('performance: matching against a full league of fixtures does not slow reso
     const refreshedAt = Date.parse('2026-09-27T12:00Z');
     await withEspn({ 'football/nfl/scoreboard': readFx('nfl-20260927'), 'football/nfl/teams': readFx('teams-nfl') }, () =>
         fixtures.refreshLeague('NFL', { now: refreshedAt }));
-    const snap = fixtures.snapshot(new Set(['NFL']));
+    const snap = legacySnapshot(new Set(['NFL']));
     const teamNames = ['Bills', 'Chargers', 'Panthers', 'Browns', 'Jets', 'Lions', 'Texans', 'Colts', 'Cowboys', 'Cardinals'];
     const list = [];
     for (let i = 0; i < 2000; i++) {
@@ -471,7 +478,7 @@ test('performance: matching against a full league of fixtures does not slow reso
 const lacBuf = () => ({ league: 'NFL', start: Date.parse('2026-09-27T17:00Z'), end: Date.parse('2026-09-27T20:00Z'), parsed: classify.parseTitle('NFL: Chargers v Bills') });
 async function nflKnown(now) {
     await withEspn({ 'football/nfl/scoreboard': readFx('nfl-20260927'), 'football/nfl/teams': readFx('teams-nfl') }, () => fixtures.refreshLeague('NFL', { now }));
-    assert.equal(classify.fixtureVerdict(lacBuf(), fixtures.snapshot(new Set(['NFL'])).get('NFL'), now).live, true);
+    assert.equal(classify.fixtureVerdict(lacBuf(), legacySnapshot(new Set(['NFL'])).get('NFL'), now).live, true);
 }
 
 for (const [label, gameDay] of [['the game\'s day fails (503)', null], ['the game\'s day answers without an events list', { nope: true }]]) {
@@ -480,7 +487,7 @@ for (const [label, gameDay] of [['the game\'s day fails (503)', null], ['the gam
         await nflKnown(now);
         await withEspn({ 'dates=20260927': gameDay, 'football/nfl/scoreboard': { events: [] }, 'football/nfl/teams': readFx('teams-nfl') },
             () => fixtures.refreshLeague('NFL', { now: now + 1000 }));
-        const nfl = fixtures.snapshot(new Set(['NFL'])).get('NFL');
+        const nfl = legacySnapshot(new Set(['NFL'])).get('NFL');
         assert.ok(nfl.fixtures.some(f => f.start === Date.parse('2026-09-27T17:00Z')), 'the game from the last complete answer stays');
         const verdict = classify.fixtureVerdict(lacBuf(), nfl, now + 1000);
         assert.notEqual(verdict && verdict.why, 'ESPN has no such game at this time');
@@ -493,7 +500,7 @@ test('S5: a complete answer that no longer lists the game does remove it (a real
     const now = Date.parse('2026-09-27T12:00Z');
     await nflKnown(now);
     await withEspn({ 'football/nfl/scoreboard': { events: [] }, 'football/nfl/teams': readFx('teams-nfl') }, () => fixtures.refreshLeague('NFL', { now: now + 1000 }));
-    const nfl = fixtures.snapshot(new Set(['NFL'])).get('NFL');
+    const nfl = legacySnapshot(new Set(['NFL'])).get('NFL');
     assert.equal(nfl.fixtures.length, 0);
     assert.equal(classify.fixtureVerdict(lacBuf(), nfl, now + 1000).why, 'ESPN has no such game at this time');
 });
@@ -506,9 +513,9 @@ test('S5: a cricket series that fails keeps its games; the league\'s coverage is
         'cricket/22547/scoreboard': { events: [] }, 'cricket/18479/scoreboard': { events: [] }, 'cricket/8656/scoreboard': { events: [] }
     };
     await withEspn(handlers, () => fixtures.refreshCricket({ now: at }));
-    assert.equal(fixtures.snapshot(new Set(['Cricket'])).get('Cricket').fixtures.length, 1);
+    assert.equal(legacySnapshot(new Set(['Cricket'])).get('Cricket').fixtures.length, 1);
     await withEspn({ ...handlers, 'cricket/24377/scoreboard': null }, () => fixtures.refreshCricket({ now: at + 1000 }));
-    const cricket = fixtures.snapshot(new Set(['Cricket'])).get('Cricket');
+    const cricket = legacySnapshot(new Set(['Cricket'])).get('Cricket');
     assert.equal(cricket.fixtures.length, 1, 'the failed series\' match is kept');
     assert.equal(cricket.coverage.at, at);
 });
@@ -525,9 +532,9 @@ for (const [label, body] of [['an empty object', {}], ['scores that is not a lis
     test(`R-S5: a cricket discovery answer of ${label} is a failure - the games and their coverage are kept`, async () => {
         const at = Date.parse('2026-09-27T12:00Z');
         await withEspn(cricketHandlers(), () => fixtures.refreshCricket({ now: at }));
-        assert.equal(fixtures.snapshot(new Set(['Cricket'])).get('Cricket').fixtures.length, 1);
+        assert.equal(legacySnapshot(new Set(['Cricket'])).get('Cricket').fixtures.length, 1);
         await withEspn({ ...cricketHandlers(), scorepanel: body }, () => fixtures.refreshCricket({ now: at + 1000 }));
-        const cricket = fixtures.snapshot(new Set(['Cricket'])).get('Cricket');
+        const cricket = legacySnapshot(new Set(['Cricket'])).get('Cricket');
         assert.equal(cricket.fixtures.length, 1, 'the known match is kept');
         assert.equal(cricket.coverage.at, at, 'coverage is not renewed');
         const status = sqlite.getDb().prepare("SELECT last_success_at, last_error FROM sport_fixture_status WHERE league = 'Cricket'").get();
@@ -540,7 +547,7 @@ test('R-S5: a well-formed discovery with no active series is a real, complete an
     const at = Date.parse('2026-09-27T12:00Z');
     await withEspn(cricketHandlers(), () => fixtures.refreshCricket({ now: at }));
     await withEspn({ ...cricketHandlers(), scorepanel: { scores: [] } }, () => fixtures.refreshCricket({ now: at + 1000 }));
-    const cricket = fixtures.snapshot(new Set(['Cricket'])).get('Cricket');
+    const cricket = legacySnapshot(new Set(['Cricket'])).get('Cricket');
     assert.equal(cricket.fixtures.length, 0);
     assert.equal(cricket.coverage.at, at + 1000);
 });
@@ -553,7 +560,7 @@ test('R-S5: more series than are fetched (the cap) is a partial refresh - a seri
     const handlers = { scorepanel: { scores: [...others, ...cricketPanel().scores] } };
     for (let i = 0; i < 20; i++) handlers[`cricket/${90000 + i}/scoreboard`] = { events: [] };
     await withEspn(handlers, () => fixtures.refreshCricket({ now: at + 1000 }));
-    const cricket = fixtures.snapshot(new Set(['Cricket'])).get('Cricket');
+    const cricket = legacySnapshot(new Set(['Cricket'])).get('Cricket');
     assert.equal(cricket.fixtures.length, 1, 'the series that was not fetched keeps its match');
     assert.equal(cricket.coverage.at, at, 'and the league is not claimed complete');
 });
@@ -569,7 +576,7 @@ for (const [label, scores] of [
         const at = Date.parse('2026-09-27T12:00Z');
         await withEspn(cricketHandlers(), () => fixtures.refreshCricket({ now: at }));
         await withEspn({ ...cricketHandlers(), scorepanel: { scores } }, () => fixtures.refreshCricket({ now: at + 1000 }));
-        const cricket = fixtures.snapshot(new Set(['Cricket'])).get('Cricket');
+        const cricket = legacySnapshot(new Set(['Cricket'])).get('Cricket');
         assert.equal(cricket.fixtures.length, 1, 'the known match is kept');
         assert.equal(cricket.coverage.at, at, 'coverage is not renewed');
         const status = sqlite.getDb().prepare("SELECT last_success_at, last_error FROM sport_fixture_status WHERE league = 'Cricket'").get();
@@ -585,7 +592,7 @@ test('R4-S1: a discovery with readable and unreadable entries is partial - a ser
     const handlers = { scorepanel: { scores: [{ leagues: [{ id: 90001, name: 'Other' }] }, { leagues: 'unavailable' }] },
         'cricket/90001/scoreboard': { events: [] } };
     await withEspn(handlers, () => fixtures.refreshCricket({ now: at + 1000 }));
-    const cricket = fixtures.snapshot(new Set(['Cricket'])).get('Cricket');
+    const cricket = legacySnapshot(new Set(['Cricket'])).get('Cricket');
     assert.equal(cricket.fixtures.length, 1, 'the unread series keeps its match');
     assert.equal(cricket.coverage.at, at, 'and the league is not claimed complete');
     const status = sqlite.getDb().prepare("SELECT last_error FROM sport_fixture_status WHERE league = 'Cricket'").get();
@@ -607,7 +614,7 @@ test('#195 (D-41): the International cricket groups split ESPN\'s series by clas
         await fixtures.refreshCricket({ now: at });
         await fixtures.refreshCricket({ now: at, league: "Women's Cricket" });
     });
-    const snap = fixtures.snapshot(new Set(['Cricket', "Women's Cricket"]));
+    const snap = legacySnapshot(new Set(['Cricket', "Women's Cricket"]));
     assert.equal(snap.get('Cricket').fixtures.length, 1, 'the men\'s tour only: not the WBBL (its own league) nor the Shield');
     assert.equal(snap.get("Women's Cricket").fixtures.length, 1, 'the women\'s tour');
 });
@@ -618,10 +625,10 @@ test('0400: a series whose class is missing makes the discovery partial: the gro
     const match = (id) => ({ events: [{ id, date: '2026-11-02T03:00Z', competitions: [{ id, date: '2026-11-02T03:00Z',
         competitors: [{ team: { displayName: 'Australia' } }, { team: { displayName: 'England' } }] }] }] });
     await withEspn({ scorepanel: { scores: [intl('24273', 3)] }, 'cricket/24273/scoreboard': match('1') }, () => fixtures.refreshCricket({ now: at }));
-    assert.equal(fixtures.snapshot(new Set(['Cricket'])).get('Cricket').fixtures.length, 1);
+    assert.equal(legacySnapshot(new Set(['Cricket'])).get('Cricket').fixtures.length, 1);
     await withEspn({ scorepanel: { scores: [{ leagues: [{ id: '24273', name: 'England tour of Australia' }] }] } },
         () => fixtures.refreshCricket({ now: at + H }));
-    const after = fixtures.snapshot(new Set(['Cricket'])).get('Cricket');
+    const after = legacySnapshot(new Set(['Cricket'])).get('Cricket');
     assert.equal(after.fixtures.length, 1, 'kept');
     assert.equal(after.coverage.at, at, 'coverage not renewed by a partial answer');
 });

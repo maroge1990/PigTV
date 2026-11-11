@@ -8,16 +8,16 @@
             "end": null,
             "teams": [
               [
-                "buffalo bills",
                 "bills",
+                "buf",
                 "buffalo",
-                "buf"
+                "buffalo bills"
               ],
               [
-                "los angeles chargers",
                 "chargers",
+                "lac",
                 "los angeles",
-                "lac"
+                "los angeles chargers"
               ]
             ],
             "session": null,
@@ -28,16 +28,16 @@
             "end": null,
             "teams": [
               [
-                "cleveland browns",
                 "browns",
+                "cle",
                 "cleveland",
-                "cle"
+                "cleveland browns"
               ],
               [
-                "carolina panthers",
-                "panthers",
+                "car",
                 "carolina",
-                "car"
+                "carolina panthers",
+                "panthers"
               ]
             ],
             "session": null,
@@ -48,36 +48,36 @@
             "end": null,
             "teams": [
               [
-                "detroit lions",
-                "lions",
-                "detroit",
-                "det"
+                "colts",
+                "ind",
+                "indianapolis",
+                "indianapolis colts"
               ],
               [
-                "new york jets",
+                "hou",
+                "houston",
+                "houston texans",
+                "texans"
+              ]
+            ],
+            "session": null,
+            "location": []
+          },
+          {
+            "start": "2026-09-27T17:00:00.000Z",
+            "end": null,
+            "teams": [
+              [
+                "det",
+                "detroit",
+                "detroit lions",
+                "lions"
+              ],
+              [
                 "jets",
                 "new york",
+                "new york jets",
                 "nyj"
-              ]
-            ],
-            "session": null,
-            "location": []
-          },
-          {
-            "start": "2026-09-27T17:00:00.000Z",
-            "end": null,
-            "teams": [
-              [
-                "indianapolis colts",
-                "colts",
-                "indianapolis",
-                "ind"
-              ],
-              [
-                "houston texans",
-                "texans",
-                "houston",
-                "hou"
               ]
             ],
             "session": null,
@@ -172,16 +172,16 @@
             "end": null,
             "teams": [
               [
-                "new york yankees",
-                "yankees",
-                "new york",
-                "nyy"
+                "nationals",
+                "washington",
+                "washington nationals",
+                "wsh"
               ],
               [
-                "baltimore orioles",
-                "orioles",
-                "baltimore",
-                "bal"
+                "mets",
+                "new york",
+                "new york mets",
+                "nym"
               ]
             ],
             "session": null,
@@ -192,16 +192,16 @@
             "end": null,
             "teams": [
               [
-                "washington nationals",
-                "nationals",
-                "washington",
-                "wsh"
+                "new york",
+                "new york yankees",
+                "nyy",
+                "yankees"
               ],
               [
-                "new york mets",
-                "mets",
-                "new york",
-                "nym"
+                "bal",
+                "baltimore",
+                "baltimore orioles",
+                "orioles"
               ]
             ],
             "session": null,
@@ -212,15 +212,15 @@
             "end": null,
             "teams": [
               [
-                "philadelphia phillies",
-                "phillies",
+                "phi",
                 "philadelphia",
-                "phi"
+                "philadelphia phillies",
+                "phillies"
               ],
               [
-                "tampa bay rays",
                 "rays",
                 "tampa bay",
+                "tampa bay rays",
                 "tb"
               ]
             ],
@@ -232,16 +232,16 @@
             "end": null,
             "teams": [
               [
-                "boston red sox",
-                "red sox",
+                "bos",
                 "boston",
-                "bos"
+                "boston red sox",
+                "red sox"
               ],
               [
-                "chicago cubs",
-                "cubs",
+                "chc",
                 "chicago",
-                "chc"
+                "chicago cubs",
+                "cubs"
               ]
             ],
             "session": null,
@@ -333,16 +333,16 @@
             "end": null,
             "teams": [
               [
-                "toronto raptors",
                 "raptors",
+                "tor",
                 "toronto",
-                "tor"
+                "toronto raptors"
               ],
               [
-                "miami heat",
                 "heat",
+                "mia",
                 "miami",
-                "mia"
+                "miami heat"
               ]
             ],
             "session": null,
@@ -389,12 +389,12 @@
             "end": null,
             "teams": [
               [
-                "fremantle",
-                "fre"
+                "fre",
+                "fremantle"
               ],
               [
-                "brisbane lions",
-                "bl"
+                "bl",
+                "brisbane lions"
               ]
             ],
             "session": null,
@@ -740,13 +740,13 @@
             "end": "2026-06-01T23:59:00.000Z",
             "teams": [
               [
-                "royal challengers bengaluru",
+                "india",
                 "rcb",
-                "india"
+                "royal challengers bengaluru"
               ],
               [
-                "gujarat titans",
                 "gt",
+                "gujarat titans",
                 "india"
               ]
             ],
@@ -797,14 +797,14 @@
             "end": "2026-12-13T23:59:00.000Z",
             "teams": [
               [
+                "australia",
                 "melbourne renegades",
-                "mr",
-                "australia"
+                "mr"
               ],
               [
+                "australia",
                 "perth scorchers",
-                "ps",
-                "australia"
+                "ps"
               ]
             ],
             "session": null,
@@ -854,14 +854,14 @@
             "end": "2026-10-01T23:59:00.000Z",
             "teams": [
               [
-                "india under 19s",
                 "ind19",
-                "india"
+                "india",
+                "india under 19s"
               ],
               [
-                "australia under 19s",
                 "aus19",
-                "australia"
+                "australia",
+                "australia under 19s"
               ]
             ],
             "session": null,

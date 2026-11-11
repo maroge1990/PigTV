@@ -461,10 +461,14 @@ const EXTRA_ABBREVIATIONS = new Map([['south africa', ['RSA']], ['new zealand', 
 /** parseSide of every non-empty, deduplicated name field a fixture's team carries -> [side, ...], or null. */
 function teamAliasSides(team) {
     if (!team) return null;
+    return nameSides([team.displayName, team.shortDisplayName, team.name, team.location, team.abbreviation], team.displayName);
+}
+/** parseSide of each non-empty, deduplicated name, plus a guide's code for a nation (EXTRA_ABBREVIATIONS) -> [side, ...] | null. */
+function nameSides(names, displayName) {
     const seen = new Set();
     const sides = [];
-    const extra = EXTRA_ABBREVIATIONS.get(sportsClassify.normText(team.displayName)) || [];
-    for (const raw of [team.displayName, team.shortDisplayName, team.name, team.location, team.abbreviation, ...extra]) {
+    const extra = EXTRA_ABBREVIATIONS.get(sportsClassify.normText(displayName)) || [];
+    for (const raw of [...names, ...extra]) {
         if (typeof raw !== 'string' || !raw.trim()) continue;
         const key = sportsClassify.normText(raw);
         if (!key || seen.has(key)) continue;
@@ -523,25 +527,84 @@ function toFixture(rec) {
 function snapshot(leagues) {
     if (!enabled() || !leagues || !leagues.size) return new Map();
     const db = getDb();
+    // #272 (D-1): the score collector is the one fetcher and store of ESPN's scoreboards while it is on
+    if (require('./sportsDashboard').collectorEnabled()) return snapshotFromCatalog(db, leagues);
     const out = new Map();
     for (const league of leagues) {
+        const data = storedLeague(db, league);
+        if (data) out.set(league, data);
+    }
+    return out;
+}
+
+/** One league from the fixture refresh's own store (sport_fixtures), as snapshot() gives it, or null when not covered. */
+function storedLeague(db, league) {
+    if (!ESPN_LEAGUE_PATHS[league] && !CRICKET_GROUPS.includes(league)) return null;
+    const status = db.prepare('SELECT covered_from, covered_to, last_success_at FROM sport_fixture_status WHERE league = ?').get(league);
+    if (!status || !Number.isFinite(status.covered_from) || !Number.isFinite(status.covered_to)) return null;
+    const rows = db.prepare('SELECT data FROM sport_fixtures WHERE league = ?').all(league);
+    const fixtures = [];
+    for (const row of rows) {
+        let rec;
+        try { rec = JSON.parse(row.data); } catch { continue; }
+        const fixture = toFixture(rec);
+        if (fixture) fixtures.push(fixture);
+    }
+    const cachedTeams = loadTeams(db, league);
+    const teamsAliases = (cachedTeams?.teams || []).map(teamAliasSides).filter(Boolean);
+    return { fixtures, teamsAliases, coverage: { from: status.covered_from, to: status.covered_to, at: status.last_success_at } };
+}
+
+/**
+ * #272 (D-1): one of the collector's cards -> what fixtureVerdict reads, exactly as toFixture made it from the fixture
+ * refresh's record of the same competition: both teams' names (the card's aliases and the town it keeps aside), ESPN's
+ * own end (`fixture.end`; a card stored before 0550 has only its own), an F1 session by its label, the place from the
+ * event's name. Null when it names neither two teams nor an F1 session.
+ */
+function cardFixture(card) {
+    const facts = card.fixture || {};
+    const end = facts.end !== undefined ? facts.end : (card.end ?? null);
+    if (Array.isArray(card.competitors) && card.competitors.length === 2) {
+        const teams = card.competitors.map((c, i) => nameSides([c.name, ...(c.aliases || []), facts.locations?.[i]], c.name));
+        if (!teams[0] || !teams[1]) return null;
+        return { start: card.start, end, teamsAliases: teams, session: null, location: [] };
+    }
+    const session = card.league === 'F1' ? Object.values(F1_SESSIONS).find(x => x.label === card.session) || null : null;
+    if (!session) return null;
+    const name = facts.event || card.title;
+    return { start: card.start, end, teamsAliases: null, session, location: name ? sportsClassify.parseTitle(name).location : [] };
+}
+
+/**
+ * #272 (D-1): snapshot() from the score collector's store: for each league whose window the collector has wholly answered
+ * (sports_dashboard_coverage), the cards those answers listed, its span and its oldest answer's time; the roster as
+ * before. A league with no such window yet (the first minutes after an upgrade from 0550 or earlier) reads what the
+ * fixture refresh last stored, if anything: that store's own window and age bound it as they always did.
+ */
+function snapshotFromCatalog(db, leagues) {
+    const out = new Map();
+    let coverage, cards;
+    try {
+        coverage = db.prepare('SELECT covered_from, covered_to, observed_at, listed FROM sports_dashboard_coverage WHERE league = ?');
+        cards = db.prepare('SELECT data FROM sports_dashboard_catalog WHERE id IN (SELECT value FROM json_each(?)) ORDER BY start, id');
+    } catch { coverage = { get: () => null }; cards = null; } // the collector has not stored anything yet
+    for (const league of leagues) {
         if (!ESPN_LEAGUE_PATHS[league] && !CRICKET_GROUPS.includes(league)) continue;
-        const status = db.prepare('SELECT covered_from, covered_to, last_success_at FROM sport_fixture_status WHERE league = ?').get(league);
-        if (!status || !Number.isFinite(status.covered_from) || !Number.isFinite(status.covered_to)) continue;
-        const rows = db.prepare('SELECT data FROM sport_fixtures WHERE league = ?').all(league);
+        const row = coverage.get(league);
+        if (!row) {
+            const stored = storedLeague(db, league);
+            if (stored) out.set(league, stored);
+            continue;
+        }
         const fixtures = [];
-        for (const row of rows) {
-            let rec;
-            try { rec = JSON.parse(row.data); } catch { continue; }
-            const fixture = toFixture(rec);
+        for (const r of cards.all(row.listed)) {
+            let card;
+            try { card = JSON.parse(r.data); } catch { continue; }
+            const fixture = cardFixture(card);
             if (fixture) fixtures.push(fixture);
         }
-        const cachedTeams = loadTeams(db, league);
-        const teamsAliases = (cachedTeams?.teams || []).map(teamAliasSides).filter(Boolean);
-        out.set(league, {
-            fixtures, teamsAliases,
-            coverage: { from: status.covered_from, to: status.covered_to, at: status.last_success_at }
-        });
+        const teamsAliases = (loadTeams(db, league)?.teams || []).map(teamAliasSides).filter(Boolean);
+        out.set(league, { fixtures, teamsAliases, coverage: { from: row.covered_from, to: row.covered_to, at: row.observed_at } });
     }
     return out;
 }
@@ -578,5 +641,5 @@ module.exports = {
     startBackgroundRefresh, stopBackgroundRefresh, snapshot, statusSummary, reset,
     ESPN_LEAGUE_PATHS, INTERNATIONAL_PATHS, teamsOf, rosterFor, recordFeed,
     // exposed for tests
-    toFixture, teamAliasSides, f1Session
+    toFixture, cardFixture, teamAliasSides, f1Session
 };
