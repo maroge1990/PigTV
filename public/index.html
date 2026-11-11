@@ -387,7 +387,7 @@
           <!-- Tabs -->
           <!-- 0182: six tabs. Channels has three views (the strip below); Playback and System
                show their panels one under the other. Backup links opens from a provider card. -->
-          <div class="tabs">
+          <div class="tabs" role="tablist" aria-label="Settings">
             <button class="tab admin-tab" data-tab="providers" id="providers-tab" style="display:none;">Providers</button>
             <button class="tab" data-tab="channels">Channels</button>
             <button class="tab active" data-tab="playback">Playback</button>
@@ -395,7 +395,7 @@
             <button class="tab" data-tab="sports">Sports</button>
             <button class="tab" data-tab="system">System</button>
           </div>
-          <div class="subtabs hidden" id="subtabs-channels">
+          <div class="subtabs hidden" id="subtabs-channels" role="tablist" aria-label="Channels">
             <button class="subtab active" data-subtab="content">Manage content</button>
             <button class="subtab" data-subtab="lineup">Channel numbers</button>
             <button class="subtab" data-subtab="epg">EPG matching</button>

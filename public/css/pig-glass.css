@@ -1,4 +1,4 @@
-/* Pig family 1.6.0 Liquid Glass (web approximation; native apps use the system glass).
+/* Pig family 1.9.0 Liquid Glass (web approximation; native apps use the system glass).
    Floating control layer only: tab bars, toolbars, floating buttons, sheets and menus. Never on cards, lists or content.
    One rose primary action per screen. Place over the canvas with the corner bloom for a faint pink. */
 .pig-glass {

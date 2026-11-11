@@ -19,6 +19,27 @@ class SettingsPage {
         document.querySelectorAll('.subtabs .subtab').forEach(sub => {
             sub.addEventListener('click', () => this.switchTab(sub.dataset.subtab));
         });
+        // #276 (B7): the tab strips are ARIA tablists (role in index.html; each tab's role and state here, since other tests
+        // pin the buttons' markup): one Tab stop each, arrow keys (and Home/End) move and select.
+        document.querySelectorAll('#page-settings [role="tablist"]').forEach(list => {
+            list.querySelectorAll('.tab, .subtab').forEach(t => {
+                t.setAttribute('role', 'tab');
+                t.setAttribute('aria-selected', String(t.classList.contains('active')));
+                t.tabIndex = t.classList.contains('active') ? 0 : -1;
+            });
+            list.addEventListener('keydown', (e) => {
+                const keys = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1, Home: 'first', End: 'last' };
+                if (!(e.key in keys)) return;
+                const tabs = [...list.querySelectorAll('[role="tab"]')].filter(t => t.offsetParent !== null);
+                const i = tabs.indexOf(document.activeElement);
+                if (i < 0) return;
+                e.preventDefault();
+                const k = keys[e.key];
+                const next = k === 'first' ? tabs[0] : k === 'last' ? tabs[tabs.length - 1] : tabs[(i + k + tabs.length) % tabs.length];
+                next.click();
+                next.focus();
+            });
+        });
 
         // Player settings
         this.initPlayerSettings();
@@ -1302,10 +1323,15 @@ class SettingsPage {
             panels = groups[tab].filter(p => p !== 'users' || this.isAdmin());
         }
         panels.forEach(panel => this.loadPanel(panel));
-        this.tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+        const select = (el, on) => {
+            el.classList.toggle('active', on);
+            el.setAttribute('aria-selected', String(on));
+            el.tabIndex = on ? 0 : -1;
+        };
+        this.tabs.forEach(t => select(t, t.dataset.tab === tab));
         this.tabContents.forEach(c => c.classList.toggle('active', panels.some(p => c.id === `tab-${p}`)));
         document.getElementById('subtabs-channels')?.classList.toggle('hidden', tab !== 'channels');
-        document.querySelectorAll('.subtabs .subtab').forEach(sub => sub.classList.toggle('active', panels.includes(sub.dataset.subtab)));
+        document.querySelectorAll('.subtabs .subtab').forEach(sub => select(sub, panels.includes(sub.dataset.subtab)));
     }
 
     isAdmin() {

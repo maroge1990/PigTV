@@ -28,6 +28,11 @@ const UI = {
     /** Hours and minutes as dateTime writes them ("10:15 pm"). */
     clock(date, options) { return DateFormat.clock(date, options); },
 
+    /** #276 (B11): 'smooth' for a scrollIntoView/scrollTo, or 'auto' when the viewer asked for reduced motion. */
+    scrollBehavior() {
+        return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+    },
+
     /** A function that runs `fn` once, `ms` after the last call, with that last call's arguments. */
     debounce(fn, ms) {
         let timeout;

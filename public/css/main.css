@@ -29,16 +29,15 @@
   --color-bg-primary: #15111A;
   --color-bg-secondary: #1E1925;
   --color-bg-tertiary: #251E2E;
-  --color-bg-hover: #22222f;
-  --color-bg-active: #2a2a3a;
 
   --color-accent: #EF7AAE;
   --color-on-accent: #442A19;
   --color-accent-text: #EF7AAE;
   --color-control-border: #7E7589;
-  --color-surface-active: var(--color-bg-active);
   --color-surface: var(--color-bg-secondary);
-  --color-surface-hover: var(--color-bg-hover);
+  --color-surface-hover: var(--color-bg-tertiary);
+  /* #276 (B2): hover on something already Raised: a neutral step above it, from the roles (no new colour). */
+  --color-hover-raised: color-mix(in srgb, var(--color-text-primary) 6%, var(--color-bg-tertiary));
   --color-text-bright: var(--color-text-primary);
   --color-bg: var(--color-on-accent);
   --color-accent-rgb: 239, 122, 174;
@@ -54,10 +53,21 @@
   --color-text-muted: #A79FAE;
 
   --color-border: #2E2634;
-  --color-border-light: #3f3f46;
 
-  /* Glass effect */
-  --glass-bg: rgba(18, 18, 26, 0.8);
+  /* Playback surfaces: the kit's media palette (pig-family.css .pig-media), the same in both themes. Panels over
+     video start at 82 % (brand guide 7). */
+  --media-black: #000000;
+  --media-white: #FFFFFF;
+  --media-text: #F5F1F4;
+  --media-text-secondary: #A79FAE;
+  --media-accent: #EF7AAE;
+  --media-accent-dim: rgba(239, 122, 174, 0.14);
+  --media-raised: #251E2E;
+  --media-boundary: #7E7589;
+  --media-panel: rgba(30, 25, 37, 0.88);
+  --media-panel-strong: rgba(30, 25, 37, 0.96);
+
+  /* Glass is pig-glass.css's .pig-glass (the navbar); this is only a faint edge for small floating controls. */
   --glass-border: rgba(255, 255, 255, 0.1);
 
   /* Spacing */
@@ -88,8 +98,22 @@
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
   --shadow-glow: 0 0 20px rgba(239, 122, 174, 0.3);
 
-  /* Transitions */
-  --transition-fast: 150ms ease;
+  /* Keyboard focus (#276, B7): the kit's one ring (pig-family.css: 3 px accent, 4 px outside). The inset offset is only
+     for controls inside a clipping box (navbar, menus), where an outside ring would be cut off. */
+  --focus-ring: 3px solid var(--color-accent);
+  --focus-offset: 4px;
+  --focus-offset-inset: -3px;
+
+  /* Motion (#276, C4): durations and one ease-out curve; every transition names its properties and reads these. */
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --duration-press: 100ms;
+  --duration-menu: 120ms;
+  --duration-fast: 150ms;
+  --duration-move: 250ms;
+  --transition-press: var(--duration-press) var(--ease-out);
+  --transition-menu: var(--duration-menu) var(--ease-out);
+  --transition-fast: var(--duration-fast) var(--ease-out);
+  --transition-move: var(--duration-move) var(--ease-out);
 
   /* Layout */
   --navbar-height: 60px;
@@ -122,8 +146,6 @@
   --color-bg-primary: #FBF8FA;
   --color-bg-secondary: #FFFFFF;
   --color-bg-tertiary: #F2ECF0;
-  --color-bg-hover: #EFE8EE;
-  --color-bg-active: #E6DCE4;
 
   --color-accent: #D6336C;
   --color-accent-rgb: 214, 51, 108;
@@ -142,9 +164,7 @@
   --color-text-muted: #5C5364;
 
   --color-border: #E2D9E0;
-  --color-border-light: #CFC4CE;
 
-  --glass-bg: rgba(255, 255, 255, 0.82);
   --glass-border: rgba(28, 22, 32, 0.08);
 
   /* Shadows carry the elevation here, since surfaces no longer differ much
@@ -176,7 +196,7 @@ html,
 body {
   height: 100%;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   line-height: 1.5;
   color: var(--color-text-primary);
   background: var(--color-bg-primary);
@@ -186,20 +206,30 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
-/* Prevent text selection on touch devices (improves UX) */
+/* #276 (B11): on touch screens a long press on a control does not select its label; everything else (error messages,
+   addresses, programme text) can be selected and copied. */
 @media (hover: none) {
-  * {
+  button,
+  .btn,
+  .navbar,
+  .tab,
+  .subtab,
+  .channel-item,
+  .group-header,
+  .epg-program,
+  .epg-channel-info {
     -webkit-user-select: none;
     user-select: none;
   }
+}
 
-  /* Allow text selection in inputs and content areas */
-  input,
-textarea,
-.ui-dialog {
-    -webkit-user-select: text;
-    user-select: text;
-  }
+/* #276 (B9): form controls take the page's face and 16 px (browsers give them 13.33 px, and iOS zooms into a field under 16). */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: var(--text-md);
 }
 
 #app {
@@ -221,11 +251,12 @@ h4,
 h5,
 h6 {
   font-weight: 600;
-  line-height: 1.3;
+  line-height: 1.2;
 }
 
 h2 {
   font-size: var(--text-xl);
+  letter-spacing: -0.01em;
 }
 
 h3 {
@@ -260,10 +291,10 @@ h4 {
   z-index: 100;
 }
 
-/* The bar spans the window, so only its bottom edge is drawn (id raises specificity over the vendored
-   .pig-glass border shorthand, which loads after this file). */
+/* The bar spans the window: no edge lines, only the glass's soft shadow under it (brand guide 9: no hard divider under
+   bars; the id raises specificity over the vendored .pig-glass border shorthand, which loads after this file). */
 #app .navbar.pig-glass {
-  border-width: 0 0 1px;
+  border-width: 0;
 }
 
 .navbar-brand {
@@ -283,13 +314,13 @@ h4 {
 }
 [data-theme="light"] .brand-lockup { background-image: url('/img/brand/lockup-horizontal-light.svg'); }
 
+/* #276 (B4): the build number is information, not an action: secondary text, never a rose pill. */
 .version-badge {
   font-size: var(--text-xs);
-  font-weight: 600;
-  background: var(--color-accent);
-  color: var(--color-on-accent);
-  padding: var(--space-2xs) var(--space-sm);
-  border-radius: 10px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+  line-height: 1.2;
   margin-left: var(--space-sm);
   vertical-align: middle;
 }
@@ -318,7 +349,7 @@ h4 {
   height: 2px;
   background: var(--color-text-primary);
   border-radius: 2px;
-  transition: all 0.3s ease;
+  transition: transform var(--transition-move), opacity var(--transition-move);
 }
 
 .mobile-menu-toggle.active span:nth-child(1) {
@@ -337,16 +368,18 @@ h4 {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  padding: var(--space-sm) var(--space-md);
+  padding: var(--space-sm) calc(var(--space-sm) + var(--space-xs));
+  font-size: var(--text-sm); /* a bar label beside its icon, like a tab bar's: secondary size, so seven fit from 1025 px */
+  white-space: nowrap;
   color: var(--color-text-secondary);
   text-decoration: none;
   border-radius: var(--radius-md);
-  transition: all var(--transition-fast);
+  transition: color var(--transition-fast), background-color var(--transition-fast), opacity var(--transition-press);
 }
 
 .nav-link:hover {
   color: var(--color-text-primary);
-  background: var(--color-bg-hover);
+  background: var(--color-bg-tertiary);
 }
 
 .nav-link.active {
@@ -403,15 +436,14 @@ h4 {
   left: var(--space-md);
   z-index: 60;
   padding: var(--space-sm) var(--space-md);
-  background: var(--glass-bg);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--glass-border);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   color: var(--color-text-primary);
   font-weight: 500;
   cursor: pointer;
   box-shadow: var(--shadow-lg);
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-press);
   align-items: center;
   gap: var(--space-sm);
 }
@@ -455,7 +487,7 @@ h4 {
 }
 
 .sidebar-collapse-btn .icon {
-  transition: transform 0.2s ease;
+  transition: transform var(--transition-fast);
 }
 
 /* Desktop collapse button visibility */
@@ -486,21 +518,20 @@ h4 {
   left: 0;
   top: calc(var(--navbar-height) + var(--space-md));
   z-index: 50;
-  background: var(--glass-bg);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--glass-border);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
   border-left: none;
   border-radius: 0 var(--radius-md) var(--radius-md) 0;
   padding: var(--space-sm);
   cursor: pointer;
   color: var(--color-text-primary);
-  transition: opacity 0.3s ease, background var(--transition-fast);
+  transition: opacity var(--transition-move), background-color var(--transition-fast);
   opacity: 0;
   pointer-events: none;
 }
 
 .sidebar-expand-btn:hover {
-  background: var(--color-bg-hover);
+  background: var(--color-bg-tertiary);
 }
 
 .sidebar-expand-btn .icon {
@@ -533,7 +564,6 @@ h4 {
   flex-direction: column;
   background: var(--color-bg-secondary);
   border-right: 1px solid var(--color-border);
-  transition: width 0.2s ease, min-width 0.2s ease;
 }
 
 .search-input {
@@ -543,12 +573,11 @@ h4 {
   border: 1px solid var(--color-control-border);
   border-radius: var(--radius-md);
   color: var(--color-text-primary);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   transition: border-color var(--transition-fast);
 }
 
 .search-input:focus {
-  outline: none;
   border-color: var(--color-accent);
 }
 
@@ -608,7 +637,7 @@ h4 {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   color: var(--color-text-primary);
-  font-size: var(--text-xs);
+  font-size: var(--text-md);
 }
 
 /* Channel List */
@@ -637,7 +666,7 @@ h4 {
 }
 
 .group-header:hover {
-  background: var(--color-bg-hover);
+  background: var(--color-hover-raised);
 }
 
 .group-toggle {
@@ -651,7 +680,7 @@ h4 {
 .group-name {
   flex: 1;
   font-weight: 500;
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
 }
 
 .group-count {
@@ -678,7 +707,7 @@ h4 {
 }
 
 .channel-item:hover {
-  background: var(--color-bg-hover);
+  background: var(--color-bg-tertiary);
 }
 
 .channel-item.active {
@@ -723,11 +752,21 @@ h4 {
 }
 
 .channel-program {
-  font-size: var(--text-xs);
   color: var(--color-text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Text-size exception (Mark, 11 Nov 2026; docs/DESIGN.md): the Live TV channel list is one step denser than the 16 px
+   body so names fit: group headers and channel names 14 px, the programme line 12 px (never smaller). */
+.channel-list .group-name,
+.channel-list .channel-name {
+  font-size: var(--text-sm);
+}
+
+.channel-list .channel-program {
+  font-size: var(--text-xs);
 }
 
 /* =====================================================
@@ -743,7 +782,7 @@ h4 {
 .video-container {
   flex: 1;
   position: relative;
-  background: #000;
+  background: var(--media-black);
   overflow: hidden;
   min-height: 0;
   /* Allow flex child to shrink */
@@ -805,7 +844,7 @@ h4 {
   width: 100%;
   height: 100%;
   max-height: 100%;
-  background: #000;
+  background: var(--media-black);
   object-fit: contain;
   /* Maintain aspect ratio without overflow */
 }
@@ -826,7 +865,7 @@ h4 {
 /* Closed Caption styling */
 video::cue {
   background-color: rgba(0, 0, 0, 0.8);
-  color: #fff;
+  color: var(--media-white);
   font-size: var(--text-lg);
   font-family: inherit;
   padding: 0.2em 0.5em;
@@ -838,8 +877,7 @@ video::cue {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(4px);
+  background: var(--media-panel);
 }
 
 .player-overlay.hidden {
@@ -861,15 +899,14 @@ video::cue {
   align-items: center;
   gap: var(--space-lg);
   padding: var(--space-md) var(--space-lg);
-  background: var(--glass-bg);
-  backdrop-filter: blur(16px);
-  border: 1px solid var(--glass-border);
+  background: var(--media-panel);
+  border: 1px solid var(--media-boundary);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   z-index: 50;
   opacity: 1;
   transform: translateY(0);
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  transition: opacity var(--transition-move), transform var(--transition-move);
 }
 
 .now-playing-overlay.hidden {
@@ -889,7 +926,7 @@ video::cue {
 .video-container:fullscreen {
   width: 100%;
   height: 100%;
-  background: #000;
+  background: var(--media-black);
 }
 
 .video-container:fullscreen #video-player {
@@ -906,7 +943,7 @@ video::cue {
 .video-container:-webkit-full-screen {
   width: 100%;
   height: 100%;
-  background: #000;
+  background: var(--media-black);
 }
 
 .video-container:-webkit-full-screen #video-player {
@@ -975,6 +1012,9 @@ video::cue {
 
 /* =====================================================
    EPG Guide
+   The TV Guide grid (.epg-* cells, its time header and channel column) stays denser than the 16 px body: a recorded
+   exception (Mark, 10 Nov 2026; docs/DESIGN.md), never under 12 px. Until build 0538 the root was 14 px, so its
+   --text-sm titles drew at 12.25 px and its --text-xs times at 10.5 px; with the 16 px root they are all --text-xs (12 px).
    ===================================================== */
 
 .guide-controls {
@@ -1019,7 +1059,7 @@ video::cue {
 .epg-time-slot {
   padding: var(--space-sm) var(--space-md);
   text-align: center;
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   color: var(--color-text-muted);
   border-right: 1px solid var(--color-border);
   flex-shrink: 0;
@@ -1048,7 +1088,7 @@ video::cue {
 }
 
 .epg-channel-info:hover {
-  background: var(--color-bg-hover);
+  background: var(--color-bg-tertiary);
 }
 
 .resize-handle {
@@ -1076,7 +1116,7 @@ video::cue {
 }
 
 .epg-channel-name {
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
@@ -1089,7 +1129,7 @@ video::cue {
 }
 
 .epg-program:hover {
-  background: var(--color-bg-hover);
+  background: var(--color-hover-raised);
 }
 
 /* Current time indicator */
@@ -1128,10 +1168,10 @@ video::cue {
   background: none;
   border: none;
   color: var(--color-text-secondary);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   cursor: pointer;
   border-bottom: 2px solid transparent;
-  transition: all var(--transition-fast);
+  transition: color var(--transition-fast), border-color var(--transition-fast), opacity var(--transition-press);
 }
 
 .tab:hover {
@@ -1151,11 +1191,7 @@ video::cue {
   display: block;
 }
 
-/* Settings Sections */
-.settings-section {
-  margin-bottom: var(--space-xl);
-}
-
+/* Settings Sections: each is the shared opaque Surface card (.rec-card, .settings-section, with the Recordings page). */
 .settings-section h3 {
   margin-bottom: var(--space-md);
   padding-bottom: var(--space-sm);
@@ -1183,7 +1219,7 @@ video::cue {
 
 .setting-hint {
   display: block;
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   color: var(--color-text-muted);
   margin-top: var(--space-xs);
 }
@@ -1226,7 +1262,7 @@ video::cue {
   width: 20px;
   left: 2px;
   bottom: 2px;
-  background: white;
+  background: var(--media-white);
   border-radius: 50%;
   transition: transform var(--transition-fast);
 }
@@ -1238,6 +1274,16 @@ video::cue {
 
 .setting-toggle input:checked+.toggle-slider::before {
   transform: translateX(22px);
+}
+
+.setting-toggle input:focus-visible+.toggle-slider {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+.setting-toggle input:disabled+.toggle-slider {
+  opacity: 0.45;
+  cursor: default;
 }
 
 /* Volume Slider */
@@ -1252,9 +1298,9 @@ video::cue {
   flex: 1;
   height: 8px;
   border-radius: 4px;
-  background: var(--color-bg-tertiary);
+  /* The track is the Control boundary: the rows it sits on are Raised, which hid a Raised track. */
+  background: var(--color-control-border);
   appearance: none;
-  outline: none;
   cursor: pointer;
 }
 
@@ -1265,7 +1311,7 @@ video::cue {
   border-radius: 50%;
   background: var(--color-accent);
   cursor: pointer;
-  transition: transform 0.1s ease;
+  transition: transform var(--transition-press);
 }
 
 .volume-slider::-webkit-slider-thumb:hover {
@@ -1298,7 +1344,7 @@ video::cue {
   padding: var(--space-sm) var(--space-md);
   background: var(--color-bg-secondary);
   border-radius: var(--radius-sm);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
 }
 
 kbd {
@@ -1308,7 +1354,7 @@ kbd {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   font-family: inherit;
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
 }
 
 /* =====================================================
@@ -1319,12 +1365,12 @@ kbd {
   align-items: center;
   gap: var(--space-sm);
   padding: var(--space-sm) var(--space-md);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   font-weight: 500;
   border: none;
   border-radius: var(--radius-md);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast), opacity var(--transition-fast), transform var(--transition-press);
 }
 
 .btn-primary {
@@ -1332,7 +1378,7 @@ kbd {
   color: var(--color-on-accent);
 }
 
-.btn-primary:hover {
+.btn-primary:hover:not(:disabled, [aria-disabled="true"]) {
   background: var(--color-accent-hover);
   box-shadow: var(--shadow-glow);
 }
@@ -1343,8 +1389,8 @@ kbd {
   border: 1px solid var(--color-border);
 }
 
-.btn-secondary:hover {
-  background: var(--color-bg-hover);
+.btn-secondary:hover:not(:disabled, [aria-disabled="true"]) {
+  background: var(--color-hover-raised);
 }
 
 .btn-ghost {
@@ -1352,8 +1398,8 @@ kbd {
   color: var(--color-text-secondary);
 }
 
-.btn-ghost:hover {
-  background: var(--color-bg-hover);
+.btn-ghost:hover:not(:disabled, [aria-disabled="true"]) {
+  background: var(--color-bg-tertiary);
   color: var(--color-text-primary);
 }
 
@@ -1362,13 +1408,28 @@ kbd {
   color: white;
 }
 
-.btn-danger:hover {
+.btn-danger:hover:not(:disabled, [aria-disabled="true"]) {
   background: color-mix(in srgb, var(--color-error) 85%, black);
 }
 
 .btn-sm {
   padding: var(--space-xs) var(--space-sm);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
+}
+
+/* #276 (B7): disabled controls look disabled (dimmed, no hover, no pointer), never like enabled ones. */
+.btn:disabled,
+.btn[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: default;
+  box-shadow: none;
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+  opacity: 0.55;
+  cursor: default;
 }
 
 /* =====================================================
@@ -1391,12 +1452,11 @@ kbd {
 .ui-dialog[open] {
   display: flex;
   flex-direction: column;
-  animation: uiFade 0.2s ease;
+  animation: uiFade var(--transition-fast);
 }
 
 .ui-dialog::backdrop {
   background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(4px);
 }
 
 body.ui-dialog-open {
@@ -1467,12 +1527,7 @@ body.ui-dialog-open {
   display: block;
   margin-bottom: var(--space-xs);
   color: var(--color-text-secondary);
-  font-size: var(--text-sm);
-}
-
-.ui-dialog-field .form-input:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+  font-size: var(--text-md);
 }
 
 @keyframes uiFade {
@@ -1507,7 +1562,7 @@ body.ui-dialog-open {
   padding: var(--space-sm) var(--space-md);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   line-height: 1.4;
   opacity: 0;
   transform: translateY(var(--space-sm));
@@ -1532,6 +1587,11 @@ body.ui-dialog-open {
   max-height: 0;
   padding: 0;
   overflow: hidden;
+}
+
+/* Closed, its buttons are not Tab stops (they were invisible ones). */
+.ui-toast:not(.is-open) button {
+  visibility: hidden;
 }
 
 .ui-toast.is-open {
@@ -1572,11 +1632,6 @@ body.ui-dialog-open {
   line-height: 1;
 }
 
-.ui-toast button:focus-visible {
-  outline: 2px solid currentColor;
-  outline-offset: 2px;
-}
-
 @media (max-width: 480px) {
   .ui-dialog {
     width: calc(100vw - var(--space-md));
@@ -1591,17 +1646,6 @@ body.ui-dialog-open {
   .ui-toast-close {
     min-width: 44px;
     min-height: 44px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ui-toast {
-    transform: none;
-    transition: none;
-  }
-
-  .ui-dialog[open] {
-    animation: none;
   }
 }
 
@@ -1627,7 +1671,7 @@ body.ui-dialog-open {
 }
 
 .epg-program-title {
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1642,11 +1686,10 @@ body.ui-dialog-open {
   border: 1px solid var(--color-control-border);
   border-radius: var(--radius-md);
   color: var(--color-text-primary);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
 }
 
 .form-input:focus {
-  outline: none;
   border-color: var(--color-accent);
 }
 
@@ -1663,6 +1706,7 @@ body.ui-dialog-open {
   z-index: 1000;
   min-width: 150px;
   overflow: hidden;
+  transform-origin: top left;
 }
 
 .context-menu.active {
@@ -1676,14 +1720,14 @@ body.ui-dialog-open {
   background: none;
   border: none;
   color: var(--color-text-primary);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   text-align: left;
   cursor: pointer;
   transition: background var(--transition-fast);
 }
 
 .context-item:hover {
-  background: var(--color-bg-hover);
+  background: var(--color-bg-tertiary);
 }
 
 /* =====================================================
@@ -1742,7 +1786,7 @@ body.ui-dialog-open {
 }
 
 .content-group-header:hover {
-  background: var(--color-surface-active);
+  background: var(--color-hover-raised);
 }
 
 /* 0146: a category's Sport toggle, at the right of its header */
@@ -1762,7 +1806,7 @@ body.ui-dialog-open {
   font-size: var(--text-xs);
   width: 20px;
   text-align: center;
-  transition: transform 0.2s;
+  transition: transform var(--transition-fast);
 }
 
 .content-group.collapsed .group-expander {
@@ -1788,12 +1832,12 @@ body.ui-dialog-open {
   background: var(--color-bg-primary);
   border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   transition: background var(--transition-fast);
 }
 
 .checkbox-label.channel-item:hover {
-  background: var(--color-bg-hover);
+  background: var(--color-bg-tertiary);
 }
 
 .checkbox-label.channel-item .channel-name {
@@ -1824,7 +1868,7 @@ body.ui-dialog-open {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-border-light);
+  background: var(--color-control-border);
   border-radius: var(--radius-full);
 }
 
@@ -1902,16 +1946,16 @@ body.ui-dialog-open {
   padding: var(--space-md);
 }
 
+@media (pointer: coarse) {
+  .state-block-action {
+    min-height: 44px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .state-block-spinner {
     animation: none;
     border-top-color: var(--color-border);
-  }
-}
-
-@media (pointer: coarse) {
-  .state-block-action {
-    min-height: 44px;
   }
 }
 
@@ -1932,6 +1976,16 @@ body.ui-dialog-open {
   :root {
     --sidebar-width: 280px;
     --epg-sidebar-width: 200px;
+  }
+
+  /* #276: seven labelled links do not fit beside the lockup at 16 px root under 1025 px: icons only (each link keeps its
+     aria-label and title), as on tablets. The phone dropdown (<= 480 px) shows the words again. */
+  .navbar-menu .nav-link span:not(.nav-icon) {
+    display: none;
+  }
+
+  .nav-link {
+    padding: var(--space-sm);
   }
 
 }
@@ -1994,7 +2048,7 @@ body.ui-dialog-open {
     border-right: 1px solid var(--color-border);
     border-bottom: none;
     transform: translateX(-100%);
-    transition: transform 0.3s ease;
+    transition: transform var(--transition-move), visibility 0s linear var(--duration-move);
     z-index: 90;
     box-shadow: var(--shadow-lg);
     visibility: hidden;
@@ -2003,11 +2057,12 @@ body.ui-dialog-open {
   .channel-sidebar.active {
     transform: translateX(0);
     visibility: visible;
+    transition: transform var(--transition-move), visibility 0s;
   }
 
   /* Overlay behind drawer */
   .channel-sidebar-overlay {
-    display: none;
+    display: block;
     position: fixed;
     top: var(--navbar-height);
     left: 0;
@@ -2016,12 +2071,14 @@ body.ui-dialog-open {
     background: rgba(0, 0, 0, 0.5);
     z-index: 80;
     opacity: 0;
-    transition: opacity 0.3s ease;
+    visibility: hidden;
+    transition: opacity var(--transition-move), visibility 0s linear var(--duration-move);
   }
 
   .channel-sidebar-overlay.active {
-    display: block;
     opacity: 1;
+    visibility: visible;
+    transition: opacity var(--transition-move), visibility 0s;
   }
 
   /* Video player takes full width */
@@ -2107,7 +2164,7 @@ body.ui-dialog-open {
   }
 
   body {
-    font-size: var(--text-sm);
+    font-size: var(--text-md);
   }
 
   /* Navigation - Compact with hamburger menu */
@@ -2130,24 +2187,23 @@ body.ui-dialog-open {
     flex-direction: column;
     /* Deliberately not .pig-glass: this dropdown is nested inside the glass navbar, whose backdrop-filter
        is a backdrop root and the containing block for this fixed box, so glass here could not blur the
-       page behind it. It keeps the more opaque --glass-bg so its labels stay legible over content. */
-    background: var(--glass-bg);
-    backdrop-filter: blur(12px);
-    border-bottom: 1px solid var(--glass-border);
-    padding: 0;
+       page behind it. An opaque Surface instead (#276, B8), so its labels stay legible over any content. */
+    background: var(--color-bg-secondary);
+    padding: var(--space-sm) 0;
     gap: 0;
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.3s ease, padding 0.3s ease;
+    box-shadow: var(--shadow-lg);
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--space-sm)));
+    transition: opacity var(--transition-move), transform var(--transition-move), visibility 0s linear var(--duration-move);
     z-index: 100;
     visibility: hidden;
   }
 
   .navbar-menu.active {
-    max-height: 400px;
-    padding: var(--space-sm) 0;
-    box-shadow: var(--shadow-lg);
+    opacity: 1;
+    transform: none;
     visibility: visible;
+    transition: opacity var(--transition-move), transform var(--transition-move), visibility 0s;
   }
 
   .nav-link {
@@ -2177,7 +2233,6 @@ body.ui-dialog-open {
     top: var(--space-sm);
     left: var(--space-sm);
     padding: var(--space-xs) var(--space-sm);
-    font-size: var(--text-sm);
   }
 
   .channel-toggle-btn .icon {
@@ -2196,10 +2251,6 @@ body.ui-dialog-open {
   .channel-logo {
     width: 32px;
     height: 32px;
-  }
-
-  .channel-name {
-    font-size: var(--text-sm);
   }
 
   .group-header {
@@ -2243,7 +2294,6 @@ body.ui-dialog-open {
 
   .guide-controls .btn {
     padding: var(--space-xs) var(--space-sm);
-    font-size: var(--text-xs);
   }
 
   .epg-channel-info {
@@ -2293,11 +2343,11 @@ body.ui-dialog-open {
   .tabs {
     gap: var(--space-2xs);
     margin-bottom: var(--space-md);
+    flex-wrap: wrap; /* six tabs at 16 px do not fit 390 px: two rows, none scrolled out of sight */
   }
 
   .tab {
     padding: var(--space-xs) var(--space-sm);
-    font-size: var(--text-xs);
     white-space: nowrap;
   }
 
@@ -2313,21 +2363,11 @@ body.ui-dialog-open {
     /* Move label to top */
   }
 
-  .setting-label {
-    font-size: var(--text-sm);
-  }
-
-  .setting-hint {
-    font-size: var(--text-xs);
-  }
-
   .btn {
-    font-size: var(--text-xs);
     padding: var(--space-xs) var(--space-sm);
   }
 
   .btn-sm {
-    font-size: var(--text-xs);
     padding: var(--space-xs) var(--space-xs);
   }
 
@@ -2345,13 +2385,22 @@ body.ui-dialog-open {
 
   /* Forms */
   .form-input {
-    font-size: var(--text-sm);
     padding: var(--space-xs) var(--space-sm);
   }
 
   /* Keyboard shortcuts - Hide on mobile since they're not relevant */
   .shortcuts-grid {
     display: none;
+  }
+
+  /* #276: on a phone the admin tables keep to the width with tighter cell padding. */
+  :is(.user-table, .status-table, .links-table) :is(th, td):is(th, td) {
+    padding: var(--space-sm) var(--space-xs);
+  }
+
+  /* The idle "Select a channel" line does not peek out beside the open channel drawer. */
+  .channel-sidebar.active ~ .player-section .overlay-content {
+    visibility: hidden;
   }
 }
 
@@ -2409,6 +2458,92 @@ body.ui-dialog-open {
 
 }
 
+/* #276 (B10): on a touch screen every control is at least 44 x 44 px. Small glyphs keep their size and get a larger hit
+   area (padding, a minimum box, or a transparent ::after); the TV Guide grid's cells are the recorded density exception. */
+@media (pointer: coarse) {
+  .btn,
+  .tab,
+  .subtab,
+  .btn-close,
+  .sidebar-collapse-btn,
+  .sidebar-expand-btn,
+  .recording-player-close,
+  .ui-toast-action,
+  .ui-toast-close {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .btn-close,
+  .sidebar-expand-btn,
+  .recording-player-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .mobile-menu-toggle {
+    width: 44px;
+    height: 44px;
+    padding: var(--space-sm);
+  }
+
+  .group-header,
+  .context-item,
+  .overflow-menu-item,
+  .captions-option,
+  .ui-menu-item,
+  .checkbox-label,
+  .links-pick-row,
+  .search-input,
+  .form-input,
+  .source-select,
+  .settings-section select {
+    min-height: 44px;
+  }
+
+  /* Hit area only: the heart, the search clear and the switch keep their drawn size. */
+  .favorite-btn,
+  .setting-toggle {
+    position: relative;
+  }
+
+  .favorite-btn::after,
+  .search-clear::after,
+  .setting-toggle::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    min-width: 100%;
+    transform: translate(-50%, -50%);
+  }
+
+  /* Sliders: a 44 px tall input whose visible track stays thin (background on the content box), and a larger thumb. */
+  .volume-slider {
+    height: 44px;
+    background: linear-gradient(var(--color-control-border), var(--color-control-border)) center / 100% 8px no-repeat;
+  }
+
+  .watch-volume {
+    height: 44px;
+    background: linear-gradient(rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.3)) center / 100% 4px no-repeat;
+  }
+
+  .volume-slider::-webkit-slider-thumb,
+  .watch-volume::-webkit-slider-thumb {
+    width: 24px;
+    height: 24px;
+  }
+
+  .volume-slider::-moz-range-thumb {
+    width: 24px;
+    height: 24px;
+  }
+}
+
 /* =====================================================
    Favourites
    ===================================================== */
@@ -2425,7 +2560,7 @@ body.ui-dialog-open {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
+  transition: opacity var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
   z-index: 5;
   padding: 0;
 }
@@ -2534,7 +2669,7 @@ body.ui-dialog-open {
 /* 0147: EPG categories panel (collapsed list) */
 .status-epg-categories summary {
   cursor: pointer;
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   color: var(--color-text-muted);
 }
 
@@ -2554,7 +2689,7 @@ body.ui-dialog-open {
 }
 
 .lineup-status {
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   color: var(--color-text-muted);
 }
 
@@ -2584,7 +2719,7 @@ body.ui-dialog-open {
 }
 
 .epg-candidate {
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   padding: var(--space-2xs) var(--space-sm);
 }
 
@@ -2627,7 +2762,7 @@ body.ui-dialog-open {
 }
 
 .sports-aliases summary {
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   color: var(--color-text-muted);
 }
 
@@ -2656,7 +2791,11 @@ body.ui-dialog-open {
   background: var(--color-bg-tertiary);
 }
 
+/* Text-size exception (Mark, 11 Nov 2026; docs/DESIGN.md): the admin tables (backup links, users, channel numbers,
+   guide matching, the sport preview, Status) are one step denser at 14 px: these two rules, .status-table td,
+   .links-table td and #links-summary's cells. */
 .user-table th {
+  font-size: var(--text-sm);
   padding: var(--space-md);
   text-align: left;
   font-weight: 600;
@@ -2665,6 +2804,7 @@ body.ui-dialog-open {
 }
 
 .user-table td {
+  font-size: var(--text-sm);
   padding: var(--space-md);
   color: var(--color-text-secondary);
   border-bottom: 1px solid var(--color-border);
@@ -2675,13 +2815,13 @@ body.ui-dialog-open {
 }
 
 .user-table tbody tr:hover {
-  background: var(--color-bg-hover);
+  background: var(--color-bg-tertiary);
 }
 
 .user-table .btn {
   padding: var(--space-xs) var(--space-sm);
   margin: 0 var(--space-xs);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
 }
 
 .add-user-section {
@@ -2705,7 +2845,7 @@ body.ui-dialog-open {
 
 .form-group label {
   display: block;
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   margin-bottom: var(--space-xs);
   color: var(--color-text-primary);
   font-weight: 500;
@@ -2728,7 +2868,7 @@ body.ui-dialog-open {
       transparent 75%,
       rgba(0, 0, 0, 0.8) 100%);
   opacity: 1;
-  transition: opacity 0.3s ease;
+  transition: opacity var(--transition-move);
   pointer-events: auto;
   z-index: 10;
 }
@@ -2782,9 +2922,9 @@ body.ui-dialog-open {
   background: rgba(0, 0, 0, 0.6);
   border: 2px solid rgba(255, 255, 255, 0.3);
   border-radius: var(--radius-full);
-  color: #fff;
+  color: var(--media-white);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
 }
 
 .watch-center-play:hover {
@@ -2850,7 +2990,7 @@ body.ui-dialog-open {
   justify-content: center;
   background: transparent;
   border: none;
-  color: #fff;
+  color: var(--media-white);
   cursor: pointer;
   border-radius: var(--radius-md);
   transition: background var(--transition-fast);
@@ -2875,8 +3015,6 @@ body.ui-dialog-open {
   bottom: 100%;
   right: 0;
   margin-bottom: var(--space-sm);
-  background: var(--glass-bg);
-  backdrop-filter: blur(16px);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
   min-width: 160px;
@@ -2947,7 +3085,7 @@ body.ui-dialog-open {
   appearance: none;
   width: 12px;
   height: 12px;
-  background: #fff;
+  background: var(--media-white);
   border-radius: 50%;
   cursor: pointer;
 }
@@ -2976,8 +3114,6 @@ body.ui-dialog-open {
   bottom: 100%;
   right: 0;
   margin-bottom: var(--space-sm);
-  background: var(--glass-bg);
-  backdrop-filter: blur(12px);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
   min-width: 180px;
@@ -2994,13 +3130,13 @@ body.ui-dialog-open {
   background: transparent;
   border: none;
   color: var(--color-text-primary);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   cursor: pointer;
   transition: background var(--transition-fast);
 }
 
 .overflow-menu-item:hover {
-  background: var(--color-bg-hover);
+  background: var(--color-bg-tertiary);
 }
 
 .overflow-menu-item .icon {
@@ -3054,20 +3190,15 @@ body.ui-dialog-open {
   border-radius: 4px;
   font-size: var(--text-xs);
   font-weight: 600;
-  background: rgba(0, 0, 0, 0.5);
-  color: white;
+  background: var(--media-panel);
+  border: 1px solid var(--media-boundary);
+  color: var(--media-white);
   display: inline-flex;
   align-items: center;
-  backdrop-filter: blur(4px);
-  transition: opacity 0.3s ease;
+  transition: opacity var(--transition-move);
 }
 
-.transcode-status.transcoding {
-  background: color-mix(in srgb, var(--color-error) 80%, transparent);
-  /* Red for Transcoding */
-  box-shadow: 0 0 10px color-mix(in srgb, var(--color-error) 30%, transparent);
-}
-
+/* #276 (B2): Transcoding and Upscaling are normal states: the neutral panel and their word, no danger red, purple or glow. */
 .transcode-status.direct {
   background: color-mix(in srgb, var(--color-success) 80%, transparent);
   /* Green for Direct */
@@ -3076,12 +3207,6 @@ body.ui-dialog-open {
 .transcode-status.error {
   background: color-mix(in srgb, var(--color-error) 90%, transparent);
   /* Dark red for a playback error */
-}
-
-.transcode-status.upscaling {
-  background: rgba(156, 39, 176, 0.8);
-  /* Purple for Upscaling */
-  box-shadow: 0 0 10px rgba(156, 39, 176, 0.4);
 }
 
 .transcode-status.hidden {
@@ -3101,8 +3226,9 @@ body.ui-dialog-open {
 /* Quality Badge */
 .quality-badge {
   display: inline-block;
-  background: rgba(158, 158, 158, 0.8);
-  color: white;
+  background: var(--media-panel);
+  border: 1px solid var(--media-boundary);
+  color: var(--media-white);
   padding: var(--space-xs) var(--space-sm);
   border-radius: 4px;
   font-size: var(--text-xs);
@@ -3120,7 +3246,7 @@ body.ui-dialog-open {
   margin: 0;
   font-size: var(--text-lg);
   font-weight: 600;
-  color: white;
+  color: var(--media-white);
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
   white-space: nowrap;
   overflow: hidden;
@@ -3179,9 +3305,15 @@ body.ui-dialog-open {
    supports the word. Figures (dates, sizes, counts) are .pig-amount and never wrap. */
 .rec-wrap { max-width: 1320px; margin: 0 auto; padding: 0 var(--space-lg) var(--space-2xl); }
 .rec-wrap > .page-header { padding-left: 0; padding-right: 0; }
-.rec-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg);
+/* The opaque Surface card, shared (#276, B8): Recordings' sections, and every Settings and Status section, so no form or
+   reading text sits on the corner bloom. Inside one, what was a Surface box is Raised. */
+.rec-card, .settings-section { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg);
   padding: var(--space-lg); margin-bottom: var(--space-lg); min-width: 0; }
-[data-theme="light"] .rec-card { box-shadow: var(--shadow-md); }
+[data-theme="light"] :is(.rec-card, .settings-section) { box-shadow: var(--shadow-md); }
+.settings-section:empty { display: none; }
+.settings-section :is(.setting-item, .shortcut, .add-user-section, .user-table, .content-browser-header, .content-tree,
+  .hw-info-item, .provider-card, .state-block, .resume-choice) { background: var(--color-bg-tertiary); }
+.settings-section .user-table thead { background: var(--color-hover-raised); }
 .rec-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-xs) var(--space-md);
   flex-wrap: wrap; margin-bottom: var(--space-md); }
 .rec-card-head h3 { margin: 0; font-size: var(--text-lg); font-weight: 600; }
@@ -3227,7 +3359,7 @@ body.ui-dialog-open {
 .rec-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--space-md); }
 .rec-tile { display: flex; flex-direction: column; min-width: 0; overflow: hidden; background: var(--color-bg-tertiary);
   border: 1px solid var(--color-border); border-radius: var(--radius-lg); }
-.rec-art { aspect-ratio: 16 / 9; overflow: hidden; background: var(--color-bg-active); }
+.rec-art { aspect-ratio: 16 / 9; overflow: hidden; background: var(--color-hover-raised); }
 .rec-art img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .rec-art.is-logo { background: var(--color-surface-hover); }
 .rec-art.is-logo img { box-sizing: border-box; padding: var(--space-lg) 20%; object-fit: contain; }
@@ -3294,7 +3426,8 @@ body.ui-dialog-open {
 }
 @media (max-width: 480px) {
   .rec-wrap { padding: 0 var(--space-md) var(--space-xl); }
-  .rec-card { padding: var(--space-md); margin-bottom: var(--space-md); }
+  .rec-card, .settings-section { padding: var(--space-md); margin-bottom: var(--space-md); }
+  .settings-section { padding-inline: var(--space-sm); } /* more width for the admin tables */
   .rec-two { gap: var(--space-md); margin-bottom: var(--space-md); }
   .rec-grid, .rec-strip { grid-template-columns: minmax(0, 1fr); }
   .rec-tile .rec-art { aspect-ratio: 21 / 9; }
@@ -3312,11 +3445,11 @@ body.ui-dialog-open {
 
 /* #276: the "⋯" menu (UI.menu in ui.js): on the page, not in the card, so nothing clips it; ui.js keeps it in the window. */
 .ui-menu { position: fixed; z-index: 1050; box-sizing: border-box; min-width: 200px; max-width: calc(100vw - 16px); padding: var(--space-xs);
-  background: var(--color-bg-tertiary); border: 1px solid var(--color-border-light); border-radius: var(--radius-md); box-shadow: var(--shadow-lg); }
+  background: var(--color-bg-tertiary); border: 1px solid var(--color-control-border); border-radius: var(--radius-md); box-shadow: var(--shadow-lg); }
 .ui-menu-item { box-sizing: border-box; display: flex; align-items: center; width: 100%; min-height: 40px; padding: var(--space-sm) var(--space-md);
-  font: inherit; font-size: var(--text-sm); text-align: left; text-decoration: none; color: var(--color-text-primary); background: none;
+  font: inherit; font-size: var(--text-md); text-align: left; text-decoration: none; color: var(--color-text-primary); background: none;
   border: 0; border-radius: var(--radius-sm); cursor: pointer; }
-.ui-menu-item:hover, .ui-menu-item:focus-visible { background: var(--color-bg-hover); }
+.ui-menu-item:hover, .ui-menu-item:focus-visible { background: var(--color-hover-raised); }
 .ui-menu-item.is-danger { color: var(--color-error); }
 @media (pointer: coarse) { .ui-menu-item { min-height: 44px; } }
 
@@ -3329,7 +3462,7 @@ body.ui-dialog-open {
   flex-wrap: wrap;
   gap: var(--space-sm);
   margin-top: var(--space-md);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
 }
 
 .recording-player-overlay {
@@ -3345,7 +3478,7 @@ body.ui-dialog-open {
 .recording-player-box video {
   width: 100%;
   max-height: 85vh;
-  background: #000;
+  background: var(--media-black);
   border-radius: var(--radius-md);
 }
 
@@ -3390,7 +3523,7 @@ body.ui-dialog-open {
   background: color-mix(in srgb, var(--color-warning) 12%, transparent);
   border-bottom: 1px solid var(--color-warning);
   color: var(--color-text-primary);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   line-height: 1.4;
 }
 
@@ -3435,7 +3568,7 @@ body.ui-dialog-open {
   cursor: pointer;
   font-size: var(--text-lg);
   line-height: 1;
-  transition: color 0.2s ease;
+  transition: color var(--transition-fast);
 }
 
 .btn-close:hover {
@@ -3512,19 +3645,17 @@ body.ui-dialog-open {
   bottom: 62px;
   padding: var(--space-sm) var(--space-md);
   border-radius: 99px;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  background: rgba(0, 0, 0, 0.72);
-  backdrop-filter: blur(8px);
-  color: #fff;
+  border: 1px solid var(--media-boundary);
+  background: var(--media-panel);
+  color: var(--media-white);
   font: inherit;
   font-weight: 600;
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   cursor: pointer;
-  transition: transform 0.15s ease, background 0.15s ease;
+  transition: transform var(--transition-fast), background-color var(--transition-fast);
 }
 
 .skip-ad-btn:hover { background: rgba(0, 0, 0, 0.88); transform: scale(1.03); }
-.skip-ad-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--color-accent); }
 
 /* Settings: the strip under the Channels tab, and collapsed advanced options (0182) */
 .subtabs {
@@ -3540,7 +3671,7 @@ body.ui-dialog-open {
   border-radius: 14px;
   background: transparent;
   color: var(--color-text-secondary);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   cursor: pointer;
 }
 
@@ -3628,7 +3759,7 @@ body.ui-dialog-open {
   grid-template-columns: max-content 1fr;
   gap: var(--space-xs) var(--space-md);
   margin: 0;
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
 }
 
 .provider-facts dt {
@@ -3654,7 +3785,7 @@ body.ui-dialog-open {
 
 .provider-field label {
   display: block;
-  font-size: var(--text-xs);
+  font-size: var(--text-md);
   color: var(--color-text-muted);
   margin-bottom: var(--space-2xs);
 }
@@ -3740,7 +3871,7 @@ body.ui-dialog-open {
 }
 
 .links-check {
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   white-space: nowrap;
 }
 
@@ -3769,7 +3900,7 @@ body.ui-dialog-open {
 
 .link-btn,
 .user-table .btn.link-btn {
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   padding: 1px var(--space-sm);
   margin: 0;
 }
@@ -3787,7 +3918,7 @@ body.ui-dialog-open {
 
 .link-more summary {
   cursor: pointer;
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   color: var(--color-text-muted);
 }
 
@@ -3813,7 +3944,7 @@ body.ui-dialog-open {
 }
 
 .links-pick-row:hover {
-  background: var(--color-bg-hover);
+  background: var(--color-bg-tertiary);
 }
 
 @media (max-width: 768px) { /* was 800 */
@@ -3831,14 +3962,17 @@ body.ui-dialog-open {
 /* Rules that must come after the component rules above, whatever else changes: the global keyboard focus ring
    (after .volume-slider { outline: none }), the navbar focus and current-page states (after .nav-link:hover),
    the active-state underline, the captions option state (after its :hover) and the forced-colors fallback. */
-:where(button,a,input,select,textarea,[role="button"]):focus-visible {
-  outline: 2px solid var(--color-accent); outline-offset: 3px;
+:where(button,a,input,select,textarea,summary,[role="button"],[role="tab"],[tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: var(--focus-ring); outline-offset: var(--focus-offset);
 }
-/* R16: keyboard focus on the navbar is always visible: inside the box so no overflow clips it. */
-.nav-link:focus-visible, .mobile-menu-toggle:focus-visible {
-  outline: 2px solid var(--color-accent); outline-offset: -2px; border-radius: var(--radius-sm);
-  background: var(--color-accent-dim);
+/* R16, #276: inside a box that clips (the navbar, the menus, the TV Guide grid) the same ring is drawn inside the control. */
+.nav-link:focus-visible, .mobile-menu-toggle:focus-visible,
+.captions-option:focus-visible, .overflow-menu-item:focus-visible, .context-item:focus-visible, .ui-menu-item:focus-visible,
+.epg-program:focus-visible, .epg-channel-name:focus-visible {
+  outline: var(--focus-ring); outline-offset: var(--focus-offset-inset); border-radius: var(--radius-sm);
 }
+/* A favourite heart hidden until hover shows when it has keyboard focus. */
+.favorite-btn:focus-visible, .channel-item:focus-within .favorite-btn { opacity: 1; }
 .nav-link[aria-current="page"] { color: var(--color-accent-text); }
 .nav-link.active::after, .sport-toggle.active::after {
   content: ''; position: absolute; width: 24px; height: 3px; border-radius: 2px;
@@ -3852,7 +3986,7 @@ body.ui-dialog-open {
   border: none;
   color: var(--color-text-primary);
   text-align: left;
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   cursor: pointer;
   transition: background var(--transition-fast);
  position: relative; 
@@ -3882,19 +4016,18 @@ body.ui-dialog-open {
   text-align: center; color: var(--color-text-muted);
 }
 
-/* Playback menus stay on a protected dark surface in either page appearance. */
+/* Playback menus and the now-playing panel stay on a protected dark surface in either page appearance. */
 .watch-captions-menu,
-.player-overflow-menu {
-  --color-text-primary: #F5F1F4;
-  --color-text-muted: #A79FAE;
-  --color-accent: #EF7AAE;
-  --color-accent-dim: rgba(239, 122, 174, 0.14);
-  --color-bg-hover: #251E2E;
-  background: rgba(30, 25, 37, 0.96);
-  border-color: #7E7589;
+.player-overflow-menu,
+.now-playing-overlay {
+  --color-text-primary: var(--media-text);
+  --color-text-muted: var(--media-text-secondary);
+  --color-accent: var(--media-accent);
+  --color-accent-dim: var(--media-accent-dim);
+  --color-bg-tertiary: var(--media-raised);
+  background: var(--media-panel-strong);
+  border-color: var(--media-boundary);
 }
-.captions-option:focus-visible,
-.overflow-menu-item:focus-visible { outline-offset: -3px; }
 
 /* Secondary settings fields share the same palette as the main forms. */
 .settings-section input:is([type="text"], [type="number"], [type="password"], [type="email"], [type="url"]),
@@ -3918,7 +4051,7 @@ body.ui-dialog-open {
 /* R16: Status page - compact connection list, queue and loop-delay lines. */
 .status-uses { display: flex; flex-wrap: wrap; gap: var(--space-xs); }
 .status-use { display: inline-block; padding: 1px var(--space-sm); border-radius: var(--radius-full);
-  border: 1px solid var(--color-border-light); font-size: var(--text-xs); color: var(--color-text-secondary); }
+  border: 1px solid var(--color-control-border); font-size: var(--text-xs); color: var(--color-text-secondary); }
 .status-use-recording { border-color: var(--color-error); }
 .status-use-standby, .status-use-warm { border-style: dashed; }
 .status-metrics { display: flex; flex-wrap: wrap; gap: var(--space-md); margin: 0 0 var(--space-sm); }
@@ -3962,7 +4095,7 @@ body.ui-dialog-open {
 .sports-card .sports-card-top { padding-right: var(--space-xl); } /* the ⋯ sits over this corner */
 .sports-more { position: absolute; top: 6px; right: 6px; width: 44px; height: 44px; display: grid; place-items: center; padding: 0;
   border: 0; border-radius: var(--radius-md); background: transparent; color: var(--color-text-secondary); cursor: pointer; }
-.sports-more:hover { background: var(--color-bg-hover); color: var(--color-text-primary); }
+.sports-more:hover { background: var(--color-bg-tertiary); color: var(--color-text-primary); }
 .sports-more:disabled { opacity: .5; cursor: default; }
 .sports-more svg { width: 22px; height: 22px; }
 .sports-status { display: inline-flex; align-items: center; gap: var(--space-xs); font-size: var(--text-sm); font-weight: 600; color: var(--color-text-secondary); }
@@ -4044,7 +4177,7 @@ body.ui-dialog-open {
 .sport-follow-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm); flex-wrap: wrap;
   padding: var(--space-xs) 0; border-bottom: 1px solid var(--color-border, rgba(255,255,255,0.08)); }
 .sport-follow-actions { display: inline-flex; align-items: center; gap: var(--space-xs); flex-wrap: wrap; }
-.sport-follow-record { display: inline-flex; align-items: center; gap: var(--space-sm); font-size: var(--text-sm); color: var(--color-text-muted); }
+.sport-follow-record { display: inline-flex; align-items: center; gap: var(--space-sm); font-size: var(--text-md); color: var(--color-text-muted); }
 .sport-follow-add { display: flex; gap: var(--space-sm); margin-top: var(--space-sm); flex-wrap: wrap; }
 .sport-follow-add input[type="search"] { flex: 1 1 200px; min-width: 0; }
 .sport-follow-select { max-width: 100%; margin-top: var(--space-sm); }
@@ -4094,5 +4227,182 @@ body.ui-dialog-open {
 
   .page-header h2 {
     font-size: var(--text-lg);
+    letter-spacing: normal;
+  }
+}
+
+/* =====================================================
+   #276 (C1, C6): pressed feedback, and menus that open and close the same way.
+   ===================================================== */
+
+/* Pressed: buttons and cards shrink a little (not with Reduce Motion); rows, links and tabs step their background or
+   opacity (100 ms). */
+@media (prefers-reduced-motion: no-preference) {
+  .btn:active:not(:disabled, [aria-disabled="true"]),
+  .watch-btn:active,
+  .channel-toggle-btn:active,
+  .sports-card:active:not(:disabled),
+  .sports-filter:active,
+  .sports-more:active:not(:disabled),
+  .ui-toast button:active {
+    transform: scale(0.97);
+  }
+}
+
+.channel-item:active,
+.group-header:active,
+.context-item:active,
+.overflow-menu-item:active,
+.captions-option:active,
+.ui-menu-item:active,
+.links-pick-row:active {
+  background: var(--color-hover-raised);
+}
+
+.nav-link:active,
+.tab:active,
+.subtab:active {
+  opacity: 0.75;
+}
+
+.watch-btn,
+.sports-card,
+.sports-filter,
+.sports-more,
+.ui-toast button {
+  transition: transform var(--transition-press), background-color var(--transition-fast);
+}
+
+/* The captions, overflow and context menus fade and scale from the corner nearest their button, opening and closing
+   (display is animated discretely, so .hidden / not .active still removes them at the end). */
+.watch-captions-menu,
+.player-overflow-menu,
+.context-menu {
+  transition: opacity var(--transition-menu), transform var(--transition-menu), display var(--transition-menu) allow-discrete;
+}
+
+.watch-captions-menu,
+.player-overflow-menu {
+  transform-origin: bottom right;
+}
+
+.watch-captions-menu.hidden,
+.player-overflow-menu.hidden,
+.context-menu:not(.active) {
+  opacity: 0;
+  transform: scale(0.96);
+}
+
+@starting-style {
+  .watch-captions-menu:not(.hidden),
+  .player-overflow-menu:not(.hidden),
+  .context-menu.active {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+/* =====================================================
+   #276 (B11): the accessibility settings, in one place each.
+   ===================================================== */
+
+/* Reduce Motion: nothing repeats or slides; transitions are opacity at most; no hover or press scaling. The JS smooth
+   scrolls ask UI.scrollBehavior(). */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-property: opacity !important;
+    scroll-behavior: auto !important;
+  }
+
+  .ui-toast,
+  .watch-captions-menu,
+  .player-overflow-menu,
+  .context-menu,
+  .favorite-btn:hover,
+  .favorite-btn.active,
+  .skip-ad-btn:hover,
+  .volume-slider::-webkit-slider-thumb:hover {
+    transform: none;
+  }
+
+  .watch-center-play:hover {
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* Reduce Transparency: every translucent surface and scrim of ours is solid (the bloom and glass have their own, in the
+   vendored files). */
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --media-panel: var(--media-raised);
+    --media-panel-strong: var(--media-raised);
+    --color-accent-dim: color-mix(in srgb, var(--color-accent) 14%, var(--color-bg-secondary));
+  }
+
+  .ui-dialog::backdrop,
+  .channel-sidebar-overlay,
+  .recording-player-overlay,
+  .player-overlay {
+    background: var(--color-bg-primary);
+  }
+
+  .watch-overlay {
+    background: none;
+  }
+
+  .watch-top-bar,
+  .watch-bottom-bar {
+    background: var(--media-raised);
+  }
+}
+
+/* Increase Contrast: card and field edges are the Control boundary; secondary text is the primary text colour. */
+@media (prefers-contrast: more) {
+  :root {
+    --color-border: var(--color-control-border);
+    --color-text-secondary: var(--color-text-primary);
+    --color-text-muted: var(--color-text-primary);
+  }
+}
+
+/* Forced colours: focus and selection keep a visible system-coloured mark. */
+@media (forced-colors: active) {
+  :where(button,a,input,select,textarea,summary,[role="button"],[role="tab"],[tabindex]:not([tabindex="-1"])):focus-visible,
+  .setting-toggle input:focus-visible+.toggle-slider {
+    outline: 3px solid Highlight;
+  }
+
+  .tab.active,
+  .subtab.active,
+  .channel-item.active,
+  .sports-filter[aria-pressed="true"] {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+
+  /* The drawn switch and slider keep their state: the knob in text colour, an on switch filled with Highlight. */
+  .toggle-slider {
+    border-color: CanvasText;
+  }
+
+  .toggle-slider::before {
+    background: CanvasText;
+  }
+
+  .setting-toggle input:checked+.toggle-slider {
+    background: Highlight;
+  }
+
+  .volume-slider,
+  .watch-volume {
+    appearance: auto;
   }
 }

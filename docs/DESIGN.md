@@ -31,6 +31,10 @@ app's `public/css/`.
 - Navigation, in this order: Live TV · TV Guide · Sport · Recordings · Status · Settings (Status and Settings for admins).
   There is no Home page (#276, option C): the app opens on Live TV, an old `#home` link lands there, and the favourites
   are the first group of the channel list. With none, one hint above the groups says how to add one.
+- Text: body, labels, form fields, buttons and list rows are 16 px; secondary text (captions, tags, counts, times) 14 or
+  12 px, never under 12. Two recorded exceptions, denser but never under 12 px: the TV Guide grid (Mark, 10 Nov;
+  recorded 11 Nov 2026), and the Live TV channel list and admin tables at 14 px, the channel list's programme line
+  12 px, so names fit (Mark, 11 Nov 2026).
 - Every viewing action is a real button or link with keyboard semantics (the 15 Oct review's F4); native browser buttons
   and dialogs keep focus.
 - A setting saves only its own key and says "Saved" or shows the server's error (#9 is the open defect).
@@ -44,9 +48,9 @@ app's `public/css/`.
 
 ## Brand
 
-### PigTV brand standard (PigBrand guide 1.8.1, tokens 1.7.0)
+### PigTV brand standard (PigBrand guide 1.8.1, token values 1.7.0)
 
-The source of truth is the PigBrand kit: guide 1.8.1, token files 1.7.0 (`PigBrand/docs/pig-family-brand-guide.md`, `docs/integration.md`, `tokens/brand-tokens.json`). This note only records what PigTV takes from it and where. When the kit changes, re-copy the files below rather than editing them here.
+The source of truth is the PigBrand kit: guide 1.8.1, token values 1.7.0 (`PigBrand/docs/pig-family-brand-guide.md`, `docs/integration.md`, `tokens/brand-tokens.json`). The vendored `pig-glass.css` and `pig-radiance.css` carry the kit's 1.9.0 stamp, a version stamp only: their values are unchanged since 1.7.0. This note only records what PigTV takes from it and where. When the kit changes, re-copy the files below rather than editing them here.
 
 #### What PigTV vendors
 
@@ -76,7 +80,7 @@ PigTV uses its own product pig (a pig-shaped TV screen), never the generic famil
 
 #### Rules
 
-- Glass is for the floating control layer only. Never on cards, lists or content, and never on the player. Playback keeps its protected dark surfaces (`.watch-*`, captions and overflow menus). The mobile dropdown stays on the more opaque `--glass-bg`, because it is nested inside the glass navbar and cannot blur the page behind it.
+- Glass is for the floating control layer only. Never on cards, lists or content, and never on the player. Playback keeps its protected dark surfaces (`.watch-*`, captions and overflow menus). The mobile dropdown is an opaque Surface, because it is nested inside the glass navbar and cannot blur the page behind it.
 - Radiance is never behind forms or reading content. The sign-in halo sits only behind the pig of the lockup. With `prefers-reduced-transparency` the halo and bloom are removed and glass becomes a solid surface.
 - Only one primary action per screen is full-strength accent (`.btn-primary`).
 - Playback surfaces, channel artwork and programme artwork keep their own colours.

@@ -948,13 +948,13 @@ class ChannelList {
 
                 // 3. Scroll Group to Top
                 setTimeout(() => {
-                    groupHeader.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    groupHeader.scrollIntoView({ behavior: UI.scrollBehavior(), block: 'start' });
                     setTimeout(() => {
-                        activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        activeItem.scrollIntoView({ behavior: UI.scrollBehavior(), block: 'nearest' });
                     }, 50);
                 }, 50);
             } else {
-                activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                activeItem.scrollIntoView({ behavior: UI.scrollBehavior(), block: 'nearest' });
             }
         }
 
