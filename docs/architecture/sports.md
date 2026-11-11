@@ -131,7 +131,7 @@ scoreboards and `sports_dashboard_catalog` the only store of a game's identity, 
 
 | Store | Written by | Read by |
 |---|---|---|
-| `sports_dashboard_catalog` (+ `sports_score_history`) | the collector | the front page, dashboard, the League page's games' state (0557, `sportPageState`), follows, suggestions, recording rules, recording ends, and (through `sportsFixtures.snapshot`) the guide's live/replay classifier |
+| `sports_dashboard_catalog` (+ `sports_score_history`) | the collector | the front page, dashboard, the League and NFL pages' games' state (0557, 0558, `sportPageState`), follows, suggestions, recording rules, recording ends, and (through `sportsFixtures.snapshot`) the guide's live/replay classifier |
 | `sports_dashboard_coverage` | the collector (0550; since 0552 also the teams its window's answers name) | `sportsFixtures.snapshot`, the Status page's fixtures panel, the roster pass |
 | `sport_fixture_teams` | the 30-minute pass: ESPN `/teams` once a day per league, else (cricket, or `/teams` not answering) the teams of the collector's last window; International cricket's every pass | rosters: classifier, follows, Settings, front-page logos |
 | `sport_fixture_status` | the leagues' own feeds (`recordFeed`); the fixture refresh with the collector off | the Status page |
@@ -482,7 +482,9 @@ account-independent. Hiding scores is unchanged: the front leaves them out by th
 send them and the client hides them by the same switch. A card's `snapshot.espn` (key, detail, clock, period, home/away
 order) is what the overlay reads. While the collector has the league's window (within 30 min), a game on no longer shortens
 the page's entry to 2 min (10 min on a game day): the page still asks ESPN for what the collector does not hold. Switched:
-the League page (0557).
+the League page (0557: still asks the scoreboard for rounds, calendar, season, venues and teams, the rounds or days around
+it, standings hourly) and the NFL page (0558: with the down-and-distance situation; still asks the scoreboard for the week,
+records, broadcasts, byes and teams, the previous week and the standings).
 
 **Any other team league (0388, C-T).** `services/sportPageLeague.js` answers `GET /api/sports/pages/league/:league` for
 every `ESPN_LEAGUE_PATHS` league but F1, NFL, IPL and BBL (one cache entry per league, so leagues never evict each

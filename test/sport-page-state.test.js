@@ -129,3 +129,32 @@ test('a covered league keeps its cached answer 10 minutes while a game is on, no
     assert.equal(fetches, 2, 'and again after 10');
     db.prepare('DELETE FROM sports_dashboard_coverage').run();
 });
+
+test('the NFL page: two accounts on one cached page, the collector\'s state and situation, its own read where the collector has nothing', async () => {
+    const nfl = load('services/sportPageNFL');
+    nfl.reset();
+    const T = K + 2 * 24 * 60 * MIN;
+    const g2 = scriptedGame({ at: T, guideMin: 10, finalMin: 25 });
+    const withSituation = (json, possession) => ({ ...json, events: json.events.map(e => ({ ...e, competitions: e.competitions.map(c => ({ ...c,
+        competitors: c.competitors.map(x => ({ score: '0', ...x })),
+        ...(c.status.type.state === 'in' ? { situation: { downDistanceText: '3rd & 4 at KC 35', possession, isRedZone: false } } : {}) })) })) });
+    const asNfl = (json) => ({ ...json, season: { type: 2, year: 2026 }, week: { number: 9 }, leagues: [{ calendar: [] }] });
+    let builds = 0;
+    nfl.fetcher.get = async url => { if (url.endsWith('/football/nfl/scoreboard')) { builds++; return { ok: true, json: asNfl(withSituation(scoreboard(g2, T - 30 * MIN), '368')) }; } return { ok: false, error: 'HTTP 404' }; };
+    const store = dashboard.store();
+    for (let t = T - 2 * MIN; t <= T + 4 * MIN; t += 30000) store.ingest(espn.normalize(withSituation(scoreboard(g2, t), '370'), 'NFL', 'football/nfl'), t);
+    const now = T + 4 * MIN;
+    const game = page => page.weeks.flatMap(w => w.games).find(g => g.id === '9917001');
+    const delayed = game(await nfl.page(now, pageState.deps(1, now)));
+    const instant = game(await nfl.page(now, pageState.deps(2, now)));
+    const own = game(await nfl.page(now, {}));
+    assert.equal(builds, 1, 'one cached build for both accounts');
+    assert.deepEqual([delayed.status, delayed.home.score, delayed.away.score], ['live', 0, 0]);
+    assert.deepEqual([instant.status, instant.home.score, instant.away.score], ['live', 1, 0]);
+    assert.deepEqual(instant.situation, { downDistance: '3rd & 4 at KC 35', possession: 'FUL', redZone: false }, 'the collector\'s situation, its side by abbreviation');
+    assert.deepEqual([own.status, own.home.score, own.away.score, own.detail], ['scheduled', 0, 0, null], 'the page\'s own read, untouched');
+    for (const g of [delayed, instant, own]) assert.equal('card' in g, false, 'the page\'s note of the collector\'s id is never sent');
+    process.env.PIGTV_SPORTS_DASHBOARD = '0';
+    assert.deepEqual(game(await nfl.page(now, pageState.deps(2, now))), own, 'collector off: the page\'s own');
+    delete process.env.PIGTV_SPORTS_DASHBOARD;
+});

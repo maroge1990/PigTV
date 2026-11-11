@@ -43,46 +43,51 @@ const C_T = { scheduled: 'scheduled', live: 'live', break: 'break', finished: 'd
 const ACCOUNTS = { delayed: 1, instant: 2 };
 
 /** The front's card for the game (sportsDashboard.buildDashboard with the front page's options, as its worker runs it). */
-function frontCard(userId, now, spoilerFree) {
-    const r = dashboard.buildDashboard(dashboard.store(), { now, userId, leagues: new Set(['EPL']), timezone: 'UTC', keepFinishedToday: true,
+function frontCard(league, cardId, userId, now, spoilerFree) {
+    const r = dashboard.buildDashboard(dashboard.store(), { now, userId, leagues: new Set([league]), timezone: 'UTC', keepFinishedToday: true,
         teams: null, spoilerFree, channelTimes: true, upcomingHours: 72, guideCards: false });
-    return r.games.find(g => g.id.endsWith(':9917001'));
+    return r.games.find(g => g.id === cardId);
 }
 
-test('a league page and the front page agree about a game\'s status and score at every moment, with and without a delay', async () => {
+let prefsSet = false;
+/**
+ * Replay the scripted game kicking off at `at` through the collector, the front's card and one page (`ask(now, deps)` ->
+ * the page's game, `{ status, home: { score }, away: { score } }`), for both accounts, at five instants. -> disagreements.
+ */
+async function replay({ league, source, at, serve, ask, words, reset }) {
     const store = dashboard.store();
-    store.updatePreferences(ACCOUNTS.instant, { revision: 0, scoreDelaySeconds: 0 }); // the other keeps the default 90 s
-    const game = scriptedGame({ at: K, guideMin: 10, finalMin: 25 });
-    const clock = { now: K - 17.5 * MIN }; // the page's own refreshes then fall as they may, not on the kick-off
+    if (!prefsSet) { store.updatePreferences(ACCOUNTS.instant, { revision: 0, scoreDelaySeconds: 0 }); prefsSet = true; } // the other keeps 90 s
+    const game = scriptedGame({ at, guideMin: 10, finalMin: 25 });
+    const clock = { now: at - 17.5 * MIN }; // the page's own refreshes then fall as they may, not on the kick-off
     requestPolicy.reset();
-    const collector = dashboard.createCollector({ store, clock: () => clock.now, enabled: () => true, leagues: () => new Set(['EPL']),
+    reset();
+    const answer = (url) => serve(scoreboard(game, clock.now), url);
+    const collector = dashboard.createCollector({ store, clock: () => clock.now, enabled: () => true, leagues: () => new Set([league]),
         followed: () => new Map(), feedGames: async () => ({ ok: true, games: [] }), recordFeed: () => {}, busy: () => true,
         every: () => null, windowDemand: () => false,
-        fetchJson: async url => (url.includes('soccer/eng.1/scoreboard') ? scoreboard(game, clock.now) : { events: [] }) });
-    const lp = load('services/sportPageLeague');
-    lp.reset();
-    lp.fetcher.get = async url => (url.includes('soccer/eng.1/scoreboard') ? { ok: true, json: scoreboard(game, clock.now) } : { ok: false, error: 'HTTP 404' });
-    const instants = { before: K - 5 * MIN, 'kick-off': K + 2 * MIN, 'mid-game': K + 12 * MIN, final: K + 26 * MIN, after: K + 40 * MIN };
+        fetchJson: async url => (url.includes(`${source}/scoreboard`) ? scoreboard(game, clock.now) : { events: [] }) });
+    const instants = { before: at - 5 * MIN, 'kick-off': at + 2 * MIN, 'mid-game': at + 12 * MIN, final: at + 26 * MIN, after: at + 40 * MIN };
     const seen = [], bad = [];
     try {
         // the server's pace: a collector pass every 30 s (someone is looking), each account asking both answers as it goes
-        for (; clock.now <= K + 40 * MIN; clock.now += 30000) {
+        for (; clock.now <= at + 40 * MIN; clock.now += 30000) {
             await collector.refresh();
             for (const userId of Object.values(ACCOUNTS)) {
-                const page = await lp.page('EPL', clock.now, { zone: 'UTC', ...pageDeps(userId, clock.now) });
+                const g = await ask(clock.now, pageDeps(userId, clock.now), answer);
                 await new Promise(r => setImmediate(r)); // a background page refresh lands as it would between requests
-                const name = Object.entries(instants).find(([, at]) => at === clock.now)?.[0];
+                const name = Object.entries(instants).find(([, t]) => t === clock.now)?.[0];
                 if (!name) continue;
-                const g = page.rounds.flatMap(r => r.games).find(x => x.id === '9917001');
                 for (const spoilerFree of [false, true]) {
-                    const card = frontCard(userId, clock.now, spoilerFree);
+                    const card = frontCard(league, `espn:${source}:${game.id}`, userId, clock.now, spoilerFree);
                     assert.notEqual(card.status, 'unknown', `${name}: the front's snapshot is fresh`);
-                    const who = `${name}, account ${userId}${spoilerFree ? ', scores hidden' : ''}`;
+                    const who = `${league} ${name}, account ${userId}${spoilerFree ? ', scores hidden' : ''}`;
                     seen.push(`${who}: front ${card.status} ${card.scores?.join('-') ?? '(none)'}, page ${g.status} ${g.home.score ?? '-'}-${g.away.score ?? '-'}`);
-                    if (g.status !== C_T[card.status]) bad.push(`${who}: the page says ${g.status}, the front ${card.status}`);
+                    if (g.status !== words[card.status]) bad.push(`${who}: the page says ${g.status}, the front ${card.status}`);
                     if (spoilerFree) assert.equal(card.scores, undefined, `${who}: the front leaves the score out (the page sends it; the client hides it)`);
-                    const pageScore = JSON.stringify([g.home.score, g.away.score]);
-                    if (!spoilerFree && pageScore !== JSON.stringify(card.scores || [null, null])) bad.push(`${who}: the page's score ${pageScore}, the front's ${JSON.stringify(card.scores || null)}`);
+                    const pageScore = JSON.stringify([g.home.score, g.away.score].map(v => (v === null ? null : String(v))));
+                    // before kick-off the NFL page says 0-0 (ESPN's pre-game score); the front shows no score then
+                    const frontScore = JSON.stringify(card.scores || (card.status === 'scheduled' && league === 'NFL' ? ['0', '0'] : [null, null]));
+                    if (!spoilerFree && pageScore !== frontScore) bad.push(`${who}: the page's score ${pageScore}, the front's ${frontScore}`);
                 }
             }
         }
@@ -90,5 +95,35 @@ test('a league page and the front page agree about a game\'s status and score at
         collector.stop();
     }
     assert.equal(seen.length, 20);
+    return { bad, seen };
+}
+
+test('the League page and the front page agree about a game\'s status and score at every moment, with and without a delay', async () => {
+    const lp = load('services/sportPageLeague');
+    const { bad, seen } = await replay({ league: 'EPL', source: 'soccer/eng.1', at: K, words: C_T, reset: () => lp.reset(),
+        serve: (json, url) => (url.includes('soccer/eng.1/scoreboard') ? { ok: true, json } : { ok: false, error: 'HTTP 404' }),
+        ask: async (now, deps, answer) => {
+            lp.fetcher.get = async url => answer(url);
+            const page = await lp.page('EPL', now, { zone: 'UTC', ...deps });
+            return page.rounds.flatMap(r => r.games).find(x => x.id === '9917001');
+        } });
+    assert.deepEqual(bad, [], seen.join('\n'));
+});
+
+// C-Q's words: a break is play (`live`), postponed/cancelled are `done`.
+const C_Q = { scheduled: 'scheduled', live: 'live', break: 'live', finished: 'done', postponed: 'done', cancelled: 'done' };
+test('the NFL page and the front page agree about a game\'s status and score at every moment, with and without a delay', async () => {
+    const nfl = load('services/sportPageNFL');
+    // the scripted game as an NFL week's scoreboard (the page needs ESPN's season and week)
+    // and ESPN's pre-game score of 0 that NFL answers carry
+    const asNfl = (json) => ({ ...json, season: { type: 2, year: 2026 }, week: { number: 9 }, leagues: [{ calendar: [] }],
+        events: json.events.map(e => ({ ...e, competitions: e.competitions.map(c => ({ ...c, competitors: c.competitors.map(x => ({ score: '0', ...x })) })) })) });
+    const { bad, seen } = await replay({ league: 'NFL', source: 'football/nfl', at: K + 24 * 60 * MIN, words: C_Q, reset: () => nfl.reset(),
+        serve: (json, url) => (url.endsWith('/football/nfl/scoreboard') ? { ok: true, json: asNfl(json) } : { ok: false, error: 'HTTP 404' }),
+        ask: async (now, deps, answer) => {
+            nfl.fetcher.get = async url => answer(url);
+            const page = await nfl.page(now, { ...deps });
+            return page.weeks.flatMap(w => w.games).find(x => x.id === '9917001');
+        } });
     assert.deepEqual(bad, [], seen.join('\n'));
 });

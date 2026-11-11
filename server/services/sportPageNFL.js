@@ -35,7 +35,12 @@ const COLD_WAIT_MS = 8000;
 const fetcher = { get: (url) => espn.getJson(url, TIMEOUT_MS) };
 
 // The ESPN part, kept stale-while-refreshing (sportPageCache.js; the TTL is ttlOf, below).
-const cache = createPageCache({ label: 'NFL', ttlOf: (value, now) => ttlOf(value, now), coldWaitMs: COLD_WAIT_MS });
+// #272: while the score collector has the NFL's window (`covered`, sportPageState), a game on no longer shortens the entry
+// to 2 minutes: the games' state comes from the collector per request (page()); 10 min on a game day as before.
+const cache = createPageCache({ label: 'NFL', coldWaitMs: COLD_WAIT_MS, ttlOf: (value, now) => {
+    const ttl = ttlOf(value, now);
+    return value.covered && ttl === LIVE_TTL_MS ? GAME_DAY_TTL_MS : ttl;
+} });
 
 const str = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null);
 const num = (v) => (v !== null && v !== '' && Number.isFinite(Number(v)) ? Number(v) : null);
@@ -73,15 +78,13 @@ function gameOf(event, teams, registerImage) {
     // ESPN's own words: "Final", "Final/OT", "1st Quarter", "Halftime"; the clock separately.
     const period = num(c.status?.period);
     const clock = str(c.status?.displayClock);
-    let detail = str(c.status?.type?.shortDetail);
-    if (['postponed', 'cancelled', 'suspended-over'].includes(state)) detail = { postponed: 'Postponed', cancelled: 'Cancelled' }[state] || 'Suspended'; // #272: never "Final"
-    else if (status === 'done') detail = /OT/i.test(detail || '') ? 'Final · OT' : 'Final';
-    else if (status === 'live' && period && clock && !/half/i.test(detail || '')) detail = `${period > 4 ? 'OT' : `Q${period}`} ${clock}`;
-    else if (status === 'scheduled') detail = null;
+    const detail = detailOf(state, status, str(c.status?.type?.shortDetail), period, clock);
     const sit = status === 'live' ? c.situation : null;
     const possession = sit ? (c.competitors || []).find(t => String(t?.id) === String(sit.possession) || String(t?.team?.id) === String(sit.possession)) : null;
     return {
         id: str(String(event.id ?? '')),
+        // the score collector's id for the same competition (sportsScoresEspn.normalize): page() lays its state over this game
+        card: str(String(c.id ?? '')) ? `espn:football/nfl:${String(c.id)}` : null,
         start, status, detail,
         home, away,
         situation: sit ? { downDistance: str(sit.downDistanceText) || str(sit.shortDownDistanceText), possession: abbrOf(possession?.team) || null,
@@ -89,6 +92,15 @@ function gameOf(event, teams, registerImage) {
         broadcasts: [...new Set((c.broadcasts || []).flatMap(b => b?.names || []).map(str).filter(Boolean))],
         channels: []
     };
+}
+
+/** ESPN's own words: "Final", "Final/OT", "1st Quarter", "Halftime"; the clock separately. */
+function detailOf(state, status, short, period, clock) {
+    if (['postponed', 'cancelled', 'suspended-over'].includes(state)) return { postponed: 'Postponed', cancelled: 'Cancelled' }[state] || 'Suspended'; // #272: never "Final"
+    if (status === 'done') return /OT/i.test(short || '') ? 'Final · OT' : 'Final';
+    if (status === 'live' && period && clock && !/half/i.test(short || '')) return `${period > 4 ? 'OT' : `Q${period}`} ${clock}`;
+    if (status === 'scheduled') return null;
+    return short;
 }
 
 /** The season's weeks of one season type, from the scoreboard's calendar: [{ number, label, start, end }]. */
@@ -171,7 +183,7 @@ function channelsForGames(games, events, teams, { now, observedAt } = {}) {
 }
 
 /** The page's ESPN part at `now` (games with `channels: []`; page() attaches them). Never rejects; null on failure. */
-async function build(now, { registerImage = (u) => u } = {}) {
+async function build(now, { registerImage = (u) => u, covered = null } = {}) {
     const sb = await fetcher.get(`${SITE}/scoreboard`);
     if (!sb.ok || !Array.isArray(sb.json?.events)) return null;
     const seasonType = num(sb.json?.season?.type);
@@ -198,7 +210,8 @@ async function build(now, { registerImage = (u) => u } = {}) {
         season: { year, type: seasonType === 1 ? 'preseason' : seasonType === 3 ? 'postseason' : 'regular' },
         weeks: out,
         teams: Object.fromEntries([...teams.entries()].sort(([a], [b]) => a.localeCompare(b))),
-        standings: divisions ? { divisions } : null
+        standings: divisions ? { divisions } : null,
+        covered: (() => { try { return Boolean(covered && covered('NFL')); } catch { return false; } })()
     };
 }
 
@@ -220,13 +233,46 @@ function ttlOf(value, now) {
  * (`deps.channelsFor`: the current guide, this user's order), never kept with the page.
  */
 async function page(now = Date.now(), deps = {}) {
-    const value = await espnPart(now, deps);
+    let value = await espnPart(now, deps);
+    if (value.available) {
+        const { covered, ...answer } = value; // the cache's own note, never in the answer
+        value = deps.state ? withState(answer, deps.state) : withoutCards(answer);
+    }
     if (!value.available || !deps.channelsFor) return value;
     const games = value.weeks.flatMap(w => w.games);
     let channels = new Map();
     try { channels = await deps.channelsFor(games, value.teams, value.updatedAt); } catch (err) { console.warn('[Sport] NFL page channels:', err.message); }
     return { ...value, weeks: value.weeks.map(w => ({ ...w, games: w.games.map(g => ({ ...g, channels: channels.get(g.id) || [] })) })) };
 }
+
+/**
+ * #272 (batch D): each game's status, detail, score and situation from the score collector's store for this account
+ * (`state(card)`, sportPageState.deps: its delay; only a fresh or final snapshot), as the front page shows it; a game the
+ * collector holds nothing usable for keeps the page's own. `card` is the page's note of the collector's id, never sent.
+ */
+function withState(value, state) {
+    const { scoreOf } = require('./sportPageState');
+    const weeks = value.weeks.map(w => ({ ...w, games: w.games.map(g => {
+        const { card, ...game } = g;
+        let seen = null;
+        try { seen = state(card); } catch { seen = null; }
+        const e = seen?.snapshot.espn;
+        const status = e ? STATUS[e.key] : null;
+        if (!status) return game;
+        // before kick-off ESPN's score is 0 (the page's own read says so); the collector keeps none then
+        const score = (side) => {
+            if (status === 'scheduled') return game.status === 'scheduled' ? game[side].score : 0;
+            const v = scoreOf(seen.snapshot, side);
+            return v !== null && Number.isFinite(Number(v)) ? Number(v) : null;
+        };
+        const sit = status === 'live' ? e.situation : null;
+        return { ...game, status, detail: detailOf(e.key, status, e.detail, e.period, e.clock),
+            home: { ...game.home, score: score('home') }, away: { ...game.away, score: score('away') },
+            situation: sit ? { downDistance: sit.downDistance, possession: sit.possession ? game[sit.possession].abbr : null, redZone: sit.redZone === true } : null };
+    }) }));
+    return { ...value, weeks };
+}
+const withoutCards = (value) => ({ ...value, weeks: value.weeks.map(w => ({ ...w, games: w.games.map(({ card, ...g }) => g) })) });
 
 async function espnPart(now, deps) {
     const entry = await cache.get('page', now, () => build(now, deps));

@@ -133,7 +133,14 @@ function pageFacts(c, league, source, sides) {
     const t = c.status?.type || {};
     return { key: edgeKey(espnState(c.status, { cricket: isCricket(league), baseball: source.startsWith('baseball/') })),
         detail: text(t.shortDetail, 80) || text(t.detail, 80) || null, clock: text(c.status?.displayClock, 24) || null,
-        period: number(c.status?.period) ?? null, sides: sides.map(x => (x.homeAway === 'home' || x.homeAway === 'away' ? x.homeAway : null)) };
+        period: number(c.status?.period) ?? null, sides: sides.map(x => (x.homeAway === 'home' || x.homeAway === 'away' ? x.homeAway : null)),
+        ...(league === 'NFL' && c.situation ? { situation: nflSituation(c.situation, sides) } : {}) };
+}
+/** The NFL page's down-and-distance line, the side in possession (home/away) and the red zone (C-Q `situation`). */
+function nflSituation(sit, sides) {
+    const holder = sides.find(x => String(x?.id) === String(sit.possession) || String(x?.team?.id) === String(sit.possession));
+    return { downDistance: text(sit.downDistanceText, 80) || text(sit.shortDownDistanceText, 80) || null,
+        possession: holder?.homeAway === 'home' || holder?.homeAway === 'away' ? holder.homeAway : null, redZone: sit.isRedZone === true };
 }
 // The collector's words for the one fetch's refusals (its throw shape, sportsDashboard.fetchOnce).
 const WORDS = { 'host not allowed': 'Invalid score source', 'answer too large': 'Score response too large' };

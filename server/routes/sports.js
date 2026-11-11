@@ -178,6 +178,8 @@ router.get('/pages/nfl', pageRoute({ name: 'NFL', error: 'Could not build the NF
     const nfl = require('../services/sportPageNFL');
     const now = Date.now();
     return nfl.page(now, {
+        // #272 (batch D): each game's state from the score collector's store, with this account's score delay
+        ...require('../services/sportPageState').deps(req.user.id, now),
         registerImage: require('../services/logoCache').registerLogo,
         // Only the NFL's events around the two weeks' games are ordered and built, as for F1 (#160); #191 as F1.
         channelsFor: async (games, teams, observedAt) => !games.length ? new Map() : nfl.channelsForGames(games,
