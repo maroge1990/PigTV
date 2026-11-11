@@ -5,14 +5,14 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 11 Nov 2026 (audit batches H, L and D: #276, #280, #272).*
+*Overwritten at the end of every session. 12 Nov 2026 (audit batch E: #273; H, L and D the day before).*
 
 - **Released:** server **v0502** (`:release`, 9 Nov) and Apple **191** on TestFlight (tvOS and iOS). A release runs on
-  Mark's go-ahead (D-45). Pushed since, not released: server **0503 to 0558**, Apple **192 to 208**. Next builds: server
-  **0559**, Apple **209**.
+  Mark's go-ahead (D-45). Pushed since, not released: server **0503 to 0566**, Apple **192 to 208**. Next builds: server
+  **0567**, Apple **209**.
 - **The 10 Nov audit** was filed as batch issues #269–#280; each issue's first comment holds the detail and later
   comments Mark's decisions. Pushed: A (#269), I (#277), C (#271), B (#270), G (#275), K (#279), H (#276), L (#280),
-  D (#272, with #281). Left, in this order: **E (#273), J (#278), F (#274)**; the handover note is a comment on #273.
+  D (#272, with #281), E (#273). Left, in this order: **J (#278), F (#274)**; the handover note is a comment on #278.
 - **11 Nov, batch H pushed with CI green, server 0534 to 0541 (#276, closed):** the web app under brand 1.8.
   - Mark's picks: no Home page (the app opens on Live TV, favourites first); compact Sport cards; Recordings as
     picture cards; text at 16 px with the guide grid, the channel list and the admin tables as recorded exceptions.
@@ -40,6 +40,16 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
     while loading; rounded figures; iPhone sizes and the follow card; Increase Contrast; two named animations.
   - Simulator only. Evidence and the numbered device steps: `docs/evidence/2026-11-11-batch-l/`. Filed: #298 (iPad
     layout faults in the real F1 page and the Sport banner).
+- **12 Nov, batch E pushed with CI green, server 0559 to 0566 (#273, open for a read-only check after a release):**
+  the server's hot paths; nothing to see, the same answers for less work.
+  - A paired device's media requests write "last seen" once a minute, not each time (the revoke check is still read on
+    every request); a known logo is a memory lookup; the provider list is parsed once per change, not a dozen times per
+    play; the Status poll reads its slow parts once a minute; a scheduled sync leaves an unchanged backup or Xtream list
+    alone; the nightly database copy waits for a sync.
+  - Review: no high in the six; one medium in the sync check (a failed relink was never retried), fixed in 0565; Codex's
+    sign-off found a high in that fix, fixed in 0566 on Mark's say-so and signed off. A relink is now a recorded debt.
+  - Rig: a device revoked mid-stream was refused on its next request; play start unchanged. Evidence:
+    `docs/evidence/2026-11-12-batch-e/`. T4 after a release: production's write-ahead log size and write rate.
 - **Waiting on Mark:**
   - A release: nothing since v0502 and Apple 191 is released.
   - T5 device checks: #280 (on a TestFlight build from 208; steps in its evidence folder and on the issue), #279 (on a
@@ -51,10 +61,12 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
   - #240. Whether #293's missing focus tint is fixed before the next TestFlight build.
   - #295's colour point: darker status colours for small text are the brand kit's to decide.
   - Batch F (#274): the two recommended items only, or all six.
+  - Two faults found during batch E, to fix or file: the Status page shows no provider name on sessions and recordings
+    (since 0175); deleting a user leaves that user's device rows behind (their sign-ins already stop working).
 - **Open investigation:** #3 (sound out of step on the iPad): the relay join measured clean; the device meter (#267)
   and the marker (#268) are filed, not built (Mark).
-- **Next:** batch E (#273: server hot paths; no design choices; Codex round); then J (#278: scout first, batch L
-  moved its lines); then F (#274); then #262 (iPadOS/iOS 17+, three sites need fallbacks).
+- **Next:** batch J (#278: Apple; scout first, batch L moved its lines; Codex round; Mark's device check at the
+  end); then F (#274, after Mark's scope answer); then #262 (iPadOS/iOS 17+, three sites need fallbacks).
 
 ## Now
 
