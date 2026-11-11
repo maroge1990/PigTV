@@ -1,6 +1,6 @@
 # Device check for Mark (T5), on a TestFlight build from 208 (Apple 204 to 208, issue #280)
 
-DRAFT. Order: Apple TV, then iPad, then iPhone. Each step is one screen. "Pulse" means the grey shapes fade slightly in and out.
+Order: Apple TV, then iPad, then iPhone. Each step is one screen. "Pulse" means the grey shapes fade slightly in and out.
 
 ## Apple TV
 
