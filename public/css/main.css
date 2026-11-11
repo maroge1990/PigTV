@@ -719,11 +719,6 @@ h4 {
   flex-shrink: 0;
 }
 
-.tile-number {
-  color: var(--color-text-muted);
-  font-variant-numeric: tabular-nums;
-}
-
 .channel-info {
   flex: 1;
   min-width: 0;
@@ -772,15 +767,35 @@ h4 {
   box-sizing: border-box;
 }
 
-/* Favorites */
-.group-header.favorites-group {
-  background: linear-gradient(to right, color-mix(in srgb, var(--color-error) 10%, transparent), transparent);
-  border-left: 3px solid var(--color-error);
+/* Favourites: the first group; its heart and place mark it. Status colours are not decoration (#276). */
+.group-header.favorites-group .group-name {
+  color: var(--color-text-primary);
+  font-weight: 600;
 }
 
-.group-header.favorites-group .group-name {
-  color: var(--color-error);
-  font-weight: 600;
+/* #276: with no favourites, one quiet hint above the groups (UI.stateBlock('empty') in a narrow sidebar). */
+.favourites-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  margin: var(--space-sm) var(--space-sm) var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.favourites-hint-icon {
+  flex: 0 0 auto;
+  color: var(--color-accent-text);
+}
+.favourites-hint-icon .icon { width: 18px; height: 18px; }
+.favourites-hint .state-block {
+  padding: 0;
+  gap: 0;
+  text-align: left;
+  font-size: var(--text-sm);
+  background: none;
+  border: 0;
 }
 
 .channel-item:hover .favorite-btn,
@@ -1910,18 +1925,8 @@ body.ui-dialog-open {
 }
 
 /* =====================================================
-   Loading States (Home and Recordings only: both are being rebuilt; new code uses .state-block)
+   Loading States (Recordings only: it is being rebuilt; new code uses .state-block)
    ===================================================== */
-.loading {
-  display: inline-block;
-  width: 20px;
-  height: 20px;
-  border: 2px solid var(--color-border);
-  border-top-color: var(--color-accent);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
 .loading-state {
   display: flex;
   align-items: center;
@@ -1930,11 +1935,6 @@ body.ui-dialog-open {
   padding: var(--space-xl);
   color: var(--color-text-muted);
   width: 100%;
-}
-
-.horizontal-scroll .empty-state {
-  padding: var(--space-xl);
-  min-height: 150px;
 }
 
 @keyframes spin {
@@ -3190,112 +3190,10 @@ body.ui-dialog-open {
 
 /* Mobile responsive - show in dropdown menu */
 
-/* =====================================================
-   Home Dashboard Styles
-   ===================================================== */
-
-#page-home,
 #page-recordings {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
-
-.dashboard-content {
-  padding: var(--space-lg);
-  max-width: 1400px;
-  margin: 0 auto;
-}
-
-.dashboard-section {
-  margin-bottom: var(--space-2xl);
-}
-
-.dashboard-section.hidden {
-  display: none;
-}
-
-/* Scroll Wrapper with Navigation Arrows */
-.scroll-wrapper {
-  position: relative;
-}
-
-.scroll-arrow {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 10;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: white;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all var(--transition-fast);
-  backdrop-filter: blur(8px);
-}
-
-.scroll-arrow:hover {
-  background: rgba(0, 0, 0, 0.9);
-  border-color: var(--color-accent);
-  transform: translateY(-50%) scale(1.1);
-}
-
-.scroll-arrow svg {
-  width: 24px;
-  height: 24px;
-}
-
-.scroll-arrow.scroll-left {
-  left: -8px;
-}
-
-.scroll-arrow.scroll-right {
-  right: -8px;
-}
-
-.scroll-arrow.hidden {
-  opacity: 0;
-  pointer-events: none;
-}
-
-/* Hide arrows on touch devices (they can swipe) */
-@media (hover: none) {
-  .scroll-arrow {
-    display: none;
-  }
-}
-
-.horizontal-scroll {
-
-  display: flex;
-  gap: var(--space-lg);
-  overflow-x: auto;
-  padding-bottom: var(--space-md);
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
-}
-
-/* Hide scrollbar by default, show on hover */
-.horizontal-scroll::-webkit-scrollbar {
-  height: 6px;
-}
-
-.horizontal-scroll::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 3px;
-}
-
-.horizontal-scroll:hover::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-/* 4 per view on medium screens */
-
-/* 6 per view on large screens */
 
 .loading-state,
 .empty-state {
@@ -3306,89 +3204,6 @@ body.ui-dialog-open {
   background: rgba(255, 255, 255, 0.02);
   border-radius: var(--radius-lg);
   border: 1px dashed rgba(255, 255, 255, 0.1);
-}
-
-/* =====================================================
-   Channel Tile Styles (Favorite Channels)
-   ===================================================== */
-
-.channel-tiles {
-  gap: var(--space-md);
-}
-
-.channel-tile {
-  flex: 0 0 100px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  cursor: pointer;
-  padding: var(--space-md) var(--space-sm);
-  border-radius: var(--radius-md);
-  transition: transform var(--transition-fast), background var(--transition-fast);
-  scroll-snap-align: start;
-}
-
-.channel-tile:hover {
-  transform: translateY(-4px);
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.tile-logo {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  overflow: hidden;
-  background: var(--color-surface);
-  border: 2px solid rgba(255, 255, 255, 0.1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: var(--space-sm);
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
-}
-
-.channel-tile:hover .tile-logo {
-  border-color: var(--color-accent);
-  box-shadow: 0 0 16px rgba(var(--color-accent-rgb), 0.3);
-}
-
-.tile-logo img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.tile-name {
-  font-size: var(--text-xs);
-  font-weight: 500;
-  color: var(--color-text-secondary);
-  text-align: center;
-  max-width: 90px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.channel-tile:hover .tile-name {
-  color: var(--color-text-bright);
-}
-
-/* Responsive: smaller tiles on mobile */
-@media (max-width: 480px) {
-  .channel-tile {
-    flex: 0 0 80px;
-    padding: var(--space-sm) var(--space-xs);
-  }
-
-  .tile-logo {
-    width: 52px;
-    height: 52px;
-  }
-
-  .tile-name {
-    font-size: var(--text-xs);
-    max-width: 70px;
-  }
 }
 
 /* ==========================================================================
@@ -4068,7 +3883,7 @@ body.ui-dialog-open {
 /* The canvas behind the bar and content is the body (#app and .main-content are transparent), so
    .pig-canvas-bloom on <body> paints the corner bloom there. Cards and bars stay opaque above it. */
 
-/* Loading splash for the initial Home render (replaced by HomePage.renderLayout, never delays it).
+/* Loading splash while the app starts (#app-splash in index.html; app.js removes it when the first page is shown, never on a timer).
    The mark is centred in the splash, so --pig-x/--pig-y are 50%. The visible pig is 65% of the mark
    box (665/1024); at 160 px that is 104 px, and 1.35 x 104 = 140 px. */
 .pig-splash.page-splash {
@@ -4219,8 +4034,7 @@ body.ui-dialog-open {
 }
 
 .settings-container > .page-header,
-#page-sports > .page-header,
-#page-home .page-header {
+#page-sports > .page-header {
   padding-left: 0;
   padding-right: 0;
 }

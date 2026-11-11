@@ -76,12 +76,11 @@ const IN_SCOPE = [
     'js/pages/StatusPage.js', 'js/pages/Settings.js', 'js/pages/ProvidersSettings.js',
     'js/pages/BackupLinksSettings.js', 'js/pages/SportSettings.js', 'index.html'
 ];
-/** index.html without the Home and Recordings pages (both being rebuilt elsewhere). */
+/** index.html without the Recordings page (being rebuilt elsewhere). */
 function source(file) {
     let text = read(file);
     if (file === 'index.html') {
-        text = text.replace(/<div id="page-home"[\s\S]*?<!-- Live TV Page/, '<!-- Live TV Page')
-            .replace(/<div id="page-recordings"[\s\S]*?<!-- Status Page/, '<!-- Status Page');
+        text = text.replace(/<div id="page-recordings"[\s\S]*?<!-- Status Page/, '<!-- Status Page');
     }
     return text;
 }

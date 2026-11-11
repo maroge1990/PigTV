@@ -150,9 +150,9 @@ test('0207: resume time is shown as H:MM:SS', () => {
     assert.equal(page.formatClock(-5), '0:00:00');
 });
 
-test('0207: the Recordings page scrolls like Home (the .page clip would hide the rest)', () => {
+test('0207: the Recordings page scrolls (the .page clip would hide the rest)', () => {
     const css = fs.readFileSync(path.join(__dirname, '../public/css/main.css'), 'utf8');
-    assert.match(css, /#page-home,\s*#page-recordings\s*\{[^}]*overflow-y:\s*auto/);
+    assert.match(css, /#page-recordings\s*\{[^}]*overflow-y:\s*auto/);
 });
 
 // R5: the Recording rules section: listed with on/off and delete, and a sport rule added from the box.

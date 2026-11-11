@@ -191,7 +191,7 @@ test('entering Sport masks an already visible raw recording title synchronously'
     const c=vm.createContext({window:{},history:{pushState(){}},document:{addEventListener(){},querySelectorAll:()=>[],getElementById:()=>text}});
     loadUi(c);
     vm.runInContext(fs.readFileSync('public/js/app.js','utf8'),c);
-    const app=Object.create(vm.runInContext('App.prototype',c)); Object.assign(app,{currentPage:'home',pages:{},currentUser:{role:'admin'}});
+    const app=Object.create(vm.runInContext('App.prototype',c)); Object.assign(app,{currentPage:'live',pages:{},currentUser:{role:'admin'}});
     app.navigateTo('sports');
     assert.doesNotMatch(text.textContent,/defeats|101-99/);
 });

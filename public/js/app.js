@@ -4,7 +4,7 @@
 
 class App {
     constructor() {
-        this.currentPage = 'home';
+        this.currentPage = 'live';
         this.pages = {};
         this.currentUser = null;
 
@@ -15,7 +15,6 @@ class App {
         this.epgGuide = new EpgGuide();
 
         // Initialize page controllers
-        this.pages.home = new HomePage(this);
         this.pages.live = new LivePage(this);
         this.pages.guide = new GuidePage(this);
         this.pages.sports = new SportsPage(this);
@@ -147,20 +146,18 @@ class App {
 
         // Handle browser back/forward buttons
         window.addEventListener('popstate', (e) => {
-            const page = e.state?.page || 'home';
+            const page = e.state?.page || 'live';
             this.navigateTo(page, 'none'); // the browser already moved through history
         });
 
-        // Initialize home page first (it's needed for channel list)
-        await this.pages.home.init();
-
         // The guide is loaded when Live TV or the Guide first needs it (review F7), not here:
-        // Home, Recordings and Settings show no guide data.
+        // Recordings and Settings show no guide data.
 
-        // Navigate to the page from URL hash, or default to home
-        const hash = window.location.hash.slice(1); // Remove #
-        const initialPage = hash && this.pages[hash] ? hash : 'home';
+        // Navigate to the page from the URL hash, or Live TV (also for an old #home link); the entry is
+        // replaced, so Back does not return to the old hash. The splash goes as soon as that page is shown.
+        const initialPage = this.initialPage(window.location.hash.slice(1)); // Remove #
         this.navigateTo(initialPage, 'replace');
+        this.hideSplash();
 
         // Keep an eye on in-progress recordings so the user knows why live
         // playback might misbehave while one is running.
@@ -171,6 +168,16 @@ class App {
         Theme.watchSystem();
 
         console.log('PigTV initialized');
+    }
+
+    /** The page a start-up hash names; Live TV for none, an unknown one or the retired #home. */
+    initialPage(hash) {
+        return hash && Object.prototype.hasOwnProperty.call(this.pages, hash) ? hash : 'live';
+    }
+
+    /** Remove the brand splash (#app-splash, in index.html). Safe to call twice. */
+    hideSplash() {
+        document.getElementById('app-splash')?.remove();
     }
 
     startRecordingWatch() {
@@ -335,7 +342,7 @@ class App {
      */
     navigateTo(pageName, historyMode = 'push') {
         if ((pageName === 'settings' || pageName === 'status') && this.currentUser?.role !== 'admin') {
-            pageName = 'home';
+            pageName = 'live';
             historyMode = 'replace';
         }
         // Don't navigate if already on this page

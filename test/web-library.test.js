@@ -176,23 +176,6 @@ test('the guide pages /api/library/guide 500 rows at a time over the window on s
     assert.ok(guide.favorites.has('1:s2'));
 });
 
-test('the Home favourites row draws /api/library/favourites rows with their numbers and logos', async () => {
-    const list = { innerHTML: '', querySelectorAll: () => [] };
-    const { context, requests } = browser(['api.js', 'pages/HomePage.js'], {
-        'GET /api/library/favourites': () => [row(12, 'pos_12', 'Twelve', 'News'), row(3, 'pos_3', 'Three <b>', 'News')]
-    }, { document: { getElementById: (id) => (id === 'favorite-channels-list' ? list : id === 'favorite-channels-section' ? {} : null) } });
-    const home = Object.create(context.HomePage.prototype);
-    Object.assign(home, { app: {}, container: null, renderGeneration: 0, favouritesRequest: null });
-
-    await home.loadDashboardData();
-
-    assert.deepEqual(requests.map(r => r.url), ['/api/library/favourites']);
-    assert.ok(list.innerHTML.indexOf('data-channel-id="pos_3"') < list.innerHTML.indexOf('data-channel-id="pos_12"'), 'in number order');
-    assert.match(list.innerHTML, /<span class="tile-number pig-amount">12<\/span>/);
-    assert.ok(list.innerHTML.includes(`src="${CHANNELS[11].logo}"`), 'the /api/logo/ path, not /api/proxy/image');
-    assert.ok(list.innerHTML.includes('Three &lt;b&gt;'), 'names are escaped');
-});
-
 test('the Sources picker reads GET /api/sources/:id/catalogue, hidden items included', async () => {
     const { context, requests } = browser(['api.js', 'components/SourceManager.js'], {
         'GET /api/sources/7/catalogue': () => ({

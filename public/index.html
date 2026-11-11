@@ -37,14 +37,7 @@
         <span></span>
       </button>
       <div class="navbar-menu" id="navbar-menu">
-        <a href="#" class="nav-link active" aria-current="page" data-page="home" aria-label="Home" title="Home">
-          <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"
-              class="icon">
-              <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
-            </svg></span>
-          <span>Home</span>
-        </a>
-        <a href="#" class="nav-link" data-page="live" aria-label="Live TV" title="Live TV">
+        <a href="#" class="nav-link active" aria-current="page" data-page="live" aria-label="Live TV" title="Live TV">
           <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"
               class="icon">
               <path
@@ -103,16 +96,13 @@
     <!-- Main Content Area -->
     <main class="main-content">
       <div id="page-sports" class="page"></div>
-      <!-- Home (Dashboard) Page -->
-      <div id="page-home" class="page active">
-        <!-- Content will be rendered by HomePage.js -->
-        <div class="pig-splash page-splash">
-          <div class="splash-mark" aria-hidden="true"></div>
-          <div class="splash-text">Loading Dashboard...</div>
-        </div>
+      <!-- The brand splash while the app starts; app.js removes it as soon as the first page is shown (no timer). -->
+      <div id="app-splash" class="pig-splash page-splash" role="status">
+        <div class="splash-mark" aria-hidden="true"></div>
+        <div class="splash-text">Loading PigTV…</div>
       </div>
 
-      <!-- Live TV Page (formerly Home) -->
+      <!-- Live TV Page: the app opens here -->
       <div id="page-live" class="page">
         <div class="home-layout">
           <!-- Channel Toggle Button (Mobile) -->
@@ -1195,10 +1185,9 @@
   <script src="/js/api.js?v=20"></script>
   <script src="/js/ui.js"></script>
   <script src="/js/components/VideoPlayer.js?v=13"></script>
-  <script src="/js/components/ChannelList.js?v=9"></script>
+  <script src="/js/components/ChannelList.js?v=10"></script>
   <script src="/js/components/SourceManager.js?v=8"></script>
   <script src="/js/components/EpgGuide.js?v=9"></script>
-  <script src="/js/pages/HomePage.js?v=4"></script>
   <script src="/js/pages/LivePage.js?v=3"></script>
   <script src="/js/pages/Guide.js?v=3"></script>
   <script src="/js/pages/SportsPage.js?v=2"></script>
@@ -1210,7 +1199,7 @@
   <script src="/js/pages/StatusPage.js?v=9"></script>
   <script src="/js/providerReminders.js?v=2"></script>
   <script src="/js/recordingsFeed.js?v=1"></script>
-  <script src="/js/app.js?v=13"></script>
+  <script src="/js/app.js?v=14"></script>
 </body>
 
 </html>

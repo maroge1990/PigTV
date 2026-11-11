@@ -309,6 +309,17 @@ class ChannelList {
         `;
     }
 
+    /**
+     * #276 (no Home page): with no favourites there is no Favourites group, so one hint above the groups says how
+     * to get one. Empty once a favourite is in the list.
+     */
+    favouritesHintHtml() {
+        if (this.getFavoriteChannels().length > 0) return '';
+        const text = 'Open a group and select the heart beside a channel. It is added to Favourites at the top of this list.';
+        return `<div class="favourites-hint"><span class="favourites-hint-icon" aria-hidden="true">${Icons.favoriteOutline}</span>`
+            + UI.stateBlock('empty', text) + '</div>';
+    }
+
     /** Channels of the favourites list that are in the loaded (source-filtered) list. */
     getFavoriteChannels() {
         const out = [];
@@ -422,6 +433,7 @@ class ChannelList {
         // Wrap container content in a specific list div to append to
         this.listContainer = document.createElement('div');
         this.listContainer.className = 'channel-list-content';
+        this.listContainer.innerHTML = searchTerm ? '' : this.favouritesHintHtml();
         this.container.appendChild(this.listContainer);
 
         // Add loader element at bottom
@@ -848,8 +860,8 @@ class ChannelList {
         if (countSpan) countSpan.textContent = favArray.length;
 
         if (favArray.length === 0) {
-            groupHeader.classList.add('hidden');
-            groupHeader.style.display = 'none';
+            // The last favourite: redraw, so the hint takes the group's place.
+            this.render();
         } else {
             groupHeader.classList.remove('hidden');
             groupHeader.style.display = '';

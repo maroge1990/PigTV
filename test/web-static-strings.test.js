@@ -173,9 +173,6 @@ const ROWS = [
     // public/js/pages/Guide.js
     { file: 'js/pages/Guide.js', bre: '/proxy/xtream\\|/proxy/epg\\|API\\.proxy', absent: true, why: '0121: the web reads /api/library (W2.1): public/js/pages/Guide.js no longer calls the Xtream-emulation or whole-EPG routes' },
 
-    // public/js/pages/HomePage.js
-    { file: 'js/pages/HomePage.js', bre: 'window.API.library.favourites()', why: '0121: the web reads /api/library (W2.1): the Home favourites row reads /api/library/favourites' },
-
     // public/js/pages/LivePage.js
     { file: 'js/pages/LivePage.js', bre: '/proxy/xtream\\|/proxy/epg\\|API\\.proxy', absent: true, why: '0121: the web reads /api/library (W2.1): public/js/pages/LivePage.js no longer calls the Xtream-emulation or whole-EPG routes' },
 

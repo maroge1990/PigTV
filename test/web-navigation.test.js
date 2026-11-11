@@ -7,7 +7,7 @@ const { loadUi } = require('./helpers/webUi');
 
 // 0209: the web app's three navigation/refresh races from the 15 Oct review (F1-F3), run on the
 // real page scripts. On 0208 each test fails: an older guide response replaced the newer window,
-// a quick Home revisit stayed on "Loading favourites…" for good, and Back pushed a new entry.
+// and Back pushed a new entry. (The Home-revisit race went with the Home page, #276.)
 
 const js = (file) => fs.readFileSync(path.join(__dirname, '../public/js', file), 'utf8');
 
@@ -126,52 +126,6 @@ test('W1: Later twice then Back once - only the window landed on is published', 
     assert.deepEqual([...g.rows.map(r => r.id)], ['three']);
 });
 
-test('F2: Home -> elsewhere -> Home while favourites load: the Home on screen settles', async () => {
-    const lists = { current: null };
-    const c = load(['pages/HomePage.js'], {
-        document: { addEventListener() {}, querySelectorAll: () => [], getElementById: (id) => (id === 'favorite-channels-list' ? lists.current : null) }
-    });
-    const pending = deferred();
-    let requests = 0;
-    c.window.API = { library: { favourites: () => { requests++; return pending.promise; } } };
-    const home = new c.window.HomePage({});
-    home.updateScrollArrows = () => {};
-
-    const old = { innerHTML: 'loading', querySelectorAll: () => [] };
-    const fresh = { innerHTML: 'loading', querySelectorAll: () => [] };
-    lists.current = old;
-    const first = home.loadDashboardData();
-    lists.current = fresh; // show() replaced the page
-    const second = home.loadDashboardData();
-    pending.resolve([]);
-    await Promise.all([first, second]);
-
-    assert.equal(requests, 1, 'one request, shared');
-    assert.match(fresh.innerHTML, /Add channels to your favourites/);
-    assert.equal(old.innerHTML, 'loading', 'nothing written into the detached list');
-});
-
-test('F2: a failed favourites load offers Retry, and Retry loads again', async () => {
-    let listener;
-    const retry = { addEventListener: (_, fn) => { listener = fn; } };
-    const list = { innerHTML: '', querySelectorAll: () => [], querySelector: (sel) => (sel === '.home-retry' ? retry : null) };
-    const c = load(['pages/HomePage.js'], {
-        document: { addEventListener() {}, querySelectorAll: () => [], getElementById: (id) => (id === 'favorite-channels-list' ? list : null) }
-    });
-    let fail = true;
-    c.window.API = { library: { favourites: async () => { if (fail) throw new Error('down'); return []; } } };
-    const home = new c.window.HomePage({});
-    home.updateScrollArrows = () => {};
-
-    await home.loadDashboardData();
-    assert.match(list.innerHTML, /Error loading favourites/);
-    assert.match(list.innerHTML, /Retry/);
-    fail = false;
-    listener();
-    await tick(); await tick();
-    assert.match(list.innerHTML, /Add channels to your favourites/);
-});
-
 test('F3: Back/Forward (popstate) changes page without writing history; clicks push; start-up replaces', () => {
     const calls = [];
     const c = load(['app.js'], {
@@ -179,27 +133,27 @@ test('F3: Back/Forward (popstate) changes page without writing history; clicks p
     });
     loadUi(c);
     const app = vm.runInContext('Object.create(App.prototype)', c);
-    Object.assign(app, { currentPage: 'home', currentUser: { role: 'admin' }, pages: {} });
+    Object.assign(app, { currentPage: 'live', currentUser: { role: 'admin' }, pages: {} });
 
     app.navigateTo('guide');
     app.navigateTo('settings');
     app.navigateTo('guide', 'none'); // Back
-    app.navigateTo('home', 'none');  // Back
+    app.navigateTo('live', 'none');  // Back
     app.navigateTo('guide', 'none'); // Forward
-    app.navigateTo('home', 'replace');
-    assert.deepEqual(calls, [['push', 'guide'], ['push', 'settings'], ['replace', 'home']]);
-    assert.equal(app.currentPage, 'home');
+    app.navigateTo('live', 'replace');
+    assert.deepEqual(calls, [['push', 'guide'], ['push', 'settings'], ['replace', 'live']]);
+    assert.equal(app.currentPage, 'live');
 
     // A non-admin sent to Settings is redirected by replacing, never by adding an entry.
     calls.length = 0;
     Object.assign(app, { currentPage: 'guide', currentUser: { role: 'viewer' } });
     app.navigateTo('settings', 'none');
-    assert.deepEqual(calls, [['replace', 'home']]);
+    assert.deepEqual(calls, [['replace', 'live']]);
 });
 
 // F4: the main viewing actions are reachable and usable from the keyboard.
-test('F4: live rows, group headers, guide names and programmes, and Home tiles are keyboard buttons', () => {
-    const c = load(['components/ChannelList.js', 'components/EpgGuide.js', 'pages/HomePage.js'], {
+test('F4: live rows, group headers, guide names and programmes are keyboard buttons', () => {
+    const c = load(['components/ChannelList.js', 'components/EpgGuide.js'], {
         Icons: { favorite: '*', favoriteOutline: 'o', chevronDown: 'v' }
     });
     const tag = (html, cls) => (html.match(new RegExp(`<[a-z]+ class="${cls}[^"]*"[^>]*>`, 's')) || [''])[0];
@@ -220,10 +174,6 @@ test('F4: live rows, group headers, guide names and programmes, and Home tiles a
         new Date(now - 60000), new Date(now + 7200000), { id: 'pos_1', sourceId: 1, name: 'One' });
     assert.ok(isButton(tag(cells, 'epg-program current')), 'a programme opens its details from the keyboard');
     assert.match(cells, /aria-label="News, [^"]+: details"/);
-
-    const home = Object.create(c.window.HomePage.prototype);
-    const tile = home.createChannelTile({ id: 'pos_1', sourceId: 1, name: 'One' });
-    assert.ok(isButton(tag(tile, 'channel-tile')));
 });
 
 test('F4: Enter and Space click a keyboard button; other keys and other targets are left alone', () => {
@@ -275,7 +225,7 @@ test('F7: an unchanged guide is not downloaded again; a changed one is, and the 
 });
 
 test('F7: nothing runs while another page is showing or the browser tab is hidden', async () => {
-    for (const setup of [{ page: 'home' }, { page: 'settings' }, { page: 'guide', visibility: 'hidden' }]) {
+    for (const setup of [{ page: 'recordings' }, { page: 'settings' }, { page: 'guide', visibility: 'hidden' }]) {
         const { epg, calls, c } = guideWithServer(setup);
         epg.loaded = true;
         assert.equal(await epg.refreshTick({ now: Date.now() + c.window.EpgGuide.REFRESH_MS }), false);
@@ -300,7 +250,7 @@ test('F8: an active favourite uses the accent text colour, and the visible copy 
     assert.ok(colours.length >= 1);
     for (const c of colours) assert.equal(c.trim(), 'var(--color-accent-text)');
 
-    const shown = ['pages/HomePage.js', 'components/EpgGuide.js', 'components/ChannelList.js', 'pages/RecordingsPage.js']
+    const shown = ['components/EpgGuide.js', 'components/ChannelList.js', 'pages/RecordingsPage.js']
         .map(js).join('\n');
     for (const us of ["'Add to Favorites'", "'Remove from Favorites'", 'Favorite Channels', 'Loading favorites', '>Favorites</option>', "'Program Details'", 'Click a program '])
         assert.ok(!shown.includes(us), `still shows ${us}`);

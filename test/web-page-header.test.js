@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 // #241 (0484): the web pages had five headers: a bar on Guide and Recordings (.guide-header, .recordings-header: padding,
-// a background, a border), a baseline row on Status, a bare h2 on Settings, .section-header on Home, and an h1 on Sport
+// a background, a border), a baseline row on Status, a bare h2 on Settings, and an h1 on Sport
 // where every other page has an h2. One .page-header now: the h2 title, the page's controls beside it, no bar.
 const read = (p) => fs.readFileSync(path.join(__dirname, '..', p), 'utf8');
 const html = read('public/index.html');
@@ -27,11 +27,10 @@ test('Guide, Recordings, Status and Settings open with the one page header and a
     }
 });
 
-test('Sport and Home draw the same header; no page title is an h1', () => {
+test('Sport draws the one header; no page title is an h1', () => {
     const sports = read('public/js/pages/SportsPage.js');
     assert.match(sports, /<div class="page-header"><h2>Sport<\/h2><\/div>/);
     assert.doesNotMatch(sports, /<h1>/);
-    assert.match(read('public/js/pages/HomePage.js'), /<div class="page-header">\s*<h2>Favourite channels<\/h2>/);
 });
 
 test('the header has no bar, and the old per-page header rules are gone', () => {

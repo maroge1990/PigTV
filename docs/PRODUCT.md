@@ -23,7 +23,7 @@ exists, not built).
 |---|---|---|---|---|---|
 | Live TV | One playback path: the server probes a channel and starts an HLS session that copies what the client can decode and re-encodes only what it cannot; HDR and frame rate declared so an Apple TV switches mode | ✓ | ✓ | ✓ | shipped |
 | Guide | XMLTV guide in the provider's channel order, with channel numbers as labels, logos, channel health and EPG matching | ✓ | ✓ (UIKit grid) | ✓ (grid on iPad, On now list on iPhone) | shipped |
-| Home | Continue watching, favourites on now, starting soon, sport now and next | ✓ | ✓ (opens first) | ✓ | shipped |
+| Home | Continue watching, favourites on now, starting soon, sport now and next | — (the web has no Home: it opens on Live TV, favourites first in the channel list; the Guide's group menu has Favourites) | ✓ (opens first) | ✓ | shipped |
 | Providers and failover | A primary provider with ordered backups, cross-provider channel links, failover at start | admin | — | — | shipped |
 | Shared provider connection | One connection per stream, shared by viewers, recordings, the probe, relay legs and standbys | — | — | — | shipped (on by default) |
 | In-stream recovery and hot standby | A relay that splices a new leg or a ready standby into a play when the feed stops | — | ✓ | ✓ | gated (Settings → Playback) |

@@ -28,6 +28,9 @@ app's `public/css/`.
 
 ## Web patterns
 
+- Navigation, in this order: Live TV · TV Guide · Sport · Recordings · Status · Settings (Status and Settings for admins).
+  There is no Home page (#276, option C): the app opens on Live TV, an old `#home` link lands there, and the favourites
+  are the first group of the channel list. With none, one hint above the groups says how to add one.
 - Every viewing action is a real button or link with keyboard semantics (the 15 Oct review's F4); native browser buttons
   and dialogs keep focus.
 - A setting saves only its own key and says "Saved" or shows the server's error (#9 is the open defect).
@@ -61,7 +64,7 @@ PigTV uses its own product pig (a pig-shaped TV screen), never the generic famil
 | Class | Where |
 | --- | --- |
 | `pig-canvas-bloom` | `<body>` of `index.html` and `login.html`: the corner bloom on the canvas. `#app`, `.main-content` and pages stay transparent so it shows in gaps; cards and bars are opaque above it. The live player area is an opaque media surface. |
-| `pig-splash` | The initial Home loading state in `index.html` (`.page-splash`): mark centred, text below, `--pig-r` about 1.35 times the visible pig. HomePage replaces it when it renders. |
+| `pig-splash` | The app's start-up splash, `#app-splash` in `index.html` (`.page-splash`), outside every page: mark centred, "Loading PigTV…" below, `--pig-r` about 1.35 times the visible pig. `app.js` removes it as soon as the first page is shown (no timer, no minimum time). |
 | `pig-glass` | The navbar only (the floating control layer). |
 | `pig-amount` | Figures only: channel numbers, EPG times, recording times and sizes, Status page durations, times, sizes and counts, backup link counts, the player quality badge. Wrap the figure in a span when it sits in words. |
 
