@@ -1,23 +1,50 @@
 /**
  * Recordings (DVR) Page Controller
- * Shows scheduled recordings and the recorded library, with basic playback,
- * download, and delete actions.
+ * #276 (option B, 11 Nov 2026): Recorded as picture cards (one rose Play: the newest recording not yet watched), Coming
+ * up as a strip of compact items, then Recording rules and Recent problems side by side. Each list draws its own
+ * loading, empty and load-error state; when all three fail, one page-level block replaces them.
+ * Deleting and cancelling happen at once with a 10-second Undo: the item leaves the page, and the request is sent only
+ * when the notice ends without Undo (a second delete ends the first one's notice, which sends it), or at once, with
+ * keepalive, if the browser page is left or hidden first. Stop on a recording in progress still confirms.
  */
+const REC_PLAY_ICON = '<svg class="icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
+
 class RecordingsPage {
     constructor(app) {
         this.app = app;
-        this.scheduledList = document.getElementById('scheduled-recordings-list');
-        this.recordingsList = document.getElementById('recordings-list');
-        this.recentProblemsSection = document.getElementById('recent-problems-section');
-        this.recentProblemsList = document.getElementById('recent-problems-list');
-        this.rulesList = document.getElementById('recording-rules-list'); // R5
+        const $ = (id) => document.getElementById(id);
+        this.pageState = $('recordings-page-state');
+        this.recordedSection = $('recorded-section');
+        this.recordedCount = $('recorded-count');
+        this.recordingsList = $('recordings-list');
+        this.recordedFoot = $('recorded-foot');
+        this.scheduledSection = $('scheduled-section');
+        this.scheduledCount = $('scheduled-count');
+        this.scheduledList = $('scheduled-recordings-list');
+        this.rulesSection = $('rules-section');
+        this.rulesCount = $('rules-count');
+        this.rulesSub = $('rules-sub');
+        this.rulesList = $('recording-rules-list'); // R5
+        this.recentProblemsSection = $('recent-problems-section');
+        this.recentProblemsList = $('recent-problems-list');
         this._refreshTimer = null;
+        // What each list last answered (null: not yet) and whether its last load failed.
+        this.data = { recordings: null, upcoming: null, recent: null, rules: null };
+        this.failed = { recordings: false, scheduled: false, rules: false };
+        // Deletes waiting for their Undo notice to end, by key: 'recording:3', 'schedule:7' (a cancel or a recent
+        // problem: the same request), 'rule:2'. A pending item is never drawn, whatever a refresh brings back.
+        this.pending = new Map();
         this.init();
     }
 
     init() {
         const form = document.getElementById('rule-add-form');
         if (form) form.addEventListener('submit', (e) => { e.preventDefault(); this.addSportRule(); });
+        // Leaving or hiding the browser page while a delete waits for its notice: send it now, with keepalive (it
+        // outlives the page), so nothing deleted is silently kept.
+        window.addEventListener?.('pagehide', () => this.commitAllPending());
+        document.addEventListener?.('visibilitychange', () => { if (document.hidden) this.commitAllPending(); });
+        this.draw();
     }
 
     async show() {
@@ -36,48 +63,336 @@ class RecordingsPage {
     }
 
     async refresh() {
-        await Promise.all([this.loadScheduled(), this.loadRecordings(), this.loadRules()]);
+        await Promise.all([this.fetchScheduled(), this.fetchRecordings(), this.fetchRules()]);
+        this.draw();
+    }
+
+    async loadRules() { await this.fetchRules(); this.draw(); }
+    async loadScheduled() { await this.fetchScheduled(); this.draw(); }
+    async loadRecordings() { await this.fetchRecordings(); this.draw(); }
+
+    async fetchRules() {
+        try {
+            this.data.rules = await API.recordings.getRules();
+            this.failed.rules = false;
+        } catch (err) {
+            console.error('Failed to load recording rules:', err);
+            this.failed.rules = true;
+        }
+    }
+
+    async fetchScheduled() {
+        try {
+            // 0156: include=recent also returns missed/failed schedules from the last
+            // 7 days, so a silent overnight failure (like schedule #3's "0.0 GB free")
+            // stays visible here instead of simply vanishing.
+            const items = await API.recordings.getScheduledWithRecent();
+            this.data.upcoming = items.filter(x => x.status !== 'missed' && x.status !== 'failed');
+            this.data.recent = items.filter(x => x.status === 'missed' || x.status === 'failed');
+            this.failed.scheduled = false;
+        } catch (err) {
+            console.error('Failed to load scheduled recordings:', err);
+            this.failed.scheduled = true;
+        }
+    }
+
+    async fetchRecordings() {
+        try {
+            const items = await API.recordings.getAll();
+            const wasActive = (this.recordings || []).some(
+                r => ['running', 'pending'].includes(r.compress_status)
+                  || ['running', 'pending'].includes(r.ad_detect_status)
+            );
+            this.recordings = items;
+            this.data.recordings = items;
+            this.failed.recordings = false;
+            if (!wasActive && !this._compressTimer) this.resumeCompressionWatchIfNeeded();
+        } catch (err) {
+            console.error('Failed to load recordings:', err);
+            this.failed.recordings = true;
+        }
+    }
+
+    // Draw one list from given rows (also how the tests feed the page).
+    renderRecordings(items) { this.data.recordings = items || []; this.failed.recordings = false; this.draw(); }
+    renderScheduled(items) { this.data.upcoming = items || []; this.failed.scheduled = false; this.draw(); }
+    renderRecentProblems(items) { this.data.recent = items || []; this.draw(); }
+    renderRules(rules) { this.data.rules = rules || []; this.failed.rules = false; this.draw(); }
+
+    // ---- drawing -------------------------------------------------------------
+
+    /** Items of a list that are not waiting to be deleted. */
+    visible(list, kind) {
+        return (list || []).filter(x => !this.pending.has(`${kind}:${x.id}`));
+    }
+
+    draw() {
+        // A refresh while a "⋯" menu is open would take its button away: draw when it closes instead.
+        if (UI.menu && UI.menu.isOpen()) { this._drawWanted = true; return; }
+        this._drawWanted = false;
+        const allFailed = this.failed.recordings && this.failed.scheduled && this.failed.rules;
+        const sections = [this.recordedSection, this.scheduledSection, this.rulesSection, this.recentProblemsSection];
+        if (this.pageState) this.pageState.hidden = !allFailed;
+        if (allFailed) {
+            sections.forEach(s => { if (s) s.hidden = true; });
+            UI.setState(this.pageState, 'error', { title: 'Recordings could not be loaded', detail: 'The server did not answer. Nothing is lost: programmes already recorded are safe, and anything scheduled will still record. Live TV and the TV Guide still work.' },
+                { run: () => this.refresh(), primary: true }, { className: 'rec-empty' });
+            return;
+        }
+        if (this.pageState) this.pageState.innerHTML = '';
+        if (this.recordedSection) this.recordedSection.hidden = false;
+        if (this.rulesSection) this.rulesSection.hidden = false;
+        this.drawRecorded();
+        this.drawComingUp();
+        this.drawRules();
+        this.drawProblems();
+    }
+
+    drawRecorded() {
+        const el = this.recordingsList;
+        if (!el) return;
+        const put = (node, html) => { if (node) node.innerHTML = html; };
+        if (this.recordedFoot) this.recordedFoot.hidden = true;
+        this.recordedSection?.classList?.toggle('is-empty', false);
+        if (this.failed.recordings) {
+            put(this.recordedCount, '');
+            UI.setState(el, 'error', { title: 'The recorded programmes could not be loaded.', detail: 'Anything scheduled still records.' },
+                { run: () => this.loadRecordings() });
+            return;
+        }
+        if (this.data.recordings === null) {
+            put(this.recordedCount, '<span class="rec-loading-text" role="status">Loading recordings…</span>');
+            el.innerHTML = this.skeleton('tiles');
+            return;
+        }
+        const items = this.visible(this.data.recordings, 'recording');
+        if (!items.length) {
+            put(this.recordedCount, '');
+            this.recordedSection?.classList?.toggle('is-empty', true);
+            UI.setState(el, 'empty', { title: 'No recordings yet', detail: 'Programmes you record appear here, ready to play. Find one in the TV Guide and choose Record.' },
+                { label: 'Open the TV Guide', run: () => this.openGuide(), primary: true }, { className: 'rec-empty' });
+            return;
+        }
+        put(this.recordedCount, `<span class="pig-amount">${items.length}</span> ${items.length === 1 ? 'programme' : 'programmes'}`);
+        const primary = this.primaryId(items);
+        el.innerHTML = `<div class="rec-grid">${items.map(item => this.tileHtml(item, primary)).join('')}</div>`;
+        el.querySelectorAll('[data-action="play"]').forEach(btn => {
+            btn.addEventListener('click', () => this.play(btn.dataset.id));
+        });
+        el.querySelectorAll('[data-action="delete"]').forEach(btn => {
+            btn.addEventListener('click', () => this.deleteRecording(btn.dataset.id));
+        });
+        el.querySelectorAll('[data-action="more"]').forEach(btn => {
+            UI.menu.attach(btn, () => this.menuItems(btn.dataset.id), {
+                label: btn.getAttribute('aria-label'),
+                onClose: () => { if (this._drawWanted) this.draw(); }
+            });
+        });
+        // Nothing coming up: no empty Coming up box, one quiet line here instead.
+        const upcoming = this.failed.scheduled || this.data.upcoming === null ? null : this.visible(this.data.upcoming, 'schedule');
+        if (upcoming && !upcoming.length && this.recordedFoot) {
+            this.recordedFoot.hidden = false;
+            this.recordedFoot.innerHTML = 'Nothing is scheduled to record. Choose Record on a programme in the TV Guide.';
+        }
+    }
+
+    /** The one rose Play: the newest completed recording not yet watched. */
+    primaryId(items) {
+        let best = null;
+        for (const item of items) {
+            if (item.status !== 'completed' || item.watched) continue;
+            if (!best || (Number(item.started_at) || 0) > (Number(best.started_at) || 0)) best = item;
+        }
+        return best ? String(best.id) : null;
+    }
+
+    tileHtml(item, primaryId) {
+        const e = UI.escape;
+        const id = e(item.id);
+        const tag = (text, tone) => `<span class="rec-tag${tone ? ` is-${tone}` : ''}">${e(text)}</span>`;
+        const sep = '\u00a0<span class="rec-sep" aria-hidden="true">·</span> '; // a line may break after the dot
+
+        // A programme image fills the picture; a channel logo (or the placeholder) sits whole on a plain surface.
+        const logo = !item.image;
+        const art = `<div class="rec-art${logo ? ' is-logo' : ''}"><img src="${e(this.proxiedLogo(item.image || item.channel_logo))}" alt="" loading="lazy"
+            onerror="this.onerror=null;this.src='/img/placeholder.png';this.parentNode.classList.add('is-logo')"></div>`;
+
+        const progress = this.progressOf(item);
+        const bar = progress ? `<div class="rec-tile-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress.percent}" aria-label="Watched"><span style="width:${progress.percent}%"></span></div>` : '';
+
+        const size = this.formatSize(item.file_size_bytes);
+        const meta = [
+            item.channel_name ? `<span class="rec-nw">${e(item.channel_name)}</span>` : '',
+            item.part > 1 ? `Part <span class="pig-amount">${Number(item.part)}</span>${item.provider_name ? ` (${e(item.provider_name)})` : ''}` : '',
+            item.started_at ? `<span class="pig-amount">${e(UI.dateTime(item.started_at))}</span>` : '',
+            size ? `<span class="pig-amount">${size}</span>` : ''
+        ].filter(Boolean).join(sep);
+
+        const tags = [];
+        if (item.status === 'completed') tags.push(tag('Completed', 'ok'));
+        else if (item.status === 'failed') tags.push(tag('Failed', 'bad'));
+        else if (item.status === 'recording') tags.push(tag('Recording', 'live'));
+        else tags.push(tag(this.statusLabel(item.status)));
+        if (item.is_partial) tags.push(tag('Partial', 'warn'));
+        if (item.status === 'completed' && item.watched) tags.push(tag('Watched'));
+        if (item.ad_detect_status === 'running') tags.push(tag('Finding breaks…'));
+        if (item.ad_detect_status === 'done') tags.push(tag('Breaks marked'));
+        if (item.ad_detect_status === 'failed') tags.push(tag('Break detection failed', 'bad'));
+        if (item.compress_status === 'running') tags.push(tag('Compressing…'));
+        if (item.compress_status === 'pending') tags.push(tag('Queued to compress'));
+        if (item.compress_status === 'done') tags.push(tag('Compressed'));
+        if (item.compress_status === 'failed') tags.push(tag('Compression failed', 'bad'));
+
+        // The reasons are written in the card, never only in a hover title.
+        const notes = [];
+        if (item.is_partial) {
+            const minutes = Math.round((Number(item.missed_start_ms) || 0) / 60000);
+            const why = item.missed_start_ms > 30000
+                ? `missing the first ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`
+                : 'stopped before the programme ended';
+            notes.push(`<p class="rec-note"><b>Partial:</b> ${why}</p>`);
+        }
+        if (item.status === 'failed' && item.error) notes.push(`<p class="rec-err">${e(item.error)}</p>`);
+        if (item.compress_status === 'failed' && item.compress_error) notes.push(`<p class="rec-err"><b>Compression failed:</b> ${e(item.compress_error)}</p>`);
+        if (item.ad_detect_status === 'failed' && item.ad_detect_error) notes.push(`<p class="rec-err"><b>Break detection failed:</b> ${e(item.ad_detect_error)}</p>`);
+        if (progress) notes.push(`<p class="rec-progress"><span class="pig-amount">${e(progress.left)}</span></p>`);
+
+        const actions = item.status === 'failed'
+            ? `<button type="button" class="btn btn-secondary" data-action="delete" data-id="${id}">Delete</button>`
+            : (item.status === 'completed'
+                ? `<button type="button" class="btn ${String(item.id) === primaryId ? 'btn-primary' : 'btn-secondary'} btn-play" data-action="play" data-id="${id}">${REC_PLAY_ICON}Play</button>`
+                : '')
+              + `<button type="button" class="btn btn-secondary btn-more" data-action="more" data-id="${id}" aria-haspopup="menu" aria-expanded="false" aria-label="More for ${e(item.title)}">⋯</button>`;
+
+        return `<article class="rec-tile" data-id="${id}">${art}${bar}<div class="rec-tile-body">
+            <h4 class="rec-title" title="${e(item.title)}">${e(item.title)}</h4>
+            <div class="rec-meta">${meta}</div>
+            <div class="rec-tags">${tags.join('')}</div>
+            ${notes.join('')}
+            <div class="rec-actions">${actions}</div>
+        </div></article>`;
+    }
+
+    /** What the "⋯" menu of a recording offers. */
+    menuItems(id) {
+        const item = (this.data.recordings || []).find(r => String(r.id) === String(id));
+        if (!item) return [];
+        const items = [];
+        if (item.status === 'completed') {
+            items.push({ label: 'Download', href: API.recordings.downloadUrl(item.id), download: true });
+            if (!['running', 'pending', 'done'].includes(item.compress_status)) items.push({ label: 'Compress', run: () => this.compress(item.id) });
+        }
+        items.push({ label: 'Delete', run: () => this.deleteRecording(item.id), danger: true });
+        return items;
+    }
+
+    drawComingUp() {
+        const el = this.scheduledList;
+        if (!el) return;
+        const section = this.scheduledSection;
+        const count = this.scheduledCount;
+        const show = (on) => { if (section) section.hidden = !on; };
+        if (count) count.innerHTML = '';
+        if (this.failed.scheduled) {
+            show(true);
+            UI.setState(el, 'error', { title: 'What is coming up could not be loaded.', detail: 'Scheduled recordings still record.' },
+                { run: () => this.loadScheduled() });
+            return;
+        }
+        if (this.data.upcoming === null) { show(true); el.innerHTML = this.skeleton('chips'); return; }
+        const items = this.visible(this.data.upcoming, 'schedule');
+        if (!items.length) { show(false); el.innerHTML = ''; return; }
+        show(true);
+        if (count) count.innerHTML = `<span class="pig-amount">${items.length}</span> scheduled`;
+
+        const e = UI.escape;
+        // #12: a clash is shown on each schedule involved, never silent (D-28). D-42: the one scheduled first records
+        // (`beatenBy` names who wins); the other waits until someone chooses it instead or cancels the winner.
+        const titles = new Map((this.data.upcoming || []).map(i => [i.id, `${i.title} (${i.channel_name || 'unknown channel'})`]));
+        const names = (ids) => e(ids.map(id => titles.get(id) || `schedule #${id}`).join(', '));
+        const beaten = (item) => Array.isArray(item.beatenBy) && item.beatenBy.length > 0;
+        const clash = (item) => {
+            if (!Array.isArray(item.conflictsWith) || !item.conflictsWith.length) return '';
+            if (beaten(item)) {
+                return `<div class="rec-clash" data-clash>Clashes with ${names(item.beatenBy)}, which records instead: this one waits and is not recorded unless you choose it.</div>`;
+            }
+            return `<div class="rec-clash" data-clash>Clashes with ${names(item.conflictsWith)}: this one records${item.status === 'recording' ? '' : ' (scheduled first)'}; the other waits.</div>`;
+        };
+        const tag = (item) => {
+            const t = (text, tone) => `<span class="rec-tag is-${tone}">${e(text)}</span>`;
+            if (item.status === 'recording') return t('Recording', 'live');
+            if (item.status === 'waiting') return t(item.error ? 'Waiting' : this.statusLabel('waiting'), 'warn');
+            if (beaten(item)) return t('Clash: will not record', 'warn');
+            return t(this.statusLabel(item.status), 'accent');
+        };
+        const when = (item) => item.status === 'recording'
+            ? `Now, until ${UI.clock(item.program_end)}`
+            : UI.dateTime(item.program_start);
+        const sep = '\u00a0<span class="rec-sep" aria-hidden="true">·</span> '; // a line may break after the dot
+
+        el.innerHTML = `<div class="rec-strip">${items.map(item => `
+            <div class="rec-chip" data-id="${e(item.id)}">
+                <div class="rec-when"><span class="pig-amount">${e(when(item))}</span>${item.channel_name ? `${sep}<span class="rec-nw">${e(item.channel_name)}</span>` : ''}</div>
+                <div class="rec-title" title="${e(item.title)}">${e(item.title)}</div>
+                ${item.status === 'waiting' && item.error ? `<p class="rec-note"><b>Waiting:</b> ${e(item.error)}</p>` : ''}
+                ${clash(item)}
+                <div class="rec-chip-foot">${tag(item)}<div class="rec-actions">${beaten(item) && item.status !== 'recording'
+                    ? `<button type="button" class="btn btn-secondary" data-action="choose" data-id="${e(item.id)}">Record this one instead</button>` : ''}<button type="button" class="btn btn-secondary" data-action="cancel" data-id="${e(item.id)}">${item.status === 'recording' ? 'Stop' : 'Cancel'}</button></div></div>
+            </div>`).join('')}</div>`;
+
+        el.querySelectorAll('[data-action="cancel"]').forEach(btn => {
+            btn.addEventListener('click', () => this.cancelScheduled(btn.dataset.id));
+        });
+        el.querySelectorAll('[data-action="choose"]').forEach(btn => {
+            btn.addEventListener('click', () => this.chooseScheduled(btn.dataset.id));
+        });
     }
 
     // ---- R5: recording rules -------------------------------------------------
 
-    async loadRules() {
-        if (!this.rulesList) return;
-        try {
-            this.renderRules(await API.recordings.getRules());
-        } catch (err) {
-            console.error('Failed to load recording rules:', err);
-            this.rulesList.innerHTML = '<div class="empty-state"><p>Failed to load the recording rules</p></div>';
-        }
-    }
-
-    renderRules(rules) {
-        if (!rules || rules.length === 0) {
-            this.rulesList.innerHTML = '<p class="setting-hint">No rules yet.</p>';
+    drawRules() {
+        const el = this.rulesList;
+        if (!el) return;
+        if (this.rulesCount) this.rulesCount.innerHTML = '';
+        if (this.rulesSub) this.rulesSub.hidden = true;
+        if (this.failed.rules) {
+            UI.setState(el, 'error', { title: 'The recording rules could not be loaded.', detail: 'Rules already made still record.' },
+                { run: () => this.loadRules() });
             return;
         }
-        this.rulesList.innerHTML = rules.map(rule => {
+        if (this.data.rules === null) { el.innerHTML = this.skeleton('rows'); return; }
+        const rules = this.visible(this.data.rules, 'rule');
+        if (!rules.length) {
+            if (this.rulesSub) this.rulesSub.hidden = false;
+            el.innerHTML = '';
+            return;
+        }
+        if (this.rulesCount) this.rulesCount.innerHTML = `<span class="pig-amount">${rules.length}</span> ${rules.length === 1 ? 'rule' : 'rules'}`;
+        const e = UI.escape;
+        el.innerHTML = `<ul class="rec-list">${rules.map(rule => {
             const what = rule.kind === 'series'
-                ? `Series: ${UI.escape(rule.match)} on ${UI.escape(rule.channelName || 'its channel')}${rule.newOnly ? ' (new episodes only)' : ''}`
-                : `Every game: ${UI.escape(rule.match)}`;
-            const upcoming = rule.upcoming === 1 ? '1 recording scheduled' : `${rule.upcoming} recordings scheduled`;
+                ? `Series: ${e(rule.match)} on ${e(rule.channelName || 'its channel')}${rule.newOnly ? ' (new episodes only)' : ''}`
+                : `Every game: ${e(rule.match)}`;
+            const n = Number(rule.upcoming) || 0;
+            const upcoming = n === 0 ? 'Nothing scheduled yet'
+                : `<span class="pig-amount">${n}</span> ${n === 1 ? 'recording' : 'recordings'} scheduled`;
             return `
-            <div class="recording-item" data-rule-id="${rule.id}">
-                <div class="recording-info">
-                    <div class="recording-title">${what}</div>
-                    <div class="recording-meta">${rule.enabled ? upcoming : 'Off'}</div>
+            <li class="rec-row" data-rule-id="${e(rule.id)}">
+                <div class="rec-info">
+                    <div class="rec-title">${what}</div>
+                    <div class="rec-tags">${rule.enabled ? `<span class="rec-tag is-accent">On</span><span class="rec-meta">${upcoming}</span>` : '<span class="rec-tag">Off</span>'}</div>
                 </div>
-                <div class="recording-actions">
-                    <button class="btn btn-sm btn-secondary" data-action="toggle-rule" data-id="${rule.id}" data-enabled="${rule.enabled}"
+                <div class="rec-actions">
+                    <button type="button" class="btn btn-secondary" data-action="toggle-rule" data-id="${e(rule.id)}" data-enabled="${rule.enabled}"
                         aria-pressed="${rule.enabled}">${rule.enabled ? 'Turn off' : 'Turn on'}</button>
-                    <button class="btn btn-sm btn-secondary" data-action="delete-rule" data-id="${rule.id}">Delete</button>
+                    <button type="button" class="btn btn-secondary" data-action="delete-rule" data-id="${e(rule.id)}">Delete</button>
                 </div>
-            </div>`;
-        }).join('');
-        this.rulesList.querySelectorAll('[data-action="toggle-rule"]').forEach(btn => {
+            </li>`;
+        }).join('')}</ul>`;
+        el.querySelectorAll('[data-action="toggle-rule"]').forEach(btn => {
             btn.addEventListener('click', () => this.toggleRule(btn.dataset.id, btn.dataset.enabled !== 'true'));
         });
-        this.rulesList.querySelectorAll('[data-action="delete-rule"]').forEach(btn => {
+        el.querySelectorAll('[data-action="delete-rule"]').forEach(btn => {
             btn.addEventListener('click', () => this.deleteRule(btn.dataset.id));
         });
     }
@@ -107,177 +422,187 @@ class RecordingsPage {
         }
     }
 
-    async deleteRule(id) {
-        if (!confirm('Delete this rule? Its recordings that have not started are cancelled; anything recorded is kept.')) return;
-        try {
-            await API.recordings.deleteRule(id);
-            await this.refresh();
-        } catch (err) {
-            UI.toast('Could not delete the rule: ' + err.message, { kind: 'error' });
-        }
-    }
-
-    async loadScheduled() {
-        try {
-            // 0156: include=recent also returns missed/failed schedules from the last
-            // 7 days, so a silent overnight failure (like schedule #3's "0.0 GB free")
-            // stays visible here instead of simply vanishing.
-            const items = await API.recordings.getScheduledWithRecent();
-            const upcoming = items.filter(x => x.status !== 'missed' && x.status !== 'failed');
-            const recent = items.filter(x => x.status === 'missed' || x.status === 'failed');
-            this.renderScheduled(upcoming);
-            this.renderRecentProblems(recent);
-        } catch (err) {
-            console.error('Failed to load scheduled recordings:', err);
-            this.scheduledList.innerHTML = `<div class="empty-state"><p>Failed to load scheduled recordings</p></div>`;
-        }
-    }
-
-    async loadRecordings() {
-        try {
-            const items = await API.recordings.getAll();
-            const wasActive = (this.recordings || []).some(
-                r => ['running', 'pending'].includes(r.compress_status)
-                  || ['running', 'pending'].includes(r.ad_detect_status)
-            );
-            this.recordings = items;
-            this.renderRecordings(items);
-            if (!wasActive && !this._compressTimer) this.resumeCompressionWatchIfNeeded();
-        } catch (err) {
-            console.error('Failed to load recordings:', err);
-            this.recordingsList.innerHTML = `<div class="empty-state"><p>Failed to load recordings</p></div>`;
-        }
-    }
-
-    renderScheduled(items) {
-        if (!items || items.length === 0) {
-            this.scheduledList.innerHTML = `<div class="empty-state"><p>No upcoming recordings</p><p class="hint">Click a programme in the TV Guide and choose Record</p></div>`;
-            return;
-        }
-
-        // #12: a clash is shown on each schedule involved, never silent (D-28). D-42: the one scheduled first records
-        // (`beatenBy` names who wins); the other waits until someone chooses it instead or cancels the winner.
-        const titles = new Map(items.map(i => [i.id, `${i.title} (${i.channel_name || 'unknown channel'})`]));
-        const names = (ids) => UI.escape(ids.map(id => titles.get(id) || `schedule #${id}`).join(', '));
-        const clash = (item) => {
-            if (!Array.isArray(item.conflictsWith) || !item.conflictsWith.length) return '';
-            if (Array.isArray(item.beatenBy) && item.beatenBy.length) {
-                return `<div class="recording-error" data-clash>Clashes with ${names(item.beatenBy)}, which records instead: this one waits and is not recorded unless you choose it.</div>`;
-            }
-            return `<div class="recording-error" data-clash>Clashes with ${names(item.conflictsWith)}: this one records${item.status === 'recording' ? '' : ' (scheduled first)'}; the other waits.</div>`;
-        };
-        this.scheduledList.innerHTML = items.map(item => `
-            <div class="recording-item" data-id="${item.id}">
-                <img class="recording-thumb" src="${UI.escape(this.proxiedLogo(item.image || item.channel_logo))}" alt=""
-                     onerror="this.onerror=null;this.src='/img/placeholder.png'">
-                <div class="recording-info">
-                    <div class="recording-title">${UI.escape(item.title)}</div>
-                    <div class="recording-meta">${UI.escape(item.channel_name || '')} &middot; <span class="pig-amount">${this.formatRange(item.program_start, item.program_end)}</span></div>
-                    <div class="recording-status status-${UI.escape(item.status)}">${UI.escape(item.status === 'waiting' && item.error ? `Waiting: ${item.error}` : this.statusLabel(item.status))}</div>
-                    ${clash(item)}
-                </div>
-                <div class="recording-actions">
-                    ${Array.isArray(item.beatenBy) && item.beatenBy.length && item.status !== 'recording'
-                        ? `<button class="btn btn-sm btn-primary" data-action="choose" data-id="${item.id}">Record this one instead</button>` : ''}
-                    <button class="btn btn-sm btn-secondary" data-action="cancel" data-id="${item.id}">
-                        ${item.status === 'recording' ? 'Stop' : 'Cancel'}
-                    </button>
-                </div>
-            </div>
-        `).join('');
-
-        this.scheduledList.querySelectorAll('[data-action="cancel"]').forEach(btn => {
-            btn.addEventListener('click', () => this.cancelScheduled(btn.dataset.id));
-        });
-        this.scheduledList.querySelectorAll('[data-action="choose"]').forEach(btn => {
-            btn.addEventListener('click', () => this.chooseScheduled(btn.dataset.id));
-        });
-    }
-
     // 0156: schedules that ended up missed or failed in the last 7 days. Only shown
     // at all when there is something to show - most of the time there is nothing.
-    renderRecentProblems(items) {
-        if (!this.recentProblemsSection || !this.recentProblemsList) return;
-        if (!items || items.length === 0) {
-            this.recentProblemsSection.hidden = true;
-            this.recentProblemsList.innerHTML = '';
+    drawProblems() {
+        const section = this.recentProblemsSection, list = this.recentProblemsList;
+        if (!section || !list) return;
+        const items = this.failed.scheduled ? [] : this.visible(this.data.recent, 'schedule');
+        if (!items.length) {
+            section.hidden = true;
+            list.innerHTML = '';
             return;
         }
-        this.recentProblemsSection.hidden = false;
-        this.recentProblemsList.innerHTML = items.map(item => `
-            <div class="recording-item" data-id="${item.id}">
-                <img class="recording-thumb" src="${UI.escape(this.proxiedLogo(item.image || item.channel_logo))}" alt=""
-                     onerror="this.onerror=null;this.src='/img/placeholder.png'">
-                <div class="recording-info">
-                    <div class="recording-title">${UI.escape(item.title)}</div>
-                    <div class="recording-meta">${UI.escape(item.channel_name || '')} &middot; <span class="pig-amount">${this.formatRange(item.program_start, item.program_end)}</span></div>
-                    <div class="recording-status status-${UI.escape(item.status)}">${UI.escape(this.statusLabel(item.status))}</div>
-                    ${item.error ? `<div class="recording-error">${UI.escape(item.error)}</div>` : ''}
+        section.hidden = false;
+        const e = UI.escape;
+        const sep = '\u00a0<span class="rec-sep" aria-hidden="true">·</span> '; // a line may break after the dot
+        list.innerHTML = `<ul class="rec-list">${items.map(item => `
+            <li class="rec-row" data-id="${e(item.id)}">
+                <div class="rec-info">
+                    <div class="rec-title">${e(item.title)}</div>
+                    <div class="rec-meta">${item.channel_name ? `<span class="rec-nw">${e(item.channel_name)}</span>${sep}` : ''}<span class="pig-amount">${e(UI.dateRange(item.program_start, item.program_end))}</span></div>
+                    <div class="rec-tags"><span class="rec-tag is-bad">${e(this.statusLabel(item.status))}</span></div>
+                    ${item.error ? `<p class="rec-err">${e(item.error)}</p>` : ''}
                 </div>
-                <div class="recording-actions">
-                    <button class="btn btn-sm btn-danger" data-action="delete-scheduled" data-id="${item.id}">Delete</button>
+                <div class="rec-actions">
+                    <button type="button" class="btn btn-secondary" data-action="delete-scheduled" data-id="${e(item.id)}">Delete</button>
                 </div>
-            </div>
-        `).join('');
+            </li>`).join('')}</ul>`;
 
-        this.recentProblemsList.querySelectorAll('[data-action="delete-scheduled"]').forEach(btn => {
+        list.querySelectorAll('[data-action="delete-scheduled"]').forEach(btn => {
             btn.addEventListener('click', () => this.deleteProblem(btn.dataset.id));
         });
     }
 
-    renderRecordings(items) {
-        if (!items || items.length === 0) {
-            this.recordingsList.innerHTML = `<div class="empty-state"><p>No recordings yet</p></div>`;
+    /** Placeholder shapes while a list loads: no text, hidden from screen readers (the one status line speaks). */
+    skeleton(kind) {
+        const sk = (cls) => `<span class="rec-sk ${cls}"></span>`;
+        if (kind === 'tiles') {
+            const tile = `<div class="rec-sk-tile">${sk('rec-sk-art')}<div class="rec-sk-body">${sk('rec-sk-line')}${sk('rec-sk-line is-short')}${sk('rec-sk-button')}</div></div>`;
+            return `<div class="rec-grid" aria-hidden="true">${tile.repeat(3)}</div>`;
+        }
+        if (kind === 'chips') {
+            const chip = `<div class="rec-sk-chip">${sk('rec-sk-line is-short')}${sk('rec-sk-line')}</div>`;
+            return `<div class="rec-strip" aria-hidden="true">${chip.repeat(2)}</div>`;
+        }
+        const row = `<li class="rec-row"><div class="rec-sk-body">${sk('rec-sk-line')}${sk('rec-sk-line is-short')}</div></li>`;
+        return `<ul class="rec-list" aria-hidden="true">${row.repeat(2)}</ul>`;
+    }
+
+    openGuide() {
+        if (this.app && typeof this.app.navigateTo === 'function') this.app.navigateTo('guide');
+    }
+
+    // ---- delete and cancel, with Undo ----------------------------------------
+
+    /** The item leaves the page now; the request goes when the notice ends without Undo. */
+    defer({ key, message, failText, path, request }) {
+        this.pending.set(key, { key, failText, path, request, committing: false });
+        this.draw();
+        // A second deferred delete replaces this notice, which ends it ('replaced') and so sends the first.
+        this._undoNotice = UI.toast(message, {
+            action: { label: 'Undo', run: () => this.undo(key) },
+            onEnd: (why) => (why === 'action' ? undefined : this.commitPending(key))
+        });
+    }
+
+    undo(key) {
+        const entry = this.pending.get(key);
+        if (!entry || entry.committing) return;
+        this.pending.delete(key);
+        this.draw();
+    }
+
+    async commitPending(key, { keepalive = false } = {}) {
+        const entry = this.pending.get(key);
+        if (!entry || entry.committing) return;
+        entry.committing = true;
+        try {
+            if (keepalive) {
+                // API.request cannot send keepalive; this is the same request with the same sign-in header.
+                const res = await API.streamFetch(`/api${entry.path}`, { method: 'DELETE', keepalive: true });
+                if (!res.ok) throw new Error(`Server responded with ${res.status}`);
+            } else {
+                await entry.request();
+            }
+        } catch (err) {
+            this.pending.delete(key);
+            this.draw();
+            UI.toast(`${entry.failText}: ${err.message}`, { kind: 'error' });
             return;
         }
+        this.forget(key);
+        this.pending.delete(key);
+        this.draw();
+        if (!keepalive) await this.refresh();
+    }
 
-        this.recordingsList.innerHTML = items.map(item => `
-            <div class="recording-item" data-id="${item.id}">
-                <img class="recording-thumb" src="${UI.escape(this.proxiedLogo(item.image || item.channel_logo))}" alt=""
-                     onerror="this.onerror=null;this.src='/img/placeholder.png'">
-                <div class="recording-info">
-                    <div class="recording-title">${UI.escape(item.title)}</div>
-                    <div class="recording-meta">
-                        ${UI.escape(item.channel_name || '')} &middot;
-                        ${item.part > 1 ? `Part ${Number(item.part)}${item.provider_name ? ` (${UI.escape(item.provider_name)})` : ''} &middot;` : ''}
-                        ${item.started_at ? `<span class="pig-amount">${new Date(item.started_at).toLocaleString()}</span>` : ''} &middot;
-                        <span class="pig-amount">${this.formatSize(item.file_size_bytes)}</span>
-                    </div>
-                    <div class="recording-status status-${UI.escape(item.status)}">${UI.escape(this.statusLabel(item.status))}</div>
-                    ${item.status === 'failed' && item.error ? `<div class="recording-error">${UI.escape(item.error)}</div>` : ''}
-                    ${this.progressHtml(item)}
-                </div>
-                <div class="recording-actions">
-                    ${item.is_partial ? `<span class="small muted recording-note" title="${
-                        item.missed_start_ms > 30000
-                            ? `Missing the first ${Math.round(item.missed_start_ms / 60000)} minutes`
-                            : 'Stopped before the programme ended'
-                    }">Partial</span>` : ''}
-                    ${item.ad_detect_status === 'running' ? '<span class="small muted recording-note">Finding breaks…</span>' : ''}
-                    ${item.ad_detect_status === 'done' ? '<span class="small muted recording-note">Breaks marked</span>' : ''}
-                    ${item.ad_detect_status === 'failed' ? `<span class="small muted recording-note" title="${UI.escape(item.ad_detect_error || '')}">Break detection failed</span>` : ''}
-                    ${item.compress_status === 'running' ? '<span class="small muted recording-note">Compressing…</span>' : ''}
-                    ${item.compress_status === 'pending' ? '<span class="small muted recording-note">Queued to compress</span>' : ''}
-                    ${item.compress_status === 'done' ? '<span class="small muted recording-note">Compressed</span>' : ''}
-                    ${item.compress_status === 'failed' ? `<span class="small muted recording-note" title="${UI.escape(item.compress_error || '')}">Compression failed</span>` : ''}
-                    ${item.status === 'completed' && !['running', 'pending', 'done'].includes(item.compress_status)
-                        ? `<button class="btn btn-sm btn-secondary" data-action="compress" data-id="${item.id}">Compress</button>` : ''}
-                    ${item.status === 'completed' ? `<button class="btn btn-sm btn-primary" data-action="play" data-id="${item.id}">Play</button>` : ''}
-                    ${item.status === 'completed' ? `<a class="btn btn-sm btn-secondary" href="${API.recordings.downloadUrl(item.id)}">Download</a>` : ''}
-                    <button class="btn btn-sm btn-danger" data-action="delete" data-id="${item.id}">Delete</button>
-                </div>
-            </div>
-        `).join('');
+    /** The browser page is going or hidden: send every waiting delete now; their Undo is gone with the notice. */
+    commitAllPending() {
+        const keys = [...this.pending.values()].filter(p => !p.committing).map(p => p.key);
+        if (!keys.length) return;
+        keys.forEach(key => this.commitPending(key, { keepalive: true }));
+        if (this._undoNotice) this._undoNotice.close();
+    }
 
-        this.recordingsList.querySelectorAll('[data-action="play"]').forEach(btn => {
-            btn.addEventListener('click', () => this.play(btn.dataset.id));
-        });
-        this.recordingsList.querySelectorAll('[data-action="delete"]').forEach(btn => {
-            btn.addEventListener('click', () => this.deleteRecording(btn.dataset.id));
-        });
-        this.recordingsList.querySelectorAll('[data-action="compress"]').forEach(btn => {
-            btn.addEventListener('click', () => this.compress(btn.dataset.id, btn));
-        });
+    /** Take a deleted item out of what the page holds, so it stays gone until the next answer. */
+    forget(key) {
+        const [kind, id] = key.split(':');
+        const keep = (x) => String(x.id) !== id;
+        if (kind === 'recording' && this.data.recordings) this.recordings = this.data.recordings = this.data.recordings.filter(keep);
+        if (kind === 'schedule') {
+            if (this.data.upcoming) this.data.upcoming = this.data.upcoming.filter(keep);
+            if (this.data.recent) this.data.recent = this.data.recent.filter(keep);
+        }
+        if (kind === 'rule' && this.data.rules) this.data.rules = this.data.rules.filter(keep);
+    }
+
+    deleteRecording(id) {
+        this.defer({ key: `recording:${id}`, message: 'Recording deleted', failText: 'Could not delete it',
+            path: `/recordings/${id}`, request: () => API.recordings.delete(id) });
+    }
+
+    // Its recordings that have not started are cancelled by the server; anything recorded is kept.
+    deleteRule(id) {
+        this.defer({ key: `rule:${id}`, message: 'Rule deleted', failText: 'Could not delete the rule',
+            path: `/recordings/rules/${id}`, request: () => API.recordings.deleteRule(id) });
+    }
+
+    // 0207: a failed or missed schedule from "Recent problems": the server deletes it along
+    // with its failed recordings and their files, so the library is refreshed as well.
+    deleteProblem(id) {
+        this.defer({ key: `schedule:${id}`, message: 'Failed recording deleted', failText: 'Could not delete it',
+            path: `/recordings/scheduled/${id}`, request: () => API.recordings.cancelScheduled(id) });
+    }
+
+    // Cancel has Undo; Stop on a recording in progress cannot be undone, so it still asks first.
+    async cancelScheduled(id) {
+        const item = (this.data.upcoming || []).find(x => String(x.id) === String(id));
+        if (item && item.status === 'recording') {
+            if (!confirm('Cancel this recording?')) return;
+            try {
+                await API.recordings.cancelScheduled(id);
+                await this.refresh();
+            } catch (err) {
+                UI.toast(`Could not cancel it: ${err.message}`, { kind: 'error' });
+            }
+            return;
+        }
+        this.defer({ key: `schedule:${id}`, message: 'Recording cancelled', failText: 'Could not cancel it',
+            path: `/recordings/scheduled/${id}`, request: () => API.recordings.cancelScheduled(id) });
+    }
+
+    // #12 (D-42): this schedule wins its clashes; the one it beats waits instead.
+    async chooseScheduled(id) {
+        try {
+            await API.recordings.chooseScheduled(id);
+            await this.refresh();
+        } catch (err) {
+            UI.toast(`Could not choose it: ${err.message}`, { kind: 'error' });
+        }
+    }
+
+    // 0207: this login's progress through a completed recording: a bar part-way through (with the time left); the
+    // "Watched" tag once watched; nothing for one not started.
+    progressOf(item) {
+        if (item.status !== 'completed' || item.watched) return null;
+        const position = Number(item.position_sec) || 0;
+        const duration = Number(item.duration_sec) || 0;
+        if (position <= 0 || duration <= 0) return null;
+        const percent = Math.min(100, Math.max(1, Math.round((position / duration) * 100)));
+        const minutes = Math.max(1, Math.round((duration - position) / 60));
+        const left = minutes < 60 ? `${minutes} min left`
+            : `${Math.floor(minutes / 60)} h${minutes % 60 ? ` ${minutes % 60} min` : ''} left`;
+        return { percent, left };
+    }
+
+    // H:MM:SS
+    formatClock(sec) {
+        const total = Math.max(0, Math.floor(Number(sec) || 0));
+        const h = Math.floor(total / 3600);
+        const m = Math.floor((total % 3600) / 60);
+        const s = total % 60;
+        return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
     }
 
     async compress(id, btn) {
@@ -322,69 +647,6 @@ class RecordingsPage {
               || ['running', 'pending'].includes(r.ad_detect_status)
         );
         if (active) this.startCompressionWatch();
-    }
-
-    async cancelScheduled(id) {
-        if (!confirm('Cancel this recording?')) return;
-        try {
-            await API.recordings.cancelScheduled(id);
-            await this.refresh();
-        } catch (err) {
-            UI.toast(`Could not cancel it: ${err.message}`, { kind: 'error' });
-        }
-    }
-
-    // #12 (D-42): this schedule wins its clashes; the one it beats waits instead.
-    async chooseScheduled(id) {
-        try {
-            await API.recordings.chooseScheduled(id);
-            await this.refresh();
-        } catch (err) {
-            UI.toast(`Could not choose it: ${err.message}`, { kind: 'error' });
-        }
-    }
-
-    // 0207: a failed or missed schedule from "Recent problems": the server deletes it along
-    // with its failed recordings and their files, so the library is refreshed as well.
-    async deleteProblem(id) {
-        if (!confirm('Delete this failed recording? Any partial file is removed too. This cannot be undone.')) return;
-        try {
-            await API.recordings.cancelScheduled(id);
-            await this.refresh();
-        } catch (err) {
-            UI.toast(`Could not delete it: ${err.message}`, { kind: 'error' });
-        }
-    }
-
-    // 0207: this login's progress through a recording: a thin bar part-way through, a label
-    // once watched. Nothing for one not started.
-    progressHtml(item) {
-        if (item.status !== 'completed') return '';
-        if (item.watched) return '<div class="recording-watched">Watched</div>';
-        const position = Number(item.position_sec) || 0;
-        const duration = Number(item.duration_sec) || 0;
-        if (position <= 0 || duration <= 0) return '';
-        const percent = Math.min(100, Math.max(1, Math.round((position / duration) * 100)));
-        return `<div class="recording-progress" title="${this.formatClock(position)} watched"><span style="width:${percent}%"></span></div>`;
-    }
-
-    // H:MM:SS
-    formatClock(sec) {
-        const total = Math.max(0, Math.floor(Number(sec) || 0));
-        const h = Math.floor(total / 3600);
-        const m = Math.floor((total % 3600) / 60);
-        const s = total % 60;
-        return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-    }
-
-    async deleteRecording(id) {
-        if (!confirm('Delete this recording? This cannot be undone.')) return;
-        try {
-            await API.recordings.delete(id);
-            await this.loadRecordings();
-        } catch (err) {
-            UI.toast(`Could not delete it: ${err.message}`, { kind: 'error' });
-        }
     }
 
     async play(id) {
@@ -568,19 +830,10 @@ class RecordingsPage {
         return url || '/img/placeholder.png';
     }
 
-    formatRange(startMs, endMs) {
-        const start = new Date(startMs);
-        const end = new Date(endMs);
-        const dateStr = start.toLocaleDateString([], { month: 'short', day: 'numeric' });
-        const startStr = UI.time(start);
-        const endStr = UI.time(end);
-        return `${dateStr}, ${startStr} - ${endStr}`;
-    }
-
     formatSize(bytes) {
         if (!bytes) return '';
         const gb = bytes / (1024 * 1024 * 1024);
-        if (gb >= 1) return `${gb.toFixed(2)} GB`;
+        if (gb >= 1) return `${gb.toFixed(1)} GB`;
         const mb = bytes / (1024 * 1024);
         return `${mb.toFixed(0)} MB`;
     }

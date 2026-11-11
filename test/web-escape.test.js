@@ -33,7 +33,8 @@ function container() {
                 if (k.startsWith('data-')) dataset[k.slice(5).replace(/-([a-z])/g, (_, c) => c.toUpperCase())] = v;
             }
             const node = { dataset, text: m[3].trim(), listeners: {}, disabled: false,
-                addEventListener(type, fn) { this.listeners[type] = fn; } };
+                addEventListener(type, fn) { this.listeners[type] = fn; },
+                getAttribute: (k) => (k in attrs ? attrs[k] : null), setAttribute: (k, v) => { attrs[k] = String(v); } };
             out.push(node);
         }
         el.found = out;

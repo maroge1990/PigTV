@@ -56,3 +56,32 @@ test('no file under public/js except ui.js defines its own HTML escape', () => {
         .filter((f) => /\.replace\(\/&\/g|&amp;/.test(fs.readFileSync(f, 'utf8'))).map((f) => path.relative(root, f));
     assert.deepEqual(own, []);
 });
+
+// #276: one date format for the web app: weekday, day and month, the year only when it is not this year, no seconds,
+// the en-dash for a range; 12- or 24-hour from the locale. Fixed locale, zone and "now" so no test depends on the machine.
+const AU = { locale: 'en-AU', timeZone: 'Australia/Sydney', now: Date.UTC(2026, 10, 11, 1, 0) };
+const plain = (s) => s.replace(/[\u00a0\u202f]/g, ' ');
+
+test('UI.dateTime: "Sat 7 Nov, 3:50 am"; the year only when it is not this year; nothing for a bad date', () => {
+    assert.equal(plain(UI.dateTime(Date.UTC(2026, 10, 6, 16, 50, 42), AU)), 'Sat 7 Nov, 3:50 am');
+    assert.equal(plain(UI.dateTime(new Date(Date.UTC(2026, 10, 7, 12, 5)), AU)), 'Sat 7 Nov, 11:05 pm', 'a Date works too');
+    assert.equal(plain(UI.dateTime(Date.UTC(2025, 0, 3, 0, 0), AU)), 'Fri 3 Jan 2025, 11:00 am');
+    assert.equal(plain(UI.dateTime(Date.UTC(2026, 10, 6, 16, 50), { ...AU, locale: 'en-GB' })), 'Sat 7 Nov, 03:50', '24-hour locale');
+    assert.equal(UI.dateTime(NaN, AU), '');
+    assert.equal(UI.dateTime(undefined, AU), '');
+});
+
+test('UI.dateRange: one day once, a shared am/pm once, the en-dash; a range over midnight names both days', () => {
+    const at = (d, h, m) => Date.UTC(2026, 10, d, h, m);   // UTC; Sydney is UTC+11 in November
+    assert.equal(plain(UI.dateRange(at(6, 16, 50), at(6, 18, 30), AU)), 'Sat 7 Nov, 3:50 – 5:30 am');
+    assert.equal(plain(UI.dateRange(at(7, 0, 30), at(7, 2, 0), AU)), 'Sat 7 Nov, 11:30 am – 1:00 pm');
+    assert.equal(plain(UI.dateRange(at(7, 12, 30), at(7, 14, 0), AU)), 'Sat 7 Nov, 11:30 pm – Sun 8 Nov, 1:00 am');
+    assert.equal(plain(UI.dateRange(at(6, 16, 50), at(6, 18, 30), { ...AU, locale: 'en-GB' })), 'Sat 7 Nov, 03:50 – 05:30');
+    assert.equal(plain(UI.dateRange(at(6, 16, 50), undefined, AU)), 'Sat 7 Nov, 3:50 am', 'no end: the start alone');
+    assert.match(UI.dateRange(at(6, 16, 50), at(6, 18, 30), AU), /\u2013/);
+    assert.doesNotMatch(UI.dateRange(at(6, 16, 50), at(6, 18, 30), AU), /:\d\d:\d\d/, 'no seconds');
+});
+
+test('UI.clock: hours and minutes as dateTime writes them ("10:15 pm")', () => {
+    assert.equal(plain(UI.clock(Date.UTC(2026, 10, 11, 11, 15), AU)), '10:15 pm');
+});

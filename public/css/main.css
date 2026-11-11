@@ -377,18 +377,6 @@ h4 {
   display: block;
 }
 
-/* Empty State */
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  padding: var(--space-xl);
-  text-align: center;
-  color: var(--color-text-muted);
-}
-
 /* =====================================================
    Home Page Layout
    ===================================================== */
@@ -1927,19 +1915,6 @@ body.ui-dialog-open {
   }
 }
 
-/* =====================================================
-   Loading States (Recordings only: it is being rebuilt; new code uses .state-block)
-   ===================================================== */
-.loading-state {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-sm);
-  padding: var(--space-xl);
-  color: var(--color-text-muted);
-  width: 100%;
-}
-
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -3198,127 +3173,156 @@ body.ui-dialog-open {
   -webkit-overflow-scrolling: touch;
 }
 
-.loading-state,
-.empty-state {
-  padding: var(--space-2xl);
-  text-align: center;
-  color: var(--color-text-muted);
-  width: 100%;
-  background: rgba(255, 255, 255, 0.02);
-  border-radius: var(--radius-lg);
-  border: 1px dashed rgba(255, 255, 255, 0.1);
+/* #276 (option B, 11 Nov 2026): Recorded as picture cards, Coming up as a strip of compact items, then Recording rules
+   and Recent problems side by side (stacked on a phone). Every section is an opaque Surface card with the brand border
+   and the 16 px radius: no form or reading text sits on the page's bloom. Status words are small tags; colour only
+   supports the word. Figures (dates, sizes, counts) are .pig-amount and never wrap. */
+.rec-wrap { max-width: 1320px; margin: 0 auto; padding: 0 var(--space-lg) var(--space-2xl); }
+.rec-wrap > .page-header { padding-left: 0; padding-right: 0; }
+.rec-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg);
+  padding: var(--space-lg); margin-bottom: var(--space-lg); min-width: 0; }
+[data-theme="light"] .rec-card { box-shadow: var(--shadow-md); }
+.rec-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-xs) var(--space-md);
+  flex-wrap: wrap; margin-bottom: var(--space-md); }
+.rec-card-head h3 { margin: 0; font-size: var(--text-lg); font-weight: 600; }
+.rec-count, .rec-loading-text { font-size: var(--text-sm); color: var(--color-text-secondary); }
+.rec-card.is-empty > .rec-card-head { display: none; }
+.rec-card-sub { margin: calc(-1 * var(--space-sm)) 0 var(--space-md); font-size: var(--text-sm); color: var(--color-text-secondary); }
+.rec-card-foot { margin: var(--space-md) 0 0; padding-top: var(--space-md); border-top: 1px solid var(--color-border);
+  font-size: var(--text-sm); color: var(--color-text-secondary); }
+
+/* Words in a card */
+.rec-title { margin: 0; font-size: var(--text-md); font-weight: 600; line-height: 1.35; color: var(--color-text-primary); overflow-wrap: break-word; }
+.rec-tile .rec-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.rec-meta { margin-top: var(--space-2xs); font-size: var(--text-sm); color: var(--color-text-secondary); }
+.rec-sep { padding-right: var(--space-2xs); }
+.rec-nw, .rec-meta .pig-amount, .rec-when .pig-amount, .rec-progress .pig-amount { white-space: nowrap; }
+.rec-tags { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs) var(--space-sm); margin-top: var(--space-sm); }
+.rec-tags .rec-meta { margin-top: 0; }
+.rec-tag { display: inline-flex; align-items: center; gap: var(--space-xs); padding: var(--space-2xs) var(--space-sm); font-size: var(--text-xs);
+  font-weight: 600; line-height: 1.4; white-space: nowrap; color: var(--color-text-secondary); background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border); border-radius: var(--radius-full); }
+.rec-tag.is-ok { color: var(--color-success); background: color-mix(in srgb, var(--color-success) 12%, transparent); border-color: transparent; }
+.rec-tag.is-ok::before { content: "\2713" / ""; }
+.rec-tag.is-live { color: var(--color-error); background: color-mix(in srgb, var(--color-error) 14%, transparent); border-color: transparent; }
+.rec-tag.is-live::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.rec-tag.is-warn { color: var(--color-warning); background: color-mix(in srgb, var(--color-warning) 14%, transparent); border-color: transparent; }
+.rec-tag.is-bad { color: var(--color-error); background: color-mix(in srgb, var(--color-error) 12%, transparent); border-color: transparent; }
+.rec-tag.is-accent { color: var(--color-accent-text); background: var(--color-accent-dim); border-color: transparent; }
+.rec-note, .rec-err, .rec-progress { margin: var(--space-xs) 0 0; font-size: var(--text-sm); }
+.rec-note, .rec-progress { color: var(--color-text-secondary); }
+.rec-note b { color: var(--color-text-primary); font-weight: 600; }
+.rec-err { color: var(--color-error); overflow-wrap: break-word; }
+.rec-err b { font-weight: 600; }
+.rec-clash { margin-top: var(--space-sm); padding: var(--space-sm) var(--space-md); font-size: var(--text-sm); color: var(--color-text-primary);
+  background: color-mix(in srgb, var(--color-warning) 10%, transparent); border-left: 3px solid var(--color-warning); border-radius: var(--radius-sm); }
+
+/* Buttons in a card; "⋯" opens UI.menu */
+.rec-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-sm); }
+.rec-actions .btn, .rec-form .btn { min-height: 40px; font-size: var(--text-sm); white-space: nowrap; justify-content: center; }
+.rec-actions .btn-more { width: 40px; padding: 0; font-size: var(--text-lg); line-height: 1; }
+
+/* Recorded: a wrapping grid of picture cards. A programme image fills the picture; a channel logo (or the
+   placeholder) is shown whole on a plain raised surface, never stretched or cropped. */
+.rec-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--space-md); }
+.rec-tile { display: flex; flex-direction: column; min-width: 0; overflow: hidden; background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border); border-radius: var(--radius-lg); }
+.rec-art { aspect-ratio: 16 / 9; overflow: hidden; background: var(--color-bg-active); }
+.rec-art img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.rec-art.is-logo { background: var(--color-surface-hover); }
+.rec-art.is-logo img { box-sizing: border-box; padding: var(--space-lg) 20%; object-fit: contain; }
+.rec-tile-bar { height: 4px; background: var(--color-border); }
+.rec-tile-bar > span { display: block; height: 100%; background: var(--color-accent); }
+.rec-tile-body { display: flex; flex: 1; flex-direction: column; min-width: 0; padding: var(--space-md); }
+.rec-tile-body .rec-actions { justify-content: flex-start; flex-wrap: nowrap; margin-top: auto; padding-top: var(--space-md); }
+.rec-tile-body .rec-actions .btn-play { flex: 1; }
+
+/* Coming up: a slim strip of compact items */
+.rec-strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--space-sm); }
+.rec-chip { display: flex; flex-direction: column; gap: var(--space-2xs); min-width: 0; padding: var(--space-sm) var(--space-md);
+  background: var(--color-bg-tertiary); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+.rec-when { font-size: var(--text-sm); color: var(--color-text-secondary); }
+.rec-chip .rec-title { font-size: var(--text-sm); }
+.rec-chip .rec-clash { margin-top: var(--space-xs); padding: var(--space-xs) var(--space-sm); font-size: var(--text-xs); }
+.rec-chip-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-sm); margin-top: auto; padding-top: var(--space-xs); }
+.rec-chip-foot .rec-actions .btn { min-height: 36px; padding: var(--space-xs) var(--space-md); }
+
+/* Rules and recent problems: rows */
+.rec-two { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--space-lg); margin-bottom: var(--space-lg); }
+.rec-two > .rec-card { flex: 3 1 420px; margin-bottom: 0; }
+.rec-two > #recent-problems-section { flex: 2 1 300px; }
+.rec-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.rec-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-md);
+  padding: var(--space-md) 0; border-top: 1px solid var(--color-border); }
+.rec-row:first-child { padding-top: 0; border-top: 0; }
+.rec-row:last-child { padding-bottom: 0; }
+#recording-rules-list:not(:empty) { margin-top: var(--space-lg); padding-top: var(--space-md); border-top: 1px solid var(--color-border); }
+
+/* The add-rule form */
+.rec-form label { display: block; margin-bottom: var(--space-sm); font-weight: 600; }
+.rec-form-row { display: flex; flex-wrap: wrap; gap: var(--space-sm); }
+.rec-input { flex: 1 1 240px; min-width: 0; min-height: 44px; padding: var(--space-sm) var(--space-md); font: inherit; font-size: var(--text-md);
+  color: var(--color-text-primary); background: var(--color-bg-primary); border: 1px solid var(--color-control-border); border-radius: var(--radius-md); }
+.rec-input::placeholder { color: var(--color-text-secondary); }
+.rec-form .btn { min-height: 44px; }
+.rec-hint { margin: var(--space-sm) 0 0; font-size: var(--text-sm); color: var(--color-text-secondary); }
+.rec-hint:empty { display: none; }
+
+/* Nothing recorded, or nothing could be loaded: the small pig mark, the words, one button */
+.state-block.rec-empty { padding: var(--space-xl) var(--space-lg); gap: var(--space-sm); background: none; border: 0; }
+.rec-empty::before { content: ""; width: 72px; height: 72px; margin-bottom: var(--space-xs); background: url('/img/brand/mark.svg') center / contain no-repeat; }
+.rec-empty .state-block-title { font-size: var(--text-lg); font-weight: 600; }
+.rec-empty .state-block-detail { max-width: 34rem; color: var(--color-text-secondary); }
+.rec-empty .state-block-action { min-height: 44px; margin-top: var(--space-sm); justify-content: center; font-size: var(--text-md); }
+
+/* Loading: the page's shape, no text (the one status line is in the Recorded heading); still under reduced motion */
+.rec-sk { display: block; background: var(--color-bg-tertiary); border-radius: var(--radius-sm); animation: sports-pulse 1.6s ease-in-out infinite; }
+.rec-sk-tile, .rec-sk-chip { display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--color-border); }
+.rec-sk-tile { border-radius: var(--radius-lg); }
+.rec-sk-chip { gap: var(--space-sm); padding: var(--space-md); border-radius: var(--radius-md); }
+.rec-sk-art { aspect-ratio: 16 / 9; border-radius: 0; }
+.rec-sk-body { display: flex; flex-direction: column; gap: var(--space-sm); padding: var(--space-md); }
+.rec-row .rec-sk-body { padding: 0; }
+.rec-sk-line { width: 70%; height: 14px; }
+.rec-sk-line.is-short { width: 40%; }
+.rec-sk-button { width: 100%; height: 40px; margin-top: var(--space-sm); }
+@media (prefers-reduced-motion: reduce) { .rec-sk { animation: none; } }
+
+@media (pointer: coarse) {
+  .rec-actions .btn, .rec-chip-foot .rec-actions .btn { min-height: 44px; }
+  .rec-actions .btn-more { width: 44px; }
 }
+@media (max-width: 480px) {
+  .rec-wrap { padding: 0 var(--space-md) var(--space-xl); }
+  .rec-card { padding: var(--space-md); margin-bottom: var(--space-md); }
+  .rec-two { gap: var(--space-md); margin-bottom: var(--space-md); }
+  .rec-grid, .rec-strip { grid-template-columns: minmax(0, 1fr); }
+  .rec-tile .rec-art { aspect-ratio: 21 / 9; }
+  .rec-actions .btn, .rec-form .btn, .rec-chip-foot .rec-actions .btn { min-height: 44px; }
+  .rec-actions .btn-more { flex: 0 0 44px; width: 44px; }
+  .rec-row { grid-template-columns: minmax(0, 1fr); align-items: start; }
+  .rec-row > .rec-actions, .rec-chip-foot .rec-actions { justify-content: stretch; flex-wrap: nowrap; }
+  .rec-row > .rec-actions .btn, .rec-chip-foot .rec-actions .btn { flex: 1; }
+  .rec-chip-foot { flex-direction: column; align-items: stretch; }
+  .rec-chip-foot > .rec-tag { align-self: flex-start; }
+  .rec-form .btn { flex: 1 1 100%; }
+  .state-block.rec-empty { padding: var(--space-lg) var(--space-sm); }
+  .state-block.rec-empty .state-block-action { width: 100%; }
+}
+
+/* #276: the "⋯" menu (UI.menu in ui.js): on the page, not in the card, so nothing clips it; ui.js keeps it in the window. */
+.ui-menu { position: fixed; z-index: 1050; box-sizing: border-box; min-width: 200px; max-width: calc(100vw - 16px); padding: var(--space-xs);
+  background: var(--color-bg-tertiary); border: 1px solid var(--color-border-light); border-radius: var(--radius-md); box-shadow: var(--shadow-lg); }
+.ui-menu-item { box-sizing: border-box; display: flex; align-items: center; width: 100%; min-height: 40px; padding: var(--space-sm) var(--space-md);
+  font: inherit; font-size: var(--text-sm); text-align: left; text-decoration: none; color: var(--color-text-primary); background: none;
+  border: 0; border-radius: var(--radius-sm); cursor: pointer; }
+.ui-menu-item:hover, .ui-menu-item:focus-visible { background: var(--color-bg-hover); }
+.ui-menu-item.is-danger { color: var(--color-error); }
+@media (pointer: coarse) { .ui-menu-item { min-height: 44px; } }
 
 /* ==========================================================================
    Recordings (DVR) Page
    ========================================================================== */
-
-.recordings-section {
-  padding: var(--space-lg);
-}
-
-.recordings-section h3 {
-  margin: 0 0 var(--space-md) 0;
-  font-size: var(--text-md);
-  font-weight: 600;
-  color: var(--color-text-secondary);
-}
-
-.recordings-section + .recordings-section {
-  border-top: 1px solid var(--color-border);
-}
-
-.scheduled-recordings-list,
-.recordings-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-}
-
-.recording-item {
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-  padding: var(--space-sm) var(--space-md);
-  background: var(--color-bg-secondary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-}
-
-.recording-thumb {
-  width: 64px;
-  height: 36px;
-  object-fit: contain;
-  background: var(--color-bg-tertiary);
-  border-radius: var(--radius-sm);
-  flex-shrink: 0;
-}
-
-.recording-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.recording-title {
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.recording-meta {
-  font-size: var(--text-sm);
-  color: var(--color-text-secondary);
-}
-
-.recording-status {
-  display: inline-block;
-  margin-top: var(--space-xs);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  padding: var(--space-2xs) var(--space-sm);
-  border-radius: var(--radius-full);
-  background: var(--color-bg-tertiary);
-  color: var(--color-text-secondary);
-}
-
-.recording-status.status-recording {
-  background: color-mix(in srgb, var(--color-error) 20%, transparent);
-  color: var(--color-error);
-}
-
-.recording-status.status-scheduled {
-  background: var(--color-accent-dim);
-  color: var(--color-accent-hover);
-}
-
-.recording-status.status-waiting {
-  background: color-mix(in srgb, var(--color-warning) 20%, transparent);
-  color: var(--color-warning);
-}
-
-.recording-status.status-completed {
-  background: color-mix(in srgb, var(--color-success) 20%, transparent);
-  color: var(--color-success);
-}
-
-.recording-status.status-failed,
-.recording-status.status-missed {
-  background: color-mix(in srgb, var(--color-error) 15%, transparent);
-  color: var(--color-error);
-}
-
-.recording-error {
-  margin-top: var(--space-xs);
-  font-size: var(--text-xs);
-  color: var(--color-error);
-}
-
-.recording-actions {
-  display: flex;
-  gap: var(--space-sm);
-  flex-shrink: 0;
-}
 
 .record-options {
   display: flex;
@@ -3355,28 +3359,6 @@ body.ui-dialog-open {
   font-size: var(--text-2xl);
   line-height: 1;
   cursor: pointer;
-}
-
-/* 0207: resume position. A thin bar under the title of a recording part-way watched, and the
-   choice shown before playback starts. */
-.recording-progress {
-  height: 3px;
-  margin-top: var(--space-xs);
-  background: var(--color-border);
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.recording-progress > span {
-  display: block;
-  height: 100%;
-  background: var(--color-accent);
-}
-
-.recording-watched {
-  margin-top: var(--space-xs);
-  font-size: var(--text-xs);
-  color: var(--color-text-secondary);
 }
 
 .resume-choice {
@@ -3943,16 +3925,6 @@ body.ui-dialog-open {
 .status-metric { color: var(--color-text-secondary); font-size: var(--text-sm); }
 .status-metric b { color: var(--color-text-primary); font-weight: 600; }
 
-/* R5: the "record a team or league" box on the Recordings page */
-.rule-add-form {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-sm) var(--space-md);
-    margin-bottom: var(--space-sm);
-}
-.rule-add-form label { width: 100%; }
-.rule-add-form input { flex: 1 1 260px; min-width: 0; }
 
 /* C-O sport shelves (#276, option A of 11 Nov 2026): compact Surface cards in one sideways row per league, a "⋯" in
    each card's corner; the league filter as chips; page-level loading, empty and error blocks (UI.stateBlock). The focus
@@ -4085,15 +4057,12 @@ body.ui-dialog-open {
 .sport-follow-body { border: 0; padding: 0; margin: 0; min-width: 0; }
 .sport-follow-body:disabled { opacity: 0.55; }
 
-/* #241: what were inline styles: a status word beside a control, a note in a recording's action row */
+/* #241: what were inline styles: a status word beside a control */
 .inline-status {
   margin-left: var(--space-sm);
   font-size: var(--text-sm);
 }
 
-.recording-actions .recording-note {
-  margin-right: var(--space-sm);
-}
 
 /* #241: one page header on every page: the title (an h2) on the left, the page's controls on the right, no bar.
    Pages in a centred container (Settings, Status) take its edges; full-width pages (Guide, Recordings) the page's. */

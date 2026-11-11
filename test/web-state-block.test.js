@@ -74,16 +74,22 @@ test('UI.setState: { colspan } puts the block in one table row; a container with
 const IN_SCOPE = [
     'js/components/ChannelList.js', 'js/components/EpgGuide.js', 'js/components/SourceManager.js',
     'js/pages/StatusPage.js', 'js/pages/Settings.js', 'js/pages/ProvidersSettings.js',
-    'js/pages/BackupLinksSettings.js', 'js/pages/SportSettings.js', 'index.html'
+    'js/pages/BackupLinksSettings.js', 'js/pages/SportSettings.js', 'js/pages/RecordingsPage.js', 'index.html'
 ];
-/** index.html without the Recordings page (being rebuilt elsewhere). */
-function source(file) {
-    let text = read(file);
-    if (file === 'index.html') {
-        text = text.replace(/<div id="page-recordings"[\s\S]*?<!-- Status Page/, '<!-- Status Page');
+/** #276: no page is exempt any more (Recordings was the last). */
+const source = (file) => read(file);
+
+test('the old state classes are gone from public/ altogether, their CSS included', () => {
+    const walk = (dir) => fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true }).flatMap((d) => {
+        const rel = `${dir}/${d.name}`;
+        return d.isDirectory() ? (d.name === 'vendor' ? [] : walk(rel)) : /\.(js|html|css)$/.test(d.name) ? [rel] : [];
+    });
+    const hits = [];
+    for (const f of [...walk('js'), ...walk('css'), 'index.html', 'login.html']) {
+        for (const m of read(f).matchAll(/\b(empty-state|loading-state)\b|class="loading"|\.loading\s*[{,]/g)) hits.push(`${f}: ${m[0]}`);
     }
-    return text;
-}
+    assert.deepEqual(hits, []);
+});
 
 test('no in-scope page says "Loading..." with three dots, or uses the old state classes', () => {
     const hits = [];
@@ -129,7 +135,11 @@ const LOAD_ERRORS = [
     ['js/pages/BackupLinksSettings.js', 'The backup links could not be loaded.'],
     ['js/pages/BackupLinksSettings.js', 'The channels could not be loaded.'],
     ['js/pages/BackupLinksSettings.js', 'The search could not be finished.'],
-    ['js/pages/SportSettings.js', 'What you follow could not be loaded.']
+    ['js/pages/SportSettings.js', 'What you follow could not be loaded.'],
+    ['js/pages/RecordingsPage.js', 'Recordings could not be loaded'],
+    ['js/pages/RecordingsPage.js', 'The recorded programmes could not be loaded.'],
+    ['js/pages/RecordingsPage.js', 'What is coming up could not be loaded.'],
+    ['js/pages/RecordingsPage.js', 'The recording rules could not be loaded.']
 ];
 
 test('every in-scope load error is a fixed sentence drawn by UI.setState with a retry', () => {

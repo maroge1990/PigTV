@@ -35,6 +35,12 @@ app's `public/css/`.
   and dialogs keep focus.
 - A setting saves only its own key and says "Saved" or shows the server's error (#9 is the open defect).
 - Destructive bulk actions confirm and can be undone (#16).
+- Recordings (#276, option B): Recorded first as picture cards (one rose Play, on the newest recording not yet watched;
+  "Open the TV Guide" when there are none), Coming up as a strip, then Recording rules and Recent problems side by side.
+  A card writes its reasons (Partial, a failure, a compression error) instead of hiding them in a tooltip; Download,
+  Compress and Delete sit in a "⋯" menu (`UI.menu`). Deleting a recording, a recent problem or a rule, and cancelling a
+  schedule, happen at once with a 10-second Undo; only Stop on a recording in progress confirms. Dates use
+  `UI.dateTime` / `UI.dateRange` ("Sat 7 Nov, 3:50 – 5:30 am").
 
 ## Brand
 

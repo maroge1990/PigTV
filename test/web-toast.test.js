@@ -233,3 +233,25 @@ test('Sport: a scheduled watch cancelled by closing the page is told once, when 
     page.hide(); await page.show();
     assert.deepEqual(b.text(), ['later'], 'told once');
 });
+
+// #276: the Recordings page sends a delete only when its Undo notice ends without Undo, so the notice says how it ended.
+test('onEnd says how a notice ended: timeout, action, replaced or closed, once each', () => {
+    const { UI, open } = browser();
+    const ends = [];
+    UI.toast('Recording deleted', { action: { label: 'Undo', run() {} }, onEnd: (why) => ends.push(['a', why]) });
+    mock.timers.tick(10100);
+    assert.deepEqual(ends, [['a', 'timeout']]);
+
+    UI.toast('Recording deleted', { action: { label: 'Undo', run() { ends.push(['b', 'ran']); } }, onEnd: (why) => ends.push(['b', why]) });
+    open()[0].querySelector('.ui-toast-action').click();
+    assert.deepEqual(ends.slice(1), [['b', 'action'], ['b', 'ran']], 'the end is reported before the action runs');
+
+    UI.toast('First', { action: { label: 'Undo', run() {} }, onEnd: (why) => ends.push(['c', why]) });
+    const handle = UI.toast('Second', { action: { label: 'Undo', run() {} }, onEnd: (why) => ends.push(['d', why]) });
+    assert.deepEqual(ends.slice(3), [['c', 'replaced']]);
+    handle.close();
+    handle.close();
+    assert.deepEqual(ends.slice(4), [['d', 'closed']], 'a second close reports nothing');
+    mock.timers.tick(20000);
+    assert.equal(ends.length, 5, 'no timer reports an ended notice again');
+});

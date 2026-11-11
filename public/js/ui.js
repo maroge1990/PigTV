@@ -15,6 +15,19 @@ const UI = {
         return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     },
 
+    /**
+     * #276: the one date format. "Sat 7 Nov, 3:50 am": weekday, day and month, the year only when it is not this year,
+     * hours and minutes (12- or 24-hour from the locale, as UI.time), never seconds. '' for a missing or bad date.
+     * `options` { locale, timeZone, now } are for tests; the page passes none (the browser's locale and zone).
+     */
+    dateTime(date, options) { return DateFormat.dateTime(date, options); },
+
+    /** "Sat 7 Nov, 3:50 – 5:30 am" on one day (am/pm once when both share it); over midnight both days are named. */
+    dateRange(start, end, options) { return DateFormat.dateRange(start, end, options); },
+
+    /** Hours and minutes as dateTime writes them ("10:15 pm"). */
+    clock(date, options) { return DateFormat.clock(date, options); },
+
     /** A function that runs `fn` once, `ms` after the last call, with that last call's arguments. */
     debounce(fn, ms) {
         let timeout;
@@ -29,6 +42,8 @@ const UI = {
      *   UI.toast('Saved')                                   an info notice, gone after 5 s
      *   UI.toast('Channel hidden', { action: { label: 'Undo', run } })   10 s; running the action closes it
      *   UI.toast('Could not save: ...', { kind: 'error' })  stays until closed
+     * `onEnd(why)` is called once when it goes: 'timeout', 'action' (before the action runs), 'replaced' (by the next
+     * notice) or 'closed' (its close button, Escape, or close()).
      * The text is set as text, never as markup. Returns { close() }, or null where there is no page.
      */
     toast(message, options = {}) { return Toast.show(message, options); },
@@ -53,8 +68,70 @@ const UI = {
     setState(container, kind, text, action, options = {}) { return StateBlock.set(container, kind, text, action, options); },
 
     /** Native <dialog> modals: Escape, a backdrop click and the close button close; focus returns to the opener. */
-    dialog: null
+    dialog: null,
+
+    /**
+     * #276: a small menu under a "⋯" button. UI.menu.attach(button, () => items, { label, onClose }), items being
+     * { label, run } or { label, href, download }, `danger: true` for the destructive one. The button gets
+     * aria-haspopup="menu" and aria-expanded; the menu opens on click (Enter, Space) or the arrow keys, arrows move,
+     * Escape, Tab and a click outside close it and focus returns to the button. One is open at a time; it sits on
+     * the page (fixed), kept inside the window and following its button on scroll, so no card clips it.
+     * UI.menu.isOpen(), UI.menu.close().
+     */
+    menu: null
 };
+
+const DateFormat = (() => {
+    const formats = new Map();
+    function format(o, opts) {
+        const key = JSON.stringify([o.locale || null, o.timeZone || null, opts]);
+        let f = formats.get(key);
+        if (!f) {
+            f = new Intl.DateTimeFormat(o.locale || undefined, o.timeZone ? { ...opts, timeZone: o.timeZone } : opts);
+            formats.set(key, f);
+        }
+        return f;
+    }
+    const valid = (date) => date !== null && date !== undefined && date !== '' && !Number.isNaN(new Date(date).getTime());
+    const named = (f, d) => Object.fromEntries(f.formatToParts(d).filter(p => p.type !== 'literal').map(p => [p.type, p.value]));
+
+    function day(d, o) {
+        const p = named(format(o, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }), d);
+        const thisYear = named(format(o, { year: 'numeric' }), new Date(o.now ?? Date.now())).year;
+        return `${p.weekday} ${p.day} ${p.month}${p.year !== thisYear ? ` ${p.year}` : ''}`;
+    }
+    /** The clock's parts; spaces inside it are non-breaking, so "3:50 am" never splits. */
+    function clockParts(d, o) {
+        // "3:50 am" on a 12-hour clock, "03:50" on a 24-hour one.
+        let f = format(o, { hour: 'numeric', minute: '2-digit' });
+        if (!f.resolvedOptions().hour12) f = format(o, { hour: '2-digit', minute: '2-digit' });
+        return f.formatToParts(d)
+            .map(p => ({ type: p.type, value: p.value.replace(/\s/g, '\u00a0') }));
+    }
+    const join = (parts) => parts.map(p => p.value).join('').trim();
+    function withoutPeriod(parts) {
+        const out = parts.filter(p => p.type !== 'dayPeriod');
+        return join(out).replace(/^\u00a0+|\u00a0+$/g, '');
+    }
+    const period = (parts) => (parts.find(p => p.type === 'dayPeriod') || {}).value;
+
+    function clock(date, o = {}) { return valid(date) ? join(clockParts(new Date(date), o)) : ''; }
+    function dateTime(date, o = {}) {
+        if (!valid(date)) return '';
+        const d = new Date(date);
+        return `${day(d, o)}, ${clock(d, o)}`;
+    }
+    function dateRange(start, end, o = {}) {
+        if (!valid(start)) return '';
+        if (!valid(end)) return dateTime(start, o);
+        const a = new Date(start), b = new Date(end);
+        if (day(a, o) !== day(b, o)) return `${dateTime(a, o)} \u2013 ${dateTime(b, o)}`;
+        const pa = clockParts(a, o), pb = clockParts(b, o);
+        const from = period(pa) && period(pa) === period(pb) ? withoutPeriod(pa) : join(pa);
+        return `${day(a, o)}, ${from} \u2013 ${join(pb)}`;
+    }
+    return { dateTime, dateRange, clock };
+})();
 
 const StateBlock = (() => {
     const KINDS = { loading: 'status', empty: null, error: 'alert' };
@@ -166,7 +243,7 @@ const Toast = (() => {
         clearTimeout(current.timer);
         current.remaining = ms;
         current.startedAt = Date.now();
-        current.timer = setTimeout(() => closeCurrent(), ms);
+        current.timer = setTimeout(() => closeCurrent('timeout'), ms);
     }
     function pause() {
         if (!current || current.kind !== 'info' || !current.timer) return;
@@ -179,9 +256,10 @@ const Toast = (() => {
         arm(current.remaining);
     }
 
-    function closeCurrent() {
+    function closeCurrent(why = 'closed') {
         if (!current) return;
         const { pill, text, action } = current.part;
+        const onEnd = current.onEnd;
         clearTimeout(current.timer);
         pill.classList.remove('is-open');
         text.textContent = '';
@@ -189,13 +267,16 @@ const Toast = (() => {
         action.onclick = null;
         current = null;
         hovering = false; focusInside = false;
+        if (typeof onEnd === 'function') {
+            try { onEnd(why); } catch (err) { console.error('Notice onEnd failed:', err); }
+        }
     }
 
     function show(message, options) {
         const p = ensure();
         if (!p) return null;
         const kind = options.kind === 'error' ? 'error' : 'info';
-        closeCurrent();
+        closeCurrent('replaced');
         const part = p[kind];
         const act = options.action && options.action.label ? options.action : null;
         part.text.textContent = String(message ?? '');
@@ -203,7 +284,7 @@ const Toast = (() => {
             part.action.textContent = String(act.label);
             part.action.hidden = false;
             part.action.onclick = () => {
-                closeCurrent();
+                closeCurrent('action');
                 let result;
                 try { result = act.run && act.run(); } catch (err) { result = Promise.reject(err); }
                 if (result && typeof result.then === 'function') {
@@ -214,7 +295,7 @@ const Toast = (() => {
             part.action.hidden = true;
             part.action.onclick = null;
         }
-        current = { kind, part, timer: null, remaining: 0, startedAt: 0 };
+        current = { kind, part, timer: null, remaining: 0, startedAt: 0, onEnd: options.onEnd };
         place(Dialogs.top());
         part.pill.classList.add('is-open');
         if (kind === 'info') arm(act ? ACTION_MS : INFO_MS);
@@ -319,6 +400,135 @@ const Dialogs = (() => {
 })();
 
 UI.dialog = { attach: Dialogs.attach, create: Dialogs.create };
+
+const Menu = (() => {
+    let current = null, seq = 0;
+    const win = () => (typeof window !== 'undefined' ? window : null);
+
+    function focusItem(i) {
+        const rows = current.rows;
+        if (!rows.length) return;
+        const at = (i + rows.length) % rows.length;
+        current.index = at;
+        rows[at].focus();
+    }
+
+    function place() {
+        const { button, menu } = current;
+        if (!menu.style || !button.getBoundingClientRect) return;
+        const w = win() || {};
+        const vw = (typeof document !== 'undefined' && document.documentElement && document.documentElement.clientWidth) || w.innerWidth || 1024;
+        const vh = w.innerHeight || 768;
+        const b = button.getBoundingClientRect();
+        const m = menu.getBoundingClientRect ? menu.getBoundingClientRect() : { width: 0, height: 0 };
+        const width = m.width || (m.right - m.left) || 0, height = m.height || (m.bottom - m.top) || 0;
+        const gap = 4, edge = 8;
+        const left = Math.max(edge, Math.min(b.right - width, vw - width - edge));
+        let top = b.bottom + gap;
+        if (top + height > vh - edge && b.top - height - gap >= edge) top = b.top - height - gap;
+        menu.style.left = `${Math.round(left)}px`;
+        menu.style.top = `${Math.round(Math.max(edge, top))}px`;
+    }
+
+    function onKey(e) {
+        if (!current) return;
+        const k = e.key;
+        if (k === 'ArrowDown') { e.preventDefault(); focusItem(current.index + 1); }
+        else if (k === 'ArrowUp') { e.preventDefault(); focusItem(current.index - 1); }
+        else if (k === 'Home') { e.preventDefault(); focusItem(0); }
+        else if (k === 'End') { e.preventDefault(); focusItem(current.rows.length - 1); }
+        else if (k === 'Escape') { e.preventDefault(); if (e.stopPropagation) e.stopPropagation(); close(); }
+        else if (k === 'Tab') close();
+    }
+    function onOutside(e) {
+        if (!current) return;
+        const t = e.target;
+        if (current.menu.contains(t) || current.button.contains(t)) return;
+        close();
+    }
+    /** A scroll or resize: the menu follows its button, and closes once the button has left the window. */
+    function onMove(e) {
+        if (!current || (e && e.target && current.menu.contains && current.menu.contains(e.target))) return;
+        const b = current.button.getBoundingClientRect ? current.button.getBoundingClientRect() : null;
+        const w = win() || {};
+        if (b && (b.bottom < 0 || b.top > (w.innerHeight || Infinity))) { close(false); return; }
+        place();
+    }
+
+    function close(returnFocus = true) {
+        if (!current) return;
+        const { button, menu, onClose } = current;
+        current = null;
+        menu.remove();
+        button.setAttribute('aria-expanded', 'false');
+        button.removeAttribute('aria-controls');
+        document.removeEventListener('pointerdown', onOutside, true);
+        document.removeEventListener('scroll', onMove, true);
+        const w = win();
+        if (w && w.removeEventListener) w.removeEventListener('resize', onMove);
+        if (returnFocus && button.focus && button.isConnected !== false) button.focus({ preventScroll: true });
+        if (typeof onClose === 'function') onClose();
+    }
+
+    function open(button, items, options = {}) {
+        close(false);
+        const menu = document.createElement('div');
+        menu.className = 'ui-menu';
+        menu.id = `ui-menu-${++seq}`;
+        menu.setAttribute('role', 'menu');
+        if (options.label) menu.setAttribute('aria-label', options.label);
+        const rows = (items || []).filter(Boolean).map((item) => {
+            const row = document.createElement(item.href ? 'a' : 'button');
+            if (item.href) {
+                row.href = item.href;
+                if (item.download) row.setAttribute('download', '');
+            } else {
+                row.type = 'button';
+            }
+            row.className = `ui-menu-item${item.danger ? ' is-danger' : ''}`;
+            row.setAttribute('role', 'menuitem');
+            row.setAttribute('tabindex', '-1');
+            row.textContent = String(item.label);
+            row.addEventListener('click', () => {
+                // A link follows itself (the browser still follows an <a> taken out of the page); a button runs.
+                close();
+                if (item.run) item.run();
+            });
+            menu.appendChild(row);
+            return row;
+        });
+        menu.addEventListener('keydown', onKey);
+        document.body.appendChild(menu);
+        button.setAttribute('aria-expanded', 'true');
+        button.setAttribute('aria-controls', menu.id);
+        current = { button, menu, rows, index: 0, onClose: options.onClose };
+        place();
+        document.addEventListener('pointerdown', onOutside, true);
+        document.addEventListener('scroll', onMove, true);
+        const w = win();
+        if (w && w.addEventListener) w.addEventListener('resize', onMove);
+        focusItem(options.last ? rows.length - 1 : 0);
+    }
+
+    function attach(button, items, options = {}) {
+        button.setAttribute('aria-haspopup', 'menu');
+        button.setAttribute('aria-expanded', 'false');
+        button.addEventListener('click', () => {
+            if (current && current.button === button) { close(); return; }
+            open(button, items(), options);
+        });
+        button.addEventListener('keydown', (e) => {
+            if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+            e.preventDefault();
+            open(button, items(), { ...options, last: e.key === 'ArrowUp' });
+        });
+        return button;
+    }
+
+    return { attach, close: () => close(), isOpen: () => !!current };
+})();
+
+UI.menu = Menu;
 
 if (typeof window !== 'undefined') window.UI = UI;
 if (typeof module !== 'undefined' && module.exports) module.exports = UI;

@@ -28,7 +28,7 @@ exists, not built).
 | Shared provider connection | One connection per stream, shared by viewers, recordings, the probe, relay legs and standbys | — | — | — | shipped (on by default) |
 | In-stream recovery and hot standby | A relay that splices a new leg or a ready standby into a play when the feed stops | — | ✓ | ✓ | gated (Settings → Playback) |
 | Relay timeline renewal | A fresh leg after a shared-connection reconnect | — | — | — | gated, off in production (D-25) |
-| Recordings | Scheduled from the guide, made on the server, ad-break detection (Comskip), playback with break skipping | ✓ | ✓ | ✓ | shipped |
+| Recordings | Scheduled from the guide, made on the server, ad-break detection (Comskip), playback with break skipping; on the web, picture cards with Coming up, rules and recent problems on one page, and delete or cancel with a 10-second Undo | ✓ | ✓ | ✓ | shipped |
 | Segmented recordings | Watch a recording from the start while it records; survives restarts and failover | — | ✓ | ✓ | always on (D-48) |
 | Recording rules | Sport follow and series rules, de-duplicated | ✓ | ✓ | ✓ | shipped |
 | Sport events (C-I) | Sport recognised per programme across every channel, with a follow list, replays and a 72-hour horizon, checked against ESPN's free fixtures | ✓ | ✓ | ✓ | shipped |
