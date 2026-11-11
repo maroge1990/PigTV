@@ -1,7 +1,6 @@
 const { test, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs'), path = require('node:path'), os = require('node:os');
-const { execFileSync } = require('node:child_process');
 const Database = require('better-sqlite3');
 const { createStore } = require('../server/services/sportsDashboardStore');
 
@@ -16,7 +15,7 @@ const open = (name = ':memory:') => { const db = new Database(name === ':memory:
 
 // The store as it was before this batch (8fb0648, build 0541; the same statements back to 0476). It requires nothing.
 const oldFile = path.join(dir, 'oldStore.js');
-fs.writeFileSync(oldFile, execFileSync('git', ['show', '8fb0648:server/services/sportsDashboardStore.js'], { cwd: path.join(__dirname, '..'), encoding: 'utf8' }));
+fs.copyFileSync(path.join(__dirname, 'fixtures', 'old-builds', '8fb0648', 'sportsDashboardStore.js'), oldFile); // from a fixture: the CI image has no git or history
 const oldStore = require(oldFile);
 
 const NOW = Date.parse('2026-10-29T01:00Z'), S = 1000;
