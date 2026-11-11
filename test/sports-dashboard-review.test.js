@@ -119,6 +119,26 @@ test('M2: 429/5xx cooldown is shared by the real scoreboard client and the exist
     }finally{global.fetch=original;if(flag===undefined)delete process.env.PIGTV_SPORTS_DASHBOARD;else process.env.PIGTV_SPORTS_DASHBOARD=flag;}
 });
 
+test('C-1: with the variable unset a 429 the scoreboard client recorded blocks the next fixture request; with =0 it does not',async()=>{
+    const original=global.fetch,flag=process.env.PIGTV_SPORTS_DASHBOARD;let calls=0;delete process.env.PIGTV_SPORTS_DASHBOARD;
+    const fx=require('../server/services/sportsFixturesEspn');
+    try{
+        global.fetch=async()=>{calls++;return new Response('{}',{status:429,headers:{'retry-after':'120'}});};
+        await assert.rejects(()=>espn.fetchJson(espn.BASE+'football/nfl/scoreboard'));
+        const after=calls;
+        const result=await fx.getJson('https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard',5000);
+        assert.equal(result.ok,false);assert.equal(calls,after,'fixture client must respect a cooldown recorded with the variable unset');
+        require('../server/services/espnRequestPolicy').reset();
+        // its own 429 is recorded too, so the page builders stop as well
+        await fx.getJson('https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard',5000);
+        assert.equal(require('../server/services/espnRequestPolicy').blocked(),true);
+        require('../server/services/espnRequestPolicy').reset();
+        process.env.PIGTV_SPORTS_DASHBOARD='0';
+        await fx.getJson('https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard',5000);
+        assert.equal(require('../server/services/espnRequestPolicy').blocked(),false,'collector off: legacy client neither records nor consults');
+    }finally{global.fetch=original;if(flag===undefined)delete process.env.PIGTV_SPORTS_DASHBOARD;else process.env.PIGTV_SPORTS_DASHBOARD=flag;}
+});
+
 test('M3: clearly nearest cricket start wins overlapping multi-day windows; equal starts remain ambiguous',()=>{
     const first=game(1,{league:'Cricket',format:'test',start:NOW-72*H});
     const second=game(2,{league:'Cricket',format:'test',start:NOW,competitors:first.competitors,title:first.title});

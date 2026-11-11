@@ -18,9 +18,15 @@ after(()=>{fixtures.stopBackgroundRefresh();db.close();memory.forEach(d=>d.close
 function follows(){db.prepare('DELETE FROM sport_fixture_status').run();prefs.setFollows(1,{sports:[{sport:'American football',leagues:['NFL']},{sport:'Basketball',leagues:['NBA']},{sport:'Baseball',leagues:['MLB']}]},db);}
 function fixtureFetch(calls){let failed=false;return async url=>{calls.push(String(url));if(!failed){failed=true;return {ok:false,status:503,headers:{get:()=>null}};}return {ok:true,status:200,headers:{get:()=>null},json:async()=>({events:[],sports:[]})};};}
 
-test('N1: dashboard off preserves legacy sequential fixture refresh after the first league gets a 503',async()=>{
+test('N1: with the variable unset the collector is on, so a 503 on the first league defers the rest of the fixture pass',async()=>{
     const old=global.fetch,flag=process.env.PIGTV_SPORTS_DASHBOARD;delete process.env.PIGTV_SPORTS_DASHBOARD;follows();const calls=[];
-    try{global.fetch=fixtureFetch(calls);await fixtures.refreshAll(NOW);assert.ok(calls.some(u=>u.includes('basketball/nba/scoreboard')),'NBA skipped after NFL 503');assert.ok(calls.some(u=>u.includes('baseball/mlb/scoreboard')),'MLB skipped after NFL 503');}
+    try{global.fetch=fixtureFetch(calls);await fixtures.refreshAll(NOW);assert.ok(!calls.some(u=>u.includes('basketball/nba/scoreboard')),'NBA asked during the cooldown');assert.ok(!calls.some(u=>u.includes('baseball/mlb/scoreboard')),'MLB asked during the cooldown');}
+    finally{global.fetch=old;if(flag===undefined)delete process.env.PIGTV_SPORTS_DASHBOARD;else process.env.PIGTV_SPORTS_DASHBOARD=flag;}
+});
+
+test('N1: collector off (=0) preserves the legacy sequential fixture refresh after the first league gets a 503',async()=>{
+    const old=global.fetch,flag=process.env.PIGTV_SPORTS_DASHBOARD;process.env.PIGTV_SPORTS_DASHBOARD='0';follows();const calls=[];
+    try{global.fetch=fixtureFetch(calls);await fixtures.refreshAll(NOW);assert.ok(calls.some(u=>u.includes('basketball/nba/scoreboard')),'NBA skipped after NFL 503');assert.ok(calls.some(u=>u.includes('baseball/mlb/scoreboard')),'MLB skipped after NFL 503');assert.equal(policy.blocked(),false);}
     finally{global.fetch=old;if(flag===undefined)delete process.env.PIGTV_SPORTS_DASHBOARD;else process.env.PIGTV_SPORTS_DASHBOARD=flag;}
 });
 

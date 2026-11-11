@@ -26,7 +26,8 @@ const TIMEOUT_MS = 10000;
 const requestPolicy = require('./espnRequestPolicy');
 
 async function getJson(url, timeoutMs) {
-    const sharedCooldown = process.env.PIGTV_SPORTS_DASHBOARD === '1';
+    // One rule with the collector (sportsDashboard.collectorEnabled, loaded late: it requires sportsFixtures, which requires this).
+    const sharedCooldown = require('./sportsDashboard').collectorEnabled();
     if (sharedCooldown && requestPolicy.blocked()) return { ok: false, error: 'Score host cooling down' };
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);

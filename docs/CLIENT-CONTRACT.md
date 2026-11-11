@@ -521,10 +521,10 @@ all dashboard sources/dates, with two in flight, including dated cricket discove
 dates poll at 30 seconds, including the date whose scoreboard actually listed the game (ESPN groups by US Eastern
 date, so a game after 00:00Z is usually listed under the previous UTC date); other catalog dates use 15 minutes and budget-deferred work rotates through later ticks.
 Three request slots are reserved for eligible least-recent non-hot work, including dated discovery, so busy sources
-cannot indefinitely starve future catalogs; unused capacity can serve either lane. With the dashboard enabled, a shared
-429/5xx cooldown also pauses fixture requests. Deferred leagues are not marked as failed and a coalesced pass retries
-after the cooldown (cancelled if another successful pass already completed). With the dashboard off, the legacy fixture
-client neither observes nor consults dashboard cooldown state; its normal sequential/30-minute behavior is retained.
+cannot indefinitely starve future catalogs; unused capacity can serve either lane. While the score collector is on (the default; `PIGTV_SPORTS_DASHBOARD=0` turns it off), a shared
+429/5xx cooldown also pauses fixture requests and the sport page builders. Deferred leagues are not marked as failed and a coalesced pass retries
+after the cooldown (cancelled if another successful pass already completed). With the collector off, the legacy fixture
+client neither observes nor consults the cooldown state; its normal sequential/30-minute behavior is retained.
 Catalog/history writes are batched once per tick, retaining each response's observation timestamp. Cricket endDate
 hints are not treated as actual match ends; joins use format-bounded windows and retain ambiguous ties as unmatched. Failure leaves catalog/history
 intact and does not label old cached data as newly observed. History keeps a 15-minute window plus, per game, the last-known
