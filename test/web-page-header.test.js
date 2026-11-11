@@ -29,7 +29,8 @@ test('Guide, Recordings, Status and Settings open with the one page header and a
 
 test('Sport draws the one header; no page title is an h1', () => {
     const sports = read('public/js/pages/SportsPage.js');
-    assert.match(sports, /<div class="page-header"><h2>Sport<\/h2><\/div>/);
+    // #276: built as elements, the h2 title first and the page's quiet controls beside it.
+    assert.match(sports, /const header=el\('div','page-header'\)[\s\S]{0,120}header\.append\(el\('h2',null,'Sport'\),this\.actions\)/);
     assert.doesNotMatch(sports, /<h1>/);
 });
 

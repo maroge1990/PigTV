@@ -44,7 +44,10 @@ test('one time row, no repeated shelf name, corner availability labels and safe 
     assert.doesNotMatch(html, /2009|NBA|remote\/logo|<team>/);
     assert.match(html, /No channel found/);
     assert.match(html, /\/api\/logo\/cached/);
-    assert.match(p.card(game({ status:'scheduled' }), {}, 'UTC'), /UPCOMING/);
+    // #276: statuses are sentence-case words; the availability mark keeps its words on the card's channel row.
+    assert.match(p.card(game({ status:'scheduled' }), {}, 'UTC'), /<span class="sports-status">Upcoming<\/span>/);
+    assert.doesNotMatch(p.card(game({ status:'scheduled' }), {}, 'UTC'), /UPCOMING/);
+    assert.match(html, /<span class="sports-meta"><span class="sports-availability unmatched">[\s\S]*No channel found<\/span>/);
 });
 test('final and expired airings never watch; cached live bit cannot permit early playback', () => {
     const p = load().SportsDashboardPolicy;

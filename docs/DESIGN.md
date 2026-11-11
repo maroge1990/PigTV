@@ -219,7 +219,8 @@ Proposed availability markers reuse existing visual vocabulary but need explicit
 - Recording retains its existing red recording indicator **with a recording label/icon**. Color alone cannot distinguish
   recording from an unavailable feed. Do not probe/tune channels just to populate these markers.
 
-On iPhone/iPad: touch-and-hold plus a visible more-options action; web: a visible options action and keyboard access.
+On iPhone/iPad: touch-and-hold plus a visible more-options action; web: a 44 × 44 "⋯" button in the card's top corner
+("More options for …", after the card in keyboard order; right-click opens the same details).
 Apple TV: remote select/long press, native focus, readable team names and distinct focused card styling. Screen readers
 must receive the same spoiler-safe fields as sighted users. Real graphics should use cached source team/league or driver/
 constructor assets with name/initial fallback; validate availability, attribution and permitted use before shipping.
@@ -229,7 +230,8 @@ constructor assets with name/initial fallback; validate availability, attributio
 Mark's preview feedback: cards within a sport always have the same size, and a labelled sport shelf makes repeated
 sport names on each card unnecessary. Apple 59 reserves a scaled card size through live/upcoming/break/unknown/final,
 missing channel, hidden score and expired-focus states; cards show the status alone. Details retain league context.
-Long team names have two lines beside square cached-logo/name-fallback tiles. Availability uses yellow/red icons in the card’s top corner, with explicit VoiceOver labels and words in details. Offline fixtures/screenshots and test evidence are in the
+Long team names have two lines beside square cached-logo/name-fallback tiles. Availability uses yellow/red icons in the card’s top corner, with explicit VoiceOver labels and words in details
+(web, #276: the icon with its words on the card's channel row, since the "⋯" holds the corner). Offline fixtures/screenshots and test evidence are in the
 [continuation handoff](evidence/2026-10-29-sports-0316-continuation/README.md); device acceptance remains open.
 
 Mark's next preview iteration shortens the equal-size cards, removes “Total points,” shows current game progress OR

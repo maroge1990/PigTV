@@ -38,15 +38,17 @@ const UI = {
      *   UI.stateBlock('loading')                                         spinner and "Loading…"
      *   UI.stateBlock('empty', { title: 'No devices yet', detail: 'Pair one above.' })
      *   UI.stateBlock('error', 'The channel list could not be loaded.', { run: () => this.load() })   "Try again"
-     * `text` is a string (the title) or { title, detail }; `action` is { label, run } or { label, href }. All text is
+     *   UI.stateBlock('empty', 'Nothing yet', { label: 'Start', run, primary: true }, { className: 'my-empty' })   rose button, extra class
+     * `text` is a string (the title) or { title, detail }; `action` is { label, run } or { label, href }, drawn as the
+     * secondary button unless it says `primary: true`; `options.className` adds a modifier class to the block. All text is
      * escaped. Returns HTML, for pages that build markup; a `run` is bound by UI.setState, the usual way in.
      * A load error is a fixed plain sentence: the raw error goes to the console, never into the block.
      */
-    stateBlock(kind, text, action) { return StateBlock.html(kind, text, action); },
+    stateBlock(kind, text, action, options) { return StateBlock.html(kind, text, action, options); },
 
     /**
      * Empty `container`, put the block in and bind its action's `run`. `{ colspan }` wraps the block in one table row,
-     * for a <tbody>. Returns the action's button, or null.
+     * for a <tbody>; `{ className }` as for stateBlock. Returns the action's button, or null.
      */
     setState(container, kind, text, action, options = {}) { return StateBlock.set(container, kind, text, action, options); },
 
@@ -67,27 +69,29 @@ const StateBlock = (() => {
     function actionOf(kind, action) {
         if (!action || (!action.run && !action.href)) return null;
         const label = action.label || (kind === 'error' ? 'Try again' : '');
-        return label ? { label: String(label), run: action.run, href: action.href } : null;
+        return label ? { label: String(label), run: action.run, href: action.href, primary: action.primary === true } : null;
     }
 
-    function html(kind, text, action) {
+    function html(kind, text, action, { className } = {}) {
         const e = UI.escape;
         const { title, detail } = parts(kind, text);
         const act = actionOf(kind, action);
         const role = KINDS[kind] ? ` role="${KINDS[kind]}"` : '';
+        const btn = act && act.primary ? 'btn-primary' : 'btn-secondary';
         const button = !act ? ''
-            : act.href ? `<a class="btn btn-secondary state-block-action" href="${e(act.href)}">${e(act.label)}</a>`
-                : `<button type="button" class="btn btn-secondary state-block-action" data-state-action>${e(act.label)}</button>`;
-        return `<div class="state-block state-${kind}"${role}>`
+            : act.href ? `<a class="btn ${btn} state-block-action" href="${e(act.href)}">${e(act.label)}</a>`
+                : `<button type="button" class="btn ${btn} state-block-action" data-state-action>${e(act.label)}</button>`;
+        const extra = className ? ` ${e(className)}` : '';
+        return `<div class="state-block state-${kind}${extra}"${role}>`
             + (kind === 'loading' ? '<span class="state-block-spinner" aria-hidden="true"></span>' : '')
             + `<p class="state-block-title">${e(title)}</p>`
             + (detail ? `<p class="state-block-detail">${e(detail)}</p>` : '')
             + button + '</div>';
     }
 
-    function set(container, kind, text, action, { colspan } = {}) {
+    function set(container, kind, text, action, { colspan, className } = {}) {
         if (!container) return null;
-        const block = html(kind, text, action);
+        const block = html(kind, text, action, { className });
         container.innerHTML = colspan ? `<tr class="state-row"><td colspan="${Number(colspan) || 1}">${block}</td></tr>` : block;
         const act = actionOf(kind, action);
         if (!act || !act.run) return null;

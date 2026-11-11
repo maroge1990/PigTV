@@ -237,3 +237,17 @@ test('the CSS: one .state-block, tokens only, a spinner that stops for reduced m
     assert.match(css, /@media \(pointer: coarse\)\s*\{[^}]*\.state-block-action[^}]*\{[^}]*min-height:\s*44px/);
     assert.match(css, /\.state-block\s*\{[^}]*font-size:\s*var\(--text-md\)/);
 });
+
+test('UI.stateBlock: an action can be the primary (rose) button, and options.className adds a modifier class (#276 Sport)', () => {
+    const plain = UI.stateBlock('empty', 'Nothing yet', { label: 'Start', run() {} });
+    assert.match(plain, /class="btn btn-secondary state-block-action"/);
+    assert.doesNotMatch(plain, /btn-primary/);
+    const primary = UI.stateBlock('empty', 'Nothing yet', { label: 'Start', run() {}, primary: true }, { className: 'my-empty' });
+    assert.match(primary, /^<div class="state-block state-empty my-empty">/);
+    assert.match(primary, /class="btn btn-primary state-block-action"[^>]*>Start</);
+    assert.equal(primary.match(/btn-/g).length, 1);
+    const doc = createDocument(), box = doc.createElement('div');
+    UI.setState(box, 'empty', 'x', { label: 'Go', href: '#a', primary: true }, { className: 'q"<' });
+    assert.match(box.innerHTML, /class="state-block state-empty q&quot;&lt;"/, 'the class is escaped');
+    assert.match(box.innerHTML, /<a class="btn btn-primary state-block-action" href="#a">Go<\/a>/);
+});
