@@ -40,10 +40,19 @@ function keyForUrl(url) {
  * missing logo) is returned unchanged - there is nothing to cache.
  */
 function registerLogo(url) {
-    if (!url || typeof url !== 'string' || !/^https?:\/\//i.test(url)) return url || null;
+    if (!isCacheable(url)) return url || null;
+    const known = memory().get(url);
+    if (known) return `/api/logo/${known}`;
     const key = keyForUrl(url);
     insertStatement().run(key, url);
+    // Inside someone else's open transaction a rollback could still remove the
+    // row, so only remember what is already committed.
+    if (!getDb().inTransaction) remember(url, key);
     return `/api/logo/${key}`;
+}
+
+function isCacheable(url) {
+    return !!url && typeof url === 'string' && /^https?:\/\//i.test(url);
 }
 
 // Prepared once per database handle; a guide page registers up to 500 logos.
@@ -58,15 +67,53 @@ function insertStatement() {
     return insertStmt;
 }
 
+// URL -> key for every URL whose row is known to be committed, so a repeat
+// read costs a Map lookup: no hash, no statement, no write transaction.
+// Tied to the db handle like the statement; nothing deletes logo_cache rows
+// and the version is fixed at load, so nothing else invalidates it.
+const MEMORY_LIMIT = 20000;
+let memoryMap = new Map();
+let memoryDb = null;
+function memory() {
+    const db = getDb();
+    if (memoryDb !== db) { memoryDb = db; memoryMap = new Map(); }
+    return memoryMap;
+}
+function remember(url, key) {
+    const m = memory();
+    if (m.size >= MEMORY_LIMIT) m.clear();
+    m.set(url, key);
+}
+/** For tests: forget everything remembered. */
+function _resetMemory() { memoryMap = new Map(); memoryDb = null; }
+
 /** Replace the `logo` field of each item in place, for a whole page at once. */
 function applyLogoCache(items) {
-    // One transaction per page: otherwise the first load of a 500-channel
-    // page commits 500 separate inserts.
-    getDb().transaction(() => {
-        for (const item of items) {
-            if (item.logo) item.logo = registerLogo(item.logo);
+    const m = memory();
+    const misses = [];
+    for (const item of items) {
+        if (!item.logo) continue;
+        const known = isCacheable(item.logo) && m.get(item.logo);
+        if (known) item.logo = `/api/logo/${known}`;
+        else misses.push(item);
+    }
+    if (!misses.length) return;
+    // One transaction per page (misses only): otherwise the first load of a
+    // 500-channel page commits 500 separate inserts.
+    const db = getDb();
+    const fresh = [];
+    db.transaction(() => {
+        for (const item of misses) {
+            const url = item.logo;
+            if (!isCacheable(url)) continue; // unchanged, as registerLogo returns it
+            const key = keyForUrl(url);
+            insertStatement().run(key, url);
+            fresh.push([url, key]);
+            item.logo = `/api/logo/${key}`;
         }
     })();
+    if (db.inTransaction) return; // an outer transaction could still roll back
+    for (const [url, key] of fresh) remember(url, key); // committed
 }
 
-module.exports = { LOGO_CACHE_VERSION, keyForUrl, registerLogo, applyLogoCache };
+module.exports = { LOGO_CACHE_VERSION, keyForUrl, registerLogo, applyLogoCache, _resetMemory };
