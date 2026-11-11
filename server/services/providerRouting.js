@@ -32,7 +32,6 @@
 const db = require('../db');
 const { getDb } = require('../db/sqlite');
 const xtreamApi = require('./xtreamApi');
-const providerFields = require('./providerFields');
 const providerAccounts = require('./providerAccounts');
 const channelLinks = require('./channelLinks');
 const { isStreamUrl } = require('./streamUrl');
@@ -61,16 +60,20 @@ const quarantined = new Map(); // `${providerId}|${channelKey}` -> until (ms)
 
 // ------------------------------------------------------------------ providers --
 
-/** Every stream source (not EPG), with its role filled in, by id. Read afresh: a handful of rows. */
+// I-4 (#273): the map is built once per source list (db.sources.listParsed, frozen, dropped on every
+// source write) and shared: read only, nobody may .set on it.
+let mapFrom = null;
+let mapBuilt = null;
+
+/** Every stream source (not EPG), with its role filled in, by id. Current after every source write. */
 function providerMap() {
+    let list;
+    try { list = db.sources.listParsed(); } catch { return new Map(); /* no database: nothing to fail over to */ }
+    if (mapFrom === list) return mapBuilt;
     const map = new Map();
-    try {
-        for (const r of getDb().prepare('SELECT data FROM app_sources ORDER BY id').all()) {
-            let s;
-            try { s = providerFields.withDefaults(JSON.parse(r.data)); } catch { continue; }
-            if (s && s.type !== 'epg') map.set(Number(s.id), s);
-        }
-    } catch { /* no database: nothing to fail over to */ }
+    for (const s of list) if (s && s.type !== 'epg') map.set(Number(s.id), s);
+    mapFrom = list;
+    mapBuilt = map;
     return map;
 }
 

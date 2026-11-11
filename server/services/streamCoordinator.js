@@ -436,32 +436,48 @@ const LEGACY_DIRECTORY = Object.freeze({ multi: false, primary: null, backups: n
  * `multi` (at least one enabled backup: pools are per provider).
  *
  * Read from the database only when it is already open - this is never the thing
- * that opens it - and read afresh on every call (a handful of rows), so a provider
- * added or disabled in Settings counts at once. Anything unreadable is today's
- * single pool: a coordinator failure must not be what stops playback.
+ * that opens it. The rows come from db.sources.listParsed() (I-4, #273: one parsed,
+ * frozen list, dropped on every source write), so a provider added or disabled in
+ * Settings counts at once. The built directory is reused while that list and the
+ * account keys (accountKeyFor, which for an M3U reads provider_accounts and the
+ * playlist, with its own 30 s cache) are unchanged: nothing else goes into it.
+ * Anything unreadable is today's single pool: a coordinator failure must not be what
+ * stops playback. The legacy fallback is never cached.
  */
+let builtRows = null;   // { list, multi, primary, backups, ordered }: what the rows alone decide
+let builtDir = null;    // { list, keys, dir }: the directory, for that list and those account keys
+
+function directoryRows(list) {
+    if (builtRows && builtRows.list === list) return builtRows;
+    const all = list.filter(src => src && src.type !== 'epg');
+    const backups = new Map(all.filter(src => src.role === 'backup').map(src => [Number(src.id), src]));
+    const multi = [...backups.values()].some(src => src.enabled !== false);
+    const primaries = all.filter(src => src.role !== 'backup');
+    const primary = primaries.find(src => src.enabled !== false) || primaries[0] || null;
+    const ordered = Object.freeze([...backups.values()].sort((x, y) => Number(x.id) - Number(y.id)));
+    builtRows = { list, multi, primary, backups, ordered };
+    return builtRows;
+}
+
 function providerDirectory() {
     try {
         const sqlite = require('../db/sqlite');
         if (typeof sqlite.isOpen !== 'function' || !sqlite.isOpen()) return LEGACY_DIRECTORY;
-        const { withDefaults } = require('./providerFields');
-        const all = sqlite.getDb().prepare('SELECT data FROM app_sources ORDER BY id').all()
-            .map(r => { try { return withDefaults(JSON.parse(r.data)); } catch (e) { return null; } })
-            .filter(src => src && src.type !== 'epg');
-        const backups = new Map(all.filter(src => src.role === 'backup').map(src => [Number(src.id), src]));
-        const multi = [...backups.values()].some(src => src.enabled !== false);
+        const list = require('../db').sources.listParsed();
+        const { multi, primary, backups, ordered } = directoryRows(list);
         if (!multi) return LEGACY_DIRECTORY;
-        const primaries = all.filter(src => src.role !== 'backup');
-        const primary = primaries.find(src => src.enabled !== false) || primaries[0] || null;
         // 0181: a backup that is the primary's account (or an earlier backup's) counts in that pool.
         const { accountKeyFor } = require('./accountKey');
+        const primaryKey = primary ? accountKeyFor(primary) : null;
+        const backupKeys = ordered.map(b => accountKeyFor(b));
+        const keys = [primaryKey, ...backupKeys].join('\n');
+        if (builtDir && builtDir.list === list && builtDir.keys === keys) return builtDir.dir;
         const poolOf = new Map();       // backup id -> the pool it counts in
         const merged = new Map();       // pool -> the backups folded into it
         const firstOfKey = new Map();   // account key -> the pool that owns it
-        const primaryKey = primary ? accountKeyFor(primary) : null;
         if (primaryKey) firstOfKey.set(primaryKey, PRIMARY_POOL);
-        for (const b of [...backups.values()].sort((x, y) => Number(x.id) - Number(y.id))) {
-            const key = accountKeyFor(b);
+        ordered.forEach((b, i) => {
+            const key = backupKeys[i];
             const owner = key && firstOfKey.has(key) ? firstOfKey.get(key) : Number(b.id);
             if (key && !firstOfKey.has(key)) firstOfKey.set(key, owner);
             poolOf.set(Number(b.id), owner);
@@ -469,8 +485,12 @@ function providerDirectory() {
                 if (!merged.has(owner)) merged.set(owner, []);
                 merged.get(owner).push(b);
             }
-        }
-        return { multi, primary, backups, poolOf, merged };
+        });
+        for (const sharers of merged.values()) Object.freeze(sharers);
+        // Shared between calls: read only (the Maps are never .set outside this function).
+        const dir = Object.freeze({ multi, primary, backups, poolOf, merged });
+        builtDir = { list, keys, dir };
+        return dir;
     } catch (err) {
         return LEGACY_DIRECTORY;
     }
@@ -1090,5 +1110,7 @@ module.exports = {
     // Test seam: the prompts map, so a test can move a prompt's `dueSince` into the
     // past instead of actually waiting out recordingPromptTimeoutMin minutes.
     _prompts: prompts,
-    _leases: leases
+    _leases: leases,
+    // Test seam (I-4): the pools' directory, to compare with the one the rows alone would build.
+    _providerDirectory: providerDirectory
 };

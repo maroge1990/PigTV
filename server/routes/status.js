@@ -266,17 +266,15 @@ function providersStatus(settings = {}) {
         const snapshot = providerRouting.snapshot();
         const activeStreams = streamCoordinator.activeStreams();
         const activeRecordings = recordingEngine.listActive();
+        // I-4 (#273): the sources' one parsed list, not a SELECT per provider per poll. Read only.
+        const sources = db.sources.listParsed();
 
         return (snapshot.providers || []).map(prov => {
             const id = Number(prov.id);
             const used = connectionsUsed(id, activeStreams, activeRecordings);
 
             const account = providerAccounts.getAccount(id);
-            const sourceRow = getDb().prepare('SELECT data FROM app_sources WHERE id = ?').get(id);
-            let source = null;
-            if (sourceRow) {
-                try { source = JSON.parse(sourceRow.data); } catch (e) { /* skip */ }
-            }
+            const source = sources.find(s => Number(s.id) === id) || null;
             const expInfo = providerAccounts.expiryInfo(source, account);
             const limit = streamCoordinator.providerLimit(id, settings);
             const expired = providerAccounts.isExpired(source, account);

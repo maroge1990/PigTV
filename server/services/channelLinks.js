@@ -32,7 +32,6 @@
  */
 const { getDb } = require('../db/sqlite');
 const { LISTED_SQL, NUMBER_JOIN } = require('./channelNumbers');
-const providerFields = require('./providerFields');
 const { qualityLabel } = require('./channelQuality');
 
 const MAX_RANK = 3;
@@ -425,9 +424,8 @@ function planLinks(existing, fresh, exists, now) {
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
 function providers() {
-    const rows = getDb().prepare('SELECT data FROM app_sources ORDER BY id').all();
-    const all = rows.map(r => { try { return providerFields.withDefaults(JSON.parse(r.data)); } catch { return null; } })
-        .filter(s => s && s.type !== 'epg');
+    // I-4 (#273): the sources' one parsed, frozen list (db.sources.listParsed); read only.
+    const all = require('../db').sources.listParsed().filter(s => s && s.type !== 'epg');
     return {
         all,
         primaries: all.filter(s => s.role !== 'backup'),

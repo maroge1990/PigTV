@@ -776,11 +776,8 @@ function listRecordings(userId = null) {
     const rows = recordingsDb.listAll();
     let names = new Map();
     try {
-        names = new Map(getDb().prepare('SELECT id, data FROM app_sources').all().map(r => {
-            let name = null;
-            try { name = JSON.parse(r.data).name || null; } catch (e) { /* unnamed */ }
-            return [Number(r.id), name];
-        }));
+        // I-4 (#273): the sources' one parsed list (db.sources.listParsed); an unreadable row is unnamed.
+        names = new Map(require('../db').sources.listParsed().map(s => [Number(s.id), s.name || null]));
     } catch (e) { /* no names: null */ }
     // 0207: this login's resume position and watched flag on every row (0 / false for none).
     const positions = userId === null || userId === undefined ? new Map() : recordingsDb.positionsFor(userId);

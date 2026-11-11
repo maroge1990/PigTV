@@ -190,7 +190,46 @@ const parseSource = (row) => withDefaults(parseRow(row));
 
 // ---------------------------------------------------------------- sources --
 
+// I-4 (#273): the coordinator's pools, the failover plan and the Status page ask about the providers
+// several times per play. They read ONE parsed, deep-frozen list (listParsed), kept per database handle
+// (a re-opened handle reads afresh) and dropped before and after every write below, so a failed write
+// or a reader in between can never keep a stale list. A read-only worker connection never caches it
+// (the main thread writes). getAll/getById still hand out fresh objects a route may change.
+let sourceList = null;
+let sourceListDb = null;
+const dropSourceList = () => { sourceList = null; sourceListDb = null; };
+
+/** A source write: the cached list is dropped before it and again once it has committed (or failed). */
+function writeSources(fn) {
+  dropSourceList();
+  try {
+    return write(fn);
+  } finally {
+    dropSourceList();
+  }
+}
+
 const sources = {
+  /**
+   * Every source (EPG ones included) in id order, with its role filled in (withDefaults), as one
+   * deep-frozen array: the same array until a source is written. Synchronous. A row whose JSON
+   * cannot be read is left out, as the coordinator and the failover plan have always done. Copy
+   * before changing anything (it is frozen); routes that edit a source use getAll/getById.
+   */
+  listParsed() {
+    const db = require('./db/sqlite').getDb();
+    if (sourceList && sourceListDb === db) return sourceList;
+    const list = [];
+    for (const r of db.prepare('SELECT data FROM app_sources ORDER BY id').all()) {
+      let s;
+      try { s = withDefaults(JSON.parse(r.data)); } catch { continue; }
+      if (s) list.push(s);
+    }
+    deepFreeze(list);
+    if (!db.readonly) { sourceList = list; sourceListDb = db; }
+    return list;
+  },
+
   async getAll() {
     return store().prepare('SELECT data FROM app_sources ORDER BY id').all().map(parseSource);
   },
@@ -200,7 +239,7 @@ const sources = {
   },
 
   async create(source) {
-    return write((db) => {
+    return writeSources((db) => {
       const newSource = {
         ...source,
         id: takeId(db), // always the counter's: the row's key
@@ -215,7 +254,7 @@ const sources = {
 
   async update(id, updates) {
     const key = parseInt(id);
-    return write((db) => {
+    return writeSources((db) => {
       const current = parseRow(db.prepare('SELECT data FROM app_sources WHERE id = ?').get(key));
       if (!current) return null;
       const updated = { ...current, ...updates, id: current.id, updated_at: new Date().toISOString() };
@@ -225,12 +264,12 @@ const sources = {
   },
 
   async delete(id) {
-    write((db) => { db.prepare('DELETE FROM app_sources WHERE id = ?').run(parseInt(id)); });
+    writeSources((db) => { db.prepare('DELETE FROM app_sources WHERE id = ?').run(parseInt(id)); });
   },
 
   /** 0182: the role and failover place of every provider, saved together: [{ id, role, priority }]. */
   async setOrder(places) {
-    write((db) => {
+    writeSources((db) => {
       const read = db.prepare('SELECT data FROM app_sources WHERE id = ?');
       const save = db.prepare('UPDATE app_sources SET data = ? WHERE id = ?');
       for (const p of places) {
@@ -243,7 +282,7 @@ const sources = {
 
   async toggleEnabled(id) {
     const key = parseInt(id);
-    return write((db) => {
+    return writeSources((db) => {
       const source = parseRow(db.prepare('SELECT data FROM app_sources WHERE id = ?').get(key));
       if (!source) return source;
       source.enabled = !source.enabled;
