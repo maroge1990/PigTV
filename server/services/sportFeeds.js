@@ -70,13 +70,35 @@ const AFL_API = 'https://aflapi.afl.com.au/afl/v2';
 const AFL_STATE = { CONCLUDED: 'finished', POSTGAME: 'finished', LIVE: 'live', SCHEDULED: 'scheduled', CONFIRMED_TEAMS: 'scheduled',
     UNCONFIRMED_TEAMS: 'scheduled', PLACEHOLDER: 'scheduled', POSTPONED: 'postponed', CANCELLED: 'cancelled' };
 
-/** ESPN's AFL badges by club name, for AFLW's sides (the same 18 clubs). Never fails: {} when ESPN does not answer. */
+/** Does an abbreviation fit a name? Its letters start a word of the name ("SYD" ~ Sydney Swans, "SUNS" ~ Gold Coast SUNS)
+ * or are the initials of its words ("WB" ~ Western Bulldogs). "GCFC" does not fit "Sydney Swans". */
+function abbreviationFits(abbreviation, name) {
+    const a = String(abbreviation || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const words = String(name || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+    return !!a && (words.some(w => w.startsWith(a)) || words.map(w => w[0]).join('') === a);
+}
+
+/** ESPN's AFL badges by club name, for AFLW's sides (the same 18 clubs). Never fails: {} when ESPN does not answer.
+ * #281: ESPN lists a second team called "Sydney Swans" (abbreviation GCFC, the Gold Coast badge). When two entries share a
+ * name the one whose abbreviation fits the name wins; if that does not single one out the name gets no badge (the client
+ * draws its lettered one), never another club's. */
 async function aflBadges() {
     const r = await fetcher.get('https://site.api.espn.com/apis/site/v2/sports/australian-football/afl/teams');
-    const out = {};
+    const byName = new Map();
     for (const t of (r.ok ? r.json?.sports?.[0]?.leagues?.[0]?.teams : null) || []) {
         const href = str(t?.team?.logos?.[0]?.href, 300);
-        for (const n of [t?.team?.displayName, t?.team?.shortDisplayName]) if (href && str(n)) out[n.toLowerCase()] = href;
+        for (const n of [t?.team?.displayName, t?.team?.shortDisplayName]) {
+            if (!href || !str(n)) continue;
+            const key = n.toLowerCase();
+            if (!byName.has(key)) byName.set(key, new Map());
+            byName.get(key).set(t.team.id ?? href, { href, abbreviation: t.team.abbreviation, name: n }); // one entry per team, not per name
+        }
+    }
+    const out = {};
+    for (const [key, entries] of byName) {
+        let pick = [...entries.values()];
+        if (pick.length > 1) pick = pick.filter(e => abbreviationFits(e.abbreviation, e.name));
+        if (pick.length === 1 || (pick.length > 1 && new Set(pick.map(e => e.href)).size === 1)) out[key] = pick[0].href;
     }
     return out;
 }
@@ -263,4 +285,4 @@ function reset() { cache.clear(); }
 
 module.exports = { has, games, reset, fetcher, getUrl, MAX_BYTES, LEAGUES: Object.keys(SOURCES),
     // exposed for tests
-    aflwGames, championGames, championComps, motogpGames, supercarsGames };
+    aflBadges, aflwGames, championGames, championComps, motogpGames, supercarsGames };

@@ -91,7 +91,14 @@
                 "shortDisplayName": "Gold Coast SUNS",
                 "name": "Gold Coast SUNS",
                 "location": null,
-                "abbreviation": "SUNS"
+                "abbreviation": "SUNS",
+                "logos": [
+                  {
+                    "href": "https://a.espncdn.com/i/teamlogos/afl/500/suns.png",
+                    "width": 500,
+                    "height": 500
+                  }
+                ]
               }
             },
             {
@@ -161,7 +168,14 @@
                 "shortDisplayName": "Sydney Swans",
                 "name": "Sydney Swans",
                 "location": null,
-                "abbreviation": "SYD"
+                "abbreviation": "SYD",
+                "logos": [
+                  {
+                    "href": "https://a.espncdn.com/i/teamlogos/afl/500/syd.png",
+                    "width": 500,
+                    "height": 500
+                  }
+                ]
               }
             },
             {
@@ -171,7 +185,14 @@
                 "shortDisplayName": "Sydney Swans",
                 "name": "Sydney Swans",
                 "location": null,
-                "abbreviation": "GCFC"
+                "abbreviation": "GCFC",
+                "logos": [
+                  {
+                    "href": "https://a.espncdn.com/i/teamlogos/afl/500/gcfc.png",
+                    "width": 500,
+                    "height": 500
+                  }
+                ]
               }
             },
             {

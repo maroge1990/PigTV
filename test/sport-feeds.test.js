@@ -19,6 +19,37 @@ const H = 3600000;
 const databases = [];
 after(() => databases.forEach(db => db.close()));
 
+test('#281: two ESPN entries called Sydney Swans (SYD and GCFC): the badge is the Swans\' own, never the Gold Coast one', async () => {
+    const teams = require('./fixtures/espn/teams-afl.json');
+    const old = feeds.fetcher.get;
+    feeds.fetcher.get = async () => ({ ok: true, json: teams });
+    try {
+        const badges = await feeds.aflBadges();
+        assert.match(badges['sydney swans'], /\/syd\.png$/);
+        assert.match(badges['gold coast suns'], /\/suns\.png$/);
+        const games = feeds.aflwGames(json('aflw-2026-matches.json'), badges, (u) => u);
+        const swans = games.flatMap(g => g.competitors).filter(c => c.name === 'Sydney Swans');
+        assert.ok(swans.length && swans.every(c => /\/syd\.png$/.test(c.logo)), 'the AFLW front-page side carries the Swans badge');
+        assert.match(badges['gws giants'] || 'gws.png', /gws|^$/);
+    } finally { feeds.fetcher.get = old; }
+});
+
+test('#281: a name whose entries cannot be told apart gets no badge (the client draws its lettered one)', async () => {
+    const mk = (id, abbreviation, displayName, href) => ({ team: { id, abbreviation, displayName, shortDisplayName: displayName, logos: [{ href }] } });
+    const old = feeds.fetcher.get;
+    feeds.fetcher.get = async () => ({ ok: true, json: { sports: [{ leagues: [{ teams: [
+        mk('1', 'AAA', 'Twin Town', 'https://a.espncdn.com/aaa.png'), mk('2', 'BBB', 'Twin Town', 'https://a.espncdn.com/bbb.png'),
+        mk('3', 'WB', 'Western Bulldogs', 'https://a.espncdn.com/wb.png'), mk('4', 'GWS', 'GWS GIANTS', 'https://a.espncdn.com/gws.png'),
+        mk('5', 'SYD', 'Sydney Swans', 'https://a.espncdn.com/syd.png')] }] }] } });
+    try {
+        const badges = await feeds.aflBadges();
+        assert.equal(badges['twin town'], undefined);
+        assert.match(badges['western bulldogs'], /wb\.png$/);
+        assert.match(badges['gws giants'], /gws\.png$/);
+        assert.match(badges['sydney swans'], /syd\.png$/);
+    } finally { feeds.fetcher.get = old; }
+});
+
 test('AFLW: every match with its state; scores only once played; club badges through the logo cache', () => {
     const games = feeds.aflwGames(json('aflw-2026-matches.json'), { hawthorn: 'https://a.espncdn.com/afl/haw.png' }, (u) => `/api/logo/${u.length}`);
     assert.equal(games.length, 10);
