@@ -32,7 +32,7 @@ exists, not built).
 | Segmented recordings | Watch a recording from the start while it records; survives restarts and failover | — | ✓ | ✓ | always on (D-48) |
 | Recording rules | Sport follow and series rules, de-duplicated | ✓ | ✓ | ✓ | shipped |
 | Sport events (C-I) | Sport recognised per programme across every channel, with a follow list, replays and a 72-hour horizon, checked against ESPN's free fixtures | ✓ | ✓ | ✓ | shipped |
-| Live now dashboard (C-O) | Live and upcoming games with scores, spoiler and delay settings | ✓ | ✓ | ✓ | gated (`sportsDashboard`) |
+| Live now dashboard (C-O) | Live and upcoming games with scores, Hide scores and delay settings | ✓ | ✓ | ✓ | gated (`sportsDashboard`) |
 | Sport pages | A page per sport (see Sport below) | later | first | then | F1: server data built (0340, C-P); Apple page next (#21) |
 | Status page | What is playing and recording, providers, the last 7 days, "Needs attention", details on demand | admin | — | — | shipped |
 | Top Shelf | Favourites as rendered cards with play links | — | ✓ | — | shipped |
@@ -67,7 +67,7 @@ lists, which the guide covers.
   standings, and whatever else the data makes obvious.
 - **A sport page has a tab per followed league** (Football → EPL, Champions League), each with standings, the last
   round and what is next. What is followed, and how, is under [Following](#following-sport--league--team) (D-41).
-- **Spoiler-free is one switch per account in Settings,** covering every page: scores, results, standings, finishing
+- **Hide scores is one switch per account in Settings,** covering every page: scores, results, standings, finishing
   orders, championship points and form.
 - **Live scores are essential.** The pages degrade honestly when the data feed is missing; Live now, the guide and
   playback never depend on it.
@@ -148,7 +148,7 @@ The first step, the data survey of the free ESPN feeds, ran on 30 Oct.
 
 These were set for the Live now dashboard (C-O) and still hold where the vision above does not replace them. Superseded
 by the vision: the rolling ~72-hour sport/team views (sport pages take their place) and guide-only game cards (games
-come only from the fixture, D-41). Spoiler-free is per account again (D-41 replaces D-30's single household switch).
+come only from the fixture, D-41). Hide scores is per account again (D-41 replaces D-30's single household switch).
 
 - Sport opens on a game-first dashboard: discover games, then find their TV broadcasts. Show all games matching
   existing follows/categories, including games without a matching channel. Preserve the current sport/team views for
@@ -182,7 +182,7 @@ other-channel and recording actions. No match must not silently choose a generic
 at selection. Distinguish confirmed LIVE, UPCOMING, break and ON TV NOW; an airing alone never establishes live play.
 Reuse yellow/red availability indicators with explicit text/icons; distinguish recording from unavailable channels.
 
-Existing accounts are profiles; a paired TV uses its approving account. Avoid spoilers and score delay sync per user;
+Existing accounts are profiles; a paired TV uses its approving account. Hide scores and score delay sync per user;
 default delay 90s, configurable 0–300s. Neutral teams/progress remain visible while scores and result-derived details
 are absent. Server timezone defines today (fallback Australia/Melbourne). Household profile switching, paid feeds,
 automatic score/video alignment, alerts and playback-engine changes are outside this feature's initial scope.

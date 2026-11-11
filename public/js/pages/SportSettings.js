@@ -3,7 +3,7 @@
  *
  * The account's sports in its order, each with its leagues (at least one, in order, offered under the catalogue's
  * headings) and the teams or people it follows from those leagues (each once, picked from the leagues' names); the
- * spoiler-free switch; the suggested competitions of its teams (Add / No thanks); "Record every game" on a followed team
+ * Hide scores switch; the suggested competitions of its teams (Add / No thanks); "Record every game" on a followed team
  * (a household recording rule, kind `team`); unfollowing a team that has one switches the rule off at once and deletes
  * it when the Undo notice ends (Undo switches it back on).
  * Uses GET /api/sports/catalog, GET+PUT /api/sports/follows, GET /api/sports/names, GET /api/sports/suggestions,
@@ -534,7 +534,7 @@ class SportFollowSettings {
             <p class="setting-hint">For your account only, on every device you sign in on: the sports you follow, in your order, their leagues and your teams.</p>
             <fieldset class="sport-follow-body" ${this.unknown ? 'disabled' : ''}>
             <div class="setting-item"><label class="setting-toggle"><input type="checkbox" id="sport-follow-spoilers" ${this.state.spoilerFree ? 'checked' : ''}><span class="toggle-slider"></span></label>
-                <div class="setting-info"><span class="setting-label">Spoiler-free</span><span class="setting-hint">Hide scores and results everywhere in Sport.</span></div></div>
+                <div class="setting-info"><span class="setting-label">Hide scores</span><span class="setting-hint">Hide scores and results everywhere in Sport.</span></div></div>
             ${suggestions ? `<ul class="sport-follow-suggestions">${suggestions}</ul>` : ''}
             ${cards || UI.stateBlock('empty', { title: 'You follow no sport yet', detail: 'Choose one below to follow it.' })}
             ${unfollowed.length ? `<div class="sport-follow-add"><select id="sport-follow-add" class="sport-follow-select" aria-label="Add a sport">${unfollowed.map(c => `<option value="${e(c.sport)}">${e(c.sport)}</option>`).join('')}</select>

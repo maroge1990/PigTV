@@ -284,7 +284,7 @@ class SportsPage {
         const button=(cls,text,fn,icon)=> { const b=el('button',cls); b.type='button'; if(icon) b.innerHTML=icon; b.append(text); b.onclick=fn; this.actions.append(b); return b; };
         this.cancelWait=button('btn btn-secondary','Cancel scheduled watch',()=> {clearTimeout(this.waiting);this.waiting=null;this.cancelWait.hidden=true;this.notice('Scheduled watch cancelled.');});
         this.cancelWait.hidden=true;
-        this.spoilerButton=button('btn btn-ghost','Spoilers & delay',()=>this.settings(),SPORTS_ICONS.eye);
+        this.spoilerButton=button('btn btn-ghost','Scores & delay',()=>this.settings(),SPORTS_ICONS.eye);
         this.spoilerButton.hidden=true; // until the account's settings have arrived
         this.refreshButton=button('btn btn-ghost','Refresh',()=>this.state.load(true),SPORTS_ICONS.refresh);
         this.chips=el('div','sports-filters'); this.chips.setAttribute('role','group'); this.chips.setAttribute('aria-label','League');
@@ -341,7 +341,7 @@ class SportsPage {
         const response=this.state.response, league=this.state.league, P=SportsDashboardPolicy;
         const admin=this.app?.currentUser?.role==='admin';
         const span=response ? P.span(response) : '';
-        this.messageLine.textContent=this.state.message || (response ? this.state.legacy ? 'Ordinary sport · next 72 hours' : `${league ? `${league}${span && span!=='today' ? ` · ${span.replace(/^in the /,'')}` : ''}` : 'Today'} · ${response.timezone} · Scores delayed ${response.preferences.scoreDelaySeconds} s${response.preferences.avoidSpoilers?' · Spoilers hidden':''}` : this.cards.size ? 'Scores hidden until your account settings refresh.' : P.loadingText(league));
+        this.messageLine.textContent=this.state.message || (response ? this.state.legacy ? 'Ordinary sport · next 72 hours' : `${league ? `${league}${span && span!=='today' ? ` · ${span.replace(/^in the /,'')}` : ''}` : 'Today'} · ${response.timezone} · Scores delayed ${response.preferences.scoreDelaySeconds} s${response.preferences.avoidSpoilers?' · Scores hidden':''}` : this.cards.size ? 'Scores hidden until your account settings refresh.' : P.loadingText(league));
         if (!response) {
             for(const node of this.cards.values()) { node.querySelector('.sports-card').textContent='Scores hidden until refreshed'; node.querySelector('.sports-more').disabled=true; }
             if(this.cards.size) this.pageState(null);
@@ -434,7 +434,7 @@ class SportsPage {
         if(!prefs || this.state.legacy) return;
         const dialog=replace ? this.dialog : this.openDialog('settings');
         this.settingsRevision=prefs.revision;
-        dialog.innerHTML='<h2>Spoilers & delay · Your account</h2><form novalidate><label><input type="checkbox" name="avoidSpoilers"> Hide scores and result details</label><label>Score delay in seconds (0–300)<input type="number" name="scoreDelaySeconds" min="0" max="300" required aria-describedby="sports-delay-error"></label><p class="field-error" id="sports-delay-error" role="alert" hidden>Enter a whole number of seconds from 0 to 300.</p><p>Settings sync to devices signed in to this account.</p><button class="btn btn-primary" type="submit">Save spoiler settings</button><button class="btn btn-secondary" type="button">Close</button></form>';
+        dialog.innerHTML='<h2>Scores and delay · Your account</h2><form novalidate><label><input type="checkbox" name="avoidSpoilers"> Hide scores and result details</label><label>Score delay in seconds (0–300)<input type="number" name="scoreDelaySeconds" min="0" max="300" required aria-describedby="sports-delay-error"></label><p class="field-error" id="sports-delay-error" role="alert" hidden>Enter a whole number of seconds from 0 to 300.</p><p>Settings sync to devices signed in to this account.</p><button class="btn btn-primary" type="submit">Save score settings</button><button class="btn btn-secondary" type="button">Close</button></form>';
         const form=dialog.querySelector('form'); form.elements.avoidSpoilers.checked=prefs.avoidSpoilers; form.elements.scoreDelaySeconds.value=prefs.scoreDelaySeconds;
         form.onsubmit=async e=> {
             e.preventDefault(); const values={avoidSpoilers:form.elements.avoidSpoilers.checked,scoreDelaySeconds:Number(form.elements.scoreDelaySeconds.value)};

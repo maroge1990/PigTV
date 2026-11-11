@@ -254,7 +254,7 @@ test('#276 review: Undo puts back only what was removed, onto the list as it is 
     await root.listeners.change({ target: { dataset: { addLeague: 'Football' }, value: 'FA Cup' } });
     assert.equal(server.stored.spoilerFree, true);
     notice.onEnd('action'); await notice.action.run(); await settle();
-    assert.equal(server.stored.spoilerFree, true, 'Spoiler-free, turned on in the 10 s, stays on');
+    assert.equal(server.stored.spoilerFree, true, 'Hide scores, turned on in the 10 s, stays on');
     assert.deepEqual(server.stored.sports[0].leagues, ['EPL', 'FA Cup'], 'the league added in the 10 s stays');
     assert.deepEqual(server.stored.sports[0].teams, ['Arsenal', 'Chelsea'], 'the team is back in its place');
     assert.equal(server.rules[0].enabled, true, 'and its rule records again');

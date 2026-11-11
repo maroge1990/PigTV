@@ -47,7 +47,7 @@ app's `public/css/`.
 - **Words** (#276), the same in every label, button, hint, notice and empty or error state:
   **provider** (never "source" or "playlist"; the field is the "M3U address"), **guide** or **TV Guide** (never "EPG",
   except the admin matching screens, where it names the provider's EPG id), **Sport** (never "Sports"),
-  **Sign in** / **Sign out** (never "Log in" or "Logout"), **favourite** (never "favorite"). Sentence case ("Save recording
+  **Sign in** / **Sign out** (never "Log in" or "Logout"), **favourite** (never "favorite"), **Hide scores** (never "spoiler-free" or "spoilers"; a page says "Scores hidden" when it is on). Sentence case ("Save recording
   settings"); proper names keep capitals. No "!" and no emoji or glyph in a label. "Loading…" with the one ellipsis
   character. A button names the thing and the action ("Save recording settings", never "Save", "OK" or "Confirm").
 - One rose button (`btn-primary`) per screen or Settings tab; a per-row action is always secondary; a dialog is its own screen.
@@ -131,7 +131,7 @@ iPhone) and the web's parked pages; the October mock-up notes they replaced are 
 - **Layout:** stat values (lap length, lap record) never wrap; lists side by side are symmetric (ten results beside the
   top ten drivers and constructors); paired actions sit on one line ("Watch at kick-off", "Record every Packers game");
   no redundant labels ("Week 8", not "Week 8 · this week"). Spacing and alignment are checked on the real screens.
-- **Scores:** a team's badge beside every score, the monogram disc only as a fallback. Spoiler-free keeps neutral
+- **Scores:** a team's badge beside every score, the monogram disc only as a fallback. Hide scores keeps neutral
   progress (Q4, 2nd session) and hides scores, situations and results; without the scores feed the page says so once
   and shows the guide's channels and start times. Never invent a clock, a leader or 0–0.
 - **Channel quality labels:** UHD / HD / SD read from the channel's name today (FHD counts as HD); where a channel has
@@ -222,7 +222,7 @@ unqualified default day. Include a game still live across midnight even if it be
 its current day's playing session: stumps/overnight is a break, not a completed match. Include today's remaining
 sessions of a longer event rather than only events whose overall start is today.
 
-| Card type | Applies to current follows | Visible situation | Hidden with Avoid spoilers |
+| Card type | Applies to current follows | Visible situation | Hidden with Hide scores |
 |---|---|---|---|
 | Australian football | AFL | Teams, quarter, clock, total points plus goals.behinds | All score fields, winner emphasis |
 | Basketball | NBA | Teams, quarter/overtime, clock, points | Points and score-derived markers |

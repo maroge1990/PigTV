@@ -395,6 +395,7 @@ const GLOSSARY = [
     { use: 'Sport', banned: /\bSports\b/, why: '"Sport" is the page and the tab' },
     { use: 'Sign in / Sign out', banned: /\b(?:Logout|Log out|Log in|Sign In|Sign Out)\b/, why: 'Sign in and Sign out' },
     { use: 'favourite', banned: /\b[Ff]avorites?\b/, why: 'favourite(s), in words' },
+    { use: 'Hide scores / Scores hidden', banned: /spoiler/i, why: 'the setting is "Hide scores" on every platform (code identifiers such as avoidSpoilers are not words a person reads)' },
     { use: 'guide / TV Guide', banned: /\bEPG\b(?! (?:matching|id|channel)\b)(?!\)? address)(?<!Search the EPG)(?<!the EPG)(?<!Type a name or EPG)/, why: 'the guide, not the "EPG": EPG only names the provider\'s EPG id on the matching screens' }
 ];
 for (const rule of GLOSSARY) {
@@ -406,7 +407,7 @@ for (const rule of GLOSSARY) {
 
 test('#276 glossary: the Words list is in docs/DESIGN.md', () => {
     const design = fs.readFileSync(path.join(__dirname, '../docs/DESIGN.md'), 'utf8');
-    for (const word of ['provider', 'guide', 'Sport', 'Sign in', 'favourite']) assert.match(design, new RegExp(`\\*\\*Words\\*\\*[\\s\\S]*${word}`), word);
+    for (const word of ['provider', 'guide', 'Sport', 'Sign in', 'favourite', 'Hide scores']) assert.match(design, new RegExp(`\\*\\*Words\\*\\*[\\s\\S]*${word}`), word);
 });
 
 // Sentence case: a label's later words are lower case unless they are a name.
@@ -485,7 +486,7 @@ test('#276 one rose button (btn-primary) per screen; a per-row action is never r
     // Scripts that draw buttons: at most this many btn-primary in the file, and why (each is its own screen or exclusive with the others).
     const SCRIPT_PRIMARIES = {
         'pages/RecordingsPage.js': [2, 'Play on the page (one recording at a time); Resume in the player dialog'],
-        'pages/SportsPage.js': [3, 'the empty page\'s one button; two separate dialogs (spoiler settings, Record)'],
+        'pages/SportsPage.js': [3, 'the empty page\'s one button; two separate dialogs (score settings, Record)'],
         'pages/ProvidersSettings.js': [1, 'Add provider on the one new card; a saved card\'s Save is secondary'],
         'pages/SportSettings.js': [1, 'Follow this sport'],
         'components/EpgGuide.js': [1, 'Record in the programme dialog'],

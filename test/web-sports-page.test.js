@@ -183,5 +183,5 @@ test('the record dialog says what it does, and Save names its thing', () => {
     assert.doesNotMatch(record, />Confirm</);
     assert.match(record, /'Record every game' : 'Record'/);
     assert.doesNotMatch(source, />Save<\/button>/);
-    assert.match(source, />Save spoiler settings<\/button>/);
+    assert.match(source, />Save score settings<\/button>/);
 });
