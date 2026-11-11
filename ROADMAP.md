@@ -40,8 +40,8 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
     title; the Sport banner's Following list is three bigger rows.
   - Settings on Apple TV: focus shows a read-only summary, a press opens the page and moves focus in, Menu returns
     to the same row.
-  - PigBrand 1.8.1 (committed in the kit's worktree, **not pushed: Mark's call**): the app's larger Apple TV icon is
-    the kit's source, so `sync-brand.sh` changes nothing; the pig mark is allowed beside a page title.
+  - PigBrand 1.8.1 (pushed to the kit's `main`, `c6af62d`): the app's larger Apple TV icon is the kit's source, so
+    `sync-brand.sh` changes nothing (pull the kit first); the pig mark is allowed beside a page title.
   - Opus: 2 high and 2 medium (the batch had changed iPad and iPhone), fixed in 203. Codex: no high; two mediums
     left on #293 with the lows. Simulator only. Evidence: `docs/evidence/2026-11-11-batch-k/`. Filed: #293, #294.
 - **Waiting on Mark:**
@@ -52,7 +52,7 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
   - #288: how long a recording keeps trying when every provider is down (today about 5 minutes).
   - The Appdata Backup setting: don't stop PigTV, or move it from Sunday 04:00.
   - #240.
-  - Whether to push PigBrand 1.8.1, and whether #293's missing focus tint is fixed before the next TestFlight build.
+  - Whether #293's missing focus tint is fixed before the next TestFlight build.
 - **Open investigation:** #3 (sound out of step on the iPad): the relay join measured clean; the device meter (#267)
   and the marker (#268) are filed, not built (Mark).
 - **Next:** batch H (#276: web brand 1.8 and UX; mock-ups for Mark first; its handover note is a comment on the
