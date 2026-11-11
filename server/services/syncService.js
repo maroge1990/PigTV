@@ -33,8 +33,11 @@ const RESULT_FINGERPRINT_VERSION = 1;
  * I-7 (#273): channel rows written whose failover links have not yet been rebuilt. Since a scheduled sync skips an
  * unchanged list, a relink that failed (or a restart before a global sync's deferred relink) would otherwise never be
  * retried. Stored in `meta` as { seq, all, ids: { backupId: seq } }: `all` is owed by a primary's write (relinkAll),
- * `ids` by a backup's (relinkSource). Set before the write and again after it (so a relink that started in between
- * cannot pay for it); paid only by a relink that ran to the end and started after it was owed.
+ * `ids` by a backup's (relinkSource). Set before the write and again after it, in a `finally` so a write that throws
+ * part-way still owes it (a relink that started in between cannot pay for it); paid only by a relink that ran to the end
+ * and started after it was owed. `seq` only ever grows: the row is kept, with nothing owed, once it exists (a reset
+ * would let a relink queued earlier pay for a newer debt). Every read/modify/write here is synchronous (better-sqlite3,
+ * no await), so two of them never interleave.
  */
 const RELINK_OWED_KEY = 'relink_owed';
 function readRelinkOwed() {
@@ -45,9 +48,8 @@ function readRelinkOwed() {
     } catch { return { seq: 0, all: 0, ids: {} }; }
 }
 function writeRelinkOwed(owed) {
-    const db = getDb();
-    if (!owed.all && !Object.keys(owed.ids).length) db.prepare('DELETE FROM meta WHERE key = ?').run(RELINK_OWED_KEY);
-    else db.prepare(`INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
+    // Never deleted: { seq, all: 0, ids: {} } is "nothing owed", and keeps the sequence (see above).
+    getDb().prepare(`INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
         .run(RELINK_OWED_KEY, JSON.stringify(owed));
 }
 /** A relink is owed: of every backup (`backupId` null, a primary's channels moved) or of one backup (its rows moved). */
@@ -58,7 +60,14 @@ function oweRelink(backupId) {
     writeRelinkOwed(owed);
 }
 const relinkIsOwed = () => { const o = readRelinkOwed(); return !!o.all || Object.keys(o.ids).length > 0; };
-/** A relink that started at `seq` ran to the end: relinkAll (`backupId` null) pays everything, one backup's its own. */
+/**
+ * A relink that started at `seq` ran to the end: relinkAll (`backupId` null) pays everything, one backup's its own.
+ * Why `<= seq` is safe: `seq` is read (relink()) before channelLinks is called, and channelLinks.relink reads every
+ * channel row (allVisible, loadBackup) only after that, inside its serial queue. `seq` never goes down, so a debt
+ * `<= seq` was recorded before the snapshot: its write began before this relink read anything. If the write had ended
+ * by then, the relink saw it; if not, the write's second oweRelink (in a `finally`, so a throw too) records a newer
+ * debt that this relink does not pay. A relink queued behind another only starts later, so it pays less, never more.
+ */
 function payRelink(backupId, seq) {
     const owed = readRelinkOwed();
     if (backupId == null) {
@@ -623,8 +632,8 @@ class SyncService {
             } else {
                 feedCheck.forget(source.id, 'playlist'); // a write that dies part-way is never the last good one
                 oweRelink(null); // I-7: the channels may move; owed until a relinkAll runs to the end
-                await this.syncXtreamLive(source, liveCats, liveStreams, excluded);
-                oweRelink(null); // again after the write: a relink that started during it does not pay for it
+                try { await this.syncXtreamLive(source, liveCats, liveStreams, excluded); }
+                finally { oweRelink(null); } // again after the write, thrown or not: a relink that started during it does not pay for it
                 if ((liveStreams || []).length > 0) feedCheck.remember(source.id, 'playlist', hash);
             }
         }
@@ -830,8 +839,8 @@ class SyncService {
         checkBackupSize(db, source.id, rows.length, options); // held: the last good rows stay, nothing is relinked
         feedCheck.forget(source.id, 'backup'); // a write that dies part-way is never the last good one
         oweRelink(source.id); // I-7: owed until this backup's relink runs to the end (a restart before it included)
-        backupChannels.replaceAll(source.id, rows, overlay);
-        oweRelink(source.id); // again after the write: a relink that started during it does not pay for it
+        try { backupChannels.replaceAll(source.id, rows, overlay); }
+        finally { oweRelink(source.id); } // again after the write, thrown or not: a relink that started during it does not pay for it
         rememberBackupSize(db, source.id, rows.length);
         console.log(`[Sync] Backup ${source.name}: ${rows.length} channels${overlay ? `, ${overlay.size} overlay ids` : ''}`);
 
@@ -1372,7 +1381,6 @@ class SyncService {
         }
         try {
             await this.loadM3uFile(source, options, feed, { excluded, skipped, importFilters }); // owes a relink (I-7)
-            oweRelink(null); // again after the write: a relink that started during it does not pay for it
             feed.commit();
         } finally {
             feed.discard();
@@ -1429,49 +1437,53 @@ class SyncService {
 
         checkPlaylistSize(getDb(), source.id, totalChannels, options);
         oweRelink(null); // I-7: the channels may move; owed until a relinkAll runs to the end
-        for (const imported of pending) {
-            const batchIds = await this.saveStreams(source.id, 'live', imported, { skipPurge: true });
-            batchIds.forEach(id => allSyncedIds.add(id));
+        try {
+            for (const imported of pending) {
+                const batchIds = await this.saveStreams(source.id, 'live', imported, { skipPurge: true });
+                batchIds.forEach(id => allSyncedIds.add(id));
+            }
+            pending.length = 0;
+
+            if (credentialsLine) {
+                try { require('./providerAccounts').noteM3uHeader(source.id, credentialsLine); } catch (e) { /* the stream URLs are the fallback */ }
+            }
+            importFilters.recordSkipped(source.id, excluded, skipped);
+
+            console.log(`[Sync] M3U Parsed: ${totalChannels} channels, ${allGroups.size} groups`);
+            // Evidence that the identity derivation suits this provider, before anything
+            // is keyed on it: a large "no URL" or "listed more than once" count would mean
+            // the playlist is not shaped the way stableIds.js assumes. Counted from the
+            // batches as they go by - re-reading every row and its data blob to tally them
+            // would be a memory spike in the one place this code is careful about memory.
+            const c = summarise(identityUrls);
+            console.log(`[Sync] Channel identity: ${c.providerId} from the provider's stream id, ${c.urlHash} from the URL, `
+                + `${c.none} with no URL; ${c.distinct} distinct, ${c.shared} listed more than once`);
+            logMemory();
+
+            // Purge stale items after all batches are complete. S1 (0240): also when every line was in
+            // an excluded group (a parsed playlist with channels, none imported); never when the
+            // playlist itself had no channels.
+            if (totalChannels > 0) {
+                await this.purgeStaleItems(source.id, 'live', this.keepBlocked(source.id, excluded, allSyncedIds), { allowEmpty: true });
+                rememberPlaylistSize(getDb(), source.id, totalChannels);
+            }
+
+            // Save Categories (Groups) at the end
+            // allGroups is a Set, so iteration order is first-seen order in the
+            // M3U. Carry that index through as sort_order so the UI can render
+            // categories in the provider's intended sequence (header/placeholder
+            // categories sit directly above the categories they introduce).
+            const categories = Array.from(allGroups).map((name, idx) => ({
+                category_id: name,
+                category_name: name,
+                parent_id: null,
+                sort_order: idx + 1
+            }));
+
+            await this.saveCategories(source.id, 'live', categories);
+        } finally {
+            oweRelink(null); // I-7: again after the write, thrown or not: a relink that started during it does not pay for it
         }
-        pending.length = 0;
-
-        if (credentialsLine) {
-            try { require('./providerAccounts').noteM3uHeader(source.id, credentialsLine); } catch (e) { /* the stream URLs are the fallback */ }
-        }
-        importFilters.recordSkipped(source.id, excluded, skipped);
-
-        console.log(`[Sync] M3U Parsed: ${totalChannels} channels, ${allGroups.size} groups`);
-        // Evidence that the identity derivation suits this provider, before anything
-        // is keyed on it: a large "no URL" or "listed more than once" count would mean
-        // the playlist is not shaped the way stableIds.js assumes. Counted from the
-        // batches as they go by - re-reading every row and its data blob to tally them
-        // would be a memory spike in the one place this code is careful about memory.
-        const c = summarise(identityUrls);
-        console.log(`[Sync] Channel identity: ${c.providerId} from the provider's stream id, ${c.urlHash} from the URL, `
-            + `${c.none} with no URL; ${c.distinct} distinct, ${c.shared} listed more than once`);
-        logMemory();
-
-        // Purge stale items after all batches are complete. S1 (0240): also when every line was in
-        // an excluded group (a parsed playlist with channels, none imported); never when the
-        // playlist itself had no channels.
-        if (totalChannels > 0) {
-            await this.purgeStaleItems(source.id, 'live', this.keepBlocked(source.id, excluded, allSyncedIds), { allowEmpty: true });
-            rememberPlaylistSize(getDb(), source.id, totalChannels);
-        }
-
-        // Save Categories (Groups) at the end
-        // allGroups is a Set, so iteration order is first-seen order in the
-        // M3U. Carry that index through as sort_order so the UI can render
-        // categories in the provider's intended sequence (header/placeholder
-        // categories sit directly above the categories they introduce).
-        const categories = Array.from(allGroups).map((name, idx) => ({
-            category_id: name,
-            category_name: name,
-            parent_id: null,
-            sort_order: idx + 1
-        }));
-
-        await this.saveCategories(source.id, 'live', categories);
         console.log(`[Sync] M3U sync complete for ${source.name}`);
     }
 

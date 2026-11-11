@@ -174,7 +174,9 @@ const links = load('services/channelLinks');
 const importFilters = load('services/importFilters');
 const linked = (backupId) => d().prepare(`SELECT COUNT(*) AS n FROM channel_links WHERE backup_source_id = ?
     AND status IN ('auto', 'approved', 'manual')`).get(backupId).n;
-const owed = () => d().prepare('SELECT value FROM meta WHERE key = ?').get(sync.RELINK_OWED_KEY ?? 'relink_owed');
+// The marker as stored ({ seq, all, ids }, or null before the first debt) and whether anything is owed by it.
+const owedRow = () => { const r = d().prepare('SELECT value FROM meta WHERE key = ?').get(sync.RELINK_OWED_KEY ?? 'relink_owed'); return r ? JSON.parse(r.value) : null; };
+const owed = () => { const o = owedRow(); return !!o && (!!o.all || Object.keys(o.ids || {}).length > 0); };
 function failRelinkOnce(name) {
     const real = links[name];
     links[name] = async () => { links[name] = real; throw new Error('SQLITE_BUSY (test)'); };
@@ -190,7 +192,7 @@ test('I-7: a global relink that failed after the backup changed is retried by th
     await scheduled(); // nothing changed since
     assert.equal(relinks(), 1, lines.join('\n'));
     assert.equal(linked(backupXt.id), 101, 'every primary channel has its backup');
-    assert.equal(owed(), undefined, 'nothing owed any more');
+    assert.equal(owed(), false, 'nothing owed any more');
     await scheduled();
     assert.equal(relinks(), 0, 'paid: the saving of 0561 stays');
 });
@@ -287,8 +289,93 @@ test('I-7: a changed M3U primary whose relink failed is relinked by the next sch
     await sync.syncSource(p.id, { ifChanged: true }); // the same bytes
     assert.ok(lines.some(l => /Playlist for Main M3U unchanged/.test(l)), lines.join('\n'));
     assert.equal(relinks(), 1, lines.join('\n'));
-    assert.equal(owed(), undefined);
+    assert.equal(owed(), false);
     lines = [];
     await sync.syncSource(p.id, { ifChanged: true });
     assert.equal(relinks(), 0);
+});
+
+// Review of 0565 (Codex, high): deleting the row once everything was paid reset `seq` to zero, so a relink that took its
+// snapshot earlier (and read the channels before a newer write) could pay the newer debt.
+test('I-7: an older relink that finishes late does not pay a debt recorded after it read the channels', async () => {
+    await scheduled(); await scheduled(); // settled
+    state.own.xb = streamsOf('Main', range(1, 61));
+    let restore = failRelinkOnce('relinkSource');
+    try { await sync.syncSource(backupXt.id, { ifChanged: true }); } finally { restore(); }
+    assert.ok(owed(), 'a debt to start with, so the snapshots below are above zero');
+
+    // Two relinks overlap: A is held before it reads anything; B reads and links now, and is held before it pays.
+    const real = links.relinkAll;
+    let openA, openB;
+    const gateA = new Promise(r => { openA = r; }), gateB = new Promise(r => { openB = r; });
+    let n = 0;
+    links.relinkAll = async () => {
+        if (n++ === 0) { await gateA; return real(); }
+        const r = await real(); await gateB; return r;
+    };
+    let pB;
+    try {
+        const pA = sync.relink(null);
+        pB = sync.relink(null); // both took their snapshot
+        openA(); await pA; // A ran to the end and paid everything
+        assert.equal(owed(), false);
+        links.relinkAll = real;
+        // A sync now writes the backup's channels; its own relink fails.
+        state.own.xb = streamsOf('Main', range(1, 62));
+        restore = failRelinkOnce('relinkSource');
+        try { await sync.syncSource(backupXt.id, { ifChanged: true }); } finally { restore(); }
+        assert.equal(backupRows(backupXt.id), 62);
+        assert.ok(owed(), 'the new write is owed');
+    } finally { links.relinkAll = real; openA(); openB(); }
+    await pB; // B, which read the 61 rows, pays now
+    assert.ok(owed(), 'the newer debt is still owed: B never saw channel 62');
+    assert.equal(linked(backupXt.id), 61);
+    await scheduled();
+    assert.equal(relinks(), 1, lines.join('\n'));
+    assert.equal(linked(backupXt.id), 62, 'the links are complete');
+    await scheduled();
+    assert.equal(relinks(), 0);
+});
+
+test('I-7: the debt sequence never goes down: paid in full, the row stays with nothing owed', async () => {
+    const before = owedRow();
+    assert.ok(before, 'the row exists after the debts above');
+    state.own.xb = streamsOf('Main', range(1, 63));
+    await sync.syncSource(backupXt.id, { ifChanged: true }); // owed, written, relinked and paid
+    const paid = owedRow();
+    assert.ok(paid, 'the row is kept once everything is paid');
+    assert.equal(owed(), false);
+    assert.ok(paid.seq > before.seq, `${paid.seq} > ${before.seq}`);
+    await scheduled();
+    assert.equal(relinks(), 0, 'nothing owed: an unchanged scheduled sync relinks nothing');
+    state.own.xb = streamsOf('Main', range(1, 64));
+    const restore = failRelinkOnce('relinkSource');
+    try { await sync.syncSource(backupXt.id, { ifChanged: true }); } finally { restore(); }
+    const again = owedRow();
+    assert.ok(owed());
+    assert.ok(again.seq > paid.seq, `${again.seq} > ${paid.seq}`);
+    assert.ok(again.ids[String(backupXt.id)] > paid.seq);
+    await scheduled();
+    assert.equal(relinks(), 1);
+    assert.equal(owed(), false);
+});
+
+test('I-7: a channel write that throws part-way stays owed, though a relink ran during it', async () => {
+    state.own.main = streamsOf('Main', range(1, 105));
+    const real = sync.saveStreams;
+    let ran = false;
+    sync.saveStreams = async function (sourceId, type, ...rest) {
+        if (sourceId !== main.id || type !== 'live' || ran) return real.call(this, sourceId, type, ...rest);
+        ran = true;
+        await this.relink(null); // a relink starts during the write, reads the old rows, runs to the end and pays
+        await real.call(this, sourceId, type, ...rest); // then the rows change
+        throw new Error('disk I/O error (test)');
+    };
+    lines = [];
+    const realError = console.error;
+    console.error = (...a) => { lines.push(a.join(' ')); };
+    try { await sync.syncSource(main.id, { ifChanged: true }); } finally { delete sync.saveStreams; console.error = realError; }
+    assert.ok(ran);
+    assert.equal(relinks(), 1, lines.join('\n'));
+    assert.ok(owed(), 'the rows written after that relink read the channels are still owed');
 });
