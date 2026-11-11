@@ -4,15 +4,18 @@
 
 const API = {
     /**
-     * Make API request
+     * Make API request. `{ keepalive: true }` sends it so that it outlives the page (the same sign-in header and JSON
+     * body), for a change sent while the page is being left.
      */
-    async request(method, endpoint, data = null) {
+    async request(method, endpoint, data = null, { keepalive = false } = {}) {
         const options = {
             method,
             headers: {
                 'Content-Type': 'application/json'
             }
         };
+        // #276: a request sent while the page goes away (a change waiting for its Undo notice) outlives the page.
+        if (keepalive) options.keepalive = true;
 
         // Add authentication token if available
         const token = localStorage.getItem('authToken');

@@ -47,7 +47,7 @@ test('Inter is bundled with its licence, and main.css (which both pages load) de
     for (const [file, range] of [['Inter-latin-wght-normal', 'U\\+0000-00FF'], ['Inter-latin-ext-wght-normal', 'U\\+0100-02BA']]) {
         assert.match(css, new RegExp(`@font-face\\s*\\{[^}]*font-family:\\s*'Inter'[^}]*font-weight:\\s*400 700[^}]*font-display:\\s*swap[^}]*url\\('fonts/${file}\\.woff2'\\)[^}]*unicode-range:\\s*${range}`));
     }
-    assert.match(read('login.html'), /href="css\/main\.css"/);
+    assert.match(read('login.html'), /href="css\/main\.css(\?v=\d+)?"/);
     assert.doesNotMatch(read('css/main.css') + read('index.html') + read('login.html'), /Outfit/);
 });
 

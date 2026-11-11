@@ -48,8 +48,8 @@ function panel(responses, { answer = true } = {}) {
     const calls = [], asked = [];
     const root = { innerHTML: '', listeners: {}, addEventListener(type, fn) { this.listeners[type] = fn; }, querySelector: () => null };
     const ctx = vm.createContext({ confirm: (q) => { asked.push(q); return answer; }, CSS: { escape: (v) => v }, console,
-        API: { request: async (method, url, body) => {
-            calls.push([method, url, body]);
+        API: { request: async (method, url, body, opts) => {
+            calls.push([method, url, body, opts]);
             const key = `${method} ${url.split('?')[0]}`;
             const r = await (typeof responses[key] === 'function' ? responses[key](body, url) : responses[key]);
             if (r instanceof Error) throw r;
@@ -185,17 +185,139 @@ test('0420: a rule that could not be stopped is said, never "Unfollowed" alone (
     const { settings, root, calls, ctx } = panel({
         'GET /sports/catalog': { sports: catalog }, 'GET /sports/follows': () => stored, 'PUT /sports/follows': (body) => (stored = JSON.parse(JSON.stringify(body))),
         'GET /recordings/rules': rules, 'DELETE /recordings/rules/9': new Error('Server unavailable'), 'PUT /recordings/rules/10': { id: 10, enabled: true },
+        'PUT /recordings/rules/9': () => (refuseOff ? new Error('Server unavailable') : { id: 9, enabled: false }),
         'GET /sports/suggestions': { suggestions: [] }, 'GET /sports/names': { names: ['Arsenal', 'Chelsea'] } }, { answer: false });
+    let refuseOff = true;
     await settings.load();
     assert.match(root.innerHTML, /data-record-every="Arsenal" data-sport="Football" checked>/);
     assert.match(root.innerHTML, /data-record-every="Chelsea" data-sport="Football" > Record every game/, 'switched off in Recordings: shown off');
     await root.listeners.change({ target: { dataset: { recordEvery: 'Chelsea', sport: 'Football' }, checked: true } });
     assert.ok(calls.some(c => c[0] === 'PUT' && c[1] === '/recordings/rules/10' && c[2].enabled === true), 'switched back on, not a second rule');
     assert.ok(!calls.some(c => c[0] === 'POST' && c[1] === '/recordings/rules'));
+    // #276 review: the rule is switched off before anything is unfollowed; when that is refused, nothing is unfollowed.
+    const toasts = ctx.toasts.length;
+    await root.listeners.click({ target: { closest: () => ({ dataset: { act: 'name-remove', sport: 'Football', name: 'Arsenal' } }) } });
+    assert.deepEqual(stored.sports[0].teams, ['Arsenal', 'Chelsea'], 'not unfollowed: its rule would go on recording');
+    assert.match(root.innerHTML, /Nothing was unfollowed: recording every Arsenal game could not be stopped\./);
+    assert.equal(ctx.toasts.length, toasts, 'no Undo notice for a change not made');
+    refuseOff = false;
     await root.listeners.click({ target: { closest: () => ({ dataset: { act: 'name-remove', sport: 'Football', name: 'Arsenal' } }) } });
     assert.deepEqual(stored.sports[0].teams, ['Chelsea']);
-    ctx.toasts.at(-1)[1].onEnd('timeout'); await settle(); // the notice ends: the rule is stopped, and that fails
-    assert.match(root.innerHTML, /Every Arsenal game is still being recorded: stop it in Recordings/);
+    ctx.toasts.at(-1)[1].onEnd('timeout'); await settle(); // the notice ends: the rule (off) is deleted, and that fails
+    assert.match(root.innerHTML, /Recording every Arsenal game is off, but the rule could not be deleted: delete it in Recordings › Recording rules\./);
+});
+
+// #276 review (Codex high, Opus M2/M4): what is waiting for its notice is never lost, and Undo puts back only what went.
+function ruleServer(follows) {
+    const server = { stored: JSON.parse(JSON.stringify(follows)), rules: [{ id: 9, kind: 'team', sport: 'Football', match: 'Arsenal', enabled: true }] };
+    const rule = (url) => server.rules.find(r => `/recordings/rules/${r.id}` === url.split('?')[0]);
+    const responses = {
+        'GET /sports/catalog': { sports: catalog }, 'GET /sports/follows': () => server.stored,
+        'PUT /sports/follows': (body) => (server.stored = JSON.parse(JSON.stringify(body))),
+        'GET /recordings/rules': () => server.rules, 'GET /sports/suggestions': { suggestions: [] }, 'GET /sports/names': { names: ['Arsenal', 'Chelsea'] } };
+    for (const id of [9]) {
+        responses[`PUT /recordings/rules/${id}`] = (body, url) => { const r = rule(url); if (!r) return Object.assign(new Error('gone'), { status: 404 }); Object.assign(r, body); return r; };
+        responses[`DELETE /recordings/rules/${id}`] = (body, url) => { server.rules = server.rules.filter(r => r !== rule(url)); return { success: true }; };
+    }
+    return { server, responses };
+}
+
+test('#276 review: unfollowing a team switches its "Record every game" off before the list is saved, so a page closed at any moment never leaves it recording', async () => {
+    const { server, responses } = ruleServer({ spoilerFree: false, sports: [{ sport: 'Football', leagues: ['EPL'], teams: ['Arsenal', 'Chelsea'] }] });
+    const order = [];
+    const put = responses['PUT /sports/follows'];
+    responses['PUT /sports/follows'] = (body) => { order.push(['follows', server.rules[0]?.enabled]); return put(body); };
+    const { settings, root, calls, ctx } = panel(responses);
+    await settings.load();
+    await root.listeners.click({ target: { closest: () => ({ dataset: { act: 'name-remove', sport: 'Football', name: 'Arsenal' } }) } });
+    assert.deepEqual(order, [['follows', false]], 'the rule was off when the list was saved');
+    assert.deepEqual(server.stored.sports[0].teams, ['Chelsea']);
+    assert.equal(server.rules[0].enabled, false, 'closed now, with nothing more sent: the rule records nothing');
+    assert.equal(ctx.toasts.at(-1)[0], 'Unfollowed Arsenal. Recording every Arsenal game stops too.');
+    // The page goes (pagehide, tab hidden, sign-out): the delete is sent at once, with keepalive, and once only.
+    await vm.runInContext('UI.flushPending()', ctx);
+    const deletes = calls.filter(c => c[0] === 'DELETE');
+    assert.equal(deletes.length, 1);
+    assert.equal(deletes[0][3]?.keepalive, true, 'sent so that it outlives the page');
+    assert.deepEqual(server.rules, []);
+    ctx.toasts.at(-1)[1].onEnd('closed'); await settle();
+    assert.equal(calls.filter(c => c[0] === 'DELETE').length, 1, 'the notice ending later sends nothing again');
+});
+
+test('#276 review: Undo puts back only what was removed, onto the list as it is now, and switches the rule back on', async () => {
+    const { server, responses } = ruleServer({ spoilerFree: false, sports: [{ sport: 'Football', leagues: ['EPL'], teams: ['Arsenal', 'Chelsea'] }] });
+    const { settings, root, calls, ctx } = panel(responses);
+    await settings.load();
+    await root.listeners.click({ target: { closest: () => ({ dataset: { act: 'name-remove', sport: 'Football', name: 'Arsenal' } }) } });
+    const [, notice] = ctx.toasts.at(-1);
+    await root.listeners.change({ target: { id: 'sport-follow-spoilers', checked: true, dataset: {} } });
+    await root.listeners.change({ target: { dataset: { addLeague: 'Football' }, value: 'FA Cup' } });
+    assert.equal(server.stored.spoilerFree, true);
+    notice.onEnd('action'); await notice.action.run(); await settle();
+    assert.equal(server.stored.spoilerFree, true, 'Spoiler-free, turned on in the 10 s, stays on');
+    assert.deepEqual(server.stored.sports[0].leagues, ['EPL', 'FA Cup'], 'the league added in the 10 s stays');
+    assert.deepEqual(server.stored.sports[0].teams, ['Arsenal', 'Chelsea'], 'the team is back in its place');
+    assert.equal(server.rules[0].enabled, true, 'and its rule records again');
+    await vm.runInContext('UI.flushPending()', ctx);
+    assert.equal(calls.filter(c => c[0] === 'DELETE').length, 0, 'nothing is sent after Undo');
+});
+
+test('#276 review: a team followed again inside the 10 s keeps its rule when the notice ends', async () => {
+    const { server, responses } = ruleServer({ spoilerFree: false, sports: [{ sport: 'Football', leagues: ['EPL'], teams: ['Arsenal'] }] });
+    const { settings, root, calls, ctx } = panel(responses);
+    root.querySelector = (sel) => (sel.startsWith('input[data-name-for') ? { value: 'Arsenal' } : null);
+    await settings.load();
+    await root.listeners.click({ target: { closest: () => ({ dataset: { act: 'name-remove', sport: 'Football', name: 'Arsenal' } }) } });
+    const [, notice] = ctx.toasts.at(-1);
+    await root.listeners.click({ target: { closest: () => ({ dataset: { act: 'name-add', sport: 'Football' } }) } });
+    assert.deepEqual(server.stored.sports[0].teams, ['Arsenal']);
+    notice.onEnd('timeout'); await settle();
+    assert.equal(calls.filter(c => c[0] === 'DELETE').length, 0, 'the rule is not deleted');
+    assert.equal(server.rules.length, 1, 'the rule survives');
+    assert.equal(server.rules[0].enabled, true, 'and records again: re-following is Undo by another route');
+});
+
+test('#276 review: a team followed again whose rule cannot be switched back on stays followed, and a notice says so', async () => {
+    const { server, responses } = ruleServer({ spoilerFree: false, sports: [{ sport: 'Football', leagues: ['EPL'], teams: ['Arsenal'] }] });
+    const { settings, root, ctx } = panel(responses);
+    root.querySelector = (sel) => (sel.startsWith('input[data-name-for') ? { value: 'Arsenal' } : null);
+    await settings.load();
+    await root.listeners.click({ target: { closest: () => ({ dataset: { act: 'name-remove', sport: 'Football', name: 'Arsenal' } }) } });
+    const [, notice] = ctx.toasts.at(-1);
+    await root.listeners.click({ target: { closest: () => ({ dataset: { act: 'name-add', sport: 'Football' } }) } });
+    const put = responses['PUT /recordings/rules/9'];
+    responses['PUT /recordings/rules/9'] = (body, url) => (body.enabled ? new Error('Server unavailable') : put(body, url));
+    notice.onEnd('timeout'); await settle();
+    assert.deepEqual(server.stored.sports[0].teams, ['Arsenal'], 'the follow stands');
+    assert.equal(server.rules[0].enabled, false);
+    const [message, options] = ctx.toasts.at(-1);
+    assert.equal(options.kind, 'error');
+    assert.match(message, /^Following Arsenal again, but recording every Arsenal game could not be switched back on/);
+});
+
+test('#276 review: a list that fails to save switches the rule back on; nothing waits for Undo', async () => {
+    const { server, responses } = ruleServer({ spoilerFree: false, sports: [{ sport: 'Football', leagues: ['EPL'], teams: ['Arsenal'] }] });
+    responses['PUT /sports/follows'] = () => new Error('Server unavailable');
+    const { settings, root, ctx } = panel(responses);
+    await settings.load();
+    const toasts = ctx.toasts.length;
+    await root.listeners.click({ target: { closest: () => ({ dataset: { act: 'name-remove', sport: 'Football', name: 'Arsenal' } }) } });
+    assert.deepEqual(server.stored.sports[0].teams, ['Arsenal']);
+    assert.equal(server.rules[0].enabled, true, 'still followed, still recorded');
+    assert.equal(ctx.toasts.length, toasts);
+});
+
+test('#276 review: switching "Record every game" off and leaving the page sends the delete once, with keepalive', async () => {
+    const { server, responses } = ruleServer({ spoilerFree: false, sports: [{ sport: 'Football', leagues: ['EPL'], teams: ['Arsenal'] }] });
+    const { settings, calls, ctx } = panel(responses);
+    await settings.load();
+    await settings.onChange({ target: { dataset: { recordEvery: 'Arsenal', sport: 'Football' }, checked: false } });
+    await vm.runInContext('UI.flushPending()', ctx);
+    assert.equal(calls.filter(c => c[0] === 'DELETE').length, 1);
+    assert.equal(calls.find(c => c[0] === 'DELETE')[3]?.keepalive, true);
+    assert.deepEqual(server.rules, []);
+    ctx.toasts.at(-1)[1].onEnd('timeout'); await settle();
+    assert.equal(calls.filter(c => c[0] === 'DELETE').length, 1, 'once');
 });
 
 // 0421 (0420 Codex round 2, high): rules that could not be read were taken as none, so unfollowing said nothing of them.

@@ -125,24 +125,61 @@ const UI = {
 
     /**
      * #276 (C12): an action that can be put back happens at once and says so, with Undo for 10 s, in place of a confirm.
-     *   UI.undoable('Stopped following AFL.', { undo: () => restore(), commit: () => deleteTheRules(), failText: 'Could not ...' })
+     *   UI.undoable('Stopped following AFL.', { undo: () => restore(), commit: ({ keepalive }) => deleteTheRules(keepalive),
+     *       failText: 'Could not ...', focus: { undo: () => restoredButton, end: () => nextItemButton } })
      * The caller has already made the change (or, when the server call is the thing to hold back, not yet: `commit` is
-     * that call). `undo` puts it back when Undo is chosen; `commit` runs only when the notice ends otherwise (timeout, a
-     * newer notice, closed), so Undo has nothing to take back from the server. A failed `commit` is a plain notice
-     * (`failText` + the server's sentence when it is one for people). Returns the notice, like UI.toast.
+     * that call). `undo` puts it back when Undo is chosen; `commit` is sent exactly once, never after Undo: when the
+     * notice ends otherwise (timeout, a newer notice, closed), or earlier, with `{ keepalive: true }`, when the browser
+     * page is left or hidden or before signing out (UI.flushPending). With keepalive, `commit` must start its requests
+     * before it first waits (the page may be gone after that) and pass keepalive on (API.request's fourth argument).
+     * A failed `commit` is a plain notice (`failText` + the server's sentence when it is one for people), unless `commit`
+     * handles its own failure. Focus never falls to the page: an action made with the keyboard puts it on Undo; after
+     * Undo it goes to `focus.undo()`, after the notice ends to `focus.end()` (else the page's heading), but only when it
+     * was in the notice or had fallen, never away from where a pointer user has moved on. Returns the notice.
      */
-    undoable(message, { undo, commit, failText } = {}) {
-        let over = false;
-        return UI.toast(message, {
-            action: { label: 'Undo', run: () => { over = true; return undo && undo(); } },
+    undoable(message, { undo, commit, failText, focus = {} } = {}) {
+        const send = (opts) => {
+            if (!commit) return Promise.resolve();
+            let result;
+            try { result = commit(opts); } catch (err) { result = Promise.reject(err); }
+            return Promise.resolve(result).catch((err) => { UI.toast(UI.errorText(err, failText || 'Could not finish that.'), { kind: 'error' }); });
+        };
+        const byKeyboard = Focus.byKeyboard();
+        const id = Pending.add(send);
+        let notice = null;
+        notice = UI.toast(message, {
+            action: { label: 'Undo', run: () => {
+                if (!Pending.drop(id)) return undefined; // already sent: nothing to put back
+                const wasOurs = Focus.ours(notice);
+                let result;
+                try { result = undo && undo(); } catch (err) { result = Promise.reject(err); }
+                const settle = () => { if (wasOurs) Focus.move(focus.undo); };
+                if (result && typeof result.then === 'function') return result.then((v) => { settle(); return v; }, (err) => { settle(); throw err; });
+                settle();
+                return result;
+            } },
             onEnd: (why) => {
-                if (over || why === 'action') return;
-                over = true;
-                if (!commit) return;
-                Promise.resolve().then(commit).catch((err) => UI.toast(UI.errorText(err, failText || 'Could not finish that.'), { kind: 'error' }));
+                if (why === 'action') return undefined;
+                const wasOurs = why !== 'replaced' && Focus.ours(notice);
+                const sent = Pending.run(id, { keepalive: false });
+                if (wasOurs) Focus.move(focus.end);
+                return sent;
             }
         });
+        Pending.setNotice(id, notice);
+        if (notice) {
+            if (byKeyboard) notice.focusAction();
+            else if (Focus.fell()) Focus.move(focus.end, { quiet: true });
+        }
+        return notice;
     },
+
+    /**
+     * #276: send every change still waiting for its Undo notice now, with keepalive, and close its notice (its Undo is
+     * gone). Done by itself when the browser page is left or hidden; sign-out waits for it while the sign-in is still
+     * good. Resolves when every request has an answer (or failed).
+     */
+    flushPending() { return Pending.flush(); },
 
     /**
      * #276: the one way an area says it is loading, has nothing to show yet, or could not be loaded.
@@ -398,13 +435,90 @@ const Toast = (() => {
         part.pill.classList.add('is-open');
         if (kind === 'info') arm(act ? ACTION_MS : INFO_MS);
         const mine = current;
-        return { close: () => { if (current === mine) closeCurrent(); } };
+        return {
+            close: () => { if (current === mine) closeCurrent(); },
+            /** Put focus on the action (Undo), for a keyboard user. */
+            focusAction: () => { if (current === mine && act && part.action.focus) part.action.focus(); },
+            /** Whether `el` is inside this notice's pill (focus there means the notice is the user's place). */
+            contains: (el) => !!el && !!part.pill.contains && part.pill.contains(el)
+        };
     }
 
     if (hasPage()) ensure();
     else if (typeof document !== 'undefined' && document.addEventListener) document.addEventListener('DOMContentLoaded', ensure);
 
     return { show, place, ensure };
+})();
+
+/**
+ * #276: the changes waiting for their Undo notice to end (UI.undoable), each sent exactly once: when its notice ends
+ * without Undo, or all at once, with keepalive, when the page goes (pagehide), the tab is hidden, or before sign-out.
+ */
+const Pending = (() => {
+    const waiting = new Map();
+    let seq = 0;
+
+    function add(send) { const id = ++seq; waiting.set(id, { send, notice: null }); return id; }
+    function setNotice(id, notice) { const entry = waiting.get(id); if (entry) entry.notice = notice; }
+    /** Undo: it will never be sent. False when it has been sent already. */
+    function drop(id) { return waiting.delete(id); }
+    /** Send it now (once): the requests start before this returns. */
+    function run(id, opts) {
+        const entry = waiting.get(id);
+        if (!entry) return Promise.resolve();
+        waiting.delete(id);
+        return entry.send(opts);
+    }
+    function flush() {
+        const ids = [...waiting.keys()];
+        const notices = ids.map(id => waiting.get(id).notice).filter(Boolean);
+        const sent = ids.map(id => run(id, { keepalive: true }));
+        notices.forEach(n => n.close()); // their Undo is gone: the change has been sent
+        return Promise.all(sent);
+    }
+    const size = () => waiting.size;
+
+    // On the window (visibilitychange bubbles to it from the document), so the document's own listeners stay the pages'.
+    const win = typeof window !== 'undefined' ? window : null;
+    if (win && typeof win.addEventListener === 'function') {
+        win.addEventListener('pagehide', () => { flush(); });
+        win.addEventListener('visibilitychange', () => { if (typeof document !== 'undefined' && document.hidden) flush(); });
+    }
+    return { add, setNotice, drop, run, flush, size };
+})();
+
+/** #276: where focus goes around a notice, and whether the last thing the person did was with the keyboard. */
+const Focus = (() => {
+    let keyboard = false;
+    const win = typeof window !== 'undefined' && typeof window.addEventListener === 'function' ? window : null;
+    if (win) {
+        win.addEventListener('keydown', (e) => { if (!['Shift', 'Control', 'Alt', 'Meta'].includes(e.key)) keyboard = true; }, true);
+        win.addEventListener('pointerdown', () => { keyboard = false; }, true);
+        win.addEventListener('mousedown', () => { keyboard = false; }, true);
+    }
+    const active = () => (typeof document !== 'undefined' ? document.activeElement : null);
+    /** Focus is on nothing: the page itself, or an element that has left the page. */
+    function fell() {
+        if (typeof document === 'undefined') return false;
+        const a = active();
+        return !a || a === document.body || a === document.documentElement || a.isConnected === false;
+    }
+    /** Focus is the notice's to give back: inside it, or fallen. */
+    const ours = (notice) => fell() || (!!notice && notice.contains(active()));
+    /** The page's heading, focusable by script only, when there is nowhere better. */
+    function heading() {
+        if (typeof document === 'undefined' || !document.querySelector) return null;
+        const h = document.querySelector('.page.active h2') || document.querySelector('.page.active h1') || document.querySelector('.page.active');
+        if (h && h.getAttribute && h.getAttribute('tabindex') === null) h.setAttribute('tabindex', '-1');
+        return h;
+    }
+    function move(target, { quiet = false } = {}) {
+        let el = null;
+        try { el = typeof target === 'function' ? target() : target; } catch { el = null; }
+        if (!el || el.isConnected === false || !el.focus) el = heading();
+        if (el && el.focus) el.focus(quiet ? { preventScroll: true } : undefined);
+    }
+    return { byKeyboard: () => keyboard, fell, ours, move };
 })();
 
 const Dialogs = (() => {

@@ -37,31 +37,7 @@ class App {
         const mobileMenuToggle = document.getElementById('mobile-menu-toggle');
         const navbarMenu = document.getElementById('navbar-menu');
 
-        if (mobileMenuToggle && navbarMenu) {
-            mobileMenuToggle.addEventListener('click', () => {
-                mobileMenuToggle.classList.toggle('active');
-                navbarMenu.classList.toggle('active');
-                mobileMenuToggle.setAttribute('aria-expanded', String(navbarMenu.classList.contains('active')));
-            });
-
-            // Close menu when a nav link is clicked
-            document.querySelectorAll('.nav-link').forEach(link => {
-                link.addEventListener('click', () => {
-                    mobileMenuToggle.classList.remove('active');
-                    navbarMenu.classList.remove('active');
-                    mobileMenuToggle.setAttribute('aria-expanded', 'false');
-                });
-            });
-
-            // Close menu when clicking outside
-            document.addEventListener('click', (e) => {
-                if (!e.target.closest('.navbar')) {
-                    mobileMenuToggle.classList.remove('active');
-                    navbarMenu.classList.remove('active');
-                    mobileMenuToggle.setAttribute('aria-expanded', 'false');
-                }
-            });
-        }
+        if (mobileMenuToggle && navbarMenu) this.wireMobileMenu(mobileMenuToggle, navbarMenu);
 
         // Channel drawer toggle (mobile)
         const channelToggleBtn = document.getElementById('channel-toggle-btn');
@@ -146,6 +122,7 @@ class App {
         // Handle browser back/forward buttons
         window.addEventListener('popstate', (e) => {
             // A state-less entry (the first one, or a hand-typed hash) is read from the hash like a start-up.
+            // An entry naming a page that no longer exists ({page:'home'}, written before 0535) goes to Live TV (navigateTo).
             const route = e.state?.page ? { page: e.state.page, sub: e.state.sub } : this.parseHash(window.location.hash.slice(1));
             this.navigateTo(route.page, 'none', route.sub); // the browser already moved through history
         });
@@ -334,24 +311,68 @@ class App {
             <span>Sign out</span>
         `;
 
-        logoutLink.addEventListener('click', async (e) => {
+        logoutLink.addEventListener('click', (e) => {
             e.preventDefault();
-
-            const token = localStorage.getItem('authToken');
-            if (token) {
-                await fetch('/api/auth/logout', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-            }
-
-            localStorage.removeItem('authToken');
-            window.location.replace('/login.html');
+            this.signOut();
         });
 
         navbar.appendChild(logoutLink);
+    }
+
+    /**
+     * Sign out. #276 review: a change still waiting for its Undo notice (a delete, a cancel, a rule stopped) is sent
+     * first, while the sign-in still works, and waited for (at most 5 s); after sign-out it would be refused.
+     */
+    async signOut() {
+        if (typeof UI !== 'undefined' && UI.flushPending) {
+            let timer;
+            await Promise.race([UI.flushPending().catch(() => {}), new Promise(r => { timer = setTimeout(r, 5000); })]);
+            clearTimeout(timer);
+        }
+        const token = localStorage.getItem('authToken');
+        if (token) {
+            await fetch('/api/auth/logout', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+        }
+        localStorage.removeItem('authToken');
+        window.location.replace('/login.html');
+    }
+
+    /**
+     * The phone menu (the button and #navbar-menu): the button opens and closes it; a link chosen, a click outside,
+     * Escape (focus back on the button) and Tab out of it (#276 review) close it.
+     */
+    wireMobileMenu(toggle, menu) {
+        const isOpen = () => menu.classList.contains('active');
+        const close = () => {
+            toggle.classList.remove('active');
+            menu.classList.remove('active');
+            toggle.setAttribute('aria-expanded', 'false');
+        };
+        toggle.addEventListener('click', () => {
+            toggle.classList.toggle('active');
+            menu.classList.toggle('active');
+            toggle.setAttribute('aria-expanded', String(isOpen()));
+        });
+        menu.querySelectorAll('.nav-link').forEach(link => link.addEventListener('click', close));
+        document.addEventListener('click', (e) => { if (!e.target.closest || !e.target.closest('.navbar')) close(); });
+        const inside = (el) => !!el && (menu.contains(el) || toggle.contains(el));
+        const onKey = (e) => {
+            if (e.key !== 'Escape' || !isOpen()) return;
+            e.preventDefault();
+            close();
+            toggle.focus();
+        };
+        toggle.addEventListener('keydown', onKey);
+        menu.addEventListener('keydown', onKey);
+        // Focus leaving the button and the menu (Tab past the last link, Shift+Tab before the button) closes it.
+        const onFocusOut = (e) => { if (isOpen() && !inside(e.relatedTarget)) close(); };
+        toggle.addEventListener('focusout', onFocusOut);
+        menu.addEventListener('focusout', onFocusOut);
     }
 
     /** Enter or Space on a [data-key-activate] element clicks it (see init). */
@@ -371,6 +392,12 @@ class App {
      * entry here would cut off the forward history it is traversing).
      */
     navigateTo(pageName, historyMode = 'push', sub) {
+        // #276 review: a page that does not exist (an old {page:'home'} history entry, a typo) is Live TV, in place.
+        if (!Object.prototype.hasOwnProperty.call(this.pages, pageName)) {
+            pageName = 'live';
+            historyMode = 'replace';
+            sub = undefined;
+        }
         if ((pageName === 'settings' || pageName === 'status') && this.currentUser?.role !== 'admin') {
             pageName = 'live';
             historyMode = 'replace';

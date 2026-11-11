@@ -45,7 +45,7 @@ test('ui.js is a plain global in a page context', () => {
     const ctx = vm.createContext({ window: {} });
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../public/js/ui.js'), 'utf8'), ctx);
     assert.equal(ctx.window.UI.escape('<'), '&lt;');
-    assert.match(fs.readFileSync(path.join(__dirname, '../public/index.html'), 'utf8'), /api\.js[^\n]*\n\s*<script src="\/js\/ui\.js"><\/script>/);
+    assert.match(fs.readFileSync(path.join(__dirname, '../public/index.html'), 'utf8'), /api\.js[^\n]*\n\s*<script src="\/js\/ui\.js(\?v=\d+)?"><\/script>/);
 });
 
 test('no file under public/js except ui.js defines its own HTML escape', () => {

@@ -38,10 +38,12 @@ app's `public/css/`.
 - Every viewing action is a real button or link with keyboard semantics (the 15 Oct review's F4); native browser buttons
   and dialogs keep focus.
 - A setting saves only its own key and says "Saved" or shows the server's error (#9 is the open defect).
-- Destructive bulk actions confirm and can be undone (#16). An action that can be put back (stopping a sport, a team
-  or a recording rule, approving links) happens at once with the 10-second Undo (`UI.undoable`); one that cannot (delete
-  a provider or a user, sign a device out, stop every stream) asks first, and the question names the action and what goes
-  with it.
+- A destructive action, bulk or single, either has Undo or confirms (#16). One that can be put back, or held back
+  until the notice ends (stopping a sport, a team or a recording rule; approving every pending link, which is sent only
+  when the notice ends), happens at once with the 10-second Undo (`UI.undoable`: what waits is sent once, also when the
+  page is left or hidden or before sign-out; never after Undo; focus goes to Undo for a keyboard user). One that cannot
+  (delete a provider or a user, sign a device out, stop every stream, stop a recording in progress) asks first, and the
+  question names the action and what goes with it.
 - **Words** (#276), the same in every label, button, hint, notice and empty or error state:
   **provider** (never "source" or "playlist"; the field is the "M3U address"), **guide** or **TV Guide** (never "EPG",
   except the admin matching screens, where it names the provider's EPG id), **Sport** (never "Sports"),

@@ -133,7 +133,7 @@ test('F3: Back/Forward (popstate) changes page without writing history; clicks p
     });
     loadUi(c);
     const app = vm.runInContext('Object.create(App.prototype)', c);
-    Object.assign(app, { currentPage: 'live', currentUser: { role: 'admin' }, pages: {} });
+    Object.assign(app, { currentPage: 'live', currentUser: { role: 'admin' }, pages: { live: {}, guide: {}, settings: {} } });
 
     app.navigateTo('guide');
     app.navigateTo('settings');

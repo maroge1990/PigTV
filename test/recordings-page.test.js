@@ -384,7 +384,7 @@ test('#276: leaving the page (pagehide) or hiding the tab sends what is pending 
 
     page.deleteRule('8');
     document.hidden = true;
-    fire('document', 'visibilitychange');
+    fire('window', 'visibilitychange'); // fired at the document, it bubbles to the window, where UI.undoable listens
     await new Promise(setImmediate);
     assert.deepEqual(calls.filter(c => c[0] === 'DELETE')[1], ['DELETE', '/api/recordings/rules/8', true]);
 });
@@ -407,6 +407,51 @@ test('#276: Cancel a scheduled recording: Undo, no confirm; Stop on one recordin
     await page.cancelScheduled('6');
     assert.equal(calls.filter(c => c[0] === 'confirm').length, 1, 'Stop asks first');
     assert.deepEqual(deletes(calls), ['/api/recordings/scheduled/5', '/api/recordings/scheduled/6'], 'and stops at once');
+});
+
+// #276 review (Opus low 3): a schedule that starts recording inside the 10 s was stopped by the delayed cancel, without
+// the confirmation Stop asks for. The cancel is not sent then: the item comes back with a notice saying why.
+test('#276 review: a cancel whose recording has started in the 10 s is not sent; the item comes back and the notice says why', async () => {
+    const elements = makeElements();
+    const later = Date.now() + 3600e3;
+    let status = 'scheduled';
+    const { context, calls } = makeContext(elements, (url) => jsonResponse(url.includes('/scheduled')
+        ? [{ id: 5, title: 'Later', status, program_start: later, program_end: later + 1 }] : []));
+    const page = new context.RecordingsPage({});
+    await page.refresh();
+    page.cancelScheduled('5');
+    const [, notice] = lastToast(context);
+    status = 'recording'; // the server starts it while the notice is up
+    await notice.onEnd('timeout');
+    assert.deepEqual(deletes(calls), [], 'nothing stopped');
+    assert.ok(elements['scheduled-recordings-list'].innerHTML.includes('data-id="5"'), 'back on the page');
+    assert.match(elements['scheduled-recordings-list'].innerHTML, />Stop</);
+    assert.equal(lastToast(context)[0], 'Later has started recording, so it was not cancelled. Use Stop to end it.');
+});
+
+test('#276 review: leaving the page decides from what the page holds: the shared feed or a start already passed keeps it', async () => {
+    for (const how of ['feed', 'time']) {
+        const elements = makeElements();
+        const start = how === 'time' ? Date.now() + 60e3 : Date.now() + 3600e3; // a 2-minute lead-in has begun
+        const { context, calls, fire } = makeContext(elements, () => jsonResponse([]));
+        const app = { recordingsFeed: { latest: how === 'feed' ? [{ id: 5 }] : [] } };
+        const page = new context.RecordingsPage(app);
+        page.renderScheduled([{ id: 5, title: 'Later', status: 'scheduled', program_start: start, program_end: start + 1, pre_buffer_min: 2 }]);
+        page.cancelScheduled('5');
+        fire('window', 'pagehide');
+        await new Promise(setImmediate);
+        assert.deepEqual(deletes(calls), [], how);
+    }
+    // One not started is cancelled as before, with keepalive.
+    const elements = makeElements();
+    const { context, calls, fire } = makeContext(elements, () => jsonResponse([]));
+    const page = new context.RecordingsPage({ recordingsFeed: { latest: [] } });
+    const start = Date.now() + 3600e3;
+    page.renderScheduled([{ id: 5, title: 'Later', status: 'scheduled', program_start: start, program_end: start + 1, pre_buffer_min: 2 }]);
+    page.cancelScheduled('5');
+    fire('window', 'pagehide');
+    await new Promise(setImmediate);
+    assert.deepEqual(calls.filter(c => c[0] === 'DELETE'), [['DELETE', '/api/recordings/scheduled/5', true]]);
 });
 
 test('#276: declining the Stop confirmation stops nothing', async () => {

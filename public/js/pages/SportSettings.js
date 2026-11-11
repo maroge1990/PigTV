@@ -4,7 +4,8 @@
  * The account's sports in its order, each with its leagues (at least one, in order, offered under the catalogue's
  * headings) and the teams or people it follows from those leagues (each once, picked from the leagues' names); the
  * spoiler-free switch; the suggested competitions of its teams (Add / No thanks); "Record every game" on a followed team
- * (a household recording rule, kind `team`); unfollowing a team that has one asks whether to keep it.
+ * (a household recording rule, kind `team`); unfollowing a team that has one switches the rule off at once and deletes
+ * it when the Undo notice ends (Undo switches it back on).
  * Uses GET /api/sports/catalog, GET+PUT /api/sports/follows, GET /api/sports/names, GET /api/sports/suggestions,
  * POST /api/sports/suggestions/decline (C-U) and /api/recordings/rules (C-M).
  *
@@ -78,6 +79,32 @@ const SportFollowModel = {
         const s = next.sports.find(x => x.sport === sport);
         if (s) s.teams = s.teams.filter(t => !names.some(n => SportFollowModel.same(n, t)));
         return next;
+    },
+
+    /**
+     * #276: Undo of a removal, onto the state as it is now: put back only what `removed` took ({ sport, index, before:
+     * the sport's entry then, leagues, names }), each in its old place where it can be, keeping every change made since.
+     */
+    restore(state, removed) {
+        const next = SportFollowModel.copy(state);
+        let s = next.sports.find(x => x.sport === removed.sport);
+        if (!s) {
+            s = { sport: removed.sport, leagues: [], teams: [] };
+            next.sports.splice(Math.min(removed.index, next.sports.length), 0, s);
+        }
+        const at = (list, item, old) => list.splice(Math.min(old.indexOf(item), list.length), 0, item);
+        for (const l of removed.before.leagues) if (removed.leagues.includes(l) && !s.leagues.includes(l)) at(s.leagues, l, removed.before.leagues);
+        for (const n of removed.before.teams) {
+            if (!removed.names.some(r => SportFollowModel.same(r, n)) || s.teams.some(t => SportFollowModel.same(t, n))) continue;
+            at(s.teams, n, removed.before.teams);
+        }
+        return next;
+    },
+
+    /** Whether `name` is followed in `sport` in `state`. */
+    follows(state, sport, name) {
+        const s = state.sports.find(x => x.sport === sport);
+        return !!s && s.teams.some(t => SportFollowModel.same(t, name));
     },
 
     /** The names a sport's chosen leagues offer, each once, in name order (`namesOf(league)`: a list or null). */
@@ -212,8 +239,9 @@ class SportFollowSettings {
             if (error) { this.message = error; return this.render(); }
             // #276 (C12): no question; Undo for 10 s puts the league (and any team it took with it) back.
             const alone = orphans.length ? ` ${orphans.join(', ')} ${orphans.length === 1 ? 'plays' : 'play'} in no other league you follow in ${sport}, so ${orphans.length === 1 ? 'it is' : 'they are'} unfollowed too.` : '';
-            return this.removeWithUndo({ message: `Removed ${this.label(league)}.${alone}`, sport, names: orphans,
-                next: st => M.removeNames(M.removeLeague(st, sport, league).state, sport, orphans) });
+            return this.removeWithUndo({ message: `Removed ${this.label(league)}.${alone}`, sport, names: orphans, leagues: [league],
+                next: st => M.removeNames(M.removeLeague(st, sport, league).state, sport, orphans),
+                undoFocus: `button[data-act="league-remove"][data-sport="${CSS.escape(sport)}"][data-league="${CSS.escape(league)}"]` });
         }
         if (act === 'sport-add') {
             const pick = this.root.querySelector('#sport-follow-add');
@@ -224,12 +252,14 @@ class SportFollowSettings {
         if (act === 'sport-remove') {
             const entry = this.state.sports[index];
             if (!entry) return;
-            return this.removeWithUndo({ message: `Stopped following ${sport}${entry.teams.length ? ` and ${entry.teams.join(', ')}` : ''}.`, sport, names: entry.teams,
-                next: st => ({ ...M.copy(st), sports: st.sports.filter(s => s.sport !== sport) }) });
+            return this.removeWithUndo({ message: `Stopped following ${sport}${entry.teams.length ? ` and ${entry.teams.join(', ')}` : ''}.`, sport, names: entry.teams, leagues: entry.leagues,
+                next: st => ({ ...M.copy(st), sports: st.sports.filter(s => s.sport !== sport) }),
+                undoFocus: `button[data-act="sport-remove"][data-sport="${CSS.escape(sport)}"]` });
         }
         if (act === 'name-add') return this.addName(sport);
         if (act === 'name-remove') {
-            return this.removeWithUndo({ message: `Unfollowed ${name}.`, sport, names: [name], next: st => M.removeNames(st, sport, [name]) });
+            return this.removeWithUndo({ message: `Unfollowed ${name}.`, sport, names: [name], leagues: [], next: st => M.removeNames(st, sport, [name]),
+                undoFocus: `button[data-act="name-remove"][data-sport="${CSS.escape(sport)}"][data-name="${CSS.escape(name)}"]` });
         }
         if (act === 'suggest-add') return this.save(st => M.addLeague(st, sport, league), `Added ${this.label(league)}.`);
         if (act === 'suggest-no') {
@@ -253,10 +283,8 @@ class SportFollowSettings {
 
     /**
      * D-41 point 11, #276 (C12): unfollowing used to ask whether to keep a team's "Record every game". It asks nothing now:
-     * the change happens at once, its recording rules stop with it, and Undo for 10 s puts it all back. The list is saved
-     * at once (Undo saves the old list again); the rules, which cannot be put back, are deleted only when the notice
-     * ends without Undo. -> the rules that are on now for `names`, or `unknown` when the rules could not be read
-     * (0421: said, never taken as "none").
+     * the change happens at once, its recording rules stop with it, and Undo for 10 s puts it all back. -> the rules that
+     * are on now for `names`, or `unknown` when the rules could not be read (0421: said, never taken as "none").
      */
     async activeRules(sport, names) {
         if (!names.length) return { rules: [], unknown: false };
@@ -266,28 +294,104 @@ class SportFollowSettings {
         return { rules: found, unknown: false };
     }
 
-    /** Delete the rules found. -> the names whose rule could not be stopped (0420: said, never hidden behind "Unfollowed"). */
-    async stopRules(found) {
+    /** Switch rules on or off, all at once. -> { done, failed } ({ name, rule } each). A rule already gone is off. */
+    async setRules(found, enabled) {
+        const done = [], failed = [];
+        await Promise.all(found.map(async (x) => {
+            try { await API.request('PUT', `/recordings/rules/${x.rule.id}`, { enabled }); done.push(x); }
+            catch (err) {
+                if (!enabled && err && err.status === 404) { done.push(x); return; }
+                console.error('A recording rule was not changed:', err);
+                failed.push(x);
+            }
+        }));
+        return { done, failed };
+    }
+
+    /**
+     * Delete the rules found (already switched off), all requests started at once (with keepalive while the page goes).
+     * -> the names whose rule could not be deleted. A rule already gone counts as deleted.
+     */
+    async stopRules(found, { keepalive = false } = {}) {
         const failed = [];
-        for (const { name, rule } of found.rules) {
-            try { await API.request('DELETE', `/recordings/rules/${rule.id}`); } catch (err) { console.error('A recording rule was not stopped:', err); failed.push(name); }
-        }
-        await this.loadRules();
+        await Promise.all(found.map(({ name, rule }) => API.request('DELETE', `/recordings/rules/${rule.id}`, null, { keepalive })
+            .catch((err) => { if (!(err && err.status === 404)) { console.error('A recording rule was not deleted:', err); failed.push(name); } })));
+        if (!keepalive) await this.loadRules();
         return failed;
     }
 
-    async removeWithUndo({ message, sport, names, next }) {
-        const before = SportFollowModel.copy(this.state);
+    /**
+     * Unfollow (a team, a league and the teams only it lists, or a sport), with Undo for 10 s.
+     * 0420/0421, #276 review: a team's "Record every game" must never go on recording for a team no longer followed,
+     * whatever happens in between (the page closed or reloaded, sign-out, Undo, a refused request). So its rule is
+     * switched off BEFORE the list is saved, and the unfollow is refused if it cannot be; a list that fails to save
+     * switches it back on. The rule (off by then) is deleted when the notice ends, or with keepalive when the page goes
+     * first; a lost delete leaves it off, never on. Undo puts back only what was removed, onto the list as it is now,
+     * then switches the rule back on. A team followed again within the 10 s keeps its rule, switched back on.
+     */
+    async removeWithUndo({ message, sport, names, leagues, next, undoFocus }) {
+        const M = SportFollowModel;
+        const index = this.state.sports.findIndex(s => s.sport === sport);
+        const entry = this.state.sports[index];
+        if (!entry) return;
+        const removed = { sport, index, before: { leagues: [...entry.leagues], teams: [...entry.teams] }, leagues, names };
         const found = await this.activeRules(sport, names);
+        if (found.rules.length) {
+            const off = await this.setRules(found.rules, false);
+            if (off.failed.length) {
+                const back = await this.setRules(off.done, true);
+                await this.loadRules();
+                this.message = `Nothing was unfollowed: recording every ${off.failed.map(x => x.name).join(', ')} game could not be stopped.`
+                    + (back.failed.length ? ` Recording every ${back.failed.map(x => x.name).join(', ')} game is now off: switch it on again below.` : '');
+                this.render();
+                return;
+            }
+        }
         await this.save(next, '');
-        if (!this.lastSaveOk) return; // the panel says why it was not saved
+        if (!this.lastSaveOk) {
+            // Still followed (the panel says why it was not saved): its rules record again.
+            const back = await this.setRules(found.rules, true);
+            if (back.failed.length) this.message += ` Recording every ${back.failed.map(x => x.name).join(', ')} game is now off: switch it on again below.`;
+            await this.loadRules();
+            this.render();
+            return;
+        }
+        await this.loadRules();
         const stops = found.rules.map(x => x.name);
-        if (found.unknown) { this.message = this.after('', { unknown: true, length: 0 }); this.render(); }
+        if (found.unknown) this.message = this.after('', { unknown: true, length: 0 });
+        this.render();
+        const root = this.root;
         UI.undoable(stops.length ? `${message} Recording every ${stops.join(', ')} game stops too.` : message, {
-            undo: () => this.save(before, ''),
-            commit: async () => {
-                const failed = await this.stopRules(found);
-                if (failed.length) { this.message = this.after('', failed); this.render(); }
+            undo: async () => {
+                await this.save(st => M.restore(st, removed), '');
+                if (!this.lastSaveOk) return; // still unfollowed: its rules stay off
+                const back = await this.setRules(found.rules, true);
+                if (back.failed.length) this.message = `Following again, but recording every ${back.failed.map(x => x.name).join(', ')} game could not be switched back on: switch it on below.`;
+                await this.loadRules();
+                this.render();
+            },
+            commit: async ({ keepalive } = {}) => {
+                // A team followed again in the 10 s is Undo by another route: its rule is kept and switched back on.
+                const again = found.rules.filter(x => M.follows(this.state, sport, x.name));
+                const gone = found.rules.filter(x => !again.includes(x));
+                const back = Promise.all(again.map(x => API.request('PUT', `/recordings/rules/${x.rule.id}`, { enabled: true }, { keepalive })
+                    .then(() => null, (err) => { console.error('A recording rule was not switched back on:', err); return x.name; })));
+                const failed = await this.stopRules(gone, { keepalive });
+                const notOn = (await back).filter(Boolean);
+                if (notOn.length && !keepalive) {
+                    UI.toast(`Following ${notOn.join(', ')} again, but recording every ${notOn.join(', ')} game could not be switched back on: switch it on in Settings › Sport.`, { kind: 'error' });
+                    await this.loadRules();
+                    this.render();
+                } else if (again.length && !keepalive) { await this.loadRules(); this.render(); }
+                if (failed.length && !keepalive) {
+                    this.message = `Recording every ${failed.join(', ')} game is off, but the rule could not be deleted: delete it in Recordings › Recording rules.`;
+                    this.render();
+                }
+            },
+            focus: {
+                undo: () => root?.querySelector?.(undoFocus),
+                end: () => (this.state.sports.some(s => s.sport === sport)
+                    ? root?.querySelector?.(`input[data-name-for="${CSS.escape(sport)}"]`) : root?.querySelector?.('#sport-follow-add'))
             }
         });
     }
@@ -309,16 +413,20 @@ class SportFollowSettings {
                 // #276 (C12): off at once on the page; the rule is deleted when the notice ends, Undo keeps it.
                 this.pendingRules.add(rule.id);
                 this.message = '';
+                const box = () => this.root?.querySelector?.(`input[data-record-every="${CSS.escape(name)}"][data-sport="${CSS.escape(sport)}"]`);
                 UI.undoable(`Stopped recording every ${name} game. Recordings already made stay.`, {
                     undo: () => { this.pendingRules.delete(rule.id); this.render(); },
-                    commit: async () => {
+                    // Sent once (UI.undoable), with keepalive when the page goes first.
+                    commit: async ({ keepalive } = {}) => {
                         if (!this.pendingRules.has(rule.id)) return;
-                        try { await API.request('DELETE', `/recordings/rules/${rule.id}`); }
+                        try { await API.request('DELETE', `/recordings/rules/${rule.id}`, null, { keepalive }); }
                         catch (err) { this.message = UI.errorText(err, `Every ${name} game is still being recorded.`); }
                         this.pendingRules.delete(rule.id);
+                        if (keepalive) return;
                         await this.loadRules();
                         this.render();
-                    }
+                    },
+                    focus: { undo: box, end: box }
                 });
             }
             this.message = on ? `Recording every ${name} game.` : this.message;

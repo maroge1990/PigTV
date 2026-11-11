@@ -3,9 +3,10 @@
  * #276 (option B, 11 Nov 2026): Recorded as picture cards (one rose Play: the newest recording not yet watched), Coming
  * up as a strip of compact items, then Recording rules and Recent problems side by side. Each list draws its own
  * loading, empty and load-error state; when all three fail, one page-level block replaces them.
- * Deleting and cancelling happen at once with a 10-second Undo: the item leaves the page, and the request is sent only
- * when the notice ends without Undo (a second delete ends the first one's notice, which sends it), or at once, with
- * keepalive, if the browser page is left or hidden first. Stop on a recording in progress still confirms.
+ * Deleting and cancelling happen at once with a 10-second Undo (UI.undoable): the item leaves the page, and the request
+ * is sent only when the notice ends without Undo (a second delete ends the first one's notice, which sends it), or at
+ * once, with keepalive, if the browser page is left or hidden or the person signs out first. Stop on a recording in
+ * progress still confirms, and a cancel whose recording has started meanwhile is not sent.
  */
 const REC_PLAY_ICON = '<svg class="icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
 
@@ -40,10 +41,6 @@ class RecordingsPage {
     init() {
         const form = document.getElementById('rule-add-form');
         if (form) form.addEventListener('submit', (e) => { e.preventDefault(); this.addSportRule(); });
-        // Leaving or hiding the browser page while a delete waits for its notice: send it now, with keepalive (it
-        // outlives the page), so nothing deleted is silently kept.
-        window.addEventListener?.('pagehide', () => this.commitAllPending());
-        document.addEventListener?.('visibilitychange', () => { if (document.hidden) this.commitAllPending(); });
         this.draw();
     }
 
@@ -130,6 +127,19 @@ class RecordingsPage {
         // A refresh while a "⋯" menu is open would take its button away: draw when it closes instead.
         if (UI.menu && UI.menu.isOpen()) { this._drawWanted = true; return; }
         this._drawWanted = false;
+        // #276 review: a redraw (the 30 s refresh, a delete sent) replaces the buttons; focus on one goes back to the
+        // same button drawn again, never to the page.
+        const had = typeof document !== 'undefined' ? document.activeElement : null;
+        const keep = had && had.dataset && had.dataset.action && had.closest && had.closest('#page-recordings')
+            ? { action: had.dataset.action, id: had.dataset.id } : null;
+        this.drawLists();
+        if (!keep || (document.activeElement && document.activeElement !== document.body && document.activeElement.isConnected !== false)) return;
+        const page = document.getElementById('page-recordings');
+        const again = page && page.querySelector && page.querySelector(`[data-action="${keep.action}"][data-id="${keep.id}"]`);
+        if (again && again.focus) again.focus({ preventScroll: true });
+    }
+
+    drawLists() {
         const allFailed = this.failed.recordings && this.failed.scheduled && this.failed.rules;
         const sections = [this.recordedSection, this.scheduledSection, this.rulesSection, this.recentProblemsSection];
         if (this.pageState) this.pageState.hidden = !allFailed;
@@ -475,15 +485,58 @@ class RecordingsPage {
 
     // ---- delete and cancel, with Undo ----------------------------------------
 
-    /** The item leaves the page now; the request goes when the notice ends without Undo. */
-    defer({ key, message, failText, path, request }) {
-        this.pending.set(key, { key, failText, path, request, committing: false });
+    /**
+     * The item leaves the page now; the request goes when the notice ends without Undo, or with keepalive when the
+     * page is left, hidden or signed out of first (UI.undoable sends it exactly once, never after Undo).
+     */
+    defer({ key, message, failText, path, cancel = null }) {
+        const near = this.neighbour(key);
+        this.pending.set(key, { key, failText, path, committing: false, cancel: !!cancel, id: cancel && cancel.id, title: cancel && cancel.title });
         this.draw();
-        // A second deferred delete replaces this notice, which ends it ('replaced') and so sends the first.
-        this._undoNotice = UI.toast(message, {
-            action: { label: 'Undo', run: () => this.undo(key) },
-            onEnd: (why) => (why === 'action' ? undefined : this.commitPending(key))
+        UI.undoable(message, {
+            undo: () => this.undo(key),
+            commit: ({ keepalive } = {}) => this.commitPending(key, { keepalive }),
+            focus: { undo: () => this.controlOf(key), end: () => (near && this.controlOf(near)) || this.landingOf(key) }
         });
+    }
+
+    /** The list a key's item is drawn in. */
+    listOf(key) {
+        const [kind, id] = key.split(':');
+        if (kind === 'recording') return { el: this.recordingsList, section: 'recorded', items: this.visible(this.data.recordings, 'recording') };
+        if (kind === 'rule') return { el: this.rulesList, section: 'rules', items: this.visible(this.data.rules, 'rule'), attr: 'data-rule-id' };
+        const recent = (this.data.recent || []).some(x => String(x.id) === id);
+        return recent ? { el: this.recentProblemsList, section: 'problems', items: this.visible(this.data.recent, 'schedule') }
+            : { el: this.scheduledList, section: 'scheduled', items: this.visible(this.data.upcoming, 'schedule') };
+    }
+
+    /** The key of the item after this one in its list (else the one before), for focus once it has gone. */
+    neighbour(key) {
+        const [kind, id] = key.split(':');
+        const { items } = this.listOf(key);
+        const i = items.findIndex(x => String(x.id) === id);
+        if (i < 0) return null;
+        const other = items[i + 1] || items[i - 1];
+        return other ? `${kind}:${other.id}` : null;
+    }
+
+    /** An item's main control (its first button), when it is drawn. */
+    controlOf(key) {
+        const id = key.split(':')[1];
+        const { el, attr = 'data-id' } = this.listOf(key);
+        return el && el.querySelector ? el.querySelector(`[${attr}="${id}"] button`) : null;
+    }
+
+    /** Where focus goes when a list has nothing left to focus: the action of its empty block, else its heading. */
+    landingOf(key) {
+        const { el, section } = this.listOf(key);
+        const action = el && el.querySelector ? el.querySelector('.state-block-action') : null;
+        if (action) return action;
+        const heading = typeof document !== 'undefined' && document.getElementById ? document.getElementById(`${section}-heading`) : null;
+        const shown = heading && heading.closest ? heading.closest('section') : null;
+        if (!heading || (shown && shown.hidden)) return null;
+        if (heading.getAttribute && heading.getAttribute('tabindex') === null) heading.setAttribute('tabindex', '-1');
+        return heading;
     }
 
     undo(key) {
@@ -493,18 +546,20 @@ class RecordingsPage {
         this.draw();
     }
 
+    /** Sent once by UI.undoable. With keepalive the request starts before anything is awaited (the page is going). */
     async commitPending(key, { keepalive = false } = {}) {
         const entry = this.pending.get(key);
         if (!entry || entry.committing) return;
         entry.committing = true;
+        // A cancel whose recording has started in the 10 s is not sent: Stop, which asks first, is the way to end it.
+        if (entry.cancel && await this.hasStarted(entry.id, { fresh: !keepalive })) {
+            this.pending.delete(key);
+            this.draw();
+            UI.toast(`${entry.title ? `${entry.title} has` : 'It has'} started recording, so it was not cancelled. Use Stop to end it.`);
+            return;
+        }
         try {
-            if (keepalive) {
-                // API.request cannot send keepalive; this is the same request with the same sign-in header.
-                const res = await API.streamFetch(`/api${entry.path}`, { method: 'DELETE', keepalive: true });
-                if (!res.ok) throw new Error(`Server responded with ${res.status}`);
-            } else {
-                await entry.request();
-            }
+            await API.request('DELETE', entry.path, null, { keepalive });
         } catch (err) {
             this.pending.delete(key);
             this.draw();
@@ -517,12 +572,24 @@ class RecordingsPage {
         if (!keepalive) await this.refresh();
     }
 
-    /** The browser page is going or hidden: send every waiting delete now; their Undo is gone with the notice. */
-    commitAllPending() {
-        const keys = [...this.pending.values()].filter(p => !p.committing).map(p => p.key);
-        if (!keys.length) return;
-        keys.forEach(key => this.commitPending(key, { keepalive: true }));
-        if (this._undoNotice) this._undoNotice.close();
+    /**
+     * Whether schedule `id` is recording now, from the freshest the page has: the scheduled list asked again (`fresh`,
+     * when there is time to wait for an answer), else the list it holds, the shared feed of recordings in progress, and
+     * its start (less its lead-in) having passed.
+     */
+    async hasStarted(id, { fresh = false } = {}) {
+        const find = () => (this.data.upcoming || []).find(x => String(x.id) === String(id));
+        if (fresh) {
+            await this.fetchScheduled();
+            if (!this.failed.scheduled) return !!find() && find().status === 'recording';
+        }
+        const item = find();
+        if (item && item.status === 'recording') return true;
+        const feed = this.app && this.app.recordingsFeed && this.app.recordingsFeed.latest;
+        if (Array.isArray(feed) && feed.some(r => String(r.id) === String(id))) return true;
+        if (!item) return false;
+        const start = Number(item.program_start) - (Number(item.pre_buffer_min) || 0) * 60000;
+        return Number.isFinite(start) && Date.now() >= start;
     }
 
     /** Take a deleted item out of what the page holds, so it stays gone until the next answer. */
@@ -539,7 +606,7 @@ class RecordingsPage {
 
     deleteRecording(id) {
         this.defer({ key: `recording:${id}`, message: 'Recording deleted', failText: 'Could not delete it',
-            path: `/recordings/${id}`, request: () => API.recordings.delete(id) });
+            path: `/recordings/${id}` });
     }
 
     // Its recordings that have not started are cancelled by the server; anything recorded is kept.
@@ -549,14 +616,14 @@ class RecordingsPage {
         const n = Number(rule && rule.upcoming) || 0;
         const message = n > 0 ? `Rule deleted. Its ${n} scheduled ${n === 1 ? 'recording is' : 'recordings are'} cancelled.` : 'Rule deleted';
         this.defer({ key: `rule:${id}`, message, failText: 'Could not delete the rule',
-            path: `/recordings/rules/${id}`, request: () => API.recordings.deleteRule(id) });
+            path: `/recordings/rules/${id}` });
     }
 
     // 0207: a failed or missed schedule from "Recent problems": the server deletes it along
     // with its failed recordings and their files, so the library is refreshed as well.
     deleteProblem(id) {
         this.defer({ key: `schedule:${id}`, message: 'Failed recording deleted', failText: 'Could not delete it',
-            path: `/recordings/scheduled/${id}`, request: () => API.recordings.cancelScheduled(id) });
+            path: `/recordings/scheduled/${id}` });
     }
 
     // Cancel has Undo; Stop on a recording in progress cannot be undone, so it still asks first.
@@ -573,7 +640,7 @@ class RecordingsPage {
             return;
         }
         this.defer({ key: `schedule:${id}`, message: 'Recording cancelled', failText: 'Could not cancel it',
-            path: `/recordings/scheduled/${id}`, request: () => API.recordings.cancelScheduled(id) });
+            path: `/recordings/scheduled/${id}`, cancel: { id, title: item && item.title } });
     }
 
     // #12 (D-42): this schedule wins its clashes; the one it beats waits instead.

@@ -120,3 +120,56 @@ test('the guide already has a Favourites filter (its group menu), shown only whe
     assert.match(src, /hasFavorites/);
     assert.match(src, /value="Favorites"[^>]*>Favourites<\/option>/);
 });
+
+// #276 review (Opus M1): a tab open before 0535 holds entries the old start-up wrote as {page:'home'}, and they survive
+// a reload after the deploy. Back onto one drew no page at all, titled "PigTV · PigTV". Any page that does not exist
+// is Live TV, replacing the entry.
+test('Back onto an old {page:"home"} entry (or any unknown page) shows Live TV and replaces the entry', () => {
+    const calls = [];
+    const pagesShown = [];
+    const c = appContext({ history: { pushState: (s) => calls.push(['push', s.page]), replaceState: (s, _, u) => calls.push(['replace', s.page, u]) } });
+    c.document.title = '';
+    c.document.querySelectorAll = (sel) => (sel === '.page' ? ['live', 'guide'].map(p => ({ id: `page-${p}`, classList: { toggle: (cls, on) => { if (on) pagesShown.push(p); } } })) : []);
+    const app = vm.runInContext('Object.create(App.prototype)', c);
+    Object.assign(app, { currentPage: 'live', currentUser: { role: 'admin' }, pages: { live: { show() {} }, guide: {}, sports: {}, recordings: {}, settings: {}, status: {} } });
+    for (const page of ['home', 'nonsense', 'constructor']) {
+        calls.length = 0; pagesShown.length = 0;
+        app.navigateTo(page, 'none'); // what popstate does with e.state.page
+        assert.deepEqual(calls, [['replace', 'live', '#live']], page);
+        assert.deepEqual(pagesShown, ['live'], `${page}: a page is shown`);
+        assert.equal(app.currentPage, 'live');
+        assert.equal(c.document.title, 'Live TV · PigTV');
+    }
+});
+
+// #276 review (rig keyboard pass): the phone menu closed on a link or a click outside only; Escape and Tab did nothing.
+test('the phone menu: Escape closes it and puts focus back on the button; Tab out of it closes it', () => {
+    const { createDocument, FakeEvent } = require('./helpers/fakeDom');
+    const document = createDocument();
+    const c = appContext({ document });
+    const nav = document.createElement('nav'); nav.className = 'navbar';
+    const toggle = document.createElement('button');
+    const menu = document.createElement('div');
+    const link = document.createElement('a'); link.className = 'nav-link';
+    const outside = document.createElement('button');
+    menu.appendChild(link); nav.appendChild(toggle); nav.appendChild(menu);
+    document.body.appendChild(nav); document.body.appendChild(outside);
+    const app = vm.runInContext('Object.create(App.prototype)', c);
+    app.wireMobileMenu(toggle, menu);
+    const open = () => menu.classList.contains('active');
+
+    toggle.click();
+    assert.equal(open(), true);
+    link.focus();
+    link.dispatchEvent(new FakeEvent('keydown', { key: 'Escape' }));
+    assert.equal(open(), false, 'Escape closes it');
+    assert.equal(toggle.getAttribute('aria-expanded'), 'false');
+    assert.equal(document.activeElement, toggle, 'focus back on the button');
+
+    toggle.click();
+    link.dispatchEvent(new FakeEvent('focusout', { relatedTarget: toggle }));
+    assert.equal(open(), true, 'moving inside (link to button) keeps it open');
+    link.dispatchEvent(new FakeEvent('focusout', { relatedTarget: outside }));
+    assert.equal(open(), false, 'Tab out of it closes it');
+    assert.equal(toggle.getAttribute('aria-expanded'), 'false');
+});

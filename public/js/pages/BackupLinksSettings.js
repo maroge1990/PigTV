@@ -308,9 +308,12 @@ class BackupLinksSettings {
         UI.undoable(`Approving every pending link in ${cat.name} for ${provider}.`, {
             undo: () => { this.setStatus(''); if (button) button.disabled = false; },
             failText: 'The pending links were not approved.',
-            commit: async () => {
+            focus: { undo: button }, // the button stays disabled while the approval is sent: focus then goes to the heading
+            // Sent once (UI.undoable): when the notice ends, or with keepalive if the page goes first.
+            commit: async ({ keepalive } = {}) => {
                 try {
-                    const res = await API.links.approvePending(cat.id, backupSourceId);
+                    const res = await API.request('POST', '/links/approve-pending', backupSourceId ? { categoryId: cat.id, backupSourceId } : { categoryId: cat.id }, { keepalive });
+                    if (keepalive) return;
                     await this.refreshAfterChange();
                     this.setStatus(`Approved ${res.approved ?? 0} link${res.approved === 1 ? '' : 's'}`);
                 } catch (err) {

@@ -259,3 +259,24 @@ test('the vendored brand CSS is the kit\'s files, byte for byte', () => {
         assert.equal(crypto.createHash('sha256').update(fs.readFileSync(path.join(PUBLIC, f))).digest('hex'), sha, f);
     }
 });
+
+// #276 review (rig pass): what the batch changed by accident.
+test('review: a locked switch is grey and dashed, a locked field dashed; never the look of one that can be used', () => {
+    const on = ALL.find((r) => r.sel === '.setting-toggle input:disabled:checked+.toggle-slider');
+    assert.ok(on && /var\(--color-text-muted\)/.test(decls(on.body, 'background')[0] || ''), 'a locked switch that is on is not the accent');
+    const sw = ALL.find((r) => r.sel === '.setting-toggle input:disabled+.toggle-slider');
+    assert.equal(decls(sw.body, 'border-style')[0], 'dashed');
+    const field = ALL.find((r) => r.sel === 'input:disabled, select:disabled, textarea:disabled');
+    assert.equal(decls(field.body, 'border-style')[0], 'dashed');
+    assert.ok(ALL.some((r) => r.sel === '.volume-slider:disabled::-webkit-slider-thumb'), 'a locked slider\'s handle is not the accent');
+});
+
+test('review: provider facts use the card width with one label column; the player menu keeps a label on one line; the rule example fits a phone', () => {
+    assert.ok(ALL.some((r) => r.sel === '.provider-body:not(:has(.provider-form))' && /minmax\(0, 1fr\)/.test(r.body)));
+    const dt = ALL.find((r) => r.sel === '.provider-facts dt');
+    assert.ok(decls(dt.body, 'min-width').length, 'every card the same label column');
+    const item = ALL.find((r) => r.sel === '.overflow-menu-item');
+    assert.equal(decls(item.body, 'white-space')[0], 'nowrap');
+    const placeholder = read('index.html').match(/id="rule-add-match"[^>]*placeholder="([^"]+)"/)[1];
+    assert.ok(placeholder.length <= 30, `"${placeholder}" fits the 390 px field`);
+});
