@@ -146,9 +146,9 @@ class SourceManager {
             <p class="setting-hint">New groups arrive hidden, so the guide and the Apple TV do not fill up with thousands of channels. Show the ones you want.</p>
             ${this.newGroups.map(g => `<div class="setting-item new-group">
                 <div class="setting-info"><span class="setting-label">${e(g.name)}</span>
-                    <span class="setting-hint">${e(Number(g.channels || 0).toLocaleString())} channel${g.channels === 1 ? '' : 's'} · found ${e(new Date(g.foundAt).toLocaleDateString())}</span></div>
+                    <span class="setting-hint"><span class="pig-amount">${e(Number(g.channels || 0).toLocaleString())}</span> channel${g.channels === 1 ? '' : 's'} · found <span class="pig-amount">${e(UI.date(g.foundAt))}</span></span></div>
                 <button type="button" class="btn btn-sm btn-secondary" data-new-group-look="${e(g.categoryId)}">Look inside</button>
-                <button type="button" class="btn btn-sm btn-primary" data-new-group-show="${e(g.categoryId)}">Show</button>
+                <button type="button" class="btn btn-sm btn-secondary" data-new-group-show="${e(g.categoryId)}">Show</button>
             </div>`).join('')}
             <p><button type="button" class="btn btn-sm btn-ghost" data-new-groups-dismiss>Keep all hidden and clear this list</button></p>`;
         // #176: each action carries the provider this list came from.
@@ -173,7 +173,7 @@ class SourceManager {
             await this.loadNewGroups(sourceId);
             try { await window.app?.channelList?.loadChannels?.(); } catch { /* the list reloads on its own */ }
         } catch (err) {
-            UI.toast(`Could not show the group: ${err.message || err}`, { kind: 'error' });
+            UI.toast(UI.errorText(err, 'Could not show the group.'), { kind: 'error' });
             if (button) button.disabled = false;
         }
     }
@@ -197,7 +197,7 @@ class SourceManager {
             await API.channels.dismissNewGroups(sourceId);
             if (this.isCurrentSource(sourceId)) await this.loadNewGroups(sourceId);
         } catch (err) {
-            UI.toast(`Could not clear the list: ${err.message || err}`, { kind: 'error' });
+            UI.toast(UI.errorText(err, 'Could not clear the list.'), { kind: 'error' });
         }
     }
 
@@ -211,10 +211,10 @@ class SourceManager {
             if (!select) return;
 
             // Keep the placeholder option
-            select.innerHTML = '<option value="">Select a source...</option>';
+            select.innerHTML = '<option value="">Select a provider…</option>';
 
             sources.filter(s => s.type === 'xtream' || s.type === 'm3u').forEach(source => {
-                select.innerHTML += `<option value="${UI.escape(source.id)}">${UI.escape(source.name)} (${UI.escape(source.type)})</option>`;
+                select.innerHTML += `<option value="${UI.escape(source.id)}">${UI.escape(source.name)} (${source.type === 'm3u' ? 'M3U' : 'Xtream'})</option>`;
             });
             // #128: coming back to this tab keeps the provider (and any unsaved ticks) on screen.
             if (this.treeData?.sourceId) select.value = String(this.treeData.sourceId);
@@ -396,7 +396,7 @@ class SourceManager {
         return `<button type="button" class="btn btn-sm btn-ghost sport-toggle${group.sport ? ' active' : ''}"
                         data-category-id="${UI.escape(group.categoryId || '')}"
                         aria-pressed="${group.sport ? 'true' : 'false'}"
-                        title="Sport category: a live-looking programme on its channels (Live, vs, v) counts as sport (Settings → Sports)">Sport</button>`;
+                        title="Sport category: a live-looking programme on its channels (Live, vs, v) counts as sport (Settings → Sport)">Sport</button>`;
     }
 
     async toggleSport(button) {
@@ -409,7 +409,7 @@ class SourceManager {
             group.sport = res && res.sport === true;
         } catch (err) {
             console.error('Error saving sport category:', err);
-            UI.toast(`Could not save: ${err.message || err}`, { kind: 'error' });
+            UI.toast(UI.errorText(err, 'Could not save the sport category.'), { kind: 'error' });
         }
         button.disabled = false;
         button.classList.toggle('active', group.sport);
@@ -580,7 +580,7 @@ class SourceManager {
         if (!saveBtn || saveBtn.disabled) return;
         const { show, hide } = this.pendingCounts();
         const n = show + hide;
-        saveBtn.textContent = n ? `💾 Save ${n.toLocaleString()} change${n === 1 ? '' : 's'}` : '💾 Save Changes';
+        saveBtn.textContent = n ? `Save ${n.toLocaleString()} change${n === 1 ? '' : 's'}` : SourceManager.SAVE_LABEL;
     }
 
     /** #16: put back exactly what was hidden before the last save. */
@@ -630,7 +630,7 @@ class SourceManager {
         const saveBtn = document.getElementById('content-save');
         if (saveBtn) {
             saveBtn.disabled = true;
-            saveBtn.textContent = '⏳ Saving...';
+            saveBtn.textContent = 'Saving…';
         }
 
         try {
@@ -710,7 +710,7 @@ class SourceManager {
                 if (saveBtn) {
                     saveBtn.textContent = 'No changes';
                     setTimeout(() => {
-                        saveBtn.textContent = '💾 Save Changes';
+                        saveBtn.textContent = SourceManager.SAVE_LABEL;
                         saveBtn.disabled = false;
                     }, 1500);
                 }
@@ -740,7 +740,7 @@ class SourceManager {
                     // Update button with progress
                     if (saveBtn) {
                         const progress = Math.round(((i + batch.length) / items.length) * 100);
-                        saveBtn.textContent = `⏳ ${progress}%`;
+                        saveBtn.textContent = `Saving ${progress}%`;
                     }
                 }
             };
@@ -771,18 +771,18 @@ class SourceManager {
             }
 
             if (saveBtn) {
-                saveBtn.textContent = '✓ Saved!';
+                saveBtn.textContent = 'Saved';
                 setTimeout(() => {
-                    saveBtn.textContent = '💾 Save Changes';
+                    saveBtn.textContent = SourceManager.SAVE_LABEL;
                     saveBtn.disabled = false;
                 }, 1500);
             }
 
         } catch (err) {
             console.error('Error saving content changes:', err);
-            UI.toast('Could not save the changes: ' + err.message, { kind: 'error' });
+            UI.toast(UI.errorText(err, 'Could not save the changes.'), { kind: 'error' });
             if (saveBtn) {
-                saveBtn.textContent = '💾 Save Changes';
+                saveBtn.textContent = SourceManager.SAVE_LABEL;
                 saveBtn.disabled = false;
             }
         } finally {
@@ -790,6 +790,9 @@ class SourceManager {
         }
     }
 }
+
+/** The Save button when nothing is waiting (index.html says the same). */
+SourceManager.SAVE_LABEL = 'Save content changes';
 
 // Export
 window.SourceManager = SourceManager;

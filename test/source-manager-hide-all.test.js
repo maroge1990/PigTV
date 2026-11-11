@@ -127,7 +127,7 @@ test("#10 (0359): the provider's new groups are listed; Show shows the group at 
     manager.originalHiddenSet = new Set(manager.hiddenSet);
     await manager.loadNewGroups(7);
     assert.equal(box.hidden, false);
-    assert.match(box.innerHTML, /New on the provider[\s\S]*NFL Sunday Ticket[\s\S]*1 channel ·[\s\S]*data-new-group-show="11"/);
+    assert.match(box.innerHTML, /New on the provider[\s\S]*NFL Sunday Ticket[\s\S]*<span class="pig-amount">1<\/span> channel ·[\s\S]*data-new-group-show="11"/);
     await manager.showNewGroup('11');
     assert.deepEqual(plain(calls), [['show', 7, 'group', '11']]);
     assert.equal(manager.hiddenSet.size, 0, 'the group and its channel are shown in the tree too');

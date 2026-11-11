@@ -145,8 +145,8 @@ test('provider names are escaped in the Manage content picker', async () => {
     const manager = Object.create(ctx.window.SourceManager.prototype);
     await manager.loadContentSources();
     assert.ok(!select.innerHTML.includes(MARKUP), select.innerHTML);
-    assert.ok(select.innerHTML.includes('Main &lt;img src=x&gt; (xtream)'), select.innerHTML);
-    assert.ok(select.innerHTML.includes('Backup &amp; co (m3u)'), select.innerHTML);
+    assert.ok(select.innerHTML.includes('Main &lt;img src=x&gt; (Xtream)'), select.innerHTML);
+    assert.ok(select.innerHTML.includes('Backup &amp; co (M3U)'), select.innerHTML);
 });
 
 test('recording artwork, status and error text are escaped in the Recordings lists', () => {

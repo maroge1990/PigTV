@@ -150,7 +150,7 @@ These were set for the Live now dashboard (C-O) and still hold where the vision 
 by the vision: the rolling ~72-hour sport/team views (sport pages take their place) and guide-only game cards (games
 come only from the fixture, D-41). Spoiler-free is per account again (D-41 replaces D-30's single household switch).
 
-- Sports opens on a game-first dashboard: discover games, then find their TV broadcasts. Show all games matching
+- Sport opens on a game-first dashboard: discover games, then find their TV broadcasts. Show all games matching
   existing follows/categories, including games without a matching channel. Preserve the current sport/team views for
   future events, explicitly retaining their existing rolling ~72-hour window (including Cricket games two/three days
   ahead). This is a new front page, not a replacement for those views.

@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="mobile-web-app-capable" content="yes">
   <title>PigTV</title>
-  <meta name="description" content="Stream live TV, movies, and series with EPG support">
+  <meta name="description" content="Watch live TV, browse the TV Guide and record programmes">
   <link rel="icon" type="image/svg+xml" href="/img/brand/web-small-light.svg" media="(prefers-color-scheme: light)">
   <link rel="icon" type="image/svg+xml" href="/img/brand/web-small-dark.svg" media="(prefers-color-scheme: dark)">
   <link rel="icon" href="/img/brand/favicon-light.ico" sizes="any" media="(prefers-color-scheme: light)">
@@ -104,6 +104,7 @@
 
       <!-- Live TV Page: the app opens here -->
       <div id="page-live" class="page">
+        <h2 class="visually-hidden">Live TV</h2>
         <div class="home-layout">
           <!-- Channel Toggle Button (Mobile) -->
           <button class="channel-toggle-btn" id="channel-toggle-btn" aria-label="Channels">
@@ -128,7 +129,7 @@
             <div class="sidebar-header">
               <div class="sidebar-header-row">
                 <div class="search-wrapper">
-                  <input type="text" id="channel-search" placeholder="Search channels..." class="search-input">
+                  <input type="text" id="channel-search" placeholder="Search channels…" class="search-input">
                   <button type="button" class="search-clear" title="Clear search" aria-label="Clear search">&times;</button>
                 </div>
                 <button id="sidebar-collapse-btn" class="btn btn-sm btn-ghost sidebar-collapse-btn"
@@ -140,9 +141,9 @@
               </div>
               <div class="sidebar-controls">
                 <select id="source-select" class="source-select">
-                  <option value="">All Sources</option>
+                  <option value="">All providers</option>
                 </select>
-                <button id="toggle-groups" class="btn btn-sm btn-ghost" title="Expand/Collapse All" aria-label="Expand/Collapse All">
+                <button id="toggle-groups" class="btn btn-sm btn-ghost" title="Expand or collapse all groups" aria-label="Expand or collapse all groups">
                   <span><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="icon">
                       <path
                         d="M12 5.83L15.17 9l1.41-1.41L12 3 7.41 7.59 8.83 9 12 5.83zm0 12.34L8.83 15l-1.41 1.41L12 21l4.59-4.59L15.17 15 12 18.17z" />
@@ -207,7 +208,7 @@
 
                     <button class="watch-btn" id="btn-go-live" title="Go to live" aria-label="Go to live">
                       <span class="live-dot"></span>
-                      <span class="live-label">LIVE</span>
+                      <span class="live-label">Live</span>
                     </button>
 
                     <div class="watch-spacer"></div>
@@ -267,7 +268,7 @@
                             <path
                               d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" />
                           </svg>
-                          Copy Stream URL
+                          Copy stream URL
                         </button>
                       </div>
                     </div>
@@ -288,7 +289,7 @@
                   <p class="program-time"></p>
                 </div>
                 <div class="up-next">
-                  <h4>Up Next</h4>
+                  <h4>Up next</h4>
                   <ul id="up-next-list"></ul>
                 </div>
               </div>
@@ -303,15 +304,17 @@
           <h2>TV Guide</h2>
           <div class="guide-controls">
             <select id="epg-group-select" class="source-select">
-              <option value="">All Groups</option>
+              <option value="">All groups</option>
             </select>
             <div class="search-wrapper">
-              <input type="text" id="epg-search" placeholder="Search channels..." class="search-input">
+              <input type="text" id="epg-search" placeholder="Search channels…" class="search-input">
               <button type="button" class="search-clear" title="Clear search" aria-label="Clear search">&times;</button>
             </div>
-            <button id="guide-prev" class="btn btn-ghost">&larr; Earlier</button>
-            <span id="guide-date" class="guide-date">Today</span>
-            <button id="guide-next" class="btn btn-ghost">Later &rarr;</button>
+            <div class="guide-pager">
+              <button id="guide-prev" class="btn btn-ghost">&larr; Earlier</button>
+              <span id="guide-date" class="guide-date">Today</span>
+              <button id="guide-next" class="btn btn-ghost">Later &rarr;</button>
+            </div>
           </div>
         </div>
         <div id="epg-grid" class="epg-grid">
@@ -392,7 +395,7 @@
             <button class="tab" data-tab="channels">Channels</button>
             <button class="tab active" data-tab="playback">Playback</button>
             <button class="tab" data-tab="recording">Recording</button>
-            <button class="tab" data-tab="sports">Sports</button>
+            <button class="tab" data-tab="sports">Sport</button>
             <button class="tab" data-tab="system">System</button>
           </div>
           <div class="subtabs hidden" id="subtabs-channels" role="tablist" aria-label="Channels">
@@ -405,7 +408,7 @@
           <div id="tab-player" class="tab-content active">
             <p class="setting-hint" id="playback-settings-status" role="status" aria-live="polite"></p>
             <div class="settings-section">
-              <h3>Keyboard Controls</h3>
+              <h3>Keyboard controls</h3>
               <div class="setting-item">
                 <label class="setting-toggle">
                   <input type="checkbox" id="setting-arrow-keys" checked>
@@ -419,18 +422,18 @@
             </div>
 
             <div class="settings-section">
-              <h3>Now Playing Overlay</h3>
+              <h3>Now playing overlay</h3>
               <div class="setting-item">
-                <label for="setting-overlay-duration">Display Duration (seconds)</label>
+                <label for="setting-overlay-duration">Display duration (seconds)</label>
                 <input type="number" id="setting-overlay-duration" class="form-input setting-number" min="1" max="30"
                   value="5">
               </div>
             </div>
 
             <div class="settings-section">
-              <h3>Volume Settings</h3>
+              <h3>Volume</h3>
               <div class="setting-item">
-                <label for="setting-default-volume">Default Volume</label>
+                <label for="setting-default-volume">Default volume</label>
                 <div class="volume-slider-container">
                   <input type="range" id="setting-default-volume" class="volume-slider" min="0" max="100" value="80">
                   <span id="volume-value">80%</span>
@@ -442,14 +445,14 @@
                   <span class="toggle-slider"></span>
                 </label>
                 <div class="setting-info">
-                  <span class="setting-label">Remember Last Volume</span>
+                  <span class="setting-label">Remember last volume</span>
                   <span class="setting-hint">When enabled, volume persists between sessions</span>
                 </div>
               </div>
             </div>
 
             <div class="settings-section">
-              <h3>Keyboard Shortcuts</h3>
+              <h3>Keyboard shortcuts</h3>
               <div class="shortcuts-grid">
                 <div class="shortcut"><kbd>↑</kbd> / <kbd>↓</kbd> Channel up/down (or volume)</div>
                 <div class="shortcut"><kbd>←</kbd> / <kbd>→</kbd> Volume down/up (when arrows = channels)</div>
@@ -466,7 +469,7 @@
           <div id="tab-transcode" class="tab-content active" aria-busy="true">
             <div id="tab-transcode-state" class="panel-state"></div>
             <div class="settings-section">
-              <h3>Detected Hardware</h3>
+              <h3>Detected hardware</h3>
               <div id="hw-info-container" class="hw-info-container">
                 <div class="state-block state-loading" role="status"><span class="state-block-spinner" aria-hidden="true"></span><p class="state-block-title">Loading the hardware information…</p></div>
               </div>
@@ -478,12 +481,12 @@
                 settings below apply only to the plays it has to re-encode (a format the browser cannot play).</p>
               <div class="setting-item">
                 <div class="setting-info" style="flex: 1;">
-                  <span class="setting-label">Hardware Encoder</span>
+                  <span class="setting-label">Hardware encoder</span>
                   <span class="setting-hint">Select which GPU encoder to use for transcoding. Auto will use the best
                     available.</span>
                 </div>
                 <select id="setting-hw-encoder" class="source-select" style="width: auto; min-width: 200px;">
-                  <option value="auto">Auto (Recommended)</option>
+                  <option value="auto">Auto (recommended)</option>
                   <option value="nvenc">NVIDIA NVENC</option>
                   <option value="amf">AMD AMF</option>
                   <option value="qsv">Intel QuickSync</option>
@@ -493,7 +496,7 @@
               </div>
               <div class="setting-item">
                 <div class="setting-info" style="flex: 1;">
-                  <span class="setting-label">Max Resolution</span>
+                  <span class="setting-label">Max resolution</span>
                   <span class="setting-hint">Limit transcoded output resolution. Lower = faster, more
                     compatible.</span>
                 </div>
@@ -506,27 +509,27 @@
               </div>
               <div class="setting-item">
                 <div class="setting-info" style="flex: 1;">
-                  <span class="setting-label">Quality Preset</span>
+                  <span class="setting-label">Quality preset</span>
                   <span class="setting-hint">Higher quality uses more bandwidth and CPU/GPU.</span>
                 </div>
                 <select id="setting-quality" class="source-select" style="width: auto; min-width: 200px;">
                   <option value="high">High</option>
                   <option value="medium" selected>Medium</option>
-                  <option value="low">Low (Fastest)</option>
+                  <option value="low">Low (fastest)</option>
                 </select>
               </div>
               <div class="setting-item">
                 <div class="setting-info" style="flex: 1;">
-                  <span class="setting-label">Audio Mix Preset</span>
+                  <span class="setting-label">Audio mix preset</span>
                   <span class="setting-hint">How multi-channel audio (5.1/7.1) is mixed down to stereo for browser
                     playback.</span>
                 </div>
                 <select id="setting-audio-mix" class="source-select" style="width: auto; min-width: 200px;">
-                  <option value="auto">Auto (Smart Copy/ITU)</option>
-                  <option value="itu">ITU-R BS.775 (Balanced)</option>
-                  <option value="night">Night Mode (Dialogue Boost)</option>
-                  <option value="cinematic">Cinematic (Wide)</option>
-                  <option value="passthrough">Passthrough (Copy)</option>
+                  <option value="auto">Auto (smart copy or ITU)</option>
+                  <option value="itu">ITU-R BS.775 (balanced)</option>
+                  <option value="night">Night mode (dialogue boost)</option>
+                  <option value="cinematic">Cinematic (wide)</option>
+                  <option value="passthrough">Passthrough (copy)</option>
                 </select>
               </div>
             </div>
@@ -597,7 +600,7 @@
 
             <details class="settings-section settings-advanced" data-settings-values>
               <summary>Advanced: hardware decoding and how the provider is contacted</summary>
-              <h3>Hardware Decoding</h3>
+              <h3>Hardware decoding</h3>
               <div class="setting-item">
                 <label class="setting-toggle">
                   <input type="checkbox" id="setting-vaapi-hw-decode">
@@ -629,10 +632,10 @@
                     Chrome.</span>
                 </div>
                 <select id="setting-user-agent-tc" class="source-select" style="width: auto; min-width: 200px;">
-                  <option value="chrome">Chrome (Default)</option>
+                  <option value="chrome">Chrome (default)</option>
                   <option value="vlc">VLC</option>
                   <option value="tivimate">TiviMate</option>
-                  <option value="custom">Custom...</option>
+                  <option value="custom">Custom…</option>
                 </select>
               </div>
               <div class="setting-item" id="custom-user-agent-container-tc" style="display: none;">
@@ -641,7 +644,7 @@
                   <span class="setting-hint">Enter your own User-Agent string.</span>
                 </div>
                 <input type="text" id="setting-user-agent-custom-tc" class="search-input" style="width: 300px;"
-                  placeholder="Custom User-Agent string...">
+                  placeholder="Custom User-Agent string…">
               </div>
             </details>
 
@@ -653,7 +656,7 @@
                   <span class="toggle-slider"></span>
                 </label>
                 <div class="setting-info">
-                  <span class="setting-label">Enable Upscaling</span>
+                  <span class="setting-label">Enable upscaling</span>
                   <span class="setting-hint">Upscale lower-resolution content to a higher resolution. On the web
                     player this <strong>re-encodes every play</strong> (slower to start, more CPU or GPU); the Apple
                     app is not affected.</span>
@@ -661,7 +664,7 @@
               </div>
               <div class="setting-item" id="upscale-method-container" style="display: none;">
                 <div class="setting-info" style="flex: 1;">
-                  <span class="setting-label">Upscale Method</span>
+                  <span class="setting-label">Upscale method</span>
                   <span class="setting-hint">Hardware is faster; Software (Lanczos) is higher quality.</span>
                 </div>
                 <select id="setting-upscale-method" class="source-select" style="width: auto; min-width: 200px;">
@@ -671,7 +674,7 @@
               </div>
               <div class="setting-item" id="upscale-target-container" style="display: none;">
                 <div class="setting-info" style="flex: 1;">
-                  <span class="setting-label">Upscale Target</span>
+                  <span class="setting-label">Upscale target</span>
                   <span class="setting-hint">Target resolution for upscaled output.</span>
                 </div>
                 <select id="setting-upscale-target" class="source-select" style="width: auto; min-width: 200px;">
@@ -689,10 +692,10 @@
             <div class="content-browser">
               <div class="content-browser-header">
                 <select id="content-source-select" class="source-select">
-                  <option value="">Select a source...</option>
+                  <option value="">Select a provider…</option>
                 </select>
                 <div class="search-wrapper">
-                  <input type="text" id="content-search" placeholder="Search groups/channels..." class="search-input">
+                  <input type="text" id="content-search" placeholder="Search groups or channels…" class="search-input">
                   <button type="button" class="search-clear" title="Clear search" aria-label="Clear search">&times;</button>
                 </div>
                 <div class="content-actions">
@@ -703,12 +706,12 @@
                       viewBox="0 0 24 24" fill="currentColor" class="icon">
                       <path
                         d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z" />
-                    </svg> Save Changes</button>
+                    </svg> Save content changes</button>
                 </div>
               </div>
               <!-- #10 (0359): groups the provider added since the last sync arrive hidden and are listed here -->
               <div id="content-new-groups" class="settings-section new-groups" hidden></div>
-              <p class="hint" style="margin-bottom: var(--space-sm);">✓ Checked = Visible, ☐ Unchecked = Hidden</p>
+              <p class="hint" style="margin-bottom: var(--space-sm);">Ticked groups and channels are shown; unticked ones are hidden.</p>
               <div id="content-tree" class="content-tree">
                 <div class="state-block state-empty"><p class="state-block-title">Choose a provider to see its groups and channels.</p></div>
               </div>
@@ -755,7 +758,7 @@
                 <select id="import-exclusions-provider"></select>
               </div>
               <div id="import-exclusions-list" class="import-exclusions-list"><div class="state-block state-loading" role="status"><span class="state-block-spinner" aria-hidden="true"></span><p class="state-block-title">Loading…</p></div></div>
-              <button id="import-exclusions-save" class="btn btn-primary">Save</button>
+              <button id="import-exclusions-save" class="btn btn-secondary">Save excluded groups</button>
               <span id="import-exclusions-status" role="status" class="inline-status"></span>
             </div>
           </div>
@@ -772,7 +775,7 @@
               <div id="links-summary"></div>
               <div class="lineup-toolbar">
                 <div class="search-wrapper">
-                  <input type="text" id="links-search" placeholder="Search channels..." class="search-input">
+                  <input type="text" id="links-search" placeholder="Search channels…" class="search-input">
                 </div>
                 <select id="links-category" class="source-select"><option value="">All categories</option></select>
                 <select id="links-provider" class="source-select"><option value="">Any provider</option></select>
@@ -805,10 +808,10 @@
             <div class="settings-section">
               <h3>Channel numbers</h3>
               <p class="setting-hint">The number each channel has in the TV guide, the channel list and on the Apple TV.
-                Every number is used once. A channel that disappears from the playlist keeps its number for 30 days.</p>
+                Every number is used once. A channel that disappears from its provider keeps its number for 30 days.</p>
               <div class="lineup-toolbar">
                 <div class="search-wrapper">
-                  <input type="text" id="lineup-search" placeholder="Search number, channel or category..." class="search-input">
+                  <input type="text" id="lineup-search" placeholder="Search number, channel or category…" class="search-input">
                   <button type="button" class="search-clear" title="Clear search" aria-label="Clear search">&times;</button>
                 </div>
                 <button id="lineup-save" class="btn btn-primary" disabled>Save numbers</button>
@@ -837,12 +840,12 @@
           <div id="tab-epg" class="tab-content">
             <div class="settings-section">
               <h3>EPG matching</h3>
-              <p class="setting-hint">Channels whose guide shows "No programme information": their playlist's EPG id has no
+              <p class="setting-hint">Channels whose guide shows "No programme information": their provider's EPG id has no
                 programmes in the next 24 hours. Pick the right EPG channel from the suggestions, or search the EPG for it.
-                A mapping is kept across playlist syncs.</p>
+                A mapping is kept across provider syncs.</p>
               <div class="lineup-toolbar">
                 <div class="search-wrapper">
-                  <input type="text" id="epg-match-filter" placeholder="Filter channels..." class="search-input">
+                  <input type="text" id="epg-match-filter" placeholder="Filter channels…" class="search-input">
                 </div>
                 <span id="epg-match-status" class="lineup-status"></span>
                 <button type="button" class="btn btn-sm btn-secondary" id="epg-automap-preview">Auto-map…</button>
@@ -858,7 +861,7 @@
               <div id="epg-match-search-panel" class="epg-search-panel hidden">
                 <p class="setting-hint" id="epg-match-search-for"></p>
                 <div class="search-wrapper">
-                  <input type="text" id="epg-match-search" placeholder="Search the EPG by name or id..." class="search-input">
+                  <input type="text" id="epg-match-search" placeholder="Search the EPG by name or id…" class="search-input">
                 </div>
                 <div id="epg-match-search-results" class="epg-candidates"></div>
               </div>
@@ -892,9 +895,9 @@
             <!-- #199 (D-41, C-U): what this account follows (SportSettings.js) -->
             <div id="sport-follow-settings" class="settings-section"></div>
             <div class="settings-section">
-              <h3>Sports</h3>
+              <h3>Sport</h3>
               <p class="setting-hint">A programme counts as sport when its guide category is a sport, when its title or category
-                names a league an account follows, or when it is on a channel in a Sport category (Manage Content) and its title
+                names a league an account follows, or when it is on a channel in a Sport category (Manage content) and its title
                 reads like a live event ("Live", "vs", "v"). Each is then an event (a match-up or a session), a replay of a game,
                 a show (magazines, highlights, pre and post shows) or a placeholder (empty PPV slots, old listings, 24/7 replay
                 channels). Listings of the same game on different channels are merged. The Apple TV lists events and replays.</p>
@@ -943,7 +946,7 @@
             </div>
 
             <div class="settings-section" data-settings-values>
-              <h3>Scheduling Defaults</h3>
+              <h3>Scheduling defaults</h3>
               <div class="form-group">
                 <label for="dvr-setting-pre">Default pre-buffer (minutes)</label>
                 <input type="number" id="dvr-setting-pre" min="0" max="60">
@@ -967,7 +970,7 @@
             </div>
 
             <div class="settings-section" data-settings-values>
-              <h3>Commercial Breaks</h3>
+              <h3>Commercial breaks</h3>
               <div class="setting-item">
                 <label class="setting-toggle">
                   <input type="checkbox" id="dvr-setting-addetect">
@@ -1023,7 +1026,7 @@
                     is only removed after the result has been checked for length.</span>
                 </div>
               </div>
-              <button id="dvr-settings-save" class="btn btn-primary">Save Recording Settings</button>
+              <button id="dvr-settings-save" class="btn btn-primary">Save recording settings</button>
               <span id="dvr-settings-status" class="inline-status"></span>
             </div>
 
@@ -1043,7 +1046,7 @@
                   <option value="text">Text with a title (ntfy)</option>
                 </select>
               </div>
-              <button id="notify-save" class="btn btn-primary">Save</button>
+              <button id="notify-save" class="btn btn-secondary">Save notifications</button>
               <button id="notify-test" class="btn btn-secondary">Send a test</button>
               <span id="notify-status" role="status" class="inline-status"></span>
             </div>
@@ -1072,7 +1075,7 @@
                 that device in, so nobody has to type a password with a remote.</p>
               <div class="form-group">
                 <label for="pair-code">Code from the device</label>
-                <input type="text" id="pair-code" placeholder="e.g. 7KMQ2X" maxlength="8" style="text-transform: uppercase; letter-spacing: 0.12em;">
+                <input type="text" id="pair-code" placeholder="7KMQ2X" maxlength="8" style="text-transform: uppercase; letter-spacing: 0.12em;">
               </div>
               <button id="pair-approve" class="btn btn-primary">Approve device</button>
               <span id="pair-status" class="inline-status"></span>
@@ -1087,7 +1090,7 @@
 
           <div id="tab-users" class="tab-content">
             <div class="settings-section">
-              <h3>User Management</h3>
+              <h3>User management</h3>
               <p class="hint">Manage user accounts and permissions</p>
 
               <div class="user-list-container">
@@ -1109,7 +1112,7 @@
               </div>
 
               <div class="add-user-section">
-                <h4>Add New User</h4>
+                <h4>Add a user</h4>
                 <form id="add-user-form" class="user-form">
                   <div class="form-group">
                     <label for="new-username">Username</label>
@@ -1126,7 +1129,7 @@
                       <option value="admin">Admin</option>
                     </select>
                   </div>
-                  <button type="submit" class="btn btn-primary">Add User</button>
+                  <button type="submit" class="btn btn-secondary">Add user</button>
                 </form>
               </div>
             </div>
@@ -1153,7 +1156,7 @@
   <!-- Edit User dialog (UI.dialog.attach in Settings.js) -->
   <dialog class="ui-dialog" id="edit-user-modal" aria-labelledby="edit-user-title">
     <div class="ui-dialog-header">
-      <h2 class="ui-dialog-title" id="edit-user-title">Edit User</h2>
+      <h2 class="ui-dialog-title" id="edit-user-title">Edit user</h2>
       <button type="button" class="ui-dialog-close" aria-label="Close">&times;</button>
     </div>
     <div class="ui-dialog-body">
@@ -1174,7 +1177,7 @@
         </div>
 
         <div class="ui-dialog-field">
-          <label for="edit-password">New Password</label>
+          <label for="edit-password">New password</label>
           <input type="password" id="edit-password" name="password" class="form-input"
             placeholder="Leave blank to keep current">
           <p class="hint" id="edit-password-hint" style="margin-top: var(--space-xs);">Optional. Leave blank to keep unchanged.
@@ -1184,7 +1187,7 @@
     </div>
     <div class="ui-dialog-footer">
       <button type="button" class="btn btn-ghost" id="edit-user-cancel" data-dialog-close>Cancel</button>
-      <button type="button" class="btn btn-primary" id="edit-user-save">Save Changes</button>
+      <button type="button" class="btn btn-primary" id="edit-user-save">Save user</button>
     </div>
   </dialog>
 
@@ -1192,22 +1195,22 @@
   <script src="/js/icons.js"></script>
   <script src="/js/api.js?v=20"></script>
   <script src="/js/ui.js"></script>
-  <script src="/js/components/VideoPlayer.js?v=13"></script>
-  <script src="/js/components/ChannelList.js?v=10"></script>
-  <script src="/js/components/SourceManager.js?v=8"></script>
-  <script src="/js/components/EpgGuide.js?v=9"></script>
+  <script src="/js/components/VideoPlayer.js?v=14"></script>
+  <script src="/js/components/ChannelList.js?v=11"></script>
+  <script src="/js/components/SourceManager.js?v=9"></script>
+  <script src="/js/components/EpgGuide.js?v=10"></script>
   <script src="/js/pages/LivePage.js?v=3"></script>
   <script src="/js/pages/Guide.js?v=3"></script>
-  <script src="/js/pages/SportsPage.js?v=2"></script>
-  <script src="/js/pages/RecordingsPage.js?v=11"></script>
-  <script src="/js/pages/ProvidersSettings.js?v=4"></script>
-  <script src="/js/pages/BackupLinksSettings.js?v=1"></script>
-  <script src="/js/pages/SportSettings.js?v=3"></script>
-  <script src="/js/pages/Settings.js?v=18"></script>
-  <script src="/js/pages/StatusPage.js?v=9"></script>
-  <script src="/js/providerReminders.js?v=2"></script>
+  <script src="/js/pages/SportsPage.js?v=3"></script>
+  <script src="/js/pages/RecordingsPage.js?v=12"></script>
+  <script src="/js/pages/ProvidersSettings.js?v=5"></script>
+  <script src="/js/pages/BackupLinksSettings.js?v=2"></script>
+  <script src="/js/pages/SportSettings.js?v=4"></script>
+  <script src="/js/pages/Settings.js?v=19"></script>
+  <script src="/js/pages/StatusPage.js?v=10"></script>
+  <script src="/js/providerReminders.js?v=3"></script>
   <script src="/js/recordingsFeed.js?v=1"></script>
-  <script src="/js/app.js?v=14"></script>
+  <script src="/js/app.js?v=15"></script>
 </body>
 
 </html>

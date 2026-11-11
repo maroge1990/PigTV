@@ -228,7 +228,7 @@ class BackupLinksSettings {
     cellHtml(channel, col, index) {
         const { top, more } = LinkFormat.linksAt(channel, col.backupSourceId);
         const pick = col.role === 'backup'
-            ? `<button type="button" class="btn btn-sm btn-secondary link-btn" data-links-action="pick" data-channel="${index}" data-backup="${col.backupSourceId}">Pick...</button>` : '';
+            ? `<button type="button" class="btn btn-sm btn-secondary link-btn" data-links-action="pick" data-channel="${index}" data-backup="${col.backupSourceId}">Pick…</button>` : '';
         const rest = more.length
             ? `<details class="link-more"><summary>${more.length} more</summary>${more.map(l => this.linkHtml(l, true)).join('')}</details>` : '';
         if (!top) {
@@ -286,14 +286,14 @@ class BackupLinksSettings {
 
     async decide(id, status, button) {
         if (button) button.disabled = true;
-        this.setStatus('Saving...');
+        this.setStatus('Saving…');
         try {
             await API.links.setStatus(id, status);
             await this.refreshAfterChange();
             this.setStatus('');
         } catch (err) {
             if (button) button.disabled = false;
-            this.setStatus(err.message || 'Could not save the decision', true);
+            this.setStatus(UI.errorText(err, 'The decision was not saved.'), true);
         }
     }
 
@@ -301,28 +301,36 @@ class BackupLinksSettings {
         const cat = this.categories.find(c => String(c.id) === String(this.filters.categoryId));
         if (!cat) return;
         const provider = backupSourceId ? LinkFormat.columns(this.summary).find(p => p.backupSourceId === backupSourceId)?.name : 'every backup';
-        if (!confirm(`Approve every pending link in ${cat.name} for ${provider}?`)) return;
+        // #276 (C12): no question. The server cannot take an approval back, so the call waits for the end of the 10 s
+        // notice and Undo cancels it before anything is sent.
         if (button) button.disabled = true;
-        this.setStatus('Approving...');
-        try {
-            const res = await API.links.approvePending(cat.id, backupSourceId);
-            await this.refreshAfterChange();
-            this.setStatus(`Approved ${res.approved ?? 0} link${res.approved === 1 ? '' : 's'}`);
-        } catch (err) {
-            this.setStatus(err.message || 'Could not approve the pending links', true);
-        }
-        if (button) button.disabled = false;
+        this.setStatus(`Approving every pending link in ${cat.name} for ${provider}…`);
+        UI.undoable(`Approving every pending link in ${cat.name} for ${provider}.`, {
+            undo: () => { this.setStatus(''); if (button) button.disabled = false; },
+            failText: 'The pending links were not approved.',
+            commit: async () => {
+                try {
+                    const res = await API.links.approvePending(cat.id, backupSourceId);
+                    await this.refreshAfterChange();
+                    this.setStatus(`Approved ${res.approved ?? 0} link${res.approved === 1 ? '' : 's'}`);
+                } catch (err) {
+                    this.setStatus(UI.errorText(err, 'The pending links were not approved.'), true);
+                } finally {
+                    if (button) button.disabled = false;
+                }
+            }
+        });
     }
 
     async relink(button) {
         if (button) button.disabled = true;
-        this.setStatus('Relinking (this can take a little while)...');
+        this.setStatus('Relinking (this can take a little while)…');
         try {
             const res = await API.links.relink();
             await this.load();
             this.setStatus(res && res.skipped ? 'Nothing to relink: no enabled backup provider' : 'Relinked');
         } catch (err) {
-            this.setStatus(err.message || 'Could not relink', true);
+            this.setStatus(UI.errorText(err, 'The channels could not be relinked.'), true);
         }
         if (button) button.disabled = false;
     }
@@ -337,7 +345,7 @@ class BackupLinksSettings {
         this.pickDialog = dialog;
         dialog.body.innerHTML = `
             <p class="setting-hint">Search ${ProviderFormat.esc(col.name)}'s channels by name, category or guide id, then pick the one that is the same channel. Your pick is used at once and kept across syncs.</p>
-            <div class="search-wrapper"><input type="text" id="links-pick-search" class="search-input" placeholder="Search ${ProviderFormat.esc(col.name)}..." value="${ProviderFormat.esc(channel.name)}"></div>
+            <div class="search-wrapper"><input type="text" id="links-pick-search" class="search-input" placeholder="Search ${ProviderFormat.esc(col.name)}…" value="${ProviderFormat.esc(channel.name)}"></div>
             <div id="links-pick-results" class="links-pick-results">${UI.stateBlock('loading', 'Searching…')}</div>
             <div id="links-pick-error" class="lineup-status error"></div>`;
         dialog.footer.innerHTML = '<button class="btn btn-secondary" id="modal-cancel" data-dialog-close>Cancel</button>';
@@ -383,7 +391,7 @@ class BackupLinksSettings {
             await this.refreshAfterChange();
             this.setStatus(`Linked ${pick.channel.name} to ${pick.provider.name}`);
         } catch (err) {
-            if (error) error.textContent = err.message || 'Could not save the link';
+            if (error) error.textContent = UI.errorText(err, 'The link was not saved.');
         }
     }
 }

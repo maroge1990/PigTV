@@ -66,11 +66,7 @@ const SportsDashboardPolicy = {
     /** "Sun 15 Nov" and "2:00 am" in the dashboard's zone (the viewer's locale), or null. */
     timeParts(ms, timezone) {
         if (!Number.isFinite(ms)) return null;
-        try {
-            const d = new Date(ms);
-            return {day: d.toLocaleDateString([], {timeZone:timezone,weekday:'short',day:'numeric',month:'short'}),
-                clock: d.toLocaleTimeString([], {timeZone:timezone,hour:'numeric',minute:'2-digit'})};
-        } catch { return null; }
+        try { return UI.dateParts(ms, {timeZone: timezone}); } catch { return null; } // a bad zone name throws: no time, never a wrong one
     },
     time(ms, timezone) { const t = this.timeParts(ms, timezone); return t ? `${t.day}, ${t.clock}` : 'Start time unavailable'; },
     initials(name) { return String(name || '').split(/\s+/).map(w => [...w].find(c => /[\p{L}\p{N}]/u.test(c)) || '').join('').slice(0, 2).toUpperCase(); },
@@ -313,10 +309,9 @@ class SportsPage {
         this.stateArea.hidden=false;
         UI.setState(this.stateArea,s.kind,s.text,s.action && run ? {...s.action,run} : null,s.options);
     }
-    /** "Choose your sport" / "Change what you follow": Settings, on its Sports tab (Your sport is its first panel). */
+    /** "Choose your sport" / "Change what you follow": Settings, on its Sport tab (Your sport is its first panel), by its address. */
     openSportSettings() {
-        this.app.navigateTo('settings');
-        this.app.pages?.settings?.switchTab?.('sports');
+        this.app.navigateTo('settings', 'push', 'sport');
     }
     poll() {
         clearTimeout(this.timer);
@@ -427,7 +422,7 @@ class SportsPage {
         this.closeDialog(); this.selection=selection;
         const opener=document.activeElement;
         this.dialog=document.createElement('dialog'); this.dialog.className='ui-dialog sports-dialog';
-        this.dialog.setAttribute('aria-label',selection==='settings'?'Sports account settings':selection==='recording'?'Record sport':'Sports event details');
+        this.dialog.setAttribute('aria-label',selection==='settings'?'Sport account settings':selection==='recording'?'Record sport':'Sport event details');
         // Escape (the native cancel), a click on the backdrop and the dialog's own close buttons close it (UI.dialog);
         // focus goes back to the card that opened it.
         const el=this.dialog;
@@ -439,13 +434,17 @@ class SportsPage {
         if(!prefs || this.state.legacy) return;
         const dialog=replace ? this.dialog : this.openDialog('settings');
         this.settingsRevision=prefs.revision;
-        dialog.innerHTML='<h2>Spoilers & delay · Your account</h2><form><label><input type="checkbox" name="avoidSpoilers"> Hide scores and result details</label><label>Score delay in seconds (0–300)<input type="number" name="scoreDelaySeconds" min="0" max="300" required></label><p>Settings sync to devices signed in to this account.</p><button class="btn btn-primary" type="submit">Save spoiler settings</button><button class="btn btn-secondary" type="button">Close</button></form>';
+        dialog.innerHTML='<h2>Spoilers & delay · Your account</h2><form novalidate><label><input type="checkbox" name="avoidSpoilers"> Hide scores and result details</label><label>Score delay in seconds (0–300)<input type="number" name="scoreDelaySeconds" min="0" max="300" required aria-describedby="sports-delay-error"></label><p class="field-error" id="sports-delay-error" role="alert" hidden>Enter a whole number of seconds from 0 to 300.</p><p>Settings sync to devices signed in to this account.</p><button class="btn btn-primary" type="submit">Save spoiler settings</button><button class="btn btn-secondary" type="button">Close</button></form>';
         const form=dialog.querySelector('form'); form.elements.avoidSpoilers.checked=prefs.avoidSpoilers; form.elements.scoreDelaySeconds.value=prefs.scoreDelaySeconds;
         form.onsubmit=async e=> {
             e.preventDefault(); const values={avoidSpoilers:form.elements.avoidSpoilers.checked,scoreDelaySeconds:Number(form.elements.scoreDelaySeconds.value)};
-            if(!Number.isInteger(values.scoreDelaySeconds) || values.scoreDelaySeconds<0 || values.scoreDelaySeconds>300) return;
+            const input=form.elements.scoreDelaySeconds, bad=form.elements.scoreDelaySeconds.value.trim()==='' || !Number.isInteger(values.scoreDelaySeconds) || values.scoreDelaySeconds<0 || values.scoreDelaySeconds>300;
+            // #276 (C13): a bad number is said, beside the field, not dropped.
+            form.querySelector('.field-error').hidden=!bad; input.toggleAttribute('aria-invalid',bad);
+            if(bad) { input.focus(); return; }
             this.closeDialog(); await this.state.save(values,prefs.revision);
         };
+        form.elements.scoreDelaySeconds.addEventListener('input',()=> { form.querySelector('.field-error').hidden=true; form.elements.scoreDelaySeconds.removeAttribute('aria-invalid'); });
         form.querySelector('[type=button]').onclick=()=>this.closeDialog();
         if(!replace) UI.dialog.attach(dialog).open();
     }

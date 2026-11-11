@@ -115,7 +115,7 @@ class ChannelList {
         // Update toggle button
         if (this.toggleGroupsBtn) {
             this.toggleGroupsBtn.innerHTML = Icons.collapseAll;
-            this.toggleGroupsBtn.title = 'Collapse All';
+            this.toggleGroupsBtn.title = 'Collapse all groups';
         }
     }
 
@@ -133,7 +133,7 @@ class ChannelList {
         // Update toggle button
         if (this.toggleGroupsBtn) {
             this.toggleGroupsBtn.innerHTML = Icons.expandAll;
-            this.toggleGroupsBtn.title = 'Expand All';
+            this.toggleGroupsBtn.title = 'Expand all groups';
         }
     }
 
@@ -152,8 +152,8 @@ class ChannelList {
     }
 
     init() {
-        // Search handler (debounced)
-        this.searchInput.addEventListener('input', UI.debounce(() => this.render(), 300));
+        // Search handler: the channels are in memory, so every keystroke filters at once (#276, C2)
+        this.searchInput.addEventListener('input', () => this.render());
 
         // Source filter handler
         this.sourceSelect.addEventListener('change', () => this.loadChannels());
@@ -658,7 +658,7 @@ class ChannelList {
     async loadSources() {
         try {
             this.sources = await API.sources.getAll();
-            this.sourceSelect.innerHTML = '<option value="">All Sources</option>';
+            this.sourceSelect.innerHTML = '<option value="">All providers</option>';
 
             const xtreamSources = this.sources.filter(s => s.type === 'xtream' && s.enabled);
             const m3uSources = this.sources.filter(s => s.type === 'm3u' && s.enabled);
@@ -1020,7 +1020,7 @@ class ChannelList {
             await API.channels.hide(parseInt(sourceId), 'channel', itemId);
         } catch (err) {
             console.error('Error hiding channel:', err);
-            UI.toast(`Could not hide the channel: ${err.message}`, { kind: 'error' });
+            UI.toast(UI.errorText(err, 'Could not hide the channel.'), { kind: 'error' });
             return;
         }
         // The library lists only visible channels: drop it here too.

@@ -8,7 +8,7 @@ kind before changing a rule.
 
 ## Recognition
 
-**Sport categories** (0146, C-H, `sportCategories.js`, table `sport_categories`): Settings → **Manage Content** → the Sport
+**Sport categories** (0146, C-H, `sportCategories.js`, table `sport_categories`): Settings → Channels → **Manage content** → the Sport
 button at the end of a category's row (saved at once) = `PUT /api/library/categories/sport` (admin); `library/categories` and the Sources catalogue carry
 `sport`. No sync writes the table; a change bumps `library_rev`. Since 0148 it is **one signal** of sport recognition (below),
 not a row of its own (C-I replaces the C-H Home row).
@@ -50,7 +50,7 @@ and live/replay included (~0.3 s on 1,000 channels × 30 programmes; ~1.1 s on 1
 whole 36 h + 72 h, where every programme is a match-up); a request filters and orders (warm ~20 ms, ~50 ms returning 10,000
 items). The sync logs `[Sync] EPG covers until …, N h ahead` and says when that is less than 72 h. `GET /api/sports/events?hours=[&include=all]` (any user,
 default 6, 1–72 since 0153; Apple route; events + replays, all kinds with `include=all`), admin `GET /api/sports/follow` (read-only since 0394: the leagues accounts follow, D-42) and
-`GET /api/sports/preview` (next 72 h since 0153, every kind, with the rule and `kindRule`); web Settings → **Sports** (0149; grouped by
+`GET /api/sports/preview` (next 72 h since 0153, every kind, with the rule and `kindRule`); web Settings → **Sport** (0149; grouped by
 kind since 0151). **Built off the request path (0159), on a worker thread since 0195 (`sportsEventsWorker.js`, with an automatic inline fallback):** a request is always served the last built result; a stale cache key
 triggers a background rebuild (`scheduleRebuild()`, `setImmediate`, never inline in a request) after an EPG sync, on a
 follow-list change, and from a timer aligned to the 5-minute bucket (`startBackgroundRebuilds()`, started once at server

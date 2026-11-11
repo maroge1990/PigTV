@@ -180,7 +180,7 @@ test('Edit user still saves the same payload, closes, and reloads the list; a fa
     bad.document.getElementById('edit-user-save').onclick();
     await new Promise(setImmediate);
     assert.equal(bad.dlg.open, true);
-    assert.deepEqual(bad.context.toasts.map(t => t[0]), ['Could not update the user: nope']);
+    assert.deepEqual(bad.context.toasts.map(t => t[0]), ['Could not save the user.'], 'a server fault is not printed to the person (its detail is in the console)');
 });
 
 test('The Sport dialog opens through UI.dialog: Escape and the backdrop close it and focus returns to the card', () => {
@@ -192,7 +192,7 @@ test('The Sport dialog opens through UI.dialog: Escape and the backdrop close it
     const el = page.openDialog('settings');
     context.UI.dialog.attach(el).open();
     assert.equal(el.open, true);
-    assert.equal(el.getAttribute('aria-label'), 'Sports account settings');
+    assert.equal(el.getAttribute('aria-label'), 'Sport account settings');
     el.escape();
     assert.equal(page.dialog, null, 'the page forgets it');
     assert.equal(document.activeElement, card);

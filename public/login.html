@@ -209,7 +209,7 @@
 
             <div class="error-message" id="error-message"></div>
             <div class="setup-message" id="setup-message">
-                Welcome! Please create your admin account to get started.
+                Welcome. Create your admin account to get started.
             </div>
 
             <form id="login-form">
@@ -225,7 +225,7 @@
                         minlength="6" placeholder="Enter your password">
                 </div>
 
-                <button type="submit" class="btn-login" id="submit-btn">Sign In</button>
+                <button type="submit" class="btn-login" id="submit-btn">Sign in</button>
             </form>
 
         </div>
@@ -253,8 +253,8 @@
 
                 if (data.setupRequired) {
                     isSetupMode = true;
-                    document.getElementById('login-subtitle').textContent = 'Create Admin Account';
-                    document.getElementById('submit-btn').textContent = 'Create Account';
+                    document.getElementById('login-subtitle').textContent = 'Create admin account';
+                    document.getElementById('submit-btn').textContent = 'Create account';
                     document.getElementById('setup-message').classList.add('show');
                     document.getElementById('password').placeholder = 'Minimum 6 characters';
                 }
@@ -278,7 +278,7 @@
 
             // Disable button
             submitBtn.disabled = true;
-            submitBtn.textContent = 'Please wait...';
+            submitBtn.textContent = 'Please wait…';
 
             try {
                 const endpoint = isSetupMode ? '/api/auth/setup' : '/api/auth/login';
@@ -293,7 +293,7 @@
                 const data = await response.json();
 
                 if (!response.ok) {
-                    throw new Error(data.error || 'Authentication failed');
+                    throw Object.assign(new Error(data.error || 'Authentication failed'), { status: response.status });
                 }
 
                 // Store token
@@ -303,10 +303,14 @@
                 window.location.replace('/');
 
             } catch (err) {
-                errorMessage.textContent = err.message;
+                // The server's sentence for a refusal it worded for people (4xx); anything else (no connection, a 5xx)
+                // is a fixed sentence, with the detail in the console only.
+                const forPeople = err.status >= 400 && err.status < 500 && err.message;
+                if (!forPeople) console.error('Sign-in request failed:', err);
+                errorMessage.textContent = forPeople ? err.message : (isSetupMode ? 'The account could not be created. Check your connection and try again.' : 'Could not sign in. Check your connection and try again.');
                 errorMessage.classList.add('show');
                 submitBtn.disabled = false;
-                submitBtn.textContent = isSetupMode ? 'Create Account' : 'Sign In';
+                submitBtn.textContent = isSetupMode ? 'Create account' : 'Sign in';
             }
         });
 

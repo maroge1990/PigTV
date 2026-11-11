@@ -348,7 +348,7 @@ test('#276: a refused delete brings the recording back and says it could not be 
     assert.deepEqual(deletes(calls), ['/api/recordings/3']);
     assert.ok(cardOf(elements['recordings-list'].innerHTML, 3), 'back on the page');
     const [message, options] = lastToast(context);
-    assert.equal(message, 'Could not delete it: busy');
+    assert.equal(message, 'Could not delete it.', 'a server fault is never printed; the detail goes to the console');
     assert.equal(options.kind, 'error');
 });
 
@@ -427,7 +427,7 @@ test('#276: Delete a rule: Undo, the request when the notice ends', async () => 
     assert.ok(!calls.some(c => c[0] === 'confirm'));
     assert.ok(!elements['recording-rules-list'].innerHTML.includes('AFL'));
     const [message, options] = lastToast(context);
-    assert.equal(message, 'Rule deleted');
+    assert.equal(message, 'Rule deleted. Its 2 scheduled recordings are cancelled.', 'says what else goes, from the count the row has');
     await options.onEnd('closed');
     assert.deepEqual(deletes(calls), ['/api/recordings/rules/1']);
 });

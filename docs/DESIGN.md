@@ -38,7 +38,22 @@ app's `public/css/`.
 - Every viewing action is a real button or link with keyboard semantics (the 15 Oct review's F4); native browser buttons
   and dialogs keep focus.
 - A setting saves only its own key and says "Saved" or shows the server's error (#9 is the open defect).
-- Destructive bulk actions confirm and can be undone (#16).
+- Destructive bulk actions confirm and can be undone (#16). An action that can be put back (stopping a sport, a team
+  or a recording rule, approving links) happens at once with the 10-second Undo (`UI.undoable`); one that cannot (delete
+  a provider or a user, sign a device out, stop every stream) asks first, and the question names the action and what goes
+  with it.
+- **Words** (#276), the same in every label, button, hint, notice and empty or error state:
+  **provider** (never "source" or "playlist"; the field is the "M3U address"), **guide** or **TV Guide** (never "EPG",
+  except the admin matching screens, where it names the provider's EPG id), **Sport** (never "Sports"),
+  **Sign in** / **Sign out** (never "Log in" or "Logout"), **favourite** (never "favorite"). Sentence case ("Save recording
+  settings"); proper names keep capitals. No "!" and no emoji or glyph in a label. "Loading…" with the one ellipsis
+  character. A button names the thing and the action ("Save recording settings", never "Save", "OK" or "Confirm").
+- One rose button (`btn-primary`) per screen or Settings tab; a per-row action is always secondary; a dialog is its own screen.
+- A failed action says what could not be done, in plain words, and adds the server's sentence only when the server worded
+  it for people (a 4xx answer); anything else is a fixed sentence and the detail goes to the console (`UI.errorText`).
+- Every date or time goes through `UI.time` / `UI.clock` / `UI.date` / `UI.dateTime` / `UI.dateRange`, never seconds; a
+  figure (count, size, time, number) carries `pig-amount`. The page title and the address follow the place
+  ("Settings · Recording · PigTV", `#settings/recording`); Settings tabs and sub-tabs are in the address.
 - Recordings (#276, option B): Recorded first as picture cards (one rose Play, on the newest recording not yet watched;
   "Open the TV Guide" when there are none), Coming up as a strip, then Recording rules and Recent problems side by side.
   A card writes its reasons (Partial, a failure, a compression error) instead of hiding them in a tooltip; Download,

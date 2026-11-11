@@ -70,9 +70,8 @@ class EpgGuide {
 
         // Search input
         if (this.searchInput) {
-            this.searchInput.addEventListener('input', UI.debounce(() => {
-                this.render();
-            }, 300));
+            // #276 (C2): the guide's channels are in memory, so a keystroke filters at once.
+            this.searchInput.addEventListener('input', () => this.render());
         }
 
         this.initResizer();
@@ -82,37 +81,46 @@ class EpgGuide {
      * Initialize sidebar resizer
      */
     initResizer() {
-        let isResizing = false;
-        let startX, startWidth;
+        // #276 (C9): Pointer Events with capture, so a finger or pen drags it too and the drag cannot stick: the handle
+        // keeps every move, and the release, cancel or lost capture ends it.
+        let handle = null, startX = 0, startWidth = 0;
 
-        document.addEventListener('mousedown', (e) => {
-            if (e.target.classList.contains('resize-handle')) {
-                isResizing = true;
-                startX = e.clientX;
-                const sidebar = document.querySelector('.epg-channel-info');
-                startWidth = sidebar.getBoundingClientRect().width;
-                e.target.classList.add('active');
-                document.body.style.cursor = 'col-resize';
-                e.preventDefault(); // Prevent text selection
-            }
-        });
+        const end = () => {
+            if (!handle) return;
+            handle.classList.remove('active');
+            handle = null;
+            document.body.style.cursor = '';
+        };
 
-        document.addEventListener('mousemove', (e) => {
-            if (!isResizing) return;
-
-            const diff = e.clientX - startX;
-            const newWidth = Math.max(150, Math.min(500, startWidth + diff)); // Min 150px, Max 500px
-
-            document.documentElement.style.setProperty('--epg-sidebar-width', `${newWidth}px`);
-            this.updateNowIndicator(); // Update line position
-        });
-
-        document.addEventListener('mouseup', () => {
-            if (isResizing) {
-                isResizing = false;
-                document.querySelectorAll('.resize-handle').forEach(h => h.classList.remove('active'));
-                document.body.style.cursor = '';
-            }
+        document.addEventListener('pointerdown', (e) => {
+            if (!e.target.classList || !e.target.classList.contains('resize-handle')) return;
+            if (e.button !== undefined && e.button > 0) return;
+            const sidebar = document.querySelector('.epg-channel-info');
+            if (!sidebar) return;
+            handle = e.target;
+            startX = e.clientX;
+            startWidth = sidebar.getBoundingClientRect().width;
+            handle.classList.add('active');
+            document.body.style.cursor = 'col-resize';
+            try { handle.setPointerCapture(e.pointerId); } catch (err) { /* no capture: the move below still works over the handle */ }
+            e.preventDefault(); // Prevent text selection
+            const move = (m) => {
+                if (!handle) return;
+                const width = Math.max(150, Math.min(500, startWidth + (m.clientX - startX))); // Min 150px, Max 500px
+                document.documentElement.style.setProperty('--epg-sidebar-width', `${width}px`);
+                this.updateNowIndicator(); // Update line position
+            };
+            const done = () => {
+                handle?.removeEventListener('pointermove', move);
+                handle?.removeEventListener('pointerup', done);
+                handle?.removeEventListener('pointercancel', done);
+                handle?.removeEventListener('lostpointercapture', done);
+                end();
+            };
+            handle.addEventListener('pointermove', move);
+            handle.addEventListener('pointerup', done);
+            handle.addEventListener('pointercancel', done);
+            handle.addEventListener('lostpointercapture', done);
         });
     }
 
@@ -425,7 +433,7 @@ class EpgGuide {
                 optionsHtml += `<option value="Favorites" ${currentValue === 'Favorites' ? 'selected' : ''}>Favourites</option>`;
             }
 
-            optionsHtml += `<option value="" ${currentValue === '' ? 'selected' : ''}>All Groups</option>`;
+            optionsHtml += `<option value="" ${currentValue === '' ? 'selected' : ''}>All groups</option>`;
             optionsHtml += groups.map(g => `<option value="${UI.escape(g)}" ${g === currentValue ? 'selected' : ''}>${UI.escape(g)}</option>`).join('');
 
             this.groupSelect.innerHTML = optionsHtml;
@@ -436,7 +444,7 @@ class EpgGuide {
 
         // Handle case where we defaulted to Favorites but user has none
         if (this.selectedGroup === 'Favorites' && !hasFavorites) {
-            this.selectedGroup = ''; // Fallback to 'All Groups'
+            this.selectedGroup = ''; // Fallback to 'All groups'
             if (this.groupSelect) this.groupSelect.value = '';
         }
 
@@ -872,7 +880,7 @@ class EpgGuide {
         } else if (date.toDateString() === tomorrow.toDateString()) {
             this.dateDisplay.textContent = 'Tomorrow';
         } else {
-            this.dateDisplay.textContent = date.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+            this.dateDisplay.textContent = UI.date(date);
         }
     }
 
@@ -917,16 +925,12 @@ class EpgGuide {
         const stop = new Date(data.stop);
         const canRecord = data.recordable === 'true' && data.sourceId && data.channelId;
 
-        // Default buffer minutes come from settings, falling back to sane defaults
-        let defaultPre = 1, defaultPost = 5;
-        try {
-            const settings = await API.settings.get();
-            if (settings.defaultPreBufferMin !== undefined) defaultPre = settings.defaultPreBufferMin;
-            if (settings.defaultPostBufferMin !== undefined) defaultPost = settings.defaultPostBufferMin;
-        } catch (e) { /* use defaults */ }
+        // #276 (C2): the dialog opens at once with the usual buffers; the saved defaults replace them when they arrive
+        // (unless they have been typed over by then).
+        const defaultPre = 1, defaultPost = 5;
 
         body.innerHTML = `
-      <p><strong>Time:</strong> <span class="pig-amount">${UI.time(start)} - ${UI.time(stop)}</span></p>
+      <p><strong>Time:</strong> <span class="pig-amount">${UI.escape(UI.dateRange(start, stop))}</span></p>
       <p><strong>Description:</strong></p>
       <p>${UI.escape(data.description || 'No description available')}</p>
       ${canRecord ? `
@@ -947,22 +951,34 @@ class EpgGuide {
         dialog.open(opener);
 
         if (canRecord) {
+            const preInput = body.querySelector('#record-pre-buffer'), postInput = body.querySelector('#record-post-buffer');
+            for (const input of [preInput, postInput]) input.addEventListener('input', () => { input.dataset.typed = 'true'; UI.fieldError(input, ''); });
+            API.settings.get().then((settings) => {
+                if (settings.defaultPreBufferMin !== undefined && !preInput.dataset.typed) preInput.value = settings.defaultPreBufferMin;
+                if (settings.defaultPostBufferMin !== undefined && !postInput.dataset.typed) postInput.value = settings.defaultPostBufferMin;
+            }).catch(() => { /* the usual buffers stay */ });
+            // A bad number is said under its field and nothing is sent (C13).
+            const buffers = () => {
+                const preBufferMin = UI.readWholeNumber(preInput), postBufferMin = UI.readWholeNumber(postInput);
+                return preBufferMin === null || postBufferMin === null ? null : { preBufferMin, postBufferMin };
+            };
             footer.querySelector('#modal-record').onclick = async () => {
-                const preBufferMin = parseInt(body.querySelector('#record-pre-buffer').value, 10) || 0;
-                const postBufferMin = parseInt(body.querySelector('#record-post-buffer').value, 10) || 0;
-                await this.scheduleRecording({ ...data, preBufferMin, postBufferMin });
+                const chosen = buffers();
+                if (!chosen) return;
+                await this.scheduleRecording({ ...data, ...chosen });
                 close();
             };
             // R5: every airing of this title on this channel.
             footer.querySelector('#modal-record-series').onclick = async () => {
-                const preBufferMin = parseInt(body.querySelector('#record-pre-buffer').value, 10) || 0;
-                const postBufferMin = parseInt(body.querySelector('#record-post-buffer').value, 10) || 0;
+                const chosen = buffers();
+                if (!chosen) return;
+                const { preBufferMin, postBufferMin } = chosen;
                 try {
                     const rule = await API.recordings.addRule({ kind: 'series', match: data.title, sourceId: parseInt(data.sourceId, 10),
                         channelId: data.channelId, channelName: data.channelName, preBufferMin, postBufferMin });
                     UI.toast(`Series rule added: ${data.title} (${rule.scheduled || 0} scheduled)`);
                 } catch (err) {
-                    UI.toast(`Could not add the series rule: ${err.message}`, { kind: 'error' });
+                    UI.toast(UI.errorText(err, 'Could not add the series rule.'), { kind: 'error' });
                 }
                 close();
             };
@@ -995,7 +1011,7 @@ class EpgGuide {
             UI.toast(message);
         } catch (err) {
             console.error('Failed to schedule recording:', err);
-            UI.toast(`Could not schedule the recording: ${err.message}`, { kind: 'error' });
+            UI.toast(UI.errorText(err, 'Could not schedule the recording.'), { kind: 'error' });
         }
     }
 
@@ -1009,12 +1025,11 @@ class EpgGuide {
 
         // Navigate to the Live TV page FIRST so the player element is in
         // the DOM when selectChannel tries to play.
-        window.app.navigateTo('live');
+        // #276 (C2): wait for the page itself (navigateTo hands back what show() is doing, which loads the channels
+        // when they are not loaded yet), not for a fixed 100 ms.
+        await window.app.navigateTo('live');
 
-        // Ensure channels are loaded (they may not be if the user hasn't
-        // visited Live TV yet this session). Wait a tick after navigation
-        // so the page controller's show() has run.
-        await new Promise(r => setTimeout(r, 100));
+        // Ensure channels are loaded (they may not be if the user hasn't visited Live TV yet this session).
         if (cl.channels.length === 0) {
             await cl.loadChannels();
         }

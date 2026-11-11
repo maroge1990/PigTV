@@ -137,7 +137,7 @@ The `channelNumbers` flag is always sent (its off switch went in 0204).
 de-duplicated, ≤12; NULL if none), filled by `syncEpgFromUrl` (EPG sources and Xtream `xmltv.php` alike). An older database
 gains the column and its `epg_live` view is **dropped and recreated** (a view keeps its column list). Only data synced since
 0147 has categories: **Sync now** after deploying. `GET /api/sports/categories` (admin, top 200, cached per EPG generation) =
-the Status page's "EPG categories" panel (loaded once per visit, not on the 5 s refresh).
+the Status page's "Guide categories" panel (loaded once per visit, not on the 5 s refresh).
 
 **EPG matching** (0134, `epgMapping.js`, table `epg_mappings`, Settings → EPG matching): an admin's tvg-id per identity,
 applied **at query time** over `playlist_items.tvg_id` (guide programmes, now/next, logo fallback), because every sync

@@ -82,7 +82,7 @@ class SettingsPage {
         const result = await this.app.player.saveSettings([key]);
         const status = document.getElementById('playback-settings-status');
         if (status) {
-            status.textContent = result.ok ? 'Saved' : `Not saved: ${result.error}`;
+            status.textContent = result.ok ? 'Saved' : 'That setting was not saved. Try again.';
             status.classList.toggle('error', !result.ok);
         }
         return result;
@@ -98,6 +98,7 @@ class SettingsPage {
                 } catch (err) {
                     console.error(`Failed to save ${key}:`, err);
                     el.checked = !el.checked;
+                    UI.toast('That setting was not saved. It is back to how it was.', { kind: 'error' });
                 }
             });
         };
@@ -115,7 +116,7 @@ class SettingsPage {
             renewal.disabled = !relay?.checked || !shared?.checked;
             if (renewal.disabled && renewal.checked) {
                 renewal.checked = false;
-                try { await API.settings.update({ ingestReconnectRenewal: false }); } catch (err) { console.error('Failed to save ingestReconnectRenewal:', err); }
+                try { await API.settings.update({ ingestReconnectRenewal: false }); } catch (err) { console.error('Failed to save ingestReconnectRenewal:', err); UI.toast('That setting was not saved. Check it before you rely on it.', { kind: 'error' }); }
             }
         };
         shared?.addEventListener('change', syncRenewalAvailability);
@@ -132,7 +133,7 @@ class SettingsPage {
             standby.disabled = !relay.checked;
             if (!relay.checked && standby.checked) {
                 standby.checked = false;
-                try { await API.settings.update({ standbyEnabled: false }); } catch (err) { console.error('Failed to save standbyEnabled:', err); }
+                try { await API.settings.update({ standbyEnabled: false }); } catch (err) { console.error('Failed to save standbyEnabled:', err); UI.toast('That setting was not saved. Check it before you rely on it.', { kind: 'error' }); }
             }
         });
     }
@@ -232,7 +233,7 @@ class SettingsPage {
             const mins = Math.max(0, Math.round((Date.now() - p.askedAt) / 60000));
             status.textContent = `Asking: ${p.name} · ${SettingsPage.deviceLine(p.app, p.platform)} · ${mins < 1 ? 'just now' : `${mins} min ago`}`;
         } catch (err) {
-            status.textContent = err.message || 'That code was not found';
+            status.textContent = UI.errorText(err, 'That code was not found.');
         }
     }
 
@@ -249,7 +250,7 @@ class SettingsPage {
             await this.loadDevices();
             setTimeout(() => { if (status) status.textContent = ''; }, 4000);
         } catch (err) {
-            if (status) status.textContent = err.message || 'That code was not accepted';
+            if (status) status.textContent = UI.errorText(err, 'That code was not accepted.');
         }
     }
 
@@ -265,12 +266,12 @@ class SettingsPage {
             }
             const e = (v) => UI.escape(v);
             list.innerHTML = active.map(d => {
-                const seen = d.last_seen_at ? new Date(d.last_seen_at).toLocaleString() : 'never';
+                const seen = d.last_seen_at ? UI.dateTime(d.last_seen_at) : 'never';
                 return `
                 <div class="setting-item">
                     <div class="setting-info">
                         <span class="setting-label">${e(d.name || 'Unnamed device')}</span>
-                        <span class="setting-hint">${e(SettingsPage.deviceLine(d.app, d.platform))} · last seen ${e(seen)}</span>
+                        <span class="setting-hint">${e(SettingsPage.deviceLine(d.app, d.platform))} · last seen <span class="pig-amount">${e(seen)}</span></span>
                     </div>
                     <button class="btn btn-sm btn-danger" data-revoke="${e(d.id)}">Remove</button>
                 </div>`;
@@ -278,13 +279,14 @@ class SettingsPage {
 
             list.querySelectorAll('[data-revoke]').forEach(b => {
                 b.addEventListener('click', async () => {
-                    if (!confirm('Sign this device out?')) return;
+                    if (!confirm('Sign this device out? It will need to sign in again.')) return;
                     b.disabled = true;
                     try {
                         await API.request('DELETE', `/devices/${b.dataset.revoke}`);
                         await this.loadDevices();
                     } catch (err) {
                         b.disabled = false;
+                        UI.toast(UI.errorText(err, 'Could not sign the device out.'), { kind: 'error' });
                     }
                 });
             });
@@ -313,7 +315,7 @@ class SettingsPage {
             });
             if (status) status.textContent = 'Saved';
         } catch (err) {
-            if (status) status.textContent = 'Failed: ' + err.message;
+            if (status) status.textContent = UI.errorText(err, 'The notification settings were not saved.');
         }
     }
 
@@ -323,10 +325,10 @@ class SettingsPage {
         try {
             const r = await API.request('POST', '/settings/notify-test');
             const why = r.skipped === 'no webhook' ? 'save an address first'
-                : r.status ? `the address answered HTTP ${r.status}` : r.error === 'timeout' ? 'no answer in 10 s' : 'could not reach the address';
+                : r.status ? 'the address answered with an error' : r.error === 'timeout' ? 'no answer in 10 s' : 'could not reach the address';
             if (status) status.textContent = r.sent ? 'Sent' : `Not sent: ${why}`;
         } catch (err) {
-            if (status) status.textContent = 'Failed: ' + err.message;
+            if (status) status.textContent = UI.errorText(err, 'The test could not be sent.');
         }
     }
 
@@ -365,16 +367,21 @@ class SettingsPage {
 
     async saveRecordingSettings() {
         const status = document.getElementById('dvr-settings-status');
+        const numbers = {};
+        for (const [key, id] of [['defaultPreBufferMin', 'dvr-setting-pre'], ['defaultPostBufferMin', 'dvr-setting-post'], ['maxConcurrentRecordings', 'dvr-setting-max'],
+            ['recordingPromptTimeoutMin', 'dvr-setting-prompt-timeout'], ['minFreeSpaceGB', 'dvr-setting-minfree'], ['postRecordBitrateKbps', 'dvr-setting-bitrate']]) {
+            numbers[key] = UI.readWholeNumber(document.getElementById(id));
+        }
+        if (Object.values(numbers).some(v => v === null)) {
+            if (status) status.textContent = 'Some numbers need fixing. Nothing was saved.';
+            document.querySelector('#tab-recording [aria-invalid]')?.focus();
+            return;
+        }
         try {
             await API.settings.update({
                 recordingsPath: document.getElementById('dvr-setting-path').value.trim() || '/app/recordings',
-                defaultPreBufferMin: parseInt(document.getElementById('dvr-setting-pre').value, 10) || 0,
-                defaultPostBufferMin: parseInt(document.getElementById('dvr-setting-post').value, 10) || 0,
-                maxConcurrentRecordings: parseInt(document.getElementById('dvr-setting-max').value, 10) || 1,
-                recordingPromptTimeoutMin: Math.max(1, parseInt(document.getElementById('dvr-setting-prompt-timeout').value, 10) || 3),
-                minFreeSpaceGB: Math.max(0, parseInt(document.getElementById('dvr-setting-minfree').value, 10) || 0),
+                ...numbers,
                 postRecordCodec: document.getElementById('dvr-setting-codec').value,
-                postRecordBitrateKbps: Math.max(500, parseInt(document.getElementById('dvr-setting-bitrate').value, 10) || 3000),
                 postRecordKeepOriginal: document.getElementById('dvr-setting-keep-original').checked,
                 adDetectionEnabled: document.getElementById('dvr-setting-addetect').checked,
                 adAutoSkip: document.getElementById('dvr-setting-adautoskip').checked
@@ -384,7 +391,7 @@ class SettingsPage {
                 setTimeout(() => { status.textContent = ''; }, 2500);
             }
         } catch (err) {
-            if (status) status.textContent = 'Failed: ' + err.message;
+            if (status) status.textContent = UI.errorText(err, 'The recording settings were not saved.');
         }
     }
 
@@ -425,11 +432,12 @@ class SettingsPage {
         this.lineupQuery = '';
         this.lineupCategoryNames = new Map();
 
+        // #276 (C2): the list is in memory, so it filters on every keystroke; nothing waits.
         const search = document.getElementById('lineup-search');
-        search?.addEventListener('input', UI.debounce(() => {
+        search?.addEventListener('input', () => {
             this.lineupQuery = search.value;
             this.renderLineup();
-        }, 200));
+        });
 
         document.getElementById('lineup-save')?.addEventListener('click', () => this.saveLineup());
 
@@ -439,6 +447,7 @@ class SettingsPage {
             this.editLineupNumber(input.dataset.key, input.value);
             input.closest('tr')?.classList.toggle('changed', this.lineupEdits.has(input.dataset.key));
             this.updateLineupSaveState();
+            this.flagLineupDuplicates();
         });
     }
 
@@ -508,6 +517,7 @@ class SettingsPage {
                     <td>${UI.escape(this.lineupCategory(row))}</td>
                 </tr>`;
         }).join('');
+        this.flagLineupDuplicates();
     }
 
     editLineupNumber(key, value) {
@@ -530,9 +540,40 @@ class SettingsPage {
         return numbers;
     }
 
+    /**
+     * #276 (C13): the numbers two channels would hold once the typed changes are saved: key -> the name of the other
+     * channel. Only a clash with a typed change counts; the server still has the last word on the rest.
+     */
+    lineupDuplicates() {
+        const holders = new Map(); // number -> the channels that would hold it
+        for (const row of this.lineup) {
+            const key = this.lineupKey(row);
+            const typed = this.lineupEdits.has(key) ? this.lineupEdits.get(key) : (row.number === null || row.number === undefined ? '' : String(row.number));
+            if (!/^\d+$/.test(typed)) continue;
+            const number = String(parseInt(typed, 10));
+            if (!holders.has(number)) holders.set(number, []);
+            holders.get(number).push(row);
+        }
+        const clashes = new Map();
+        for (const rows of holders.values()) {
+            if (rows.length < 2 || !rows.some(r => this.lineupEdits.has(this.lineupKey(r)))) continue;
+            for (const r of rows) clashes.set(this.lineupKey(r), rows.find(o => o !== r).name);
+        }
+        return clashes;
+    }
+
+    /** Write (or clear) the "already used" line under each visible number field. */
+    flagLineupDuplicates() {
+        const clashes = this.lineupDuplicates();
+        document.querySelectorAll?.('#lineup-list .lineup-number-input')?.forEach(input => {
+            UI.fieldError(input, clashes.has(input.dataset.key) ? `Also used by ${clashes.get(input.dataset.key)}.` : '', { alert: false });
+        });
+        this.setLineupStatus(clashes.size ? 'Two channels cannot have the same number.' : '', clashes.size > 0);
+    }
+
     updateLineupSaveState() {
         const save = document.getElementById('lineup-save');
-        if (save) save.disabled = this.lineupEdits.size === 0;
+        if (save) save.disabled = this.lineupEdits.size === 0 || this.lineupDuplicates().size > 0;
     }
 
     async saveLineup() {
@@ -543,17 +584,17 @@ class SettingsPage {
         }
         const save = document.getElementById('lineup-save');
         if (save) save.disabled = true;
-        this.setLineupStatus('Saving...');
+        this.setLineupStatus('Saving…');
         try {
             await API.lineup.saveNumbers(numbers);
             await this.loadLineup();
-            this.setLineupStatus(`Saved ${numbers.length} number${numbers.length === 1 ? '' : 's'}`);
+            this.setLineupStatus(`Saved ${numbers.length} channel number${numbers.length === 1 ? '' : 's'}`);
             // The channel list and guide show numbers too
             window.app?.channelList?.loadChannels?.();
             if (window.app?.epgGuide?.loaded) window.app.epgGuide.loadEpg();
         } catch (err) {
-            // The server's own words: "Duplicate number 5", "Channel numbers must be whole numbers from 1 to 999999", ...
-            this.setLineupStatus(err.message || 'Could not save the numbers', true);
+            // The server words a refusal ("Duplicate number 5", "Channel numbers must be whole numbers ..."): UI.errorText adds it.
+            this.setLineupStatus(UI.errorText(err, 'The channel numbers were not saved.'), true);
             this.updateLineupSaveState();
         }
     }
@@ -562,7 +603,7 @@ class SettingsPage {
     //
     // GET /api/epg/unmatched lists the visible channels with no programmes in the
     // next 24 hours, each with up to five EPG channels whose names match best. A
-    // suggestion button maps the channel (PUT /api/epg/mapping); "Search..." opens
+    // suggestion button maps the channel (PUT /api/epg/mapping); "Search…" opens
     // a search of the EPG's whole channel list for that channel. Mapped channels
     // are listed below with a button to remove the mapping.
 
@@ -570,11 +611,12 @@ class SettingsPage {
         this.epgUnmatched = [];
         this.epgMappings = [];
         this.epgFilter = '';
-        this.epgSelected = null;  // the row "Search..." was pressed on
+        this.epgSelected = null;  // the row "Search…" was pressed on
         this.epgSearchResults = [];
 
         const filter = document.getElementById('epg-match-filter');
-        filter?.addEventListener('input', UI.debounce(() => { this.epgFilter = filter.value; this.renderEpgMatching(); }, 200));
+        // #276 (C2): filtering the list in memory waits for nothing; the search below asks the server, so it keeps its pause.
+        filter?.addEventListener('input', () => { this.epgFilter = filter.value; this.renderEpgMatching(); });
 
         const search = document.getElementById('epg-match-search');
         search?.addEventListener('input', UI.debounce(() => this.searchEpgChannels(search.value), 300));
@@ -635,7 +677,7 @@ class SettingsPage {
         const el = document.getElementById('epg-automap-batches');
         if (!el) return;
         el.innerHTML = batches.length ? `<h4>Automatic mappings in force</h4>${batches.map(b =>
-            `<p>${new Date(b.at).toLocaleString()}: ${b.count} channel${b.count === 1 ? '' : 's'}
+            `<p><span class="pig-amount">${UI.escape(UI.dateTime(b.at))}</span>: <span class="pig-amount">${b.count}</span> channel${b.count === 1 ? '' : 's'}
              <button type="button" class="btn btn-sm btn-secondary" data-batch="${UI.escape(b.batch)}">Undo</button></p>`).join('')}` : '';
     }
 
@@ -646,19 +688,20 @@ class SettingsPage {
             await this.loadEpgMatching();
             await this.previewAutoMap();
         } catch (err) {
-            this.setEpgStatus('Auto-map failed: ' + err.message, true);
+            this.setEpgStatus(UI.errorText(err, 'The channels could not be mapped.'), true);
         }
     }
 
     async undoAutoMap(batch) {
-        if (!confirm('Undo these automatic mappings? Any you have changed since are kept.')) return;
+        // #276 (C12): this is itself an undo, so it needs no question: it happens at once, and Auto-map ("Map these") puts
+        // the same suggestions back. Mappings changed by hand since are kept.
         try {
             const result = await API.epg.autoMapUndo(batch);
-            this.setEpgStatus(`${result.removed} automatic mapping${result.removed === 1 ? '' : 's'} undone`);
+            this.setEpgStatus(`${result.removed} automatic mapping${result.removed === 1 ? '' : 's'} undone. Mappings you changed since are kept.`);
             await this.loadEpgMatching();
             await this.previewAutoMap();
         } catch (err) {
-            this.setEpgStatus('Undo failed: ' + err.message, true);
+            this.setEpgStatus(UI.errorText(err, 'The automatic mappings could not be undone.'), true);
         }
     }
 
@@ -706,7 +749,7 @@ class SettingsPage {
                     <td>${e(row.name)}</td>
                     <td>${e(row.tvgId || '–')}${row.mapped ? ' <span class="setting-hint">(mapped)</span>' : ''}</td>
                     <td><div class="epg-candidates">${candidates}
-                        <button type="button" class="btn btn-secondary epg-candidate" data-epg-action="search" data-key="${e(key)}">Search...</button>
+                        <button type="button" class="btn btn-secondary epg-candidate" data-epg-action="search" data-key="${e(key)}">Search…</button>
                     </div></td>
                 </tr>`;
                 }).join('');
@@ -757,7 +800,7 @@ class SettingsPage {
             this.epgSearchResults = await API.epg.searchChannels(q) || [];
         } catch (err) {
             this.epgSearchResults = [];
-            this.setEpgStatus(err.message || 'Could not search the EPG', true);
+            this.setEpgStatus(UI.errorText(err, 'The search could not be finished.'), true);
         }
         this.renderEpgMatching();
     }
@@ -768,7 +811,7 @@ class SettingsPage {
         const sourceId = parseInt(sourceText, 10);
         const channelId = rest.join(':');
         if (!Number.isFinite(sourceId) || !channelId) return;
-        this.setEpgStatus('Saving...');
+        this.setEpgStatus('Saving…');
         try {
             await API.epg.setMapping(sourceId, channelId, tvgId);
             this.epgSelected = null;
@@ -779,7 +822,7 @@ class SettingsPage {
             window.app?.channelList?.loadChannels?.();
             if (window.app?.epgGuide?.loaded) window.app.epgGuide.loadEpg();
         } catch (err) {
-            this.setEpgStatus(err.message || 'Could not save the mapping', true);
+            this.setEpgStatus(UI.errorText(err, 'The mapping was not saved.'), true);
         }
     }
 
@@ -849,10 +892,7 @@ class SettingsPage {
     }
 
     sportsTime(ev) {
-        const t = (ms) => UI.time(ms);
-        const day = new Date(ev.start).toDateString() === new Date().toDateString()
-            ? '' : `${new Date(ev.start).toLocaleDateString([], { weekday: 'short' })} `;
-        return `${day}${t(ev.start)} – ${t(ev.end)}`;
+        return UI.dateRange(ev.start, ev.end);
     }
 
     renderSportsPreview() {
@@ -863,22 +903,22 @@ class SettingsPage {
             UI.setState(list, 'empty', 'No sport recognised in the next 72 hours', null, { colspan: 5 });
             return;
         }
-        const rules = { keyword: 'Keyword', category: 'EPG category', sportChannel: 'Sport category, live title' };
+        const rules = { keyword: 'Keyword', category: 'Guide category', sportChannel: 'Sport category, live title' };
         const groups = [['event', 'Events'], ['replay', 'Replays'], ['show', 'Shows'], ['placeholder', 'Placeholders']];
         const row = (ev) => {
             const n = (ev.channels || []).length;
             const names = (ev.channels || []).map(c => `<li>${c.number ? `${e(c.number)} ` : ''}${e(c.name)}${c.quality ? ` <span class="setting-hint">${e(c.quality)}</span>` : ''}</li>`).join('');
             const aliases = (ev.aliases || []).filter(a => a !== ev.title);
             const titles = aliases.length
-                ? `<details class="sports-aliases"><summary>${aliases.length} guide title${aliases.length === 1 ? '' : 's'}</summary><ul class="sports-channel-list">${aliases.map(a => `<li>${e(a)}</li>`).join('')}</ul></details>`
+                ? `<details class="sports-aliases"><summary><span class="pig-amount">${aliases.length}</span> guide title${aliases.length === 1 ? '' : 's'}</summary><ul class="sports-channel-list">${aliases.map(a => `<li>${e(a)}</li>`).join('')}</ul></details>`
                 : '';
             return `
                 <tr class="sports-event-row">
-                    <td>${e(this.sportsTime(ev))}${ev.live ? ' <span class="status-event status-failure">LIVE</span>' : ''}</td>
+                    <td><span class="pig-amount">${e(this.sportsTime(ev))}</span>${ev.live ? ' <span class="status-event status-failure">Live</span>' : ''}</td>
                     <td>${e(ev.title)}${titles}</td>
                     <td>${e(ev.league)}</td>
                     <td>${e(rules[ev.rule] || ev.rule || '–')}${ev.match ? `<div class="setting-hint">${e(ev.match)}</div>` : ''}${ev.kindRule ? `<div class="setting-hint">${e(ev.kindRule)}</div>` : ''}</td>
-                    <td><details><summary>${n} channel${n === 1 ? '' : 's'}</summary><ul class="sports-channel-list">${names}</ul></details></td>
+                    <td><details><summary><span class="pig-amount">${n}</span> channel${n === 1 ? '' : 's'}</summary><ul class="sports-channel-list">${names}</ul></details></td>
                 </tr>`;
         };
         list.innerHTML = groups.map(([kind, label]) => {
@@ -1076,28 +1116,28 @@ class SettingsPage {
             // Only show detected hardware
             if (hwInfo.nvidia?.available) {
                 detected.push(`<div class="hw-info-item hw-available">
-                    <span class="hw-badge">✓ NVIDIA</span>
+                    <span class="hw-badge">NVIDIA</span>
                     <span class="hw-name">${e(hwInfo.nvidia.name)}</span>
                 </div>`);
             }
 
             if (hwInfo.amf?.available) {
                 detected.push(`<div class="hw-info-item hw-available">
-                    <span class="hw-badge">✓ AMD</span>
+                    <span class="hw-badge">AMD</span>
                     <span class="hw-name">${e(hwInfo.amf.name || 'Available')}</span>
                 </div>`);
             }
 
             if (hwInfo.qsv?.available) {
                 detected.push(`<div class="hw-info-item hw-available">
-                    <span class="hw-badge">✓ Intel QSV</span>
+                    <span class="hw-badge">Intel QSV</span>
                     <span class="hw-name">Available</span>
                 </div>`);
             }
 
             if (hwInfo.vaapi?.available) {
                 detected.push(`<div class="hw-info-item hw-available">
-                    <span class="hw-badge">✓ VAAPI</span>
+                    <span class="hw-badge">VAAPI</span>
                     <span class="hw-name">${e(hwInfo.vaapi.device || 'Available')}</span>
                 </div>`);
             }
@@ -1149,7 +1189,7 @@ class SettingsPage {
                     addUserForm.reset();
                     this.loadUsers();
                 } catch (err) {
-                    UI.toast('Could not create the user: ' + err.message, { kind: 'error' });
+                    UI.toast(UI.errorText(err, 'Could not add the user.'), { kind: 'error' });
                 }
             });
         }
@@ -1186,7 +1226,7 @@ class SettingsPage {
                         </div>
                     </td>
                     <td>${roleBadge}</td>
-                    <td>${user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}</td>
+                    <td><span class="pig-amount">${user.createdAt ? e(UI.date(user.createdAt)) : '–'}</span></td>
                     <td>
                         <button type="button" class="btn btn-sm btn-secondary" data-user-action="edit" data-user-id="${e(user.id)}">Edit</button>
                         <button type="button" class="btn btn-sm btn-error" data-user-action="delete" data-user-id="${e(user.id)}">Delete</button>
@@ -1254,7 +1294,7 @@ class SettingsPage {
             this.setupModalHandlers(modal).open();
         } catch (err) {
             console.error('Error populating modal:', err);
-            UI.toast('Could not open the edit window: ' + err.message, { kind: 'error' });
+            UI.toast(UI.errorText(err, 'Could not open the edit window.'), { kind: 'error' });
         }
     }
 
@@ -1283,7 +1323,7 @@ class SettingsPage {
                 closeModal();
                 this.loadUsers();
             } catch (err) {
-                UI.toast('Could not update the user: ' + err.message, { kind: 'error' });
+                UI.toast(UI.errorText(err, 'Could not save the user.'), { kind: 'error' });
             }
         };
 
@@ -1293,7 +1333,7 @@ class SettingsPage {
 
 
     async deleteUser(userId, username) {
-        if (!confirm(`Are you sure you want to delete user "${username}"?`)) {
+        if (!confirm(`Delete the user "${username}"? The account is removed and cannot be brought back.`)) {
             return;
         }
 
@@ -1301,7 +1341,7 @@ class SettingsPage {
             await API.users.delete(userId);
             this.loadUsers();
         } catch (err) {
-            UI.toast('Could not delete the user: ' + err.message, { kind: 'error' });
+            UI.toast(UI.errorText(err, 'Could not delete the user.'), { kind: 'error' });
         }
     }
 
@@ -1311,7 +1351,7 @@ class SettingsPage {
      *   playback, system  their panels one under the other
      *   backuplinks  belongs to Providers (opened from a backup's card)
      */
-    switchTab(name) {
+    switchTab(name, { history = 'push' } = {}) {
         const groups = SettingsPage.GROUPS;
         const tab = groups[name] ? name
             : (Object.keys(groups).find(g => groups[g].includes(name)) || (name === 'backuplinks' ? 'providers' : name));
@@ -1332,6 +1372,26 @@ class SettingsPage {
         this.tabContents.forEach(c => c.classList.toggle('active', panels.some(p => c.id === `tab-${p}`)));
         document.getElementById('subtabs-channels')?.classList.toggle('hidden', tab !== 'channels');
         document.querySelectorAll('.subtabs .subtab').forEach(sub => select(sub, panels.includes(sub.dataset.subtab)));
+        // #276 (C14): the tab is in the address (#settings/recording), so a reload and Back return to it.
+        this.path = SettingsPage.pathFor(tab, tab === 'channels' ? this.channelsPanel : name);
+        if (history !== 'none') this.app?.setLocation?.('settings', this.path, history);
+        else if (this.app?.setLocation && typeof document !== 'undefined') document.title = this.app.titleFor('settings', this.path);
+    }
+
+    /** The tab open now as it reads in the address: "recording", "channels/lineup", "providers/backup-links". */
+    currentPath() { return this.path || (this.isAdmin() ? 'providers' : 'playback'); }
+
+    /** Open the tab an address names (Back, Forward, a link); an unknown one opens the default. */
+    openPath(path) {
+        const name = SettingsPage.PATHS[path] || SettingsPage.PATHS[this.currentPath()];
+        this.switchTab(name, { history: 'none' });
+    }
+
+    /** What the title adds after "Settings": "Channels", "Channel numbers". */
+    titleParts(path) {
+        const [tab, sub] = String(path || this.currentPath()).split('/');
+        const labels = SettingsPage.LABELS;
+        return [labels[tab], sub && labels[`${tab}/${sub}`]].filter(Boolean);
     }
 
     isAdmin() {
@@ -1389,7 +1449,7 @@ class SettingsPage {
             await API.sources.setImportExclusions(select.value, ids);
             if (status) status.textContent = 'Saved. It applies at the next sync.';
         } catch (err) {
-            if (status) status.textContent = err.message;
+            if (status) status.textContent = UI.errorText(err, 'The excluded groups were not saved.');
         }
     }
 
@@ -1408,15 +1468,17 @@ class SettingsPage {
         if (panel === 'users') this.loadUsers();
     }
 
-    async show() {
-        // 0182: an admin lands on Providers the first time, a viewer on Playback; after that,
-        // on the tab they left.
+    async show(path) {
+        // 0182: an admin lands on Providers the first time, a viewer on Playback; after that, on the tab they left.
+        // #276: or on the tab the address names (a reload, a link, Back).
+        const wanted = SettingsPage.PATHS[path] ? path : null;
         if (this.isAdmin()) {
             document.querySelectorAll('.tabs .admin-tab').forEach(t => { t.style.display = ''; });
-            if (!this.openedOnce) this.switchTab('providers');
+            if (wanted && (wanted !== this.path || !this.openedOnce)) this.openPath(wanted);
+            else if (!this.openedOnce) this.switchTab('providers', { history: 'none' });
             else if (document.getElementById('tab-providers')?.classList.contains('active')) this.providers.load();
         } else if (!this.openedOnce) {
-            this.switchTab('playback');
+            this.switchTab('playback', { history: 'none' });
         }
         this.openedOnce = true;
 
@@ -1456,7 +1518,7 @@ class SettingsPage {
             if (mins < 1) return 'just now';
             if (mins < 60) return `${mins} minute${mins === 1 ? '' : 's'} ago`;
             const hours = Math.floor(mins / 60);
-            return hours < 24 ? `${hours} hour${hours === 1 ? '' : 's'} ago` : new Date(ms).toLocaleString();
+            return hours < 24 ? `${hours} hour${hours === 1 ? '' : 's'} ago` : UI.dateTime(ms);
         };
         try {
             const data = await API.request('GET', '/settings/sync-status');
@@ -1472,11 +1534,11 @@ class SettingsPage {
                     return `${src.name} ${ago(Math.min(...feeds.map(f => f.at)))}`;
                 });
                 display.textContent = lines.length ? lines.join(' · ') : 'No providers';
-                display.title = data.sources.flatMap(src => (src.feeds || []).map(f => `${src.name} ${label[f.type] || f.type}: ${f.status}, ${new Date(f.at).toLocaleString()}`)).join('\n');
+                display.title = data.sources.flatMap(src => (src.feeds || []).map(f => `${src.name} ${label[f.type] || f.type}: ${f.status}, ${UI.dateTime(f.at)}`)).join('\n');
             } else if (data.lastSyncTime) {
                 const at = new Date(data.lastSyncTime).getTime();
                 display.textContent = ago(at);
-                display.title = new Date(at).toLocaleString();
+                display.title = UI.dateTime(at);
             } else {
                 display.textContent = 'Never';
                 display.title = 'Sync has not run yet since server started';
@@ -1501,6 +1563,24 @@ SettingsPage.deviceLine = (app, platform) => {
     if (!app) return `${platform || 'unknown'} · app version not reported yet`;
     if (!app.build) return app.text;
     return [app.kind || app.model, app.os, `PigTV ${app.build}`].filter(Boolean).join(' · ');
+};
+
+/** #276 (C14): Settings places as they read in the address, and the tab or panel each one opens. */
+SettingsPage.PATHS = {
+    providers: 'providers', 'providers/backup-links': 'backuplinks',
+    channels: 'channels', 'channels/content': 'content', 'channels/lineup': 'lineup', 'channels/epg': 'epg',
+    playback: 'playback', recording: 'recording', sport: 'sports', system: 'system'
+};
+SettingsPage.LABELS = {
+    providers: 'Providers', 'providers/backup-links': 'Backup links', channels: 'Channels',
+    'channels/content': 'Manage content', 'channels/lineup': 'Channel numbers', 'channels/epg': 'EPG matching',
+    playback: 'Playback', recording: 'Recording', sport: 'Sport', system: 'System'
+};
+/** The address part for a tab (and, in Channels, its panel). */
+SettingsPage.pathFor = (tab, panel) => {
+    if (tab === 'channels') return `channels/${['content', 'lineup', 'epg'].includes(panel) ? panel : 'content'}`;
+    if (panel === 'backuplinks') return 'providers/backup-links';
+    return tab === 'sports' ? 'sport' : tab;
 };
 
 SettingsPage.GROUPS = { channels: ['content', 'lineup', 'epg'], playback: ['player', 'transcode'], system: ['ui', 'devices', 'users'] };

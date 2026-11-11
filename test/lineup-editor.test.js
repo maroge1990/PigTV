@@ -79,27 +79,27 @@ test('the search matches a number, a name or a category', async () => {
 
 test('save sends only the edited rows, and shows the server\'s validation error as it comes', async () => {
     const { settings, requests, elements } = page([
-        { status: 400, body: { error: 'Duplicate number 2' } },
+        { status: 400, body: { error: 'Duplicate number 3' } },
         { status: 200, body: { success: true } }
     ]);
     await settings.loadLineup();
 
-    settings.editLineupNumber('1:pos_9', ' 2 ');
+    settings.editLineupNumber('1:pos_9', ' 3 ');
     settings.editLineupNumber('1:pos_1', '1'); // unchanged: not sent
     settings.updateLineupSaveState();
     assert.equal(elements['lineup-save'].disabled, false);
 
     await settings.saveLineup();
     const put = requests.filter(r => r.method === 'PUT');
-    assert.deepEqual(plain(put), [{ url: '/api/lineup/numbers', method: 'PUT', body: { numbers: [{ sourceId: 1, id: 'pos_9', number: 2 }] } }]);
-    assert.equal(elements['lineup-status'].textContent, 'Duplicate number 2', "the server's words");
+    assert.deepEqual(plain(put), [{ url: '/api/lineup/numbers', method: 'PUT', body: { numbers: [{ sourceId: 1, id: 'pos_9', number: 3 }] } }]);
+    assert.equal(elements['lineup-status'].textContent, 'The channel numbers were not saved. Duplicate number 3.', "what failed, then the server's words");
     assert.equal(elements['lineup-status'].classList.error, true);
     assert.equal(settings.lineupEdits.size, 1, 'the edit is kept so it can be corrected');
 
     settings.editLineupNumber('1:pos_9', '7');
     await settings.saveLineup();
     assert.deepEqual(plain(requests.filter(r => r.method === 'PUT')[1].body), { numbers: [{ sourceId: 1, id: 'pos_9', number: 7 }] });
-    assert.equal(elements['lineup-status'].textContent, 'Saved 1 number');
+    assert.equal(elements['lineup-status'].textContent, 'Saved 1 channel number');
     assert.equal(settings.lineupEdits.size, 0, 'the list is reloaded from the server');
 });
 

@@ -2,7 +2,7 @@
  * Settings -> Providers (0172, multi-provider brief 2.9; one section since 0182). Admin only.
  *
  * One card per provider, every card the same: its account as the provider reports it (status,
- * expiry, connections), its sync state, and one form (name, login or playlist address, guide
+ * expiry, connections), its sync state, and one form (name, login or M3U address, guide
  * address, channel ID list). The order of the cards is the whole of the roles: the first is
  * the primary, whose channels and guide are shown; the rest are backups tried in that order.
  * Uses GET /api/sources/providers, /api/sources/status, /api/sources/:id (the form),
@@ -20,14 +20,13 @@ const ProviderFormat = {
         return String(value ?? '').replace(/\b[a-z][a-z0-9+.-]*:\/\/\S+/gi, '[address]');
     },
 
-    DAYS: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
-    MONTHS: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
-
-    /** "Tue 30 Mar 2027", in local time (the account's end is an instant). */
+    /** "Tue 30 Mar 2027", in local time (the account's end is an instant): the app's one date format, the year always written. */
     formatDate(ms) {
-        const d = new Date(ms);
-        return `${ProviderFormat.DAYS[d.getDay()]} ${d.getDate()} ${ProviderFormat.MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+        return UI.date(ms, { year: true });
     },
+
+    /** The card's type badge: "Xtream" or "M3U". */
+    typeLabel(type) { return type === 'm3u' ? 'M3U' : 'Xtream'; },
 
     /** { text, level } for the expiry the account reports: "Tue 30 Mar 2027" (+ " · 5 days left" / " · expired"). */
     formatExpiry(effective, now = Date.now()) {
@@ -63,7 +62,7 @@ const ProviderFormat = {
     /** The sync_status row of a source ('all'), as { text, level }. */
     formatSync(row, now = Date.now()) {
         if (!row) return { text: 'Not synced yet', level: 'none' };
-        if (row.status === 'syncing') return { text: 'Syncing...', level: 'busy' };
+        if (row.status === 'syncing') return { text: 'Syncing…', level: 'busy' };
         // #42: a much smaller list from the provider is held; the last good one stays.
         if (row.status === 'held') {
             return { text: `${row.error ? ProviderFormat.safeText(row.error) : 'Held: the last good list is kept'} (${ProviderFormat.ago(row.last_sync, now)})`, level: 'soon', held: true };
@@ -103,14 +102,14 @@ const ProviderFormat = {
     buildSave(saved, values) {
         const v = (k) => String(values[k] ?? '').trim();
         const type = saved ? saved.type : v('type');
-        if (!v('name')) return { error: 'Give the provider a name' };
-        if (!v('url')) return { error: type === 'xtream' ? 'Enter the server address' : 'Enter the playlist address' };
+        if (!v('name')) return { error: 'Give the provider a name.' };
+        if (!v('url')) return { error: type === 'xtream' ? 'Enter the server address.' : 'Enter the M3U address.' };
         if (!saved) {
-            if (type === 'xtream' && (!v('username') || !v('password'))) return { error: 'Enter the username and password' };
+            if (type === 'xtream' && (!v('username') || !v('password'))) return { error: 'Enter the username and password.' };
             const body = { type, name: v('name'), url: v('url') };
             if (type === 'xtream') { body.username = v('username'); body.password = v('password'); }
             if (v('epgUrl')) body.epgUrl = v('epgUrl');
-            if (type === 'xtream' && v('idOverlayUrl')) body.idOverlayUrl = v('idOverlayUrl'); // an M3U playlist is its own id list
+            if (type === 'xtream' && v('idOverlayUrl')) body.idOverlayUrl = v('idOverlayUrl'); // an M3U is its own id list
             return { body };
         }
         const body = {};
@@ -127,7 +126,7 @@ const ProviderFormat = {
 class ProvidersSettings {
     constructor() {
         this.providers = [];
-        this.guides = [];            // standalone EPG sources left from before 0182
+        this.guides = [];            // standalone guide sources left from before 0182
         this.coverage = new Map();   // backup id -> { linked, linkable } (GET /api/links/summary)
         this.accounts = new Map();   // id -> { account, effective }
         this.syncRows = new Map();   // id -> { all, epg } sync_status rows
@@ -215,22 +214,22 @@ class ProvidersSettings {
         rows.push(['Account', account
             ? `${e(account.status || 'Unknown')}${account.isTrial ? ' (trial)' : ''} · checked ${e(F.ago(account.checkedAt))}`
             : 'Not read yet']);
-        rows.push(['Expires', `<span class="provider-${expiry.level}">${e(expiry.text)}</span>`]);
-        rows.push(['Connections', e(F.formatConnections(account, effective))]);
+        rows.push(['Expires', `<span class="provider-${expiry.level} pig-amount">${e(expiry.text)}</span>`]);
+        rows.push(['Connections', `<span class="pig-amount">${e(F.formatConnections(account, effective))}</span>`]);
         if (account && account.error) {
             rows.push(['Check error', `<span class="provider-error">${e(F.safeText(account.error))}</span>${account.ok ? '' : ' <span class="setting-hint inline">The last good values are kept.</span>'}`]);
         }
         if (p.type === 'm3u' && p.hasLogin !== undefined) {
-            rows.push(['Login', p.hasLogin ? 'Found in the playlist'
-                : '<span class="provider-soon">Not found in the playlist: no account details, and only the playlist\'s own channels</span>']);
+            rows.push(['Login', p.hasLogin ? 'Found in the M3U'
+                : '<span class="provider-soon">Not found in the M3U: no account details, and only its own channels</span>']);
         }
         rows.push(['Channels', `<span class="provider-${sync.level}">${e(sync.text)}</span>${sync.held
             ? ` <button type="button" class="btn btn-sm btn-secondary provider-inline" data-provider-action="accept-smaller" data-id="${p.id}">Accept the smaller list…</button>` : ''}`]);
         rows.push(['Guide', this.guideFact(p)]);
         if (p.role === 'backup') {
-            rows.push(['Backup channels', e(Number(p.backupChannels || 0).toLocaleString())]);
+            rows.push(['Backup channels', `<span class="pig-amount">${e(Number(p.backupChannels || 0).toLocaleString())}</span>`]);
             const cover = this.coverage.get(p.id);
-            rows.push(['Covers', `${cover ? `${e(cover.linked.toLocaleString())} of ${e(cover.linkable.toLocaleString())} primary channels` : 'Not linked yet'}
+            rows.push(['Covers', `${cover ? `<span class="pig-amount">${e(cover.linked.toLocaleString())}</span> of <span class="pig-amount">${e(cover.linkable.toLocaleString())}</span> primary channels` : 'Not linked yet'}
                 <button type="button" class="btn btn-sm btn-secondary provider-inline" data-provider-action="links" data-id="${p.id}">Review links</button>`]);
         }
         return `<dl class="provider-facts">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`;
@@ -261,11 +260,11 @@ class ProvidersSettings {
                     <label>Connects with</label>
                     <select class="form-input" data-field="type"${saved ? ' disabled' : ''}>
                         <option value="xtream"${xtream ? ' selected' : ''}>Xtream login</option>
-                        <option value="m3u"${xtream ? '' : ' selected'}>M3U playlist address</option>
+                        <option value="m3u"${xtream ? '' : ' selected'}>M3U address</option>
                     </select>
                 </div>
                 <div class="provider-field wide">
-                    <label data-label="url">${xtream ? 'Server address' : 'Playlist address'}</label>
+                    <label data-label="url">${xtream ? 'Server address' : 'M3U address'}</label>
                     <input type="text" class="form-input" data-field="url" value="${e(s.url)}" autocomplete="off"
                            placeholder="${xtream ? 'http://server.com:port' : 'https://example.com/playlist.m3u'}">
                 </div>
@@ -279,20 +278,20 @@ class ProvidersSettings {
                            placeholder="${s.hasPassword ? 'Leave empty to keep the saved password' : ''}">
                 </div>
                 <div class="provider-field wide">
-                    <label>Guide (EPG) address</label>
+                    <label>Guide address</label>
                     <input type="text" class="form-input" data-field="epgUrl" value="${e(s.epgUrl)}" autocomplete="off"
                            placeholder="https://example.com/guide.xml">
                     <span class="setting-hint">This provider's guide, shown while it is first. Empty: an Xtream login uses the provider's own guide.</span>
                 </div>
                 <div class="provider-field wide provider-login${xtream ? '' : ' hidden'}">
-                    <label>EPGenius playlist (optional)</label>
+                    <label>EPGenius M3U (optional)</label>
                     <input type="text" class="form-input" data-field="idOverlayUrl" value="${e(s.idOverlayUrl)}" autocomplete="off"
                            placeholder="https://example.com/epgenius.m3u">
                     <span class="setting-hint">This provider's EPGenius M3U. Its guide ids are laid over the provider's own channel list, which makes matching to the first provider reliable while this one is a backup.</span>
                 </div>
             </div>
             <div class="provider-save">
-                <button type="button" class="btn btn-primary btn-sm" data-provider-action="save" data-id="${id}">${saved ? 'Save' : 'Add provider'}</button>
+                <button type="button" class="btn ${saved ? 'btn-secondary' : 'btn-primary'} btn-sm" data-provider-action="save" data-id="${id}">${saved ? 'Save provider' : 'Add provider'}</button>
                 <button type="button" class="btn btn-secondary btn-sm" data-provider-action="cancel" data-id="${id}">Cancel</button>
                 ${saved ? `<button type="button" class="btn btn-secondary btn-sm" data-provider-action="test" data-id="${id}">Test connection</button>
                 <button type="button" class="btn btn-secondary btn-sm" data-provider-action="toggle" data-id="${id}">${saved.enabled ? 'Disable' : 'Enable'}</button>
@@ -313,7 +312,7 @@ class ProvidersSettings {
                     <span class="provider-place">${index + 1}</span>
                     <strong>${e(p.name)}</strong>
                     <span class="provider-badge ${isBackup ? 'backup' : 'primary'}">${e(F.roleLabel(p, index))}</span>
-                    <span class="provider-badge">${e(String(p.type || '').toUpperCase())}</span>
+                    <span class="provider-badge">${e(F.typeLabel(p.type))}</span>
                     ${p.enabled ? '' : '<span class="provider-badge off">Disabled</span>'}
                 </div>
                 <div class="provider-actions">
@@ -351,7 +350,7 @@ class ProvidersSettings {
         const e = ProviderFormat.esc;
         return `
         <div class="provider-card provider-legacy">
-            <div class="provider-head"><div class="provider-title"><strong>Other guide sources</strong></div></div>
+            <div class="provider-head"><div class="provider-title"><strong>Other guides</strong></div></div>
             <p class="setting-hint">Added before a guide address lived on each provider's card. They still sync and are merged into the guide.
                 To keep one, copy it to a provider's guide address; then delete it here.</p>
             ${this.guides.map(g => `
@@ -373,7 +372,7 @@ class ProvidersSettings {
         const adding = this.open.has('new') || ordered.length === 0;
         list.innerHTML = ordered.map((p, i) => this.cardHtml(p, i, ordered.length)).join('')
             + (adding ? this.newCardHtml(ordered.length) : '')
-            + (adding ? '' : `<button type="button" class="btn btn-primary provider-add" data-provider-action="add" data-id="new">+ Add a ${ordered.length ? 'backup ' : ''}provider</button>`)
+            + (adding ? '' : `<button type="button" class="btn btn-secondary provider-add" data-provider-action="add" data-id="new">Add a ${ordered.length ? 'backup ' : ''}provider</button>`)
             + this.guidesHtml();
     }
 
@@ -382,7 +381,7 @@ class ProvidersSettings {
         const xtream = card?.querySelector('[data-field="type"]')?.value !== 'm3u';
         card?.querySelectorAll('.provider-login').forEach(el => el.classList.toggle('hidden', !xtream));
         const label = card?.querySelector('[data-label="url"]');
-        if (label) label.textContent = xtream ? 'Server address' : 'Playlist address';
+        if (label) label.textContent = xtream ? 'Server address' : 'M3U address';
         const url = card?.querySelector('[data-field="url"]');
         if (url) url.placeholder = xtream ? 'http://server.com:port' : 'https://example.com/playlist.m3u';
     }
@@ -438,16 +437,16 @@ class ProvidersSettings {
             this.render();
         } catch (err) {
             button.disabled = false;
-            this.cardStatus(p.id, err.message || 'Could not load the provider', true);
+            this.cardStatus(p.id, UI.errorText(err, 'The provider could not be loaded.'), true);
         }
     }
 
-    /** A very large playlist is worth a warning before it is synced. */
+    /** A very large M3U is worth a warning before it is synced. */
     async largePlaylistOk(url) {
         try {
             const estimate = await API.sources.estimateByUrl(url, 'm3u');
             if (!estimate.needsWarning) return true;
-            return confirm(`This playlist has ${Number(estimate.count).toLocaleString()} channels. Syncing may take several minutes. Add it anyway?`);
+            return confirm(`This M3U has ${Number(estimate.count).toLocaleString()} channels. Syncing may take several minutes. Add the provider anyway?`);
         } catch { return true; }
     }
 
@@ -456,7 +455,7 @@ class ProvidersSettings {
         const built = ProviderFormat.buildSave(null, this.readForm(card));
         if (built.error) { this.cardStatus('new', built.error, true); return; }
         button.disabled = true;
-        this.cardStatus('new', 'Adding...');
+        this.cardStatus('new', 'Adding…');
         try {
             if (built.body.type === 'm3u' && !(await this.largePlaylistOk(built.body.url))) {
                 button.disabled = false;
@@ -466,11 +465,11 @@ class ProvidersSettings {
             const created = await API.sources.create(built.body);
             this.open.delete('new');
             await this.load();
-            if (created?.id) { this.cardStatus(created.id, 'Added. Syncing...'); this.polls.set(created.id, 40); this.pollSync(created.id); }
+            if (created?.id) { this.cardStatus(created.id, 'Added. Syncing…'); this.polls.set(created.id, 40); this.pollSync(created.id); }
             this.refreshChannels();
         } catch (err) {
             button.disabled = false;
-            this.cardStatus('new', err.message || 'Could not add the provider', true); // the server's own words
+            this.cardStatus('new', UI.errorText(err, 'The provider was not added.'), true);
         }
     }
 
@@ -480,18 +479,18 @@ class ProvidersSettings {
         if (built.error) { this.cardStatus(p.id, built.error, true); return; }
         if (Object.keys(built.body).length === 0) { this.open.delete(p.id); this.render(); return; }
         button.disabled = true;
-        this.cardStatus(p.id, 'Saving...');
+        this.cardStatus(p.id, 'Saving…');
         try {
             await API.sources.update(p.id, built.body);
             this.open.delete(p.id);
             await this.load();
             // Any change here starts a sync of the provider.
-            this.cardStatus(p.id, 'Saved. Syncing...');
+            this.cardStatus(p.id, 'Saved. Syncing…');
             this.polls.set(p.id, 40);
             this.pollSync(p.id);
         } catch (err) {
             button.disabled = false;
-            this.cardStatus(p.id, err.message || 'Could not save', true); // the server's own words
+            this.cardStatus(p.id, UI.errorText(err, 'The provider was not saved.'), true);
         }
     }
 
@@ -506,43 +505,43 @@ class ProvidersSettings {
             try { report = await API.sources.promotionPreview(next.id); } catch (e) { /* the general wording */ }
             if (!confirm(ProvidersSettings.promotionText(next.name, first.name, report))) return;
         }
-        this.setStatus('Saving the order...');
+        this.setStatus('Saving the order…');
         try {
             const result = await API.sources.setOrder(ids);
             await this.load();
-            this.setStatus(result?.primaryChanged ? 'Order saved. Syncing the providers that changed...' : 'Order saved');
+            this.setStatus(result?.primaryChanged ? 'Order saved. Syncing the providers that changed…' : 'Order saved');
             if (result?.primaryChanged) for (const id of ids.slice(0, 2)) { this.polls.set(id, 60); this.pollSync(id); }
             this.refreshChannels();
         } catch (err) {
-            this.setStatus(err.message || 'Could not save the order', true);
+            this.setStatus(UI.errorText(err, 'The order was not saved.'), true);
             await this.load();
         }
     }
 
     async check(p, button) {
         button.disabled = true;
-        this.cardStatus(p.id, 'Checking...');
+        this.cardStatus(p.id, 'Checking…');
         try {
             this.accounts.set(p.id, await API.sources.checkAccount(p.id));
             const info = document.getElementById(`provider-info-${p.id}`);
             if (info) info.innerHTML = this.infoHtml(p);
             this.cardStatus(p.id, '');
         } catch (err) {
-            this.cardStatus(p.id, err.message || 'Could not check the account', true);
+            this.cardStatus(p.id, UI.errorText(err, 'The account could not be checked.'), true);
         }
         button.disabled = false;
     }
 
     async sync(p, button) {
         button.disabled = true;
-        this.cardStatus(p.id, 'Starting the sync...');
+        this.cardStatus(p.id, 'Starting the sync…');
         try {
             await API.sources.sync(p.id);
             this.cardStatus(p.id, 'Sync started');
             this.polls.set(p.id, 40);
             this.pollSync(p.id);
         } catch (err) {
-            this.cardStatus(p.id, err.message || 'Could not start the sync', true);
+            this.cardStatus(p.id, UI.errorText(err, 'The sync could not be started.'), true);
         }
         button.disabled = false;
     }
@@ -551,27 +550,27 @@ class ProvidersSettings {
     async acceptSmaller(p, button) {
         if (!window.confirm(`Sync ${p.name} and keep the smaller list it sends now? Channels missing from it are removed from the guide and every device until the provider sends them again.`)) return;
         button.disabled = true;
-        this.cardStatus(p.id, 'Starting the sync...');
+        this.cardStatus(p.id, 'Starting the sync…');
         try {
             await API.sources.sync(p.id, { acceptSmaller: true });
             this.cardStatus(p.id, 'Sync started');
             this.polls.set(p.id, 40);
             this.pollSync(p.id);
         } catch (err) {
-            this.cardStatus(p.id, err.message || 'Could not start the sync', true);
+            this.cardStatus(p.id, UI.errorText(err, 'The sync could not be started.'), true);
         }
         button.disabled = false;
     }
 
     async test(p, button) {
         button.disabled = true;
-        this.cardStatus(p.id, 'Testing the saved connection...');
+        this.cardStatus(p.id, 'Testing the saved connection…');
         try {
             const result = await API.sources.test(p.id);
             if (result.success) this.cardStatus(p.id, 'Connection successful');
             else this.cardStatus(p.id, `Connection failed: ${ProviderFormat.safeText(result.error || result.message || 'no reply')}`, true);
         } catch (err) {
-            this.cardStatus(p.id, `Connection failed: ${ProviderFormat.safeText(err.message)}`, true);
+            this.cardStatus(p.id, UI.errorText(err, 'The connection test could not be run.'), true);
         }
         button.disabled = false;
     }
@@ -585,7 +584,7 @@ class ProvidersSettings {
             this.refreshChannels();
         } catch (err) {
             button.disabled = false;
-            this.cardStatus(p.id, err.message || 'Could not change the provider', true);
+            this.cardStatus(p.id, UI.errorText(err, 'The provider could not be changed.'), true);
         }
     }
 
@@ -602,7 +601,7 @@ class ProvidersSettings {
             this.refreshChannels();
         } catch (err) {
             button.disabled = false;
-            this.cardStatus(p.id, err.message || 'Could not delete the provider', true);
+            this.cardStatus(p.id, UI.errorText(err, 'The provider was not deleted.'), true);
         }
     }
 
@@ -613,14 +612,14 @@ class ProvidersSettings {
         try {
             if (action === 'sync-guide') {
                 await API.sources.sync(id);
-                this.setStatus(`Syncing ${g.name}...`);
-            } else if (confirm(`Delete the guide source ${g.name}? Its programmes are removed from the guide.`)) {
+                this.setStatus(`Syncing ${g.name}…`);
+            } else if (confirm(`Delete the guide ${g.name}? Its programmes are removed from the guide and cannot be brought back.`)) {
                 await API.sources.delete(id);
                 await this.load();
                 return;
             }
         } catch (err) {
-            this.setStatus(err.message || 'Could not do that', true);
+            this.setStatus(UI.errorText(err, 'That could not be done.'), true);
         }
         button.disabled = false;
     }
@@ -674,7 +673,7 @@ ProvidersSettings.promotionText = (next, first, r) => {
     const carried = [part('channel numbers', r.numbers), part('favourites', r.favourites), part('guide matches', r.guideMatches),
         part('series rules', r.seriesRules), part('scheduled recordings', r.schedules)].filter(Boolean);
     if (carried.length) lines.push(`Carried over: ${carried.join(', ')}.`);
-    if (r.listingUnknown) lines.push(`${next} has not synced since this update, so a few of these may turn out not to be in its playlist.`);
+    if (r.listingUnknown) lines.push(`${next} has not synced since this update, so a few of these may turn out not to be in its channel list.`);
     return lines.join('\n');
 };
 

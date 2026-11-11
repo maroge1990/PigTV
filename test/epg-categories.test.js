@@ -155,7 +155,7 @@ test('only an admin may list the categories', async () => {
     assert.equal((await fetch(`${base}/api/sports/categories`)).status, 401);
 });
 
-test('the Status page shows an "EPG categories" panel', async () => {
+test('the Status page shows a "Guide categories" panel', async () => {
     const elements = { 'status-epg-categories': { innerHTML: '' } };
     const context = vm.createContext({
         window: {}, console, setInterval: () => 0, clearInterval() {},
@@ -167,7 +167,7 @@ test('the Status page shows an "EPG categories" panel', async () => {
     const page = new context.window.StatusPage({});
     await page.loadEpgCategories();
     const html = elements['status-epg-categories'].innerHTML;
-    assert.match(html, /<h3>EPG categories<\/h3>/);
+    assert.match(html, /<h3>Guide categories<\/h3>/);
     assert.match(html, /<td>Sport<\/td><td>4<\/td>/);
     assert.match(html, /A &lt;b&gt;/, 'provider text is escaped');
     assert.match(html, /2 categories/);

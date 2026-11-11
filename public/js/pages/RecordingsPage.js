@@ -409,7 +409,7 @@ class RecordingsPage {
             if (status) status.textContent = rule.scheduled === 1 ? 'Added: 1 game scheduled' : `Added: ${rule.scheduled || 0} games scheduled`;
             await this.refresh();
         } catch (err) {
-            if (status) status.textContent = 'Not added: ' + err.message;
+            if (status) status.textContent = UI.errorText(err, 'The rule was not added.');
         }
     }
 
@@ -418,7 +418,7 @@ class RecordingsPage {
             await API.recordings.updateRule(id, { enabled });
             await this.refresh();
         } catch (err) {
-            UI.toast('Could not change the rule: ' + err.message, { kind: 'error' });
+            UI.toast(UI.errorText(err, 'Could not change the rule.'), { kind: 'error' });
         }
     }
 
@@ -508,7 +508,7 @@ class RecordingsPage {
         } catch (err) {
             this.pending.delete(key);
             this.draw();
-            UI.toast(`${entry.failText}: ${err.message}`, { kind: 'error' });
+            UI.toast(UI.errorText(err, entry.failText), { kind: 'error' });
             return;
         }
         this.forget(key);
@@ -544,7 +544,11 @@ class RecordingsPage {
 
     // Its recordings that have not started are cancelled by the server; anything recorded is kept.
     deleteRule(id) {
-        this.defer({ key: `rule:${id}`, message: 'Rule deleted', failText: 'Could not delete the rule',
+        // #276 (C12): say what else goes with it, from the count the row shows.
+        const rule = (this.data.rules || []).find(x => String(x.id) === String(id));
+        const n = Number(rule && rule.upcoming) || 0;
+        const message = n > 0 ? `Rule deleted. Its ${n} scheduled ${n === 1 ? 'recording is' : 'recordings are'} cancelled.` : 'Rule deleted';
+        this.defer({ key: `rule:${id}`, message, failText: 'Could not delete the rule',
             path: `/recordings/rules/${id}`, request: () => API.recordings.deleteRule(id) });
     }
 
@@ -559,12 +563,12 @@ class RecordingsPage {
     async cancelScheduled(id) {
         const item = (this.data.upcoming || []).find(x => String(x.id) === String(id));
         if (item && item.status === 'recording') {
-            if (!confirm('Cancel this recording?')) return;
+            if (!confirm('Stop this recording now? It cannot be resumed.')) return;
             try {
                 await API.recordings.cancelScheduled(id);
                 await this.refresh();
             } catch (err) {
-                UI.toast(`Could not cancel it: ${err.message}`, { kind: 'error' });
+                UI.toast(UI.errorText(err, 'Could not stop the recording.'), { kind: 'error' });
             }
             return;
         }
@@ -578,7 +582,7 @@ class RecordingsPage {
             await API.recordings.chooseScheduled(id);
             await this.refresh();
         } catch (err) {
-            UI.toast(`Could not choose it: ${err.message}`, { kind: 'error' });
+            UI.toast(UI.errorText(err, 'Could not record this one instead.'), { kind: 'error' });
         }
     }
 
@@ -615,7 +619,7 @@ class RecordingsPage {
             await this.refresh();
             this.startCompressionWatch();
         } catch (err) {
-            UI.toast('Could not start compression: ' + err.message, { kind: 'error' });
+            UI.toast(UI.errorText(err, 'Could not start compression.'), { kind: 'error' });
             if (btn) { btn.disabled = false; btn.textContent = 'Compress'; }
         }
     }

@@ -84,7 +84,7 @@ test('the splash is removed once the first page is shown, never on a timer', () 
     assert.equal(removed, 1);
     app.hideSplash(); // a second call (no element left) is harmless
     const src = read('public/js/app.js');
-    assert.match(src.slice(src.indexOf('navigateTo(initialPage')), /hideSplash\(\)/);
+    assert.match(src.slice(src.indexOf('navigateTo(route.page')), /hideSplash\(\)/);
     assert.doesNotMatch(src.slice(src.indexOf('hideSplash()'), src.indexOf('hideSplash()') + 300), /setTimeout/);
 });
 

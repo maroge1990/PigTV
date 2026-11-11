@@ -52,7 +52,7 @@ class StatusPage {
         }
     }
 
-    /** The EPG categories panel sits outside the refreshed content: it is a detail too. */
+    /** The guide categories panel sits outside the refreshed content: it is a detail too. */
     syncEpgPanel() {
         const panel = document.getElementById('status-epg-categories');
         if (panel && panel.style) panel.style.display = this.showDetails ? '' : 'none';
@@ -66,7 +66,7 @@ class StatusPage {
             if (all) await API.transcode.killAllSessions();
             else await API.transcode.killSession(button.dataset.killSession);
         } catch (err) {
-            UI.toast(`Could not stop the stream: ${err.message}`, { kind: 'error' });
+            UI.toast(UI.errorText(err, all ? 'Could not stop the streams.' : 'Could not stop the stream.'), { kind: 'error' });
         }
         await this.refresh();
     }
@@ -137,7 +137,7 @@ class StatusPage {
             const status = await API.status.get({ details: this.showDetails });
             this.lastStatus = status;
             if (content) this.paint(content, status);
-            if (updated) updated.textContent = `Updated ${new Date(status.generatedAt || Date.now()).toLocaleTimeString()} · every 5 s`;
+            if (updated) updated.textContent = `Updated ${UI.clock(status.generatedAt || Date.now())} · every 5 s`;
         } catch (err) {
             console.error('Status refresh failed:', err);
             if (updated) updated.textContent = 'Could not refresh: trying again every 5 s.';
@@ -157,13 +157,13 @@ class StatusPage {
     async loadEpgCategories() {
         const panel = document.getElementById('status-epg-categories');
         if (!panel) return;
-        if (!panel.querySelector?.('details')) panel.innerHTML = this.section('EPG categories', UI.stateBlock('loading'));
+        if (!panel.querySelector?.('details')) panel.innerHTML = this.section('Guide categories', UI.stateBlock('loading'));
         try {
             const rows = await API.sports.categories();
             panel.innerHTML = this.renderEpgCategories(Array.isArray(rows) ? rows : []);
         } catch (err) {
             console.error('Guide categories failed to load:', err);
-            panel.innerHTML = this.section('EPG categories', '<div class="status-epg-state"></div>');
+            panel.innerHTML = this.section('Guide categories', '<div class="status-epg-state"></div>');
             UI.setState(panel.querySelector?.('.status-epg-state') || panel, 'error', 'The guide categories could not be loaded.', { run: () => this.loadEpgCategories() });
         }
     }
@@ -171,11 +171,11 @@ class StatusPage {
     renderEpgCategories(rows) {
         const e = (v) => UI.escape(v);
         if (!rows.length) {
-            return this.section('EPG categories', UI.stateBlock('empty', { title: 'The guide has no programme categories yet',
+            return this.section('Guide categories', UI.stateBlock('empty', { title: 'The guide has no programme categories yet',
                 detail: 'They appear after the next guide sync (Settings → Providers).' }));
         }
         const table = this.table(['Category', 'Programmes'], rows.map(r => [e(r.category), e(r.programmes)]), '');
-        return this.section('EPG categories',
+        return this.section('Guide categories',
             `<p class="setting-hint">The categories your provider's guide gives its programmes, most used first: one of the ways sport is recognised.</p>` +
             `<details class="status-epg-categories"><summary>${rows.length} categor${rows.length === 1 ? 'y' : 'ies'}</summary>${table}</details>`);
     }
@@ -198,22 +198,21 @@ class StatusPage {
         return ms ? this.amt(this.timeText(ms)) : '–';
     }
 
+    /** Hours and minutes in the app's one clock format (never seconds). */
     timeText(ms) {
-        return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        return UI.clock(ms);
     }
 
-    /** HH:MM of a programme end, as figures. */
+    /** The clock time of a programme end, as figures. */
     timeShort(ms) {
-        return ms ? this.amt(this.timeText(ms).slice(0, 5)) : '–';
+        return ms ? this.amt(this.timeText(ms)) : '–';
     }
 
     when(ms) {
         if (!ms) return 'never';
         const d = new Date(ms);
         const today = new Date();
-        return this.amt(d.toDateString() === today.toDateString()
-            ? UI.time(d)
-            : d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }));
+        return this.amt(d.toDateString() === today.toDateString() ? UI.clock(d) : UI.dateTime(d));
     }
 
     bytes(n) {
@@ -360,9 +359,8 @@ class StatusPage {
         const expiryText = (prov) => {
             if (!prov.expiresAt) return 'unknown';
             if (prov.expired) return '<span class="status-event status-failure">Expired</span>';
-            const d = new Date(prov.expiresAt);
             const days = prov.daysLeft !== undefined ? prov.daysLeft : Math.ceil((prov.expiresAt - Date.now()) / (24 * 60 * 60 * 1000));
-            return `${d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })} (${days}d)`;
+            return this.amt(`${UI.date(prov.expiresAt, { year: true })} (${days}d)`);
         };
         // 0288: the role as a hint, and the account only when reading it failed.
         return this.section('Providers', this.table(
@@ -419,7 +417,7 @@ class StatusPage {
         if (this.showDetails) this.detailParts(status, add);
 
         const b = status.build || {};
-        add('build', `<p class="setting-hint status-build">${e(b.display || '')}${b.builtAt ? ` · built ${e(new Date(b.builtAt).toLocaleString())}` : ''}${this.mediaToolsText(status.mediaTools)}</p>`);
+        add('build', `<p class="setting-hint status-build">${e(b.display || '')}${b.builtAt ? ` · built ${e(UI.dateTime(b.builtAt))}` : ''}${this.mediaToolsText(status.mediaTools)}</p>`);
         return out;
     }
 
@@ -432,7 +430,7 @@ class StatusPage {
         return ` · ${one('ffmpeg')} · ${one('ffprobe')}${origins.length ? ` (${e(origins.join(', '))})` : ''}`;
     }
 
-    /** 0288: things wrong right now that are not in a table above (a source that failed to sync, recordings stuck in appdata). */
+    /** 0288: things wrong right now that are not in a table above (a provider that failed to sync, recordings stuck in appdata). */
     renderAttention(status) {
         const e = (v) => UI.escape(v);
         const lines = [];
@@ -447,7 +445,7 @@ class StatusPage {
             // #11: a guide about to run out (less than 36 h of programmes ahead).
             if (src.enabled && src.guideUntil && src.guideUntil - now < 36 * 3600e3) {
                 const hours = Math.max(0, Math.round((src.guideUntil - now) / 3600e3));
-                lines.push(`${e(src.name)}'s guide covers only ${e(hours)} hours ahead (until ${e(new Date(src.guideUntil).toLocaleString())}). Sport pages and recording rules see less until it syncs.`);
+                lines.push(`${e(src.name)}'s guide covers only ${e(hours)} hours ahead (until ${e(UI.dateTime(src.guideUntil))}). Sport pages and recording rules see less until it syncs.`);
             }
         }
         // #61 (0366): a mismatched or missing media tool, which was only in the server log.
@@ -560,12 +558,12 @@ class StatusPage {
         add('fixtures', this.renderSportFixtures(status.sportFixtures));
 
         add('sync', this.section('Sync', this.table(
-            ['Source', 'Type', 'Feed', 'Status', 'Last sync', 'Error'],
+            ['Provider', 'Type', 'Feed', 'Status', 'Last sync', 'Error'],
             (status.sync || []).flatMap(src => (src.feeds && src.feeds.length ? src.feeds : [{ type: '–', status: 'never synced' }]).map(f => [
                 `${e(src.name)}${src.enabled ? '' : ' <span class="setting-hint">(disabled)</span>'}`, e(src.type), e(f.type), e(f.status || '–'),
                 this.when(f.lastSync), e(f.error || '')
             ])),
-            'No sources')));
+            'No providers')));
 
         // Plan B1: does any provider offer catch-up (Xtream tv_archive)? Only once it is known.
         const catchup = Array.isArray(status.catchup) ? status.catchup : [];
@@ -576,7 +574,7 @@ class StatusPage {
         // R12: database copies (newest first). Same disk as the database: not protection against losing it.
         const backups = Array.isArray(status.backups) ? status.backups : [];
         add('backups', this.section('Database backups', this.table(['Copy', 'Why', 'When', 'Size'],
-            backups.map(b => [e(b.file), e(b.reason), e(new Date(b.at).toLocaleString()), b.bytes == null ? '–' : this.bytes(b.bytes)]),
+            backups.map(b => [e(b.file), e(b.reason), this.amt(e(UI.dateTime(b.at))), b.bytes == null ? '–' : this.bytes(b.bytes)]),
             'No backups yet. One is taken before a new build\'s migrations and once a day.')));
         const disk = status.disk || {};
         const diskRow = (name, d) => [e(name), d && d.available ? this.bytes(d.freeBytes) : 'unavailable', d && d.available ? this.bytes(d.totalBytes) : '–'];

@@ -135,13 +135,12 @@ test('nothing followed: one page-level empty state with the pig mark class and e
     assert.match(css, /\.sports-empty-page::before\s*\{[^}]*url\('\/img\/brand\/mark\.svg'\)/, 'the brand mark file, not a redraw');
 });
 
-test('"Choose your sport" opens Settings on its Sports tab (Your sport)', () => {
+test('"Choose your sport" opens Settings on its Sport tab (Your sport) by its address, #settings/sport', () => {
     const b = browser();
     const calls = [];
-    const pg = page(b, { app: { currentUser: { role: 'admin' }, navigateTo: (n) => calls.push(['nav', n]),
-        pages: { settings: { switchTab: (t) => calls.push(['tab', t]) } } } });
+    const pg = page(b, { app: { currentUser: { role: 'admin' }, navigateTo: (...a) => calls.push(['nav', ...a]) } });
     pg.openSportSettings();
-    assert.deepEqual(calls, [['nav', 'settings'], ['tab', 'sports']]);
+    assert.deepEqual(calls, [['nav', 'settings', 'push', 'sport']]);
 });
 
 test('loading: the page keeps its shape (header, placeholder chips and shelves of card shapes) while /api/info is pending', async () => {

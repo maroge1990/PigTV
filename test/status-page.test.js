@@ -187,7 +187,7 @@ test('R16: every nav link has a name and a tooltip, aria-current moves with the 
     assert.match(app, /setAttribute\('aria-current', 'page'\)/);
     assert.match(app, /removeAttribute\('aria-current'\)/);
     assert.match(app, /setAttribute\('aria-expanded'/);
-    assert.match(app, /logoutLink\.setAttribute\('aria-label', 'Logout'\)/);
+    assert.match(app, /logoutLink\.setAttribute\('aria-label', 'Sign out'\)/);
     assert.match(fs.readFileSync(path.join(__dirname, '../public/css/main.css'), 'utf8'), /\.nav-link:focus-visible/);
 });
 

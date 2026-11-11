@@ -132,7 +132,7 @@ test('the action runs and closes the notice; a rejected action shows an error no
     UI.toast('Channel hidden', { action: { label: 'Undo', run: async () => { throw new Error('offline'); } } });
     open()[0].querySelector('.ui-toast-action').click();
     await new Promise(setImmediate);
-    assert.deepEqual(text(), ['Could not undo: offline']);
+    assert.deepEqual(text(), ['Could not undo.'], 'what failed, never the raw error');
     assert.equal(open()[0].getAttribute('role'), 'alert');
 });
 
@@ -182,7 +182,7 @@ test('a failed hide is an error notice and leaves the list alone', async () => {
     b.context.failHide = true;
     await list.hideChannel('1', 'a');
     assert.deepEqual(list.channels.map(c => c.id), ['a', 'b', 'c']);
-    assert.deepEqual(b.text(), ['Could not hide the channel: not allowed']);
+    assert.deepEqual(b.text(), ['Could not hide the channel.']);
     assert.equal(b.open()[0].getAttribute('role'), 'alert');
 });
 

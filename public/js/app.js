@@ -79,12 +79,11 @@ class App {
 
             // Close drawer when a channel is selected
             channelSidebar.addEventListener('click', (e) => {
+                // #276 (C2): shut in the tap itself. The channel's own handler is on the item, below this one, so it
+                // has already run by the time the click reaches the sidebar; nothing waits on a timer.
                 if (e.target.closest('.channel-item')) {
-                    // Small delay to let the channel selection happen
-                    setTimeout(() => {
-                        channelSidebar.classList.remove('active');
-                        channelOverlay.classList.remove('active');
-                    }, 300);
+                    channelSidebar.classList.remove('active');
+                    channelOverlay.classList.remove('active');
                 }
             });
         }
@@ -146,8 +145,9 @@ class App {
 
         // Handle browser back/forward buttons
         window.addEventListener('popstate', (e) => {
-            const page = e.state?.page || 'live';
-            this.navigateTo(page, 'none'); // the browser already moved through history
+            // A state-less entry (the first one, or a hand-typed hash) is read from the hash like a start-up.
+            const route = e.state?.page ? { page: e.state.page, sub: e.state.sub } : this.parseHash(window.location.hash.slice(1));
+            this.navigateTo(route.page, 'none', route.sub); // the browser already moved through history
         });
 
         // The guide is loaded when Live TV or the Guide first needs it (review F7), not here:
@@ -155,8 +155,8 @@ class App {
 
         // Navigate to the page from the URL hash, or Live TV (also for an old #home link); the entry is
         // replaced, so Back does not return to the old hash. The splash goes as soon as that page is shown.
-        const initialPage = this.initialPage(window.location.hash.slice(1)); // Remove #
-        this.navigateTo(initialPage, 'replace');
+        const route = this.parseHash(window.location.hash.slice(1)); // Remove #
+        this.navigateTo(route.page, 'replace', route.sub);
         this.hideSplash();
 
         // Keep an eye on in-progress recordings so the user knows why live
@@ -172,7 +172,37 @@ class App {
 
     /** The page a start-up hash names; Live TV for none, an unknown one or the retired #home. */
     initialPage(hash) {
-        return hash && Object.prototype.hasOwnProperty.call(this.pages, hash) ? hash : 'live';
+        return this.parseHash(hash).page;
+    }
+
+    /**
+     * #276 (C14): "settings/channels/lineup" is the page "settings" and, for a page that has places inside it, the
+     * place "channels/lineup" ("sub"). Unknown pages, and #home, are Live TV.
+     */
+    parseHash(hash) {
+        const [first, ...rest] = String(hash || '').split('/');
+        if (!first || !Object.prototype.hasOwnProperty.call(this.pages, first)) return { page: 'live', sub: undefined };
+        return { page: first, sub: rest.join('/') || undefined };
+    }
+
+    /** "Settings · Recording · PigTV": what the browser tab, history and bookmarks call this place. */
+    titleFor(pageName, sub) {
+        const names = { live: 'Live TV', guide: 'TV Guide', sports: 'Sport', recordings: 'Recordings', status: 'Status', settings: 'Settings' };
+        const inner = (this.pages[pageName] && this.pages[pageName].titleParts && this.pages[pageName].titleParts(sub)) || [];
+        return [names[pageName] || 'PigTV', ...inner, 'PigTV'].join(' \u00b7 ');
+    }
+
+    /**
+     * A place inside the current page (a Settings tab) became the one shown: the address follows, as a new history entry
+     * (Back returns to the tab before), or `historyMode` 'replace'. Nothing happens if the address already says so.
+     */
+    setLocation(pageName, sub, historyMode = 'push') {
+        const hash = sub ? `${pageName}/${sub}` : pageName;
+        document.title = this.titleFor(pageName, sub);
+        if (typeof window !== 'undefined' && window.location && window.location.hash === `#${hash}`) return;
+        const state = { page: pageName, sub };
+        if (historyMode === 'replace') history.replaceState(state, '', `#${hash}`);
+        else if (historyMode === 'push') history.pushState(state, '', `#${hash}`);
     }
 
     /** Remove the brand splash (#app-splash, in index.html). Safe to call twice. */
@@ -215,7 +245,7 @@ class App {
             ? ` Live playback may fail while this runs if your provider allows only one stream.` : '';
         text.textContent = this.currentPage === 'sports'
             ? `Recording in progress until ${untilStr}${extra}.${warn}`
-            : `Recording "${first.title}" on ${first.channel_name || 'unknown channel'} until ${untilStr}${extra}.${warn}`;
+            : `Recording "${first.title}" on ${first.channel_name || 'an unknown channel'} until ${untilStr}${extra}.${warn}`;
         banner.style.display = 'flex';
     }
 
@@ -295,13 +325,13 @@ class App {
         logoutLink.href = '#';
         logoutLink.className = 'nav-link';
         logoutLink.id = 'logout-btn';
-        logoutLink.setAttribute('aria-label', 'Logout');
-        logoutLink.title = 'Logout';
+        logoutLink.setAttribute('aria-label', 'Sign out');
+        logoutLink.title = 'Sign out';
         logoutLink.innerHTML = `
             <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="icon">
                 <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
             </svg></span>
-            <span>Logout</span>
+            <span>Sign out</span>
         `;
 
         logoutLink.addEventListener('click', async (e) => {
@@ -340,15 +370,21 @@ class App {
      * entry), 'none' (Back/Forward: the browser has already moved, so writing an
      * entry here would cut off the forward history it is traversing).
      */
-    navigateTo(pageName, historyMode = 'push') {
+    navigateTo(pageName, historyMode = 'push', sub) {
         if ((pageName === 'settings' || pageName === 'status') && this.currentUser?.role !== 'admin') {
             pageName = 'live';
             historyMode = 'replace';
+            sub = undefined;
         }
-        // Don't navigate if already on this page
+        const controller = this.pages[pageName];
+        if (!controller?.openPath) sub = undefined; // only a page with places inside it (Settings) has a sub-address
+        // Already on this page: a place inside it (a Settings tab named by Back or a link) is still opened.
         if (this.currentPage === pageName && historyMode !== 'replace') {
+            if (sub !== undefined && controller?.openPath) controller.openPath(sub);
             return;
         }
+        // Back on a page that has places in it (Settings): the one it was left on.
+        if (sub === undefined && controller?.currentPath) sub = controller.currentPath();
         // The shared banner may still contain raw guide/result prose from the previous page.
         // Mask it before Sport becomes visible, including before preferences are known.
         if (pageName === 'sports') {
@@ -356,11 +392,13 @@ class App {
             if (bannerText) bannerText.textContent = 'Recording in progress.';
         }
 
+        const hash = sub ? `${pageName}/${sub}` : pageName;
         if (historyMode === 'replace') {
-            history.replaceState({ page: pageName }, '', `#${pageName}`);
+            history.replaceState({ page: pageName, sub }, '', `#${hash}`);
         } else if (historyMode === 'push') {
-            history.pushState({ page: pageName }, '', `#${pageName}`);
+            history.pushState({ page: pageName, sub }, '', `#${hash}`);
         }
+        document.title = this.titleFor(pageName, sub);
 
         // Update nav
         document.querySelectorAll('.nav-link').forEach(link => {
@@ -381,8 +419,9 @@ class App {
 
         this.currentPage = pageName;
 
+        // The page's own show() (it may load things): handed back, so a caller that needs the page ready can wait for it.
         if (this.pages[pageName]?.show) {
-            this.pages[pageName].show();
+            return this.pages[pageName].show(sub);
         }
     }
 }

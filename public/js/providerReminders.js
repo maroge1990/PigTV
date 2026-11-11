@@ -10,8 +10,9 @@
         return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
     }
 
+    // The app's one date format (UI.date: "Tue 30 Mar 2027"), the year always written for a licence date.
     function formatDate(ms) {
-        return new Date(ms).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+        return UI.date(ms, { year: true });
     }
 
     function lines(reminders) {

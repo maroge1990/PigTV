@@ -149,11 +149,11 @@ test('the save body: everything for a new provider, only what changed for a save
         { type: 'xtream', name: 'Dream4K', url: 'http://d.invalid', username: 'u', password: 'p', idOverlayUrl: 'http://e.invalid/list.m3u' });
     assert.deepEqual(plain(F.buildSave(null, { name: 'S', type: 'm3u', url: 'http://s.invalid/a.m3u', username: 'ignored', password: 'ignored', epgUrl: 'http://s.invalid/g.xml' }).body),
         { type: 'm3u', name: 'S', url: 'http://s.invalid/a.m3u', epgUrl: 'http://s.invalid/g.xml' });
-    assert.equal('idOverlayUrl' in F.buildSave(null, { name: 'S', type: 'm3u', url: 'http://s.invalid/a.m3u', idOverlayUrl: 'http://e.invalid/x.m3u' }).body, false, '0184: an M3U playlist is its own id list');
-    assert.equal(F.buildSave(null, { ...typed, name: ' ' }).error, 'Give the provider a name');
-    assert.equal(F.buildSave(null, { ...typed, url: '' }).error, 'Enter the server address');
-    assert.equal(F.buildSave(null, { ...typed, type: 'm3u', url: '' }).error, 'Enter the playlist address');
-    assert.equal(F.buildSave(null, { ...typed, password: '' }).error, 'Enter the username and password');
+    assert.equal('idOverlayUrl' in F.buildSave(null, { name: 'S', type: 'm3u', url: 'http://s.invalid/a.m3u', idOverlayUrl: 'http://e.invalid/x.m3u' }).body, false, '0184: an M3U is its own id list');
+    assert.equal(F.buildSave(null, { ...typed, name: ' ' }).error, 'Give the provider a name.');
+    assert.equal(F.buildSave(null, { ...typed, url: '' }).error, 'Enter the server address.');
+    assert.equal(F.buildSave(null, { ...typed, type: 'm3u', url: '' }).error, 'Enter the M3U address.');
+    assert.equal(F.buildSave(null, { ...typed, password: '' }).error, 'Enter the username and password.');
 
     const saved = { id: 4, type: 'xtream', name: 'Dream4K', url: 'http://d.invalid', username: 'u', hasPassword: true, epgUrl: null, idOverlayUrl: 'http://e.invalid/list.m3u' };
     const same = { name: 'Dream4K', type: 'xtream', url: 'http://d.invalid', username: 'u', password: '', epgUrl: '', idOverlayUrl: 'http://e.invalid/list.m3u' };
@@ -187,8 +187,8 @@ test('Providers cards are all the same: facts, the same buttons, no address or l
     assert.ok(out.includes('Tue 30 Mar 2027'));
     assert.ok(out.includes('0 of 2 in use'));
     assert.ok(out.includes('55,123') && out.includes('data-provider-action="links" data-id="4"'), 'backup channel count and the way to its links');
-    assert.ok(out.includes('1,840 of 2,100 primary channels'), '0184: how much of the primary this backup covers');
-    assert.ok(out.includes('Found in the playlist') && out.includes('Not found in the playlist'), '0184: whether a login could be read from an M3U');
+    assert.match(out, /<span class="pig-amount">1,840<\/span> of <span class="pig-amount">2,100<\/span> primary channels/, '0184: how much of the primary this backup covers');
+    assert.ok(out.includes('Found in the M3U') && out.includes('Not found in the M3U'), '0184: whether a login could be read from an M3U');
     assert.ok(out.includes('The last good values are kept'));
     assert.ok(out.includes('Failed just now: HTTP 502'), 'the primary shows its guide sync');
     assert.ok(out.includes('Saved; used when this provider is first'), 'a backup keeps its guide address');
@@ -197,7 +197,7 @@ test('Providers cards are all the same: facts, the same buttons, no address or l
     }
     assert.match(out, /data-provider-action="up" data-id="1"[^>]*disabled/, 'the first cannot go up');
     assert.match(out, /data-provider-action="down" data-id="4"[^>]*disabled/, 'the last cannot go down');
-    assert.ok(out.includes('+ Add a backup provider'));
+    assert.ok(out.includes('>Add a backup provider<'));
     assert.ok(!out.includes('Purchased') && !out.includes('Connection limit') && !out.includes('Term (months)'), '0182: nothing typed by hand that the account reports');
 });
 
@@ -224,7 +224,7 @@ test('0182: with no provider there is one empty card; the form is the same for n
     panel.providers = [{ id: 1, type: 'm3u', name: 'Strong8K', enabled: true, role: 'primary' }];
     panel.render();
     const out = context.document.getElementById('providers-list').innerHTML;
-    assert.ok(out.includes('Other guide sources') && out.includes('Old &lt;guide&gt;') && out.includes('data-provider-action="delete-guide" data-id="9"'));
+    assert.ok(out.includes('Other guides') && out.includes('Old &lt;guide&gt;') && out.includes('data-provider-action="delete-guide" data-id="9"'));
 });
 
 test('0181: a provider that is the same account as another shows a red warning naming it; one that is not shows none', () => {
@@ -241,7 +241,7 @@ test('0181: a provider that is the same account as another shows a red warning n
     assert.ok(out.includes("Same server and login as Dream4K: these count as one connection. Check this provider's settings."));
     assert.ok(out.includes('Same server and login as Trex &lt;i&gt;: these'), 'the name is escaped');
     assert.match(out, /class="provider-warning provider-error"/, 'in the error colour');
-    assert.ok(/providers[^"]*ProvidersSettings\.js\?v=4/.test(html) || /ProvidersSettings\.js\?v=4/.test(html), 'the script version was bumped');
+    assert.ok(/providers[^"]*ProvidersSettings\.js\?v=5/.test(html) || /ProvidersSettings\.js\?v=5/.test(html), 'the script version was bumped');
 });
 
 const formCard = (values) => ({ querySelector: (sel) => { const m = /data-field="(\w+)"/.exec(sel); return m && m[1] in values ? { value: values[m[1]] } : null; } });
@@ -255,7 +255,7 @@ test('Providers: a refused save shows the server\'s sentence on that card', asyn
     panel.open.set(1, { id: 1, type: 'm3u', name: 'S', url: 'http://s.invalid/a.m3u', epgUrl: null, idOverlayUrl: null });
     const button = { closest: () => formCard({ name: 'S', url: 'http://s.invalid/a.m3u', epgUrl: 'guide', idOverlayUrl: '' }), disabled: false };
     await panel.save(panel.providers[0], button);
-    assert.equal(elements['provider-status-1'].textContent, 'epgUrl must be an http or https address (up to 2000 characters), or empty');
+    assert.equal(elements['provider-status-1'].textContent, 'The provider was not saved. epgUrl must be an http or https address (up to 2000 characters), or empty.', 'what could not be done, then the server\'s sentence');
     assert.equal(button.disabled, false, 'can be tried again');
     assert.equal(panel.open.has(1), true, 'the form stays open');
 });
@@ -416,10 +416,10 @@ test('Backup links: approving reloads the page and counts; a refused decision sh
     assert.deepEqual(requests.map(r => r.key), ['PUT /api/links/10', 'GET /api/links/summary', 'GET /api/links?offset=0&limit=100']);
     assert.equal(listed, 1);
     await panel.decide(11, 'approved', null);
-    assert.equal(elements['links-status-text'].textContent, 'No such link');
+    assert.equal(elements['links-status-text'].textContent, 'The decision was not saved. No such link.');
 });
 
-test('Backup links: "approve all pending" needs a category, confirms, and names the backup', async () => {
+test('Backup links: "approve all pending" needs a category, names the backup, and waits 10 s for Undo instead of asking (C12)', async () => {
     const asked = [];
     const { panel, context, requests } = linksPanel({
         'POST /api/links/approve-pending': { approved: 3 },
@@ -427,6 +427,7 @@ test('Backup links: "approve all pending" needs a category, confirms, and names 
         'GET /api/links?offset=0&limit=100': { total: 0, offset: 0, limit: 100, channels: [] }
     });
     context.confirm = (m) => { asked.push(m); return true; };
+    const settle = async () => { for (let i = 0; i < 5; i++) await new Promise(r => setImmediate(r)); };
     panel.renderBulk();
     assert.equal(context.document.getElementById('links-bulk').innerHTML, '', 'nothing until a category is chosen');
     panel.filters.categoryId = 'c1';
@@ -434,9 +435,22 @@ test('Backup links: "approve all pending" needs a category, confirms, and names 
     const bulk = context.document.getElementById('links-bulk').innerHTML;
     assert.ok(bulk.includes('Approve all pending in Sport &lt;AU&gt;') && bulk.includes('data-backup="2"'));
     await panel.approveCategory(2, null);
+    assert.deepEqual(asked, [], 'no question');
+    assert.equal(requests.length, 0, 'nothing is sent while the notice is open');
+    const [message, options] = context.toasts.at(-1);
+    assert.match(message, /Sport <AU>.*Trex/);
+    assert.equal(options.action.label, 'Undo');
+    options.onEnd('timeout');
+    await settle();
     assert.deepEqual(plain(requests[0].body), { categoryId: 'c1', backupSourceId: 2 });
-    assert.match(asked[0], /Sport <AU>.*Trex/);
     assert.equal(context.document.getElementById('links-status-text').textContent, 'Approved 3 links');
+    // Undo: the call is never made
+    requests.length = 0;
+    await panel.approveCategory(2, null);
+    const again = context.toasts.at(-1)[1];
+    again.action.run(); again.onEnd('action');
+    await settle();
+    assert.equal(requests.length, 0, 'Undo cancels it before anything is sent');
 });
 
 test('Backup links: the manual pick searches that backup and posts the chosen stream', async () => {

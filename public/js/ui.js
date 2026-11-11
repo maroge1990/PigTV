@@ -18,7 +18,7 @@ const UI = {
     /**
      * #276: the one date format. "Sat 7 Nov, 3:50 am": weekday, day and month, the year only when it is not this year,
      * hours and minutes (12- or 24-hour from the locale, as UI.time), never seconds. '' for a missing or bad date.
-     * `options` { locale, timeZone, now } are for tests; the page passes none (the browser's locale and zone).
+     * `options` { year: true } always writes the year (an expiry date); { locale, timeZone, now } are for tests; the page passes none (the browser's locale and zone).
      */
     dateTime(date, options) { return DateFormat.dateTime(date, options); },
 
@@ -28,9 +28,79 @@ const UI = {
     /** Hours and minutes as dateTime writes them ("10:15 pm"). */
     clock(date, options) { return DateFormat.clock(date, options); },
 
+    /** The day alone, as dateTime writes it ("Sat 7 Nov"; the year when it is not this year); '' for a missing or bad date. */
+    date(date, options) { return DateFormat.date(date, options); },
+
+    /** dateTime in two pieces, { day: "Sat 7 Nov", clock: "3:50 am" }, for a layout that draws the clock in its own face; null for a bad date. */
+    dateParts(date, options) { return DateFormat.parts(date, options); },
+
+    /**
+     * #276: the words for a failed action. `fallback` says what could not be done, in plain words ("Could not delete the
+     * user."). The server's own sentence is added after it only when the server worded it for people: a 4xx answer whose
+     * message is a short plain sentence. A network failure, a 5xx or a thrown error never reaches the person: the fallback
+     * stands alone and the detail goes to the console.
+     */
+    errorText(err, fallback) {
+        const base = String(fallback || 'Something went wrong.').trim();
+        const status = err && err.status;
+        const message = err && typeof err.message === 'string' ? err.message.trim() : '';
+        const forPeople = status >= 400 && status < 500 && status !== 401 && message && message.length <= 240
+            && !/[<>{}]/.test(message) && !/^(server responded with|api request failed|authentication required)/i.test(message);
+        if (!forPeople) {
+            if (typeof console !== 'undefined' && console.error) console.error(base, err);
+            return /[.!?]$/.test(base) ? base : `${base}.`;
+        }
+        const head = /[.!?:]$/.test(base) ? base.replace(/:$/, '.') : `${base}.`;
+        return `${head} ${/[.!?]$/.test(message) ? message : `${message}.`}`;
+    },
+
     /** #276 (B11): 'smooth' for a scrollIntoView/scrollTo, or 'auto' when the viewer asked for reduced motion. */
     scrollBehavior() {
         return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+    },
+
+    /**
+     * #276 (C13): say why a typed value was not accepted, in a line under its field; '' (or nothing) clears the line.
+     * The field is marked aria-invalid and described by the line, which is also announced (role="alert") unless
+     * `{ alert: false }` (a table of fields, where each is read on focus).
+     */
+    fieldError(input, text, { alert = true } = {}) {
+        if (!input || typeof document === 'undefined') return;
+        let line = input._fieldError;
+        if (!text) {
+            if (line) { line.remove(); input._fieldError = null; }
+            input.removeAttribute('aria-invalid');
+            input.removeAttribute('aria-describedby');
+            return;
+        }
+        if (!line) {
+            line = document.createElement('p');
+            line.className = 'field-error';
+            line.id = `field-error-${++UI._fieldErrors}`;
+            if (alert) line.setAttribute('role', 'alert');
+            input.insertAdjacentElement('afterend', line);
+            input._fieldError = line;
+        }
+        line.textContent = String(text);
+        input.setAttribute('aria-invalid', 'true');
+        input.setAttribute('aria-describedby', line.id);
+    },
+    _fieldErrors: 0,
+
+    /**
+     * #276 (C13): the whole number typed in `input`, within the field's own min and max. Anything else is not rounded,
+     * replaced by a default or clamped: the reason is written under the field (UI.fieldError) and null comes back.
+     */
+    readWholeNumber(input) {
+        const min = Number(input.min), max = Number(input.max);
+        const text = String(input.value).trim();
+        const n = Number(text);
+        if (text === '' || !Number.isInteger(n) || n < min || n > max) {
+            UI.fieldError(input, `Enter a whole number from ${min.toLocaleString()} to ${max.toLocaleString()}.`);
+            return null;
+        }
+        UI.fieldError(input, '');
+        return n;
     },
 
     /** A function that runs `fn` once, `ms` after the last call, with that last call's arguments. */
@@ -46,12 +116,33 @@ const UI = {
      * A short notice at the bottom centre, one at a time (a new one replaces the current one).
      *   UI.toast('Saved')                                   an info notice, gone after 5 s
      *   UI.toast('Channel hidden', { action: { label: 'Undo', run } })   10 s; running the action closes it
-     *   UI.toast('Could not save: ...', { kind: 'error' })  stays until closed
+     *   UI.toast('Could not save the setting.', { kind: 'error' })  stays until closed
      * `onEnd(why)` is called once when it goes: 'timeout', 'action' (before the action runs), 'replaced' (by the next
      * notice) or 'closed' (its close button, Escape, or close()).
      * The text is set as text, never as markup. Returns { close() }, or null where there is no page.
      */
     toast(message, options = {}) { return Toast.show(message, options); },
+
+    /**
+     * #276 (C12): an action that can be put back happens at once and says so, with Undo for 10 s, in place of a confirm.
+     *   UI.undoable('Stopped following AFL.', { undo: () => restore(), commit: () => deleteTheRules(), failText: 'Could not ...' })
+     * The caller has already made the change (or, when the server call is the thing to hold back, not yet: `commit` is
+     * that call). `undo` puts it back when Undo is chosen; `commit` runs only when the notice ends otherwise (timeout, a
+     * newer notice, closed), so Undo has nothing to take back from the server. A failed `commit` is a plain notice
+     * (`failText` + the server's sentence when it is one for people). Returns the notice, like UI.toast.
+     */
+    undoable(message, { undo, commit, failText } = {}) {
+        let over = false;
+        return UI.toast(message, {
+            action: { label: 'Undo', run: () => { over = true; return undo && undo(); } },
+            onEnd: (why) => {
+                if (over || why === 'action') return;
+                over = true;
+                if (!commit) return;
+                Promise.resolve().then(commit).catch((err) => UI.toast(UI.errorText(err, failText || 'Could not finish that.'), { kind: 'error' }));
+            }
+        });
+    },
 
     /**
      * #276: the one way an area says it is loading, has nothing to show yet, or could not be loaded.
@@ -103,7 +194,7 @@ const DateFormat = (() => {
     function day(d, o) {
         const p = named(format(o, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }), d);
         const thisYear = named(format(o, { year: 'numeric' }), new Date(o.now ?? Date.now())).year;
-        return `${p.weekday} ${p.day} ${p.month}${p.year !== thisYear ? ` ${p.year}` : ''}`;
+        return `${p.weekday} ${p.day} ${p.month}${o.year === true || p.year !== thisYear ? ` ${p.year}` : ''}`;
     }
     /** The clock's parts; spaces inside it are non-breaking, so "3:50 am" never splits. */
     function clockParts(d, o) {
@@ -135,7 +226,9 @@ const DateFormat = (() => {
         const from = period(pa) && period(pa) === period(pb) ? withoutPeriod(pa) : join(pa);
         return `${day(a, o)}, ${from} \u2013 ${join(pb)}`;
     }
-    return { dateTime, dateRange, clock };
+    function dateOnly(date, o = {}) { return valid(date) ? day(new Date(date), o) : ''; }
+    function parts(date, o = {}) { return valid(date) ? { day: day(new Date(date), o), clock: clock(date, o) } : null; }
+    return { dateTime, dateRange, clock, parts, date: dateOnly };
 })();
 
 const StateBlock = (() => {
@@ -293,7 +386,7 @@ const Toast = (() => {
                 let result;
                 try { result = act.run && act.run(); } catch (err) { result = Promise.reject(err); }
                 if (result && typeof result.then === 'function') {
-                    result.then(undefined, (err) => show(`Could not ${String(act.label).toLowerCase()}: ${err && err.message ? err.message : 'something went wrong'}`, { kind: 'error' }));
+                    result.then(undefined, (err) => show(UI.errorText(err, `Could not ${String(act.label).toLowerCase()}.`), { kind: 'error' }));
                 }
             };
         } else {

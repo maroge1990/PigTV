@@ -46,8 +46,8 @@ const event = (title, extra = {}) => ({
     ...extra
 });
 
-test('Settings has a Sports tab explaining what counts as sport', () => {
-    assert.match(html, /<button class="tab" data-tab="sports">Sports<\/button>/);
+test('Settings has a Sport tab explaining what counts as sport', () => {
+    assert.match(html, /<button class="tab" data-tab="sports">Sport<\/button>/);
     assert.match(html, /<div id="tab-sports" class="tab-content">[\s\S]*?counts as sport[\s\S]*?id="sports-preview-list"/);
 });
 
@@ -65,9 +65,9 @@ test('D-42 (#195): the followed leagues show read-only (no keyword editing), and
     assert.equal(requests.some(r => r.key.startsWith('PUT ')), false);
     const rows = elements['sports-preview-list'].innerHTML;
     assert.ok(rows.includes('NFL: Chiefs &lt;v&gt; Bills'), 'escaped');
-    assert.ok(rows.includes('LIVE'));
+    assert.ok(rows.includes('>Live<'), 'sentence case, not LIVE');
     assert.ok(rows.includes('Keyword'), 'the matched rule');
-    assert.match(rows, /<summary>2 channels<\/summary>/);
+    assert.match(rows, /<summary><span class="pig-amount">2<\/span> channels<\/summary>/);
     assert.ok(rows.includes('501 Sky &lt;Sports&gt; UHD'), 'the channel names, expandable');
 });
 
@@ -92,7 +92,7 @@ test('the preview groups by kind: events and replays open, shows and placeholder
     assert.ok(order.every((i, n) => i > 0 && (n === 0 || i > order[n - 1])), 'Events, Replays, Shows, Placeholders in that order');
     assert.ok(html().includes('Carlton Blues v Richmond Tigers') && html().includes('Packers v Jets'), 'events and replays open');
     assert.ok(!html().includes('NFL Blitz') && !html().includes('>NBA 06<'), 'shows and placeholders collapsed');
-    assert.match(html(), /<summary>2 guide titles<\/summary>[\s\S]*Live AFLW: Carlton v Richmond[\s\S]*Women&#39;s AFL - AFLW/);
+    assert.match(html(), /<summary><span class="pig-amount">2<\/span> guide titles<\/summary>[\s\S]*Live AFLW: Carlton v Richmond[\s\S]*Women&#39;s AFL - AFLW/);
     assert.ok(html().includes('event: a match-up'), 'why it is an event');
 
     settings.toggleSportsKind('show');

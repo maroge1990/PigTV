@@ -62,7 +62,7 @@ const ROWS = [
     { file: 'index.html', text: 'id="lineup-list"', why: '0123: channel-number editor (Settings -> Channel numbers): with its list' },
     { file: 'index.html', text: 'data-page="status"', why: '0124: admin status page (W2.2): with an admin nav entry' },
     { file: 'index.html', text: 'data-subtab="epg">EPG matching', why: '0134: EPG matching (S4.2): Settings has an EPG matching view (under Channels, 0182)' },
-    { file: 'index.html', text: 'data-tab="sports">Sports</button>', why: '0149: web Settings -> Sports (C-I): a Sports tab' },
+    { file: 'index.html', text: 'data-tab="sports">Sport</button>', why: '0149: web Settings -> Sports (C-I): a Sport tab (#276: "Sport" everywhere a person reads, never "Sports")' },
     { file: 'index.html', text: 'id="sports-preview-list"', why: '0149: web Settings -> Sports (C-I): with the preview table' },
     { file: 'index.html', bre: '<script src="/js/pages/SportSettings.js', why: '0149: web Settings -> Sports (C-I): Settings › Your sport is loaded' },
     { file: 'index.html', text: 'Recognised in the next 72 hours', why: '0153: the sport horizon is a whole weekend (C-I): the web preview says so' },
@@ -196,7 +196,7 @@ const ROWS = [
     { file: 'js/pages/Settings.js', text: 'loadUiSettings', why: '0017: settings reorganisation: ui handlers' },
     { file: 'js/pages/Settings.js', bre: 'API.lineup.get()', why: '0123: channel-number editor (Settings -> Channel numbers): the panel reads GET /api/lineup' },
     { file: 'js/pages/Settings.js', bre: 'if (panel === \'lineup\' && !this.lineupEdits?.size) this.loadLineup();', why: '0123: channel-number editor (Settings -> Channel numbers): and loads when the panel opens (unless numbers are typed but unsaved, #128)' },
-    { file: 'js/pages/Settings.js', bre: 'this.setLineupStatus(err.message', why: '0123: channel-number editor (Settings -> Channel numbers): the server\'s validation error is shown' },
+    { file: 'js/pages/Settings.js', bre: 'this.setLineupStatus(UI.errorText(err', why: '0123: channel-number editor (Settings -> Channel numbers): the server\'s validation error is shown' },
     { file: 'js/pages/Settings.js', text: 'async loadEpgMatching()', why: '0134: EPG matching (S4.2): which loads the unmatched list' },
     { file: 'js/pages/Settings.js', bre: 'if (this.isAdmin()) this.loadSports();', why: '0149: web Settings -> Sports (C-I): loaded when the tab opens (the preview is admin-only)' },
     { file: 'js/pages/Settings.js', bre: 'this.sportFollow.load();', why: '0149: web Settings -> Sports (C-I): and filled when the tab opens' },
@@ -337,5 +337,166 @@ for (const file of [...new Set(ROWS.map((r) => r.file))]) {
         assert.deepEqual(failures, []);
     });
 }
+
+// ---- #276: the words a person reads ---------------------------------------------------------------------------------
+// One glossary, sentence case, no "!" and no emoji in labels, one "Loading…", plain buttons, one date format, one rose
+// button per screen. The corpus is every piece of text the pages show: the text and the aria-label, title, placeholder and
+// alt attributes of index.html and login.html, and the quoted strings (two words or more) of public/js outside code lines
+// that only log. The tables below are the rules; an allow-list names what is deliberately kept, and why.
+
+const JS_FILES = ['app.js', 'api.js', 'ui.js', 'providerReminders.js', 'recordingsFeed.js']
+    .concat(fs.readdirSync(path.join(__dirname, '../public/js/pages')).map((f) => `pages/${f}`))
+    .concat(fs.readdirSync(path.join(__dirname, '../public/js/components')).map((f) => `components/${f}`));
+// VideoPlayer.js is outside this batch (its "✓ Copied!" and the strings it returns to Settings are listed in #276).
+const WORDS_JS = JS_FILES.filter((f) => f !== 'components/VideoPlayer.js');
+
+function htmlTexts(file) {
+    const src = read(file).replace(/<!--[\s\S]*?-->/g, '').replace(/<script[\s\S]*?<\/script>/g, '').replace(/<style[\s\S]*?<\/style>/g, '');
+    const out = [];
+    const lineOf = (index) => src.slice(0, index).split('\n').length;
+    for (const m of src.matchAll(/\b(?:aria-label|title|placeholder|alt)="([^"]*)"/g)) out.push({ where: `${file}:${lineOf(m.index)}`, text: m[1], kind: 'attr' });
+    for (const m of src.matchAll(/>([^<>]+)</g)) {
+        const text = m[1].replace(/\s+/g, ' ').trim();
+        if (text) out.push({ where: `${file}:${lineOf(m.index)}`, text, kind: 'text' });
+    }
+    return out;
+}
+
+function jsTexts(file) {
+    const out = [];
+    read(`js/${file}`).split('\n').forEach((line, i) => {
+        const code = line.trim();
+        if (code.startsWith('//') || code.startsWith('*') || code.startsWith('/*') || /\bconsole\.(log|warn|error)\b/.test(code)) return;
+        const where = `js/${file}:${i + 1}`;
+        for (const m of line.matchAll(/'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)"|`((?:[^`\\\n]|\\.)*)`/g)) {
+            // Markup and ${expressions} are not words: what is left between them is the text a person reads.
+            const text = (m[1] ?? m[2] ?? m[3]).replace(/<[^>]*>/g, ' ').replace(/\$\{[^}]*\}/g, ' ').replace(/[\w-]+="[^"]*"/g, ' ').replace(/\s+/g, ' ').trim();
+            if (/^[/.[#]/.test(text)) return; // a path, a selector
+            if (/[A-Za-z]{2,}[^A-Za-z]+[A-Za-z]{2,}/.test(text) && !/^[\w./:#[\]=*,>~+-]+$/.test(text)) out.push({ where, text, kind: 'string' });
+        }
+        for (const m of line.matchAll(/>([^<>`'$]{2,}?)</g)) out.push({ where, text: m[1].trim(), kind: 'text' });
+    });
+    return out;
+}
+
+const CORPUS = [...htmlTexts('index.html'), ...htmlTexts('login.html'), ...WORDS_JS.flatMap(jsTexts)];
+
+const offences = (rows, test) => rows.filter(test).map((r) => `${r.where}  ${r.text.slice(0, 90)}`);
+
+test('#276 corpus: the pages and scripts yielded the text a person reads (a dead extractor would pass every rule)', () => {
+    assert.ok(CORPUS.length > 800, `only ${CORPUS.length} pieces of text`);
+    for (const must of ['Live TV', 'Add rule', 'Loading…', 'Sign in']) assert.ok(CORPUS.some((r) => r.text.includes(must)), must);
+});
+
+// The glossary: the word to use, and the words that mean the same thing.
+const GLOSSARY = [
+    { use: 'provider', banned: /\b[Ss]ources?\b/, why: 'a provider is never a "source"' },
+    { use: 'provider / M3U address', banned: /\b[Pp]laylists?\b(?!\.m3u)/, why: 'a provider is never a "playlist"' },
+    { use: 'Sport', banned: /\bSports\b/, why: '"Sport" is the page and the tab' },
+    { use: 'Sign in / Sign out', banned: /\b(?:Logout|Log out|Log in|Sign In|Sign Out)\b/, why: 'Sign in and Sign out' },
+    { use: 'favourite', banned: /\b[Ff]avorites?\b/, why: 'favourite(s), in words' },
+    { use: 'guide / TV Guide', banned: /\bEPG\b(?! (?:matching|id|channel)\b)(?!\)? address)(?<!Search the EPG)(?<!the EPG)(?<!Type a name or EPG)/, why: 'the guide, not the "EPG": EPG only names the provider\'s EPG id on the matching screens' }
+];
+for (const rule of GLOSSARY) {
+    test(`#276 glossary: say "${rule.use}" (${rule.why})`, () => {
+        // Allowed: the settings tab's internal id, the storage key 'Favorites' (no spaces: it is not shown as written) and API paths.
+        assert.deepEqual(offences(CORPUS, (r) => rule.banned.test(r.text) && !/^Favorites$/.test(r.text)), []);
+    });
+}
+
+test('#276 glossary: the Words list is in docs/DESIGN.md', () => {
+    const design = fs.readFileSync(path.join(__dirname, '../docs/DESIGN.md'), 'utf8');
+    for (const word of ['provider', 'guide', 'Sport', 'Sign in', 'favourite']) assert.match(design, new RegExp(`\\*\\*Words\\*\\*[\\s\\S]*${word}`), word);
+});
+
+// Sentence case: a label's later words are lower case unless they are a name.
+const NAMES = new Set(['PigTV', 'TV', 'Guide', 'Live', 'Apple', 'Home', 'Assistant', 'Chrome', 'VLC', 'TiviMate', 'NVIDIA', 'NVENC', 'AMD', 'AMF', 'Intel', 'QuickSync',
+    'QSV', 'VAAPI', 'Lanczos', 'GPU', 'CPU', 'HEVC', 'Xtream', 'M3U', 'EPG', 'ITU', 'User-Agent', 'EPGenius', 'Docker', 'JSON', 'Sport', 'H.264', 'AAC', 'ITU-R', 'BS.775',
+    'HTTP', 'URL', 'ntfy', 'Kansas', 'City', 'Chiefs', 'Collingwood', 'AFL', 'NFL', 'Linux', 'Unraid', 'Settings', 'Recordings', 'Providers', 'Channels', 'Backup', 'Manage',
+    'Recording', 'Status', 'Playback', 'System', 'Show', 'Hide', 'Continue', 'Stop', 'Fullscreen', 'Picture-in-Picture', 'PgUp', 'PgDn', 'ESPN', 'Adding', 'Up', 'Down',
+    'F1', 'EPL', 'NBA', 'MLB', 'UEFA', 'Cup', 'FA', 'League', 'Champions', 'Tour', 'Slams', 'Grand', 'Premier', 'Series', 'Club', 'Cricket', 'Eagles', 'Test', 'Save']);
+const LABEL_TEXT = (r) => (r.kind === 'text' || r.kind === 'attr') && r.text.length < 70 && !/[.:?]\s|[.:?]$/.test(r.text) && !/[<>{}$=@/]/.test(r.text) && !/\d{3}/.test(r.text);
+test('#276 sentence case: headings, labels, buttons and options do not capitalise every word', () => {
+    const bad = offences(CORPUS.filter(LABEL_TEXT), (r) => {
+        // Each part of "Event details · AFL" is a label of its own; entities (&larr;) and punctuation are not words.
+        return r.text.replace(/&\w+;/g, ' ').split(/ · |–|—/).some((part) => {
+            const words = part.replace(/[()&,→←]/g, ' ').split(/\s+/).filter(Boolean);
+            return words.slice(1).some((w) => /^[A-Z][a-z]+$/.test(w) && !NAMES.has(w));
+        });
+    });
+    assert.deepEqual(bad, []);
+});
+test('#276 sentence case: the labels the 10 Nov audit listed are gone', () => {
+    const gone = ['Keyboard Controls', 'Now Playing Overlay', 'Display Duration', 'Volume Settings', 'Default Volume', 'Remember Last Volume', 'Keyboard Shortcuts', 'Detected Hardware',
+        'Hardware Encoder', 'Max Resolution', 'Quality Preset', 'Audio Mix Preset', 'Hardware Decoding', 'Enable Upscaling', 'Upscale Method', 'Upscale Target', 'Scheduling Defaults',
+        'Commercial Breaks', 'Save Recording Settings', 'User Management', 'Add New User', 'Edit User', 'New Password', 'Save Changes', 'Create Admin Account', 'Create Account',
+        'Expand/Collapse All', 'Collapse All', 'Expand All', 'All Groups', 'All Sources', 'Up Next', 'Copy Stream URL'];
+    assert.deepEqual(offences(CORPUS, (r) => gone.some((g) => r.text.includes(g)) && !/VideoPlayer/.test(r.where)), []);
+});
+
+test('#276 no exclamation mark and no emoji in anything a person reads', () => {
+    assert.deepEqual(offences(CORPUS, (r) => /[A-Za-z0-9)]!(?!=)/.test(r.text) && !/^<!/.test(r.text)), []);
+    // An icon-only button is one glyph with an aria-label; a label that mixes a glyph into words is the offence.
+    assert.deepEqual(offences(CORPUS, (r) => /[✓✔✅⏳\u{1F300}-\u{1FAFF}☀-⛿]/u.test(r.text) && /[A-Za-z]{2,}/.test(r.text)), []);
+});
+
+test('#276 one "Loading…" and one "…": no three dots in a label, placeholder or message', () => {
+    assert.deepEqual(offences(CORPUS, (r) => /[A-Za-z0-9]\.\.\.(?![.\w])/.test(r.text)), []);
+});
+
+test('#276 buttons name the thing and the action: no Confirm, OK or Submit', () => {
+    assert.deepEqual(offences(CORPUS, (r) => /^(Confirm|OK|Okay|Submit|Yes|No)$/.test(r.text)), []);
+    // Two saves never share a screen as a bare "Save".
+    assert.deepEqual(offences(CORPUS, (r) => r.kind === 'text' && /^Save$/.test(r.text)), []);
+});
+
+test('#276 dates and times: one format (UI.time, UI.dateTime, UI.dateRange, UI.clock, UI.date), none of the browser\'s own', () => {
+    const own = [];
+    for (const file of JS_FILES.filter((f) => f !== 'ui.js')) {
+        read(`js/${file}`).split('\n').forEach((line, i) => {
+            const code = line.replace(/\/\/.*$/, '');
+            // A Date's toLocale*String has no digits-only use here; a number's toLocaleString() (1,840) is a different thing.
+            if (/toLocale(?:Date|Time)String\(|new Date\([^)]*\)\.toLocaleString\(|\b(?:d|date|dt)\.toLocaleString\(/.test(code)) own.push(`js/${file}:${i + 1}  ${code.trim().slice(0, 90)}`);
+            if (/\b(?:DAYS|MONTHS)\b\s*[:=]\s*\[/.test(code)) own.push(`js/${file}:${i + 1}  hand-built day or month names`);
+        });
+    }
+    assert.deepEqual(own, []);
+});
+
+test('#276 one rose button (btn-primary) per screen; a per-row action is never rose', () => {
+    const html = read('index.html');
+    const at = (id) => html.indexOf(`id="${id}"`);
+    // A screen is a page, or a Settings tab (Playback, System: their panels sit one under the other).
+    const screens = {
+        'page-live': ['page-live', 'page-guide'], 'page-guide': ['page-guide', 'page-recordings'], 'page-recordings': ['page-recordings', 'page-status'],
+        'Settings > Playback': ['tab-player', 'tab-content'], 'Settings > Manage content': ['tab-content', 'tab-providers'], 'Settings > Providers': ['tab-providers', 'tab-backuplinks'],
+        'Settings > Backup links': ['tab-backuplinks', 'tab-lineup'], 'Settings > Channel numbers': ['tab-lineup', 'tab-epg'], 'Settings > EPG matching': ['tab-epg', 'tab-sports'],
+        'Settings > Sport': ['tab-sports', 'tab-recording'], 'Settings > Recording': ['tab-recording', 'tab-ui'], 'Settings > System': ['tab-ui', 'edit-user-modal'],
+        'Edit user dialog': ['edit-user-modal', 'app.js']
+    };
+    const counts = {};
+    for (const [name, [from, to]] of Object.entries(screens)) {
+        const a = at(from), b = to === 'app.js' ? html.length : at(to);
+        assert.ok(a > 0 && b > a, name);
+        counts[name] = (html.slice(a, b).match(/btn-primary/g) || []).length;
+        assert.ok(counts[name] <= 1, `${name} has ${counts[name]} btn-primary`);
+    }
+    assert.ok(Object.values(counts).filter((n) => n === 1).length >= 6, 'the extractor found the primaries');
+    // Scripts that draw buttons: at most this many btn-primary in the file, and why (each is its own screen or exclusive with the others).
+    const SCRIPT_PRIMARIES = {
+        'pages/RecordingsPage.js': [2, 'Play on the page (one recording at a time); Resume in the player dialog'],
+        'pages/SportsPage.js': [3, 'the empty page\'s one button; two separate dialogs (spoiler settings, Record)'],
+        'pages/ProvidersSettings.js': [1, 'Add provider on the one new card; a saved card\'s Save is secondary'],
+        'pages/SportSettings.js': [1, 'Follow this sport'],
+        'components/EpgGuide.js': [1, 'Record in the programme dialog'],
+        'components/SourceManager.js': [0, 'Show on a new group is a per-row action'],
+        'components/ChannelList.js': [0, ''], 'pages/Settings.js': [0, ''], 'pages/StatusPage.js': [0, ''], 'pages/BackupLinksSettings.js': [0, ''], 'ui.js': [1, 'a state block\'s action may ask for primary: true']
+    };
+    for (const [file, [max, why]] of Object.entries(SCRIPT_PRIMARIES)) {
+        const n = (read(`js/${file}`).replace(/\/\/.*$/gm, '').match(/btn-primary/g) || []).length;
+        assert.ok(n <= max, `${file}: ${n} btn-primary, allowed ${max} (${why})`);
+    }
+    assert.match(read('js/pages/ProvidersSettings.js'), /\$\{saved \? 'btn-secondary' : 'btn-primary'\}/);
+});
 
 module.exports = { breToRegExp, matcher, ROWS };
