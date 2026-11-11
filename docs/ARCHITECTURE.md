@@ -118,6 +118,11 @@ The `channelNumbers` flag is always sent (its off switch went in 0204).
   and fingerprinted first (the host's ETag / Last-Modified, asked back as a conditional request, and a SHA-256), stored in
   `meta` `feed:<id>:<kind>` after a good write. The scheduled and start-up syncs skip a feed that matches, with one log line;
   **Sync now** and **Sync all** always write. A global sync relinks backups once, after the last source.
+- **A backup or an Xtream primary is fingerprinted by its result** (#273): the rows about to be written, hashed after the
+  download (an unchanged playlist must not hide channels the provider's own list adds), kinds `backup` and `playlist`; bump
+  `RESULT_FINGERPRINT_VERSION` when the way rows are derived changes. **A relink is a debt:** `meta` `relink_owed` is set
+  around every channel write and cleared only by a relink that ran to the end, so a failed or interrupted one is retried by
+  the next sync even when nothing changed. Its sequence never resets: do not delete the row.
 - **A shrunken answer is held** (0348, #42): a playlist with fewer than 70% of the last good sync's lines (kept in `meta`
   `playlist_lines:<id>`; the whole M3U is parsed before any row is written), or a guide with under half the programmes or
   reaching under half as far ahead, is not applied. The sync row says `held` with the counts (Status, Providers); the next
