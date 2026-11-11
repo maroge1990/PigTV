@@ -16,6 +16,7 @@
  * 1 h otherwise, and a stale one is served while a single refresh runs. Unofficial feed: every field is read
  * defensively, a missing one is null, and nothing here throws.
  */
+const { createPageCache } = require('./sportPageCache');
 const espn = require('./sportsFixturesEspn');
 const overrun = require('./sportOverrun');
 
@@ -32,9 +33,8 @@ const COLD_WAIT_MS = 8000;
 // Test seam: `get(url) -> { ok, json } | { ok: false, error }`, as sportsFixturesEspn.getJson.
 const fetcher = { get: (url) => espn.getJson(url, TIMEOUT_MS) };
 
-let cache = null;        // { value, at, ttl }
-let refreshing = null;
-let generation = 0;
+// The ESPN part, kept stale-while-refreshing (sportPageCache.js; the TTL is ttlOf, below).
+const cache = createPageCache({ label: 'NFL', ttlOf: (value, now) => ttlOf(value, now), coldWaitMs: COLD_WAIT_MS });
 
 const str = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null);
 const num = (v) => (v !== null && v !== '' && Number.isFinite(Number(v)) ? Number(v) : null);
@@ -224,24 +224,12 @@ async function page(now = Date.now(), deps = {}) {
 }
 
 async function espnPart(now, deps) {
-    const fresh = cache && now - cache.at < cache.ttl;
-    if (!fresh && !refreshing) {
-        const mine = generation;
-        refreshing = build(now, deps).then((value) => {
-            if (value && mine === generation) cache = { value, at: now, ttl: ttlOf(value, now) };
-        }).catch((err) => console.warn('[Sport] NFL page refresh failed:', err.message))
-            .finally(() => { refreshing = null; });
-    }
-    if (!cache && refreshing) {
-        let timer;
-        await Promise.race([refreshing, new Promise(resolve => { timer = setTimeout(resolve, COLD_WAIT_MS); })]);
-        clearTimeout(timer);
-    }
-    return cache ? cache.value : { available: false };
+    const entry = await cache.get('page', now, () => build(now, deps));
+    return entry ? entry.value : { available: false };
 }
 
 /** Tests: forget everything. */
-function reset() { cache = null; refreshing = null; generation++; }
+function reset() { cache.reset(); }
 
 /** The span of `games` with a margin, for asking C-I for the events around them. */
 const spanOf = (games) => ({ from: Math.min(...games.map(g => g.start)) - HOUR_MS, to: Math.max(...games.map(g => g.start)) + GAME_MS + HOUR_MS });

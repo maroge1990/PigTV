@@ -22,6 +22,7 @@
  * and a stale one is served while a single refresh runs (as C-P). Results are always sent: the client hides them when
  * the account is spoiler-free (C-P, C-S, C-T). `followed` is per request: the account's follows never enter the cache.
  */
+const { createPageCache } = require('./sportPageCache');
 const individual = require('./sportIndividual');
 const { stateOf, place, text, time, personKey } = individual;
 const { BASE, fetchJson } = require('./sportsScoresEspn');
@@ -45,9 +46,7 @@ const fetcher = {
     }
 };
 
-const caches = new Map();     // league -> { value, at, ttl }
-const refreshing = new Map(); // league -> the refresh in flight
-let generation = 0;
+const caches = createPageCache({ label: 'events', coldWaitMs: () => tuning.coldWaitMs, ttlOf: (value, now) => ttlOf(value, now) });
 
 /** The canonical league for `name` (any case), or null outside the five sports' catalogue leagues. */
 function leagueOf(name) {
@@ -247,21 +246,8 @@ function ttlOf(value, now) {
 }
 
 async function cached(league, now) {
-    const kept = caches.get(league);
-    const fresh = kept && now - kept.at < kept.ttl;
-    if (!fresh && !refreshing.has(league)) {
-        const mine = generation;
-        refreshing.set(league, build(league, now).then((value) => {
-            if (value && mine === generation) caches.set(league, { value, at: now, ttl: ttlOf(value, now) });
-        }).catch((err) => console.warn('[Sport] events page refresh failed:', err.message))
-            .finally(() => { if (mine === generation) refreshing.delete(league); }));
-    }
-    if (!caches.has(league) && refreshing.has(league)) {
-        let timer;
-        await Promise.race([refreshing.get(league), new Promise(resolve => { timer = setTimeout(resolve, tuning.coldWaitMs); })]);
-        clearTimeout(timer);
-    }
-    return caches.get(league)?.value || null;
+    const entry = await caches.get(league, now, () => build(league, now));
+    return entry?.value || null;
 }
 
 /**
@@ -276,6 +262,6 @@ async function page(league, now = Date.now(), { names = [] } = {}) {
 }
 
 /** Tests: forget everything. */
-function reset() { caches.clear(); refreshing.clear(); generation++; }
+function reset() { caches.reset(); }
 
 module.exports = { LEAGUES, leagueOf, page, build, reset, fetcher, tuning, TUNING };

@@ -20,6 +20,7 @@
  * in play, 10 min on a match day, 1 h otherwise, and a stale one is served while a single refresh runs. Unofficial
  * feed: every field is read defensively, a missing one is null, and nothing here throws.
  */
+const { createPageCache } = require('./sportPageCache');
 const espn = require('./sportsFixturesEspn');
 const overrun = require('./sportOverrun');
 
@@ -48,9 +49,7 @@ const prefs = { get: () => ({ teams: {} }) };
 
 // #193 (D-41): one entry per followed-teams key (each account follows its own), the most recent last; at most CACHE_KEYS.
 const CACHE_KEYS = 4;
-const caches = new Map();     // key -> { value, at, ttl }
-const refreshing = new Map(); // key -> the refresh in flight
-let generation = 0;
+const caches = createPageCache({ label: 'Cricket', coldWaitMs: COLD_WAIT_MS, maxEntries: CACHE_KEYS, ttlOf: (value, now) => ttlOf(value, now) });
 const pastDays = new Map(); // series-day URL -> json, for days before yesterday (UTC)
 const AIRINGS = new WeakMap(); // page value -> [{ id, start, end, teams }]: each match's airing window, for channels
 
@@ -472,30 +471,13 @@ async function espnPart(now, deps) {
     const followed = Array.isArray(deps.followed) ? deps.followed.filter(n => typeof n === 'string') : followedTeams();
     const leagues = Array.isArray(deps.leagues) ? deps.leagues.filter(l => LEAGUES.includes(l)) : ['Cricket'];
     const key = JSON.stringify([followed.map(n => n.toLowerCase()), [...leagues].sort()]);
-    const cached = caches.get(key);
-    const fresh = cached && now - cached.at < cached.ttl;
-    if (!fresh && !refreshing.has(key)) {
-        const mine = generation;
-        refreshing.set(key, build(now, { ...deps, followed, leagues }).then((value) => {
-            if (!value || mine !== generation) return;
-            caches.delete(key);
-            caches.set(key, { value, at: now, ttl: ttlOf(value, now) });
-            while (caches.size > CACHE_KEYS) caches.delete(caches.keys().next().value);
-        }).catch((err) => console.warn('[Sport] Cricket page refresh failed:', err.message))
-            .finally(() => { if (mine === generation) refreshing.delete(key); }));
-    }
-    if (!cached && refreshing.has(key)) {
-        let timer;
-        await Promise.race([refreshing.get(key), new Promise(resolve => { timer = setTimeout(resolve, COLD_WAIT_MS); })]);
-        clearTimeout(timer);
-    }
     // Only this follow list's own page: another's lead and series were chosen for someone else (0393, Codex round 1).
-    const own = caches.get(key);
+    const own = await caches.get(key, now, () => build(now, { ...deps, followed, leagues }));
     return own ? own.value : { available: false };
 }
 
 /** Tests: forget everything. */
-function reset() { caches.clear(); refreshing.clear(); generation++; pastDays.clear(); }
+function reset() { caches.reset(); pastDays.clear(); }
 
 /** The span of the airings, for asking C-I for the events around them. */
 const spanOf = (airings) => ({ from: Math.min(...airings.map(a => a.start)), to: Math.max(...airings.map(a => a.end)) });

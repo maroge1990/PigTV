@@ -139,116 +139,104 @@ router.get('/events', async (req, res) => {
     }
 });
 
+// #272 (D-3): the five sport pages share one handler shape. 404 when ESPN fixtures are off; `prepare(req, res)` (optional)
+// validates the request before anything is built and either answers it itself (returns false) or returns what the
+// handler needs; the channel numbers are ensured unless `channelNumbers: false`; the handler returns the page, which
+// goes out as JSON; any throw is logged and answered 500 with the page's own message.
+function pageRoute({ name, error, channelNumbers: ensureNumbers = true, prepare }, handler) {
+    return async (req, res) => {
+        if (!require('../services/sportsFixtures').enabled()) return res.status(404).json({ error: 'Sport pages are off on this server' });
+        let ctx;
+        if (prepare) { ctx = prepare(req, res); if (ctx === false) return undefined; }
+        try {
+            if (ensureNumbers) channelNumbers.ensureChannelNumbers();
+            return res.json(await handler(req, ctx));
+        } catch (err) {
+            console.error(`[Sports] ${name} page failed:`, err.message);
+            return res.status(500).json({ error });
+        }
+    };
+}
+
 // #21 (0340, C-P): the Formula 1 page. On whenever ESPN fixtures are (PIGTV_SPORT_FIXTURES).
 const HOUR_MS = 60 * 60 * 1000;
-router.get('/pages/f1', async (req, res) => {
-    if (!require('../services/sportsFixtures').enabled()) return res.status(404).json({ error: 'Sport pages are off on this server' });
-    try {
-        channelNumbers.ensureChannelNumbers();
-        const f1 = require('../services/sportPageF1');
-        const now = Date.now();
-        const page = await f1.page(now, {
-            registerImage: require('../services/logoCache').registerLogo,
-            // #160: only F1's events around the sessions are ordered and built, not the whole 72 h answer.
-            // #191: with the airings ended within the overrun window, which a live session's channels keep (sportOverrun.js).
-            channelsFor: async (sessions, observedAt) => !sessions.length ? new Map() : f1.channelsForSessions(sessions,
-                await sportsEvents.leagueEvents({ league: 'F1', from: Math.min(...sessions.map(s => s.start)) - HOUR_MS,
-                    to: Math.max(...sessions.map(s => s.end)) + HOUR_MS, userId: req.user.id, now, decorateChannels, ended: true }), { now, observedAt })
-        });
-        res.json(page);
-    } catch (err) {
-        console.error('[Sports] F1 page failed:', err.message);
-        res.status(500).json({ error: 'Could not build the Formula 1 page' });
-    }
-});
+router.get('/pages/f1', pageRoute({ name: 'F1', error: 'Could not build the Formula 1 page' }, async (req) => {
+    const f1 = require('../services/sportPageF1');
+    const now = Date.now();
+    return f1.page(now, {
+        registerImage: require('../services/logoCache').registerLogo,
+        // #160: only F1's events around the sessions are ordered and built, not the whole 72 h answer.
+        // #191: with the airings ended within the overrun window, which a live session's channels keep (sportOverrun.js).
+        channelsFor: async (sessions, observedAt) => !sessions.length ? new Map() : f1.channelsForSessions(sessions,
+            await sportsEvents.leagueEvents({ league: 'F1', from: Math.min(...sessions.map(s => s.start)) - HOUR_MS,
+                to: Math.max(...sessions.map(s => s.end)) + HOUR_MS, userId: req.user.id, now, decorateChannels, ended: true }), { now, observedAt })
+    });
+}));
 
 // #21 (0379, C-Q): the NFL page, as the F1 page: on whenever ESPN fixtures are.
-router.get('/pages/nfl', async (req, res) => {
-    if (!require('../services/sportsFixtures').enabled()) return res.status(404).json({ error: 'Sport pages are off on this server' });
-    try {
-        channelNumbers.ensureChannelNumbers();
-        const nfl = require('../services/sportPageNFL');
-        const now = Date.now();
-        const page = await nfl.page(now, {
-            registerImage: require('../services/logoCache').registerLogo,
-            // Only the NFL's events around the two weeks' games are ordered and built, as for F1 (#160); #191 as F1.
-            channelsFor: async (games, teams, observedAt) => !games.length ? new Map() : nfl.channelsForGames(games,
-                await sportsEvents.leagueEvents({ league: 'NFL', ...nfl.spanOf(games), userId: req.user.id, now, decorateChannels, ended: true }),
-                new Map(Object.entries(teams || {})), { now, observedAt })
-        });
-        res.json(page);
-    } catch (err) {
-        console.error('[Sports] NFL page failed:', err.message);
-        res.status(500).json({ error: 'Could not build the NFL page' });
-    }
-});
+router.get('/pages/nfl', pageRoute({ name: 'NFL', error: 'Could not build the NFL page' }, async (req) => {
+    const nfl = require('../services/sportPageNFL');
+    const now = Date.now();
+    return nfl.page(now, {
+        registerImage: require('../services/logoCache').registerLogo,
+        // Only the NFL's events around the two weeks' games are ordered and built, as for F1 (#160); #191 as F1.
+        channelsFor: async (games, teams, observedAt) => !games.length ? new Map() : nfl.channelsForGames(games,
+            await sportsEvents.leagueEvents({ league: 'NFL', ...nfl.spanOf(games), userId: req.user.id, now, decorateChannels, ended: true }),
+            new Map(Object.entries(teams || {})), { now, observedAt })
+    });
+}));
 
 // #21 (0383, C-S): the Cricket page, as the NFL page: on whenever ESPN fixtures are. The lead follows the household's
 // followed cricket teams (sportPagePrefs `teams.Cricket`).
-router.get('/pages/cricket', async (req, res) => {
-    if (!require('../services/sportsFixtures').enabled()) return res.status(404).json({ error: 'Sport pages are off on this server' });
-    try {
-        channelNumbers.ensureChannelNumbers();
-        const cricket = require('../services/sportPageCricket');
-        const cricketFollow = require('../services/sportPagePrefs').follows(req.user.id).sports.find(s => s.sport === 'Cricket');
-        const now = Date.now();
-        const page = await cricket.page(now, {
-            // The Cricket sport's names, whichever of its leagues are followed (0393, Codex round 1), and those leagues (#195).
-            followed: cricketFollow?.teams || [],
-            leagues: cricketFollow?.leagues || [],
-            registerImage: require('../services/logoCache').registerLogo,
-            // Only cricket's events around the matches' days are ordered and built, as for F1 (#160), for each league a
-            // cricket programme can be filed under; #191 as F1.
-            channelsFor: async (airings, observedAt) => cricket.channelsForMatches(airings, (await Promise.all(cricket.LEAGUES.map(league =>
-                sportsEvents.leagueEvents({ league, ...cricket.spanOf(airings), userId: req.user.id, now, decorateChannels, ended: true })))).flat(), { now, observedAt })
-        });
-        res.json(page);
-    } catch (err) {
-        console.error('[Sports] Cricket page failed:', err.message);
-        res.status(500).json({ error: 'Could not build the Cricket page' });
-    }
-});
+router.get('/pages/cricket', pageRoute({ name: 'Cricket', error: 'Could not build the Cricket page' }, async (req) => {
+    const cricket = require('../services/sportPageCricket');
+    const cricketFollow = require('../services/sportPagePrefs').follows(req.user.id).sports.find(s => s.sport === 'Cricket');
+    const now = Date.now();
+    return cricket.page(now, {
+        // The Cricket sport's names, whichever of its leagues are followed (0393, Codex round 1), and those leagues (#195).
+        followed: cricketFollow?.teams || [],
+        leagues: cricketFollow?.leagues || [],
+        registerImage: require('../services/logoCache').registerLogo,
+        // Only cricket's events around the matches' days are ordered and built, as for F1 (#160), for each league a
+        // cricket programme can be filed under; #191 as F1.
+        channelsFor: async (airings, observedAt) => cricket.channelsForMatches(airings, (await Promise.all(cricket.LEAGUES.map(league =>
+            sportsEvents.leagueEvents({ league, ...cricket.spanOf(airings), userId: req.user.id, now, decorateChannels, ended: true })))).flat(), { now, observedAt })
+    });
+}));
 
 // #21 (0388, C-T): the page of any other ESPN team league (sportPageLeague.LEAGUES; /api/info `sportPageLeagues`), as the
 // NFL page: on whenever ESPN fixtures are. An unknown league, or one with its own page (F1, NFL, cricket), is a 404.
-router.get('/pages/league/:league', async (req, res) => {
-    if (!require('../services/sportsFixtures').enabled()) return res.status(404).json({ error: 'Sport pages are off on this server' });
+router.get('/pages/league/:league', pageRoute({ name: 'league', error: 'Could not build the sport page',
+    prepare: (req, res) => {
+        const league = require('../services/sportPageLeague').leagueOf(req.params.league);
+        if (!league) { res.status(404).json({ error: 'No sport page for that league' }); return false; }
+        return league;
+    } }, async (req, league) => {
     const leaguePage = require('../services/sportPageLeague');
-    const league = leaguePage.leagueOf(req.params.league);
-    if (!league) return res.status(404).json({ error: 'No sport page for that league' });
-    try {
-        channelNumbers.ensureChannelNumbers();
-        const now = Date.now();
-        const page = await leaguePage.page(league, now, {
-            registerImage: require('../services/logoCache').registerLogo,
-            followed: () => require('../services/sportPagePrefs').get(req.user.id).teams[league] || [],
-            // Only this league's events around the page's games are ordered and built, as for F1 (#160); #191 as F1.
-            channelsFor: async (games, observedAt) => !games.length ? new Map() : leaguePage.channelsForGames(games,
-                await sportsEvents.leagueEvents({ league, ...leaguePage.spanOf(games), userId: req.user.id, now, decorateChannels, ended: true }), { now, observedAt })
-        });
-        res.json(page);
-    } catch (err) {
-        console.error('[Sports] league page failed:', err.message);
-        res.status(500).json({ error: 'Could not build the sport page' });
-    }
-});
+    const now = Date.now();
+    return leaguePage.page(league, now, {
+        registerImage: require('../services/logoCache').registerLogo,
+        followed: () => require('../services/sportPagePrefs').get(req.user.id).teams[league] || [],
+        // Only this league's events around the page's games are ordered and built, as for F1 (#160); #191 as F1.
+        channelsFor: async (games, observedAt) => !games.length ? new Map() : leaguePage.channelsForGames(games,
+            await sportsEvents.leagueEvents({ league, ...leaguePage.spanOf(games), userId: req.user.id, now, decorateChannels, ended: true }), { now, observedAt })
+    });
+}));
 
 // 0428 (C-V, #197, D-43): this week's events of a tennis, golf, UFC, IndyCar or NASCAR league, as the other pages: on
-// whenever ESPN fixtures are. `followed` names come from the account's follows in the league's sport (C-U).
-router.get('/pages/events', async (req, res) => {
-    if (!require('../services/sportsFixtures').enabled()) return res.status(404).json({ error: 'Sport pages are off on this server' });
-    const events = require('../services/sportPageEvents');
-    const league = events.leagueOf(req.query.league);
-    if (!league) return res.status(400).json({ error: `league must be one of: ${events.LEAGUES.join(', ')}` });
-    try {
-        const sport = require('../services/sportCatalog').sportOf(league);
-        const names = require('../services/sportPagePrefs').follows(req.user.id).sports.find(s => s.sport === sport)?.teams || [];
-        res.json(await events.page(league, Date.now(), { names }));
-    } catch (err) {
-        console.error('[Sports] events page failed:', err.message);
-        res.status(500).json({ error: 'Could not build the sport page' });
-    }
-});
+// whenever ESPN fixtures are. `followed` names come from the account's follows in the league's sport (C-U). Unlike the
+// others it has no channels to number and a bad league is a 400.
+router.get('/pages/events', pageRoute({ name: 'events', error: 'Could not build the sport page', channelNumbers: false,
+    prepare: (req, res) => {
+        const events = require('../services/sportPageEvents');
+        const league = events.leagueOf(req.query.league);
+        if (!league) { res.status(400).json({ error: `league must be one of: ${events.LEAGUES.join(', ')}` }); return false; }
+        return league;
+    } }, async (req, league) => {
+    const sport = require('../services/sportCatalog').sportOf(league);
+    const names = require('../services/sportPagePrefs').follows(req.user.id).sports.find(s => s.sport === sport)?.teams || [];
+    return require('../services/sportPageEvents').page(league, Date.now(), { names });
+}));
 
 // #68, #67 (0346, C-P): the sport pages' spoiler-free switch and followed names; the account's own since 0391 (#193, D-41).
 router.get('/pages/preferences', (req, res) => {

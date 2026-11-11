@@ -407,6 +407,15 @@ channels from C-I (`channelsForSessions`, the current guide in that user's order
 `sportsEvents.leagueEvents`, which orders only F1's events around the sessions, 0345, #160): an F1 event naming the
 session whose channel's own airing covers its start. A weekend that cannot be fetched fails the refresh (0344, #161). Names drop the title sponsor (`SPONSOR_RE`).
 
+**The five pages share one cache and one route shape (#272, 0546).** `services/sportPageCache.js` (`createPageCache`) keeps each
+page's ESPN part: an entry is fresh for its page's TTL; a stale or missing one starts one build that concurrent requests share; a
+stale entry is served meanwhile, and with no entry a request waits at most the page's cold wait (8 s; F1 and Events take theirs from
+`tuning.coldWaitMs`) and gets `{ available: false }`. A build that returns nothing, throws or rejects stores nothing and is logged;
+the in-flight marker is cleared in a `finally` by identity, so a refresh that outlives `reset()` neither stores nor clears a newer
+one's marker (NFL and F1 used to clear it blindly). Cricket bounds its cache to four follow lists. `pageRoute` in `routes/sports.js`
+is the handler shape (404 with fixtures off, optional validation, channel numbers, JSON, 500 with the page's message); Events keeps its
+own differences as options: no channel numbering, 400 for a bad league.
+
 **Any other team league (0388, C-T).** `services/sportPageLeague.js` answers `GET /api/sports/pages/league/:league` for
 every `ESPN_LEAGUE_PATHS` league but F1, NFL, IPL and BBL (one cache entry per league, so leagues never evict each
 other), with the NFL page's caching, stale-while-refresh and #191 rule. Where the scoreboard reports a round

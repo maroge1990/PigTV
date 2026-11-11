@@ -19,6 +19,7 @@
  * over, the next. Channels are joined per request with the dashboard's conservative game↔guide join
  * (sportsDashboard.matchBroadcasts), never kept with the page.
  */
+const { createPageCache } = require('./sportPageCache');
 const espn = require('./sportsFixturesEspn');
 const overrun = require('./sportOverrun');
 const { ESPN_LEAGUE_PATHS } = require('./sportsFixtures');
@@ -57,9 +58,9 @@ const ROUND_WORD = { 'australian-football': 'Round', 'rugby-league': 'Round', ru
 // Test seam: `get(url) -> { ok, json } | { ok: false, error }`, as sportsFixturesEspn.getJson.
 const fetcher = { get: (url) => espn.getJson(url, TIMEOUT_MS) };
 
-const cache = new Map();      // league -> { value, join, at, ttl, standings: { value, teams, at } }
-const refreshing = new Map(); // league -> promise
-let generation = 0;
+// One entry per league (sportPageCache.js, stale-while-refreshing): `value` is the build's { value, join, standings }, where
+// standings = { value, teams, at } is kept STANDINGS_TTL_MS across rebuilds (build's `prior`).
+const cache = createPageCache({ label: 'league', coldWaitMs: COLD_WAIT_MS, ttlOf: (built, now) => ttlOf(built.value, now) });
 
 const str = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null);
 const num = (v) => (v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v)) ? Number(v) : null);
@@ -515,26 +516,12 @@ async function page(league, now = Date.now(), deps = {}) {
 }
 
 async function espnPart(league, now, deps) {
-    const cached = cache.get(league);
-    const fresh = cached && now - cached.at < cached.ttl;
-    if (!fresh && !refreshing.has(league)) {
-        const mine = generation;
-        const p = build(league, now, { ...deps, prior: cached || null }).then((built) => {
-            if (built && mine === generation) cache.set(league, { value: built.value, join: built.join, standings: built.standings, at: now, ttl: ttlOf(built.value, now) });
-        }).catch((err) => console.warn('[Sport] league page refresh failed:', err.message))
-            .finally(() => { if (refreshing.get(league) === p) refreshing.delete(league); });
-        refreshing.set(league, p);
-    }
-    if (!cache.has(league) && refreshing.has(league)) {
-        let timer;
-        await Promise.race([refreshing.get(league), new Promise(resolve => { timer = setTimeout(resolve, COLD_WAIT_MS); })]);
-        clearTimeout(timer);
-    }
-    return cache.get(league) || null;
+    const entry = await cache.get(league, now, (stale) => build(league, now, { ...deps, prior: stale ? stale.value : null }));
+    return entry ? entry.value : null;
 }
 
 /** Tests: forget everything. */
-function reset() { cache.clear(); refreshing.clear(); generation++; }
+function reset() { cache.reset(); }
 
 /** The span of the join's games with a margin, for asking C-I for the events around them. */
 const spanOf = (games) => ({ from: Math.min(...games.map(g => g.start)) - 2 * HOUR_MS, to: Math.max(...games.map(g => g.start)) + GAME_MS + HOUR_MS });

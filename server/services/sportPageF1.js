@@ -18,6 +18,7 @@
  * stale one is served while a single refresh runs. Unofficial feed: every field is read defensively, a missing one
  * is null, and nothing here throws.
  */
+const { createPageCache } = require('./sportPageCache');
 const espn = require('./sportsFixturesEspn');
 const { f1Session } = require('./sportsFixtures');
 const overrun = require('./sportOverrun');
@@ -43,9 +44,9 @@ const tuning = { ...TUNING };
 // Test seam: `get(url) -> { ok, json } | { ok: false, error }`, as sportsFixturesEspn.getJson.
 const fetcher = { get: (url) => espn.getJson(url, TIMEOUT_MS) };
 
-let cache = null;        // { value, at, ttl }
-let refreshing = null;   // the single refresh in flight
-let generation = 0;      // reset() discards a refresh started before it
+// The ESPN part, kept stale-while-refreshing (sportPageCache.js): a weekend's page is kept WEEKEND_TTL_MS, else QUIET_TTL_MS.
+const cache = createPageCache({ label: 'F1', coldWaitMs: () => tuning.coldWaitMs, ttlOf: (value, now) =>
+    (value.weekend.sessions.some(s => s.start - DAY_MS < now && s.end + DAY_MS > now) ? WEEKEND_TTL_MS : QUIET_TTL_MS) });
 const teamsByCompetition = new Map(); // finished session's competition id -> Map(driver id -> { team, teamColor })
 
 const str = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null);
@@ -317,26 +318,11 @@ async function page(now = Date.now(), deps = {}) {
 }
 
 async function espnPart(now, deps) {
-    const fresh = cache && now - cache.at < cache.ttl;
-    if (!fresh && !refreshing) {
-        const mine = generation;
-        refreshing = build(now, deps).then((value) => {
-            if (value && mine === generation) {
-                const weekend = value.weekend.sessions.some(s => s.start - DAY_MS < now && s.end + DAY_MS > now);
-                cache = { value, at: now, ttl: weekend ? WEEKEND_TTL_MS : QUIET_TTL_MS };
-            }
-        }).catch((err) => console.warn('[Sport] F1 page refresh failed:', err.message))
-            .finally(() => { refreshing = null; });
-    }
-    if (!cache && refreshing) {
-        let timer;
-        await Promise.race([refreshing, new Promise(resolve => { timer = setTimeout(resolve, tuning.coldWaitMs); })]);
-        clearTimeout(timer);
-    }
-    return cache ? cache.value : { available: false };
+    const entry = await cache.get('page', now, () => build(now, deps));
+    return entry ? entry.value : { available: false };
 }
 
 /** Tests: forget everything. */
-function reset() { cache = null; refreshing = null; generation++; teamsByCompetition.clear(); }
+function reset() { cache.reset(); teamsByCompetition.clear(); }
 
 module.exports = { page, build, reset, fetcher, tuning, TUNING, calendarOf, weekendIndex, sessionsOf, channelsForSessions, gridOf };
