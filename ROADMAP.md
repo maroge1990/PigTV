@@ -50,6 +50,8 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
     sign-off found a high in that fix, fixed in 0566 on Mark's say-so and signed off. A relink is now a recorded debt.
   - Rig: a device revoked mid-stream was refused on its next request; play start unchanged. Evidence:
     `docs/evidence/2026-11-12-batch-e/`. T4 after a release: production's write-ahead log size and write rate.
+  - Filed on the way: #299 (the Status page shows no provider name on sessions and recordings, since 0175), #300 (deleting
+    a user leaves that user's device rows behind; nothing is exposed).
 - **Waiting on Mark:**
   - A release: nothing since v0502 and Apple 191 is released.
   - T5 device checks: #280 (on a TestFlight build from 208; steps in its evidence folder and on the issue), #279 (on a
@@ -61,8 +63,6 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
   - #240. Whether #293's missing focus tint is fixed before the next TestFlight build.
   - #295's colour point: darker status colours for small text are the brand kit's to decide.
   - Batch F (#274): the two recommended items only, or all six.
-  - Two faults found during batch E, to fix or file: the Status page shows no provider name on sessions and recordings
-    (since 0175); deleting a user leaves that user's device rows behind (their sign-ins already stop working).
 - **Open investigation:** #3 (sound out of step on the iPad): the relay join measured clean; the device meter (#267)
   and the marker (#268) are filed, not built (Mark).
 - **Next:** batch J (#278: Apple; scout first, batch L moved its lines; Codex round; Mark's device check at the
