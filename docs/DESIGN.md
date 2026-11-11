@@ -35,9 +35,9 @@ app's `public/css/`.
 
 ## Brand
 
-### PigTV brand standard (PigBrand guide 1.8.0, tokens 1.7.0)
+### PigTV brand standard (PigBrand guide 1.8.1, tokens 1.7.0)
 
-The source of truth is the PigBrand kit: guide 1.8.0, token files 1.7.0 (`PigBrand/docs/pig-family-brand-guide.md`, `docs/integration.md`, `tokens/brand-tokens.json`). This note only records what PigTV takes from it and where. When the kit changes, re-copy the files below rather than editing them here.
+The source of truth is the PigBrand kit: guide 1.8.1, token files 1.7.0 (`PigBrand/docs/pig-family-brand-guide.md`, `docs/integration.md`, `tokens/brand-tokens.json`). This note only records what PigTV takes from it and where. When the kit changes, re-copy the files below rather than editing them here.
 
 #### What PigTV vendors
 
@@ -79,6 +79,11 @@ the 1.7 to 1.8 upgrade note, 4 pass, 7 fail and 1 cannot be told. On Apple TV, a
 system effect and none uses the system lift. Loading is a bare spinner on 12 of 17 screens, and the splash shows on every
 cold launch. There are 81 tvOS uses of text under 23 pt, and no Increase Contrast fallback. Apple TV fails identity, states,
 words, focus and minimums; iPad and iPhone are partial on most. The web app has not been reviewed against 1.8.
+
+Since Apple 198 to 203 (11 Nov 2026, #279) the Apple TV's focus is one shared treatment (a lift, the pink ring outside the
+control and the focus tint), no tvOS text is under 23 pt and every focus target is at least 56 pt, each held by
+`BrandRulesTests`; Settings shows a summary on focus and opens a page on a press. Loading, the splash, Increase Contrast
+and the other rows are unchanged.
 
 ## Sport pages
 

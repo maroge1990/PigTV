@@ -5,14 +5,14 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 10 Nov 2026 (audit batch G: the web clean-up, #275).*
+*Overwritten at the end of every session. 11 Nov 2026 (audit batch K: Apple TV brand 1.8, #279).*
 
 - **Released:** server **v0502** (`:release`, 9 Nov) and Apple **191** on TestFlight (tvOS and iOS). A release runs on
-  Mark's go-ahead (D-45). Pushed since, not released: server **0503 to 0533**, Apple **192 to 197**. Next builds: server
-  **0534**, Apple **198**.
+  Mark's go-ahead (D-45). Pushed since, not released: server **0503 to 0533**, Apple **192 to 203**. Next builds: server
+  **0534**, Apple **204**.
 - **10 Nov, audit:** filed as batch issues #269–#280 and bug #281; each issue's first comment holds the detail and a
-  later comment Mark's decisions. Batches A (#269), I (#277), C (#271), B (#270) and G (#275) are pushed, and #287
-  after C. Order from here: K (#279), H (#276), L (#280), D (#272, with #281), E (#273), J (#278), F (#274).
+  later comment Mark's decisions. Batches A (#269), I (#277), C (#271), B (#270), G (#275) and K (#279) are pushed, and
+  #287 after C. Order from here: H (#276), L (#280), D (#272, with #281), E (#273), J (#278), F (#274).
 - **10 Nov, batch C pushed with CI green (#271; D-56), server 0504 to 0509:** every recording is captured segmented and
   nothing else (the part-based path, its switch and break detection during capture are gone); #284, #285 and the
   low-disk check fixed on the way. Evidence: `docs/evidence/2026-11-10-batch-c/`.
@@ -33,16 +33,30 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
   - Opus and Codex: no high; three findings fixed in 0533. T3 on the rig: 70 before and after shots, and browser
     checks (no foreign request, the player plays, dialogs centred). Evidence: `docs/evidence/2026-11-10-batch-g/`.
     Filed: #292.
+- **11 Nov, batch K pushed with CI green, Apple 198 to 203 (#279, open for Mark's device check); PigBrand 1.8.1:**
+  - Apple TV focus is one treatment (Mark's pick B: a lift, the pink ring outside the control, the pink tint), used by
+    every focus style and the guide's cells. A followed game is marked by its star on the television.
+  - No Apple TV text under 23 pt; everything the remote lands on is at least 56 pt. Guide cells show a one-line
+    title; the Sport banner's Following list is three bigger rows.
+  - Settings on Apple TV: focus shows a read-only summary, a press opens the page and moves focus in, Menu returns
+    to the same row.
+  - PigBrand 1.8.1 (committed in the kit's worktree, **not pushed: Mark's call**): the app's larger Apple TV icon is
+    the kit's source, so `sync-brand.sh` changes nothing; the pig mark is allowed beside a page title.
+  - Opus: 2 high and 2 medium (the batch had changed iPad and iPhone), fixed in 203. Codex: no high; two mediums
+    left on #293 with the lows. Simulator only. Evidence: `docs/evidence/2026-11-11-batch-k/`. Filed: #293, #294.
 - **Waiting on Mark:**
-  - T5 device checks: #271 (one real recording end to end, on a build from 0509), #277 (open Sport once on Apple TV,
+  - T5 device checks: #279 (Apple TV focus, text, Settings and the Home-screen icon, on a build from 203; steps on
+    the issue), #271 (one real recording end to end, on a build from 0509), #277 (open Sport once on Apple TV,
     iPad and iPhone, on a build from 197), #246 (stop the container mid-recording), #260, the iPhone and iPad fixes in
     176–191, Watch on…, and T4 for #259 at the next race.
   - #288: how long a recording keeps trying when every provider is down (today about 5 minutes).
   - The Appdata Backup setting: don't stop PigTV, or move it from Sunday 04:00.
   - #240.
+  - Whether to push PigBrand 1.8.1, and whether #293's missing focus tint is fixed before the next TestFlight build.
 - **Open investigation:** #3 (sound out of step on the iPad): the relay join measured clean; the device meter (#267)
   and the marker (#268) are filed, not built (Mark).
-- **Next:** batch K (#279: Apple TV brand 1.8; focus mock-ups for Mark first); then H (#276); then #262 (iPadOS/iOS 17+, three sites need fallbacks).
+- **Next:** batch H (#276: web brand 1.8 and UX; mock-ups for Mark first; its handover note is a comment on the
+  issue); then L (#280); then #262 (iPadOS/iOS 17+, three sites need fallbacks).
 
 ## Now
 

@@ -1,0 +1,5 @@
+k-swift-old rc=65
+PigTVUITests/SettingsUITests.swift:63: error: -[PigTVUITests.SettingsUITests testTheSummaryFollowsTheFocusAndAPressOpensThePage] : XCTAssertFalse failed - focus opened Appearance's page
+Test Case '-[PigTVUITests.SettingsUITests testTheSummaryFollowsTheFocusAndAPressOpensThePage]' failed (11.764 seconds).
+k-swift rc=0
+Test Case '-[PigTVUITests.SettingsUITests testTheSummaryFollowsTheFocusAndAPressOpensThePage]' passed (15.895 seconds).
