@@ -8,6 +8,8 @@
  * confirmation (never later than the delayed time asked for), so freshness reads as it did with a row per fetch: a quiet
  * game stays fresh, one ESPN stops answering for goes stale on time. The gap rule keeps that exact: a confirmation after a
  * silence of more than two minutes (the freshness allowance) is its own row, so it never vouches for the silence.
+ *
+ * #272 (D-1): `sports_dashboard_coverage`, one row per league: the last complete scoreboard window the collector holds.
  */
 const HISTORY_MS = 15 * 60000;
 const MAX_DELAY_MS = 300000; // scoreDelaySeconds is at most 300
@@ -20,7 +22,9 @@ function initSchema(db) {
         game_id TEXT NOT NULL, observed_at INTEGER NOT NULL, data TEXT NOT NULL, confirmed_at INTEGER, PRIMARY KEY(game_id, observed_at));
         CREATE INDEX IF NOT EXISTS sports_score_age ON sports_score_history(observed_at);
         CREATE TABLE IF NOT EXISTS sports_user_preferences (
-        user_id TEXT PRIMARY KEY, avoid_spoilers INTEGER NOT NULL, delay_seconds INTEGER NOT NULL, revision INTEGER NOT NULL);`);
+        user_id TEXT PRIMARY KEY, avoid_spoilers INTEGER NOT NULL, delay_seconds INTEGER NOT NULL, revision INTEGER NOT NULL);
+        CREATE TABLE IF NOT EXISTS sports_dashboard_coverage (
+        league TEXT PRIMARY KEY, covered_from INTEGER NOT NULL, covered_to INTEGER NOT NULL, observed_at INTEGER NOT NULL, listed TEXT NOT NULL);`);
     // #272 (0549): a history table from before 0549 (one row per fetch) gains confirmed_at; its rows keep NULL (their own time).
     if (!hasConfirmed(db)) db.exec('ALTER TABLE sports_score_history ADD COLUMN confirmed_at INTEGER');
 }
@@ -127,6 +131,13 @@ function createStore(db, { readOnly = false } = {}) {
             putCatalog.run(game.id, game.league, game.start, JSON.stringify(metadata), at, finishedAt);
         }
     });
+    // #272 (D-1): a league's last complete scoreboard window (every day of it answered): the span it covers, its oldest
+    // answer's time and the games it listed. What the guide's classifier reads as "ESPN checked and found..." (sportsFixtures
+    // snapshot). Kept apart from sport_fixture_status, which a build before this one reads with its own fixtures.
+    const putCoverage = db.prepare(`INSERT INTO sports_dashboard_coverage (league, covered_from, covered_to, observed_at, listed) VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(league) DO UPDATE SET covered_from = excluded.covered_from, covered_to = excluded.covered_to,
+            observed_at = excluded.observed_at, listed = excluded.listed`);
+    result.putCoverage = (league, { from, to, at, listed }) => putCoverage.run(league, from, to, at, JSON.stringify(listed));
     result.ingest = (games, at) => result.ingestBatch(games.map(game => ({ game, observedAt: at })));
     // #212: cards that turned out not to be their league's (sportsDashboard's collector), with their history.
     const forgetHistory = db.prepare('DELETE FROM sports_score_history WHERE game_id=?');

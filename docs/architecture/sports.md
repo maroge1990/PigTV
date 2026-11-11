@@ -110,6 +110,12 @@ cricket "scorepanel" and merged under the canonical league `Cricket` (`sportsCla
 leagues). AFLW has no ESPN feed and stays on the heuristics above. `PIGTV_SPORT_FIXTURES=0` turns fixtures off completely
 (`.env.example`); the web Status page's "Sport fixtures" panel shows per-league last fetch, fixture count and last error.
 
+**Coverage in the collector (#272, 0550).** The score collector keeps, per team league and International cricket group, the
+last window it has wholly answered (`sports_dashboard_coverage`: the span, 36 h back and 72 h ahead of its oldest answer
+within the days asked; that answer's time; the ids of the games it listed), the fixture refresh's coverage in its own table.
+While `loopDemand()` holds and it is before noon UTC it also asks the day 36 h back (every 30 min, ranked last). A card keeps
+`fixture: { end, locations, event }` (ESPN's own end, each side's town, an F1 session's event name), what the classifier reads.
+
 **One fetch (#272, 0547).** Every sport feed request (fixtures, the collector, the five pages, suggestions, the leagues' own
 feeds) goes through `services/sportFetch.js`: only the hosts and path prefixes it lists (`ALLOWED`: ESPN's `/apis/site/v2/sports/`
 and `/apis/v2/sports/` standings, the F1 core lookups, and each own feed's path), https, no redirect followed, the body read up to

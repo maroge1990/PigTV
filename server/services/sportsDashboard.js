@@ -435,9 +435,10 @@ function cadence(now = Date.now()) {
 function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.neededLeagues(),clock=Date.now,enabled:isEnabled=collectorEnabled,
     followed=()=>require('./sportPagePrefs').allTeams(),roster=league=>fixtures.teamsOf(league),
     feedGames=(league,o)=>feeds.games(league,{...o,registerImage:require('./logoCache').registerLogo}),recordFeed=fixtures.recordFeed,
-    busy=()=>demand(clock())!==null,every=(fn,ms)=>setInterval(fn,ms)}={}) {
+    busy=()=>demand(clock())!==null,every=(fn,ms)=>setInterval(fn,ms),windowDemand=()=>sportDemand.loopDemand(clock())!==null}={}) {
     let running = null, timer = null, stopped = false, remaining = 0, deadline = 0, coldRequests = 0, current = null, lastRun = -Infinity, liveGames = false;
     const cache = new Map(), controller = new AbortController(), recordedFeeds = new WeakSet();
+    const coverageWritten = new Map(); // league -> the last coverage row written (#272: written only on a change)
     // ESPN groups scoreboards by US Eastern date, so a game after 00:00Z is listed under the previous
     // UTC date's URL. Remember which query date returned each game and poll that one while it is hot.
     const listedOn = new Map();
@@ -475,6 +476,13 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
         remaining = REQUESTS_PER_TICK; coldRequests = 0; deadline = now + 20000;
         const previous = new Date(now - 24 * H).toISOString().slice(0,10).replaceAll('-', '');
         const queryDays = [days[0], previous, ...days.slice(1)];
+        // #272 (D-1): the guide's classifier reads ESPN's games from 36 hours back (sportsFixtures.snapshot): before noon UTC
+        // that reaches the day before yesterday, asked every 30 minutes (as the fixture refresh did) while the event list
+        // runs (sportDemand.loopDemand), for the team leagues and the International cricket groups only. It ranks last.
+        const early = new Date(now - 36 * H).toISOString().slice(0,10).replaceAll('-', '');
+        const extraDay = !queryDays.includes(early) && windowDemand() ? early : null;
+        const windowDays = extraDay ? [...queryDays, extraDay] : queryDays;
+        const rank = date => { const i = windowDays.indexOf(date); return i < 0 ? windowDays.length : i; };
         const catalog = store.catalog(), known = new Map(catalog.map(g => [g.id, g]));
         for (const id of listedOn.keys()) if (!known.has(id)) listedOn.delete(id);
         const hot = new Set(), warm = new Set();
@@ -507,19 +515,22 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
         function add(league, source, date) {
             // #197: tennis and golf ask for this week's events ('current'), without a date
             const url = date === 'current' ? `${espn.BASE}${source}/scoreboard` : `${espn.BASE}${source}/scoreboard?dates=${date}&limit=1000`;
-            jobs.push({league,source,date,url,hot:hot.has(`${source}|${date}`),warm:warm.has(`${source}|${date}`)});
+            jobs.push({league,source,date,url,hot:hot.has(`${source}|${date}`),warm:warm.has(`${source}|${date}`),...(date === extraDay ? {ttl:30*60000} : {})});
         }
         for (const league of wanted) {
             const spec = individual.LEAGUES[league];
             if (spec) { for (const date of spec.dated ? queryDays : ['current']) add(league, spec.path, date); continue; }
             if (CRICKET_GROUPS.includes(league) || feeds.has(league)) continue;
-            for (const source of [fixtures.ESPN_LEAGUE_PATHS[league]].flat().filter(Boolean)) for (const date of queryDays) add(league, source, date);
+            for (const source of [fixtures.ESPN_LEAGUE_PATHS[league]].flat().filter(Boolean)) for (const date of windowDays) add(league, source, date);
         }
         // #195 (D-41): the International cricket groups take ESPN's active series by their international class; a series
         // with a fixed league (BBL, WBBL, Shield...) or none (domestic, youth) is never theirs.
         // #230: "Other cricket" takes its cards straight from this daily list (no request of its own): every match of a
         // series no fixed league owns whose own class is known and not international.
         const others = [];
+        // #272: whether the series lists are whole (every day answered, every series readable and classed, none past the cap)
+        let discoveryWhole = true;
+        const seriesCut = new Set();
         if (CRICKET_GROUPS.some(l => wanted.has(l)) || wanted.has(OTHER_CRICKET)) {
             const series = new Map(); // series id -> its group
             const fixed = fixedCricketSeries();
@@ -532,6 +543,9 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
                 const existing = cache.get(url);
                 if (live && existing?.data) existing.nextAt = Math.min(existing.nextAt, existing.data.observedAt + 30000);
                 const panel = await read(url, live ? 30000 : 900000, live ? {} : {cold:true,maxCold:hot.size ? CATALOG_RESERVE : Infinity});
+                const held = cache.get(url)?.data;
+                if (!Array.isArray(held?.json.scores) || held.json.scores.some(block => !Array.isArray(block?.leagues)
+                    || block.leagues.some(l => !/^\d{1,12}$/.test(String(l?.id))) || cricketGroupOf(block.events) === undefined)) discoveryWhole = false;
                 if (!Array.isArray(panel?.json.scores)) continue;
                 for (const block of panel.json.scores) for (const l of Array.isArray(block?.leagues) ? block.leagues : []) {
                     if (/^\d{1,12}$/.test(String(l?.id))) take(String(l.id), cricketGroupOf(block.events));
@@ -549,14 +563,15 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
                 const seriesId = /^espn:cricket\/(\d+):/.exec(g.id)?.[1];
                 if (seriesId) take(seriesId, g.league);
             }
-            for (const [seriesId, group] of [...series].slice(0,40)) for (const date of queryDays) add(group, `cricket/${seriesId}`, date);
+            for (const [, group] of [...series].slice(40)) seriesCut.add(group);
+            for (const [seriesId, group] of [...series].slice(0,40)) for (const date of windowDays) add(group, `cricket/${seriesId}`, date);
         }
         // Rotate least-recently-attempted URLs within each class; reserve cold progress below.
         jobs.sort((a,b) => Number(b.hot)-Number(a.hot) || (cache.get(a.url)?.attemptAt || 0)-(cache.get(b.url)?.attemptAt || 0)
-            || queryDays.indexOf(a.date)-queryDays.indexOf(b.date));
+            || rank(a.date)-rank(b.date));
         const candidates = new Map(), processed = new Map();
         for (const { game, date, observedAt } of others) { // #230: today's listing first (the fresher), as the jobs below
-            const priority = Math.max(0, queryDays.indexOf(date)), old = candidates.get(game.id);
+            const priority = Math.max(0, rank(date)), old = candidates.get(game.id);
             if (!old || priority < old.priority) { candidates.set(game.id, { game, priority, observedAt }); listedOn.set(game.id, date); }
         }
         const misfiled = new Map(); // #212: card id -> the International cricket group whose series listed it, not its own
@@ -598,7 +613,7 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
                 if (seen.some(([g, state]) => g.league === league && due(g, state))) continue;
                 for (const source of paths) for (const {game, observedAt} of await scanAhead(league, source)) {
                     // a window day's answer is fresher than the look-ahead's, so it always wins
-                    if (!candidates.has(game.id)) candidates.set(game.id, {game, priority: queryDays.length, observedAt});
+                    if (!candidates.has(game.id)) candidates.set(game.id, {game, priority: windowDays.length, observedAt});
                 }
             }
         }
@@ -643,10 +658,43 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
                         const next = listed.filter(g => g.snapshot.state === 'scheduled' && g.start > now).sort((a, b) => a.start - b.start)[0];
                         const ids = new Set(listed.map(g => g.id));
                         // a window day's or the round's answer is fresher, so it always wins
-                        for (const g of listed) if ((g === next || known.has(g.id)) && !candidates.has(g.id)) candidates.set(g.id, {game: g, priority: queryDays.length, observedAt: data.observedAt});
+                        for (const g of listed) if ((g === next || known.has(g.id)) && !candidates.has(g.id)) candidates.set(g.id, {game: g, priority: windowDays.length, observedAt: data.observedAt});
                         for (const g of catalog) if (g.league === league && g.id.startsWith(`espn:${source}:`) && g.start > now + 72 * H && !ids.has(g.id) && !candidates.has(g.id) && mine(g)) dropped.add(g.id);
                     }
                 }
+            }
+        }
+        /**
+         * #272 (D-1): for each team league and International cricket group whose whole window is answered (every day of every
+         * path or series; for a group, whole series lists too), the span it covers, its oldest answer's time and the games
+         * it lists: what the guide's classifier reads (sportsFixtures.snapshot). The span is the fixture refresh's: 36 hours
+         * back and 72 ahead of that oldest answer, within the days asked. A window not wholly answered keeps the last row.
+         */
+        function writeCoverage() {
+            if (!store.putCoverage) return;
+            const dayStart = d => Date.UTC(+d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6, 8));
+            for (const league of wanted) {
+                const group = CRICKET_GROUPS.includes(league);
+                if (!(group || fixtures.ESPN_LEAGUE_PATHS[league]) || individual.has(league) || feeds.has(league)) continue;
+                if (group && (!discoveryWhole || seriesCut.has(league))) continue;
+                const own = jobs.filter(j => j.league === league);
+                if (!group && !own.length) continue;
+                const answers = own.map(j => cache.get(j.url)?.data);
+                if (answers.some(a => !a)) continue;
+                const listed = new Set();
+                let at = group && !own.length ? now : Infinity;
+                answers.forEach((a, i) => {
+                    at = Math.min(at, a.observedAt);
+                    a.ids ||= new Map();
+                    const key = `${league}|${own[i].source}`;
+                    if (!a.ids.has(key)) a.ids.set(key, espn.normalize(a.json, league, own[i].source).map(g => g.id));
+                    for (const id of a.ids.get(key)) listed.add(id);
+                });
+                const first = Math.min(...windowDays.map(dayStart)), last = Math.max(...windowDays.map(dayStart)) + 24 * H;
+                const row = { from: Math.max(first, at - 36 * H), to: Math.min(last, at + 72 * H), at, listed: [...listed].sort() };
+                const key = JSON.stringify(row);
+                if (coverageWritten.get(league) === key) continue;
+                try { store.putCoverage(league, row); coverageWritten.set(league, key); } catch { /* best-effort: the last row stays */ }
             }
         }
         async function runJobs(batch, maxCold = Infinity) {
@@ -657,7 +705,7 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
                     const existing = cache.get(job.url);
                     if (job.hot && existing?.data) existing.nextAt = Math.min(existing.nextAt, existing.data.observedAt + 30000);
                     else if (job.warm && existing?.data) existing.nextAt = Math.min(existing.nextAt, existing.data.observedAt + BREAK_POLL);
-                    const data = await read(job.url, job.hot ? 30000 : job.warm ? BREAK_POLL : 900000, {cold:!job.hot,maxCold,maxBytes:individual.has(job.league) ? individual.MAX_BYTES : undefined});
+                    const data = await read(job.url, job.hot ? 30000 : job.warm ? BREAK_POLL : job.ttl || 900000, {cold:!job.hot,maxCold,maxBytes:individual.has(job.league) ? individual.MAX_BYTES : undefined});
                     // #197: one answer can serve two leagues (ATP's feed: Grand Slams and ATP Tour)
                     const done = `${job.league}|${job.url}`;
                     if (stopped || !Array.isArray(data?.json.events) || processed.get(done) === data.observedAt) continue;
@@ -667,7 +715,7 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
                     if (CRICKET_GROUPS.includes(job.league)) for (const id of espn.misfiledIds(data.json, job.league, job.source)) misfiled.set(id, job.league);
                     counting.normalizeMs += performance.now() - t0;
                     for (const game of games) {
-                        const priority = queryDays.indexOf(job.date), old = candidates.get(game.id);
+                        const priority = rank(job.date), old = candidates.get(game.id);
                         if (!old || priority < old.priority) {
                             candidates.set(game.id, {game,priority,observedAt:data.observedAt});
                             listedOn.set(game.id, job.date);
@@ -710,6 +758,7 @@ function createCollector({store,fetchJson=espn.fetchJson,leagues=()=>fixtures.ne
             if (forget.length) store.forget(forget);
             if (entries.length) store.ingestBatch(entries);
             store.prune(clock());
+            writeCoverage();
             counting.ingestMs += performance.now() - t0;
             counting.tickMs = performance.now() - started;
             cost.record(counting);

@@ -106,7 +106,13 @@ function normalize(json, league, source) {
             // #197: an F1 session's entry list by name (never its order: a result), what a followed driver is found by
             // (sportsDashboard.followMatchesFor)
             const players = league === 'F1' ? [...new Set(raw.map(t => text(t?.athlete?.displayName, 80)).filter(Boolean))].sort((a, b) => a.localeCompare(b)) : [];
-            out.push({ id:`espn:${source}:${c.id}`, league, start, end:Number.isFinite(parsedEnd) ? parsedEnd : null, ...(players.length ? { players } : {}),
+            // #272 (D-1): what the guide's live/replay classifier reads of a game (sportsFixtures.snapshot), which the card's
+            // own fields leave out: ESPN's end as given (a cricket match's days, an F1 weekend's end), each side's town and an F1
+            // session's event name (its place).
+            const espnEnd = Date.parse(c.endDate || e.endDate || '');
+            const fixture = { end: Number.isFinite(espnEnd) ? espnEnd : null, locations: sides.map(t => text(t.team.location) || null),
+                ...(league === 'F1' ? { event: text(e.name || e.shortName) || null } : {}) };
+            out.push({ id:`espn:${source}:${c.id}`, league, start, end:Number.isFinite(parsedEnd) ? parsedEnd : null, ...(players.length ? { players } : {}), fixture,
                 // #195: an International cricket group's series name, which says whether it is an ICC event (sportGroups.js).
                 ...(league === 'Cricket' || league === "Women's Cricket" || league === 'Other cricket' ? { competition: text(json.leagues?.[0]?.name, 120) || null } : {}),
                 format, title:league === 'F1' ? text(e.name) : competitors.map(t => t.name).join(' v '), competitors, session,
