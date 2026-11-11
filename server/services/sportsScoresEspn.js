@@ -3,7 +3,7 @@ const { cricketGroupOf } = require('./sportsFixturesEspn');
 /** Dashboard-only ESPN adapter. Never changes the fixture/live-replay classifier. */
 const { f1Session } = require('./sportsFixtures');
 const { fetchFeed } = require('./sportFetch');
-const { espnState } = require('./espnState');
+const { espnState, edgeKey } = require('./espnState');
 const BASE = 'https://site.api.espn.com/apis/site/v2/sports/';
 const text = (v, max = 160) => typeof v === 'string' ? v.trim().slice(0, max) : '';
 const id = v => /^(?:[A-Za-z0-9_-]{1,80})$/.test(String(v ?? '')) ? String(v) : null;
@@ -117,11 +117,23 @@ function normalize(json, league, source) {
                 ...(league === 'Cricket' || league === "Women's Cricket" || league === 'Other cricket' ? { competition: text(json.leagues?.[0]?.name, 120) || null } : {}),
                 format, title:league === 'F1' ? text(e.name) : competitors.map(t => t.name).join(' v '), competitors, session,
                 circuit:league === 'F1' ? { name:text(e.circuit?.fullName), city:text(e.circuit?.address?.city), country:text(e.circuit?.address?.country) } : null,
-                snapshot:{ state, ...(breakLabel ? { breakLabel } : {}), progress, scores, situation:Object.keys(situation).length ? situation : null }
+                snapshot:{ state, ...(breakLabel ? { breakLabel } : {}), progress, scores, situation:Object.keys(situation).length ? situation : null,
+                    espn:pageFacts(c, league, source, sides) }
             });
         }
     }
     return out;
+}
+/**
+ * #272 (batch D): what a sport page reads of a game's status, beside C-O's own words, so a page shows the collector's
+ * (delayed) state in its own (sportPageState.js): espnState's edge key read as the page reads it (baseball: the end of an
+ * inning is play), ESPN's detail line, clock and period as given, and which side is home (the order of `scores`).
+ */
+function pageFacts(c, league, source, sides) {
+    const t = c.status?.type || {};
+    return { key: edgeKey(espnState(c.status, { cricket: isCricket(league), baseball: source.startsWith('baseball/') })),
+        detail: text(t.shortDetail, 80) || text(t.detail, 80) || null, clock: text(c.status?.displayClock, 24) || null,
+        period: number(c.status?.period) ?? null, sides: sides.map(x => (x.homeAway === 'home' || x.homeAway === 'away' ? x.homeAway : null)) };
 }
 // The collector's words for the one fetch's refusals (its throw shape, sportsDashboard.fetchOnce).
 const WORDS = { 'host not allowed': 'Invalid score source', 'answer too large': 'Score response too large' };

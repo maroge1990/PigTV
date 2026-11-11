@@ -61,7 +61,12 @@ const fetcher = { get: (url) => espn.getJson(url, TIMEOUT_MS) };
 
 // One entry per league (sportPageCache.js, stale-while-refreshing): `value` is the build's { value, join, standings }, where
 // standings = { value, teams, at } is kept STANDINGS_TTL_MS across rebuilds (build's `prior`).
-const cache = createPageCache({ label: 'league', coldWaitMs: COLD_WAIT_MS, ttlOf: (built, now) => ttlOf(built.value, now) });
+// #272: while the score collector has the league's window (`covered`, sportPageState), a game on no longer shortens the
+// entry to 2 minutes: the games' state comes from the collector per request; the entry keeps the rest (10 min on a game day).
+const cache = createPageCache({ label: 'league', coldWaitMs: COLD_WAIT_MS, ttlOf: (built, now) => {
+    const ttl = ttlOf(built.value, now);
+    return built.covered && ttl === LIVE_TTL_MS ? GAME_DAY_TTL_MS : ttl;
+} });
 
 const str = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null);
 const num = (v) => (v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v)) ? Number(v) : null);
@@ -185,7 +190,7 @@ function teamOf(team, teams, registerImage, logo) {
  * One scoreboard event as a page game, and what the channel join needs (the teams' names, never in the answer).
  * `teams` collects each team's names, colour and logo. Null when the event lacks two teams or a start.
  */
-function gameOf(event, { family, competition = null, league = null, teams = new Map(), registerImage = (u) => u } = {}) {
+function gameOf(event, { family, competition = null, league = null, path = null, teams = new Map(), registerImage = (u) => u } = {}) {
     const c = event?.competitions?.[0];
     if (!c) return null;
     const start = ms(c.date || event.date);
@@ -209,7 +214,9 @@ function gameOf(event, { family, competition = null, league = null, teams = new 
         channels: []
     };
     if (!game.id) return null;
-    return { game, join: { id: game.id, league, start, competitors: [{ aliases: sides.home.aliases }, { aliases: sides.away.aliases }] },
+    // `card`: the score collector's id for the same competition (sportsScoresEspn.normalize), whose state page() lays over
+    const card = path && str(String(c.id ?? '')) ? `espn:${path}:${String(c.id)}` : null;
+    return { game, join: { id: game.id, league, start, card, competitors: [{ aliases: sides.home.aliases }, { aliases: sides.away.aliases }] },
         week: num(event.week?.number), seasonType: num(event.season?.type) };
 }
 
@@ -319,7 +326,7 @@ async function fetchPath(path, ctx) {
     if (!sb.ok || !Array.isArray(sb.json?.events)) return { ok: false };
     const { family, league, teams, registerImage, now, zone } = ctx;
     const competition = COMPETITIONS[path] || null;
-    const parse = (json) => (Array.isArray(json?.events) ? json.events : []).map(e => gameOf(e, { family, competition, league, teams, registerImage })).filter(Boolean);
+    const parse = (json) => (Array.isArray(json?.events) ? json.events : []).map(e => gameOf(e, { family, competition, league, path, teams, registerImage })).filter(Boolean);
     const season = seasonOf(sb.json, family);
     const week = num(sb.json?.week?.number);
     const type = num(sb.json?.season?.type);
@@ -381,7 +388,7 @@ function dayRounds(parsed, now, zone) {
  * data beside it. Never rejects; null when no scoreboard answered. `prior` is the cached entry, whose standings are
  * reused while under an hour old.
  */
-async function build(league, now, { registerImage = (u) => u, zone, prior = null } = {}) {
+async function build(league, now, { registerImage = (u) => u, zone, prior = null, covered = null } = {}) {
     const paths = pathsOf(league);
     const family = familyOf(league);
     if (!paths.length || !family) return null;
@@ -428,7 +435,9 @@ async function build(league, now, { registerImage = (u) => u, zone, prior = null
         following: null,
         standings: standings.value
     };
-    return { value, join, standings };
+    let isCovered = false;
+    try { isCovered = Boolean(covered && covered(league)); } catch { /* not covered */ }
+    return { value, join, standings, covered: isCovered };
 }
 
 /** How long a page built at `now` stays fresh: short while a game is on, longer on a game day, an hour otherwise. */
@@ -503,10 +512,36 @@ async function page(league, now = Date.now(), deps = {}) {
     let names = [];
     try { names = deps.followed ? deps.followed() : []; following = followingOf(value.teams, names); } catch (err) { console.warn('[Sport] league page following:', err.message); }
     value = { ...value, following, rounds: narrowRounds(league, value, names) };
+    let join = entry.join;
+    if (deps.state) ({ value, join } = withState(league, value, join, deps.state));
     if (!deps.channelsFor) return value;
     let channels = new Map();
-    try { channels = (await deps.channelsFor(entry.join, value.updatedAt)) || new Map(); } catch (err) { console.warn('[Sport] league page channels:', err.message); }
+    try { channels = (await deps.channelsFor(join, value.updatedAt)) || new Map(); } catch (err) { console.warn('[Sport] league page channels:', err.message); }
     return { ...value, rounds: value.rounds.map(r => ({ ...r, games: r.games.map(g => ({ ...g, channels: channels.get(g.id) || [] })) })) };
+}
+
+/**
+ * #272 (batch D): each game's status, detail and score from the score collector's store for this account (`state(card)`,
+ * sportPageState.deps: its delay; only a fresh or final snapshot), as the front page shows the same game; a game the
+ * collector holds nothing usable for keeps the page's own. The join (channels, #191's overrun rule) follows the status.
+ */
+function withState(league, value, join, state) {
+    const { scoreOf, competitionOf } = require('./sportPageState');
+    const family = familyOf(league);
+    const cardOf = new Map(join.map(j => [j.id, j.card]));
+    const changed = new Map();
+    const rounds = value.rounds.map(r => ({ ...r, games: r.games.map(g => {
+        let seen = null;
+        try { seen = state(cardOf.get(g.id)); } catch { seen = null; }
+        const status = seen ? WORD[seen.snapshot.espn.key] : null;
+        if (!status) return g;
+        const before = status === 'scheduled' || status === 'postponed' || status === 'cancelled';
+        const game = { ...g, status, detail: detailOf(competitionOf(seen.snapshot), status, family),
+            home: { ...g.home, score: before ? null : scoreOf(seen.snapshot, 'home') }, away: { ...g.away, score: before ? null : scoreOf(seen.snapshot, 'away') } };
+        changed.set(g.id, status);
+        return game;
+    }) }));
+    return { value: { ...value, rounds }, join: join.map(j => (changed.has(j.id) ? { ...j, status: changed.get(j.id) } : j)) };
 }
 
 async function espnPart(league, now, deps) {

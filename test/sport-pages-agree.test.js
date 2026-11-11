@@ -49,8 +49,7 @@ function frontCard(userId, now, spoilerFree) {
     return r.games.find(g => g.id.endsWith(':9917001'));
 }
 
-// todo until the League page reads the collector's store (0557): it fails at the kick-off and final instants today.
-test('a league page and the front page agree about a game\'s status and score at every moment, with and without a delay', { todo: 'the League page reads its own cache until 0557' }, async () => {
+test('a league page and the front page agree about a game\'s status and score at every moment, with and without a delay', async () => {
     const store = dashboard.store();
     store.updatePreferences(ACCOUNTS.instant, { revision: 0, scoreDelaySeconds: 0 }); // the other keeps the default 90 s
     const game = scriptedGame({ at: K, guideMin: 10, finalMin: 25 });

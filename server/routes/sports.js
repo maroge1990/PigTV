@@ -215,6 +215,8 @@ router.get('/pages/league/:league', pageRoute({ name: 'league', error: 'Could no
     const leaguePage = require('../services/sportPageLeague');
     const now = Date.now();
     return leaguePage.page(league, now, {
+        // #272 (batch D): each game's state from the score collector's store, with this account's score delay
+        ...require('../services/sportPageState').deps(req.user.id, now),
         registerImage: require('../services/logoCache').registerLogo,
         followed: () => require('../services/sportPagePrefs').get(req.user.id).teams[league] || [],
         // Only this league's events around the page's games are ordered and built, as for F1 (#160); #191 as F1.

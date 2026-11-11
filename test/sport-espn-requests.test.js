@@ -35,6 +35,9 @@ const FX = path.join(__dirname, 'fixtures/espn');
 const readFx = name => JSON.parse(fs.readFileSync(path.join(FX, `${name}.json`), 'utf8'));
 const H = 3600000, M = 60000;
 const DAY = Date.parse('2026-09-27T00:00Z');
+const { scriptedGame, scoreboard } = require('../scripts/fake-scores');
+// the rig's scripted Premier League game, kicking off at 19:00 UTC that day (final 25 minutes later)
+const EPL_GAME = scriptedGame({ at: DAY + 19 * 3600000, guideMin: 10, finalMin: 25 });
 
 function reset() {
     const db = sqlite.getDb();
@@ -49,13 +52,13 @@ function reset() {
 }
 
 /** One simulated day; -> counts by kind of request. */
-async function day({ look = () => false, rule = false }) {
+async function day({ look = () => false, rule = false, leaguePage = false }) {
     reset();
     load('services/sportPagePrefs').setFollows(1, { sports: [{ sport: 'American football', leagues: ['NFL'] }, { sport: 'Football', leagues: ['EPL'] }] });
     if (rule) sqlite.getDb().prepare(`INSERT INTO recording_rules (kind, match, pre_buffer_min, post_buffer_min, new_only, enabled, created_at, sport)
         VALUES ('team', 'Bills', 0, 0, 0, 1, 0, 'American football')`).run();
-    const counts = { scoreboard: 0, teams: 0, other: 0, fixtureScoreboard: 0 };
-    let inFixture = false;
+    const counts = { scoreboard: 0, teams: 0, other: 0, fixtureScoreboard: 0, pageScoreboard: 0 };
+    let inFixture = false, inPage = false;
     const original = global.fetch;
     const body = json => ({ ok: true, status: 200, headers: new Headers({ 'content-type': 'application/json' }), body: new Response(JSON.stringify(json)).body });
     global.fetch = async (url) => {
@@ -63,6 +66,8 @@ async function day({ look = () => false, rule = false }) {
         if (url.includes('/scoreboard')) {
             counts.scoreboard++;
             if (inFixture) counts.fixtureScoreboard++;
+            if (inPage) counts.pageScoreboard++;
+            if (leaguePage && url.includes('soccer/eng.1/scoreboard')) return body(scoreboard(EPL_GAME, clock.now));
             return body(url.includes('football/nfl/scoreboard') && url.includes('dates=20260927') ? readFx('nfl-20260927') : { events: [] });
         }
         if (/\/teams(\?|$)/.test(url)) { counts.teams++; return body(url.includes('football/nfl') ? readFx('teams-nfl') : { sports: [] }); }
@@ -84,6 +89,14 @@ async function day({ look = () => false, rule = false }) {
             if (look(clock.now) && t % M === 0) sportDemand.noteLook(clock.now);
             beat();
             await c.refresh();
+            if (leaguePage && look(clock.now)) { // the Premier League page asked every 30 s, as the route asks it (C-T)
+                const lp = load('services/sportPageLeague');
+                let deps = {};
+                try { deps = load('services/sportPageState').deps(1, clock.now); } catch { /* before 0557 */ }
+                inPage = true;
+                try { await lp.page('EPL', clock.now, { zone: 'UTC', ...deps }); for (let i = 0; i < 20; i++) await new Promise(r => setImmediate(r)); }
+                finally { inPage = false; }
+            }
             if (t % (30 * M) === 0 && sportDemand.loopDemand(clock.now)) await pass();
         }
     } finally {
@@ -98,6 +111,17 @@ async function day({ look = () => false, rule = false }) {
 // viewer: someone on the Sport page 18:00-21:00 UTC; rule: an enabled team rule all day, nobody looking. Of those, the
 // fixture refresh's scoreboards: idle 0, viewer 70, rule 528. Now (0552): idle 1048, viewer 1048, rule 1096 scoreboards.
 const BEFORE = { idle: { scoreboard: 1048, teams: 0 }, viewer: { scoreboard: 1118, teams: 8 }, rule: { scoreboard: 1576, teams: 49 } };
+
+test('a viewer on the Premier League page 18:00-21:00 UTC (a game 19:00-19:25): the page reads ESPN\'s scoreboard far less', async t => {
+    load('services/sportPageLeague').reset();
+    const got = await day({ look: now => now >= DAY + 18 * H && now < DAY + 21 * H, leaguePage: true });
+    t.diagnostic(JSON.stringify(got));
+    // 0556 (the page on its own cache: 2 min while the game is on, 10 min on the game day): 105 page scoreboard requests,
+    // 1286 in all. 0557: the game's state comes from the collector, so the page's cache keeps 10 min while the game is
+    // on: 55, 1236 in all (each page build asks ESPN's default scoreboard and up to 4 days around it).
+    assert.ok(got.pageScoreboard <= 55, `${got.pageScoreboard} page scoreboard requests`);
+    assert.ok(got.scoreboard <= 1236, `${got.scoreboard} scoreboard requests in all`);
+});
 
 test('a simulated day: ESPN is asked no more than before, and the fixture refresh asks no scoreboard', async t => {
     const got = {

@@ -131,7 +131,7 @@ scoreboards and `sports_dashboard_catalog` the only store of a game's identity, 
 
 | Store | Written by | Read by |
 |---|---|---|
-| `sports_dashboard_catalog` (+ `sports_score_history`) | the collector | the front page, dashboard, league pages' joins, follows, suggestions, recording rules, recording ends, and (through `sportsFixtures.snapshot`) the guide's live/replay classifier |
+| `sports_dashboard_catalog` (+ `sports_score_history`) | the collector | the front page, dashboard, the League page's games' state (0557, `sportPageState`), follows, suggestions, recording rules, recording ends, and (through `sportsFixtures.snapshot`) the guide's live/replay classifier |
 | `sports_dashboard_coverage` | the collector (0550; since 0552 also the teams its window's answers name) | `sportsFixtures.snapshot`, the Status page's fixtures panel, the roster pass |
 | `sport_fixture_teams` | the 30-minute pass: ESPN `/teams` once a day per league, else (cricket, or `/teams` not answering) the teams of the collector's last window; International cricket's every pass | rosters: classifier, follows, Settings, front-page logos |
 | `sport_fixture_status` | the leagues' own feeds (`recordFeed`); the fixture refresh with the collector off | the Status page |
@@ -471,6 +471,18 @@ the individual sports and the F1, NFL, League and Cricket pages each translate i
 their contract's words (C-O `finished`, the pages `done`; a page without `postponed` or `cancelled` says `done`, without
 `suspended` says `live` or `break` while ESPN's state is in play and `done` once it is post (to be resumed another day,
 0554: never shown as being played), without `unknown` shows the start). Its table-driven test is `test/espn-state.test.js`.
+
+**Pages read the collector's state (#272, batch D, 0557 on).** A page's games take their status, detail and score from
+the collector's store for the asking account (`services/sportPageState.js`), laid over the page's cached ESPN answer per
+request, so a game reads the same on a page as on the front page at the same moment: the account's score delay picks the
+snapshot (`delayed`, the front's), used only while fresh by the front's rule (confirmed within delay + 2 min) or once
+final; otherwise (collector off, a game or league it does not hold, the first minutes after start, a cooldown aging it, a
+snapshot stored before 0557) the page keeps its own answer as before. The cache stays one per league and
+account-independent. Hiding scores is unchanged: the front leaves them out by the household's spoiler-free switch, the pages
+send them and the client hides them by the same switch. A card's `snapshot.espn` (key, detail, clock, period, home/away
+order) is what the overlay reads. While the collector has the league's window (within 30 min), a game on no longer shortens
+the page's entry to 2 min (10 min on a game day): the page still asks ESPN for what the collector does not hold. Switched:
+the League page (0557).
 
 **Any other team league (0388, C-T).** `services/sportPageLeague.js` answers `GET /api/sports/pages/league/:league` for
 every `ESPN_LEAGUE_PATHS` league but F1, NFL, IPL and BBL (one cache entry per league, so leagues never evict each
