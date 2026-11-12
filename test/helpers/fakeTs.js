@@ -34,15 +34,19 @@ function pat() {
     return packet(0, { pusi: true, payload: Buffer.concat([Buffer.from([0]), Buffer.from(body), Buffer.from([0xde, 0xad, 0xbe, 0xef])]) });
 }
 
-function pmt({ codec = 'h264', video = true } = {}) {
+/** A PMT section; `descriptor` bytes on the audio entry make it span more than one packet. */
+function pmt({ codec = 'h264', video = true, descriptor = 0 } = {}) {
     const streams = [];
     if (video) streams.push(STREAM_TYPE[codec], 0xe0 | (VIDEO_PID >> 8), VIDEO_PID & 0xff, 0xf0, 0x00);
-    streams.push(0x0f, 0xe0 | (AUDIO_PID >> 8), AUDIO_PID & 0xff, 0xf0, 0x00);
+    streams.push(0x0f, 0xe0 | (AUDIO_PID >> 8), AUDIO_PID & 0xff, 0xf0 | (descriptor >> 8), descriptor & 0xff, ...Buffer.alloc(descriptor, 0x0a));
     const body = [0x02, 0, 0, 0x00, 0x01, 0xc1, 0, 0, 0xe0 | (VIDEO_PID >> 8), VIDEO_PID & 0xff, 0xf0, 0x00, ...streams];
     const length = body.length - 3 + 4;
     body[1] = 0xb0 | ((length >> 8) & 0x0f);
     body[2] = length & 0xff;
-    return packet(PMT_PID, { pusi: true, payload: Buffer.concat([Buffer.from([0]), Buffer.from(body), Buffer.from([0xde, 0xad, 0xbe, 0xef])]) });
+    const section = Buffer.concat([Buffer.from([0]), Buffer.from(body), Buffer.from([0xde, 0xad, 0xbe, 0xef])]);
+    const out = [packet(PMT_PID, { pusi: true, payload: section })];
+    for (let at = 184; at < section.length; at += 184) out.push(packet(PMT_PID, { payload: section.subarray(at) }));
+    return Buffer.concat(out);
 }
 
 // The first NAL units of an access unit, per codec and kind.

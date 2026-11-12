@@ -3,7 +3,8 @@
  * its ffmpeg sees is decodable. A copy session copies audio from the first packet and video only from
  * the first key frame: joined at an arbitrary PAT it starts with up to a group of pictures of sound and
  * no picture, which AVPlayer never recovers from. A new connection starts on a key frame; a join now
- * does too: at the last PAT at or before the latest video key frame in the buffer.
+ * does too: the newest complete PAT and PMT before the latest video key frame in the buffer, then the
+ * stream from that key frame's first packet.
  *
  * 188-byte packets only, found the way ingest.js finds PATs (a sync byte, and another a packet later
  * or the end of the data). PAT -> PMT -> the first video stream; a key frame is a packet on that PID
@@ -112,28 +113,87 @@ function isKeyFrame(buf, i, codec) {
     return startsKeyPicture(buf, p + 9 + buf[p + 8], end, codec);
 }
 
+/** The PMT PID of the first program in a PAT that starts in the packet at `i`, or null. */
+function pmtPidOf(buf, i) {
+    const s = sectionOf(buf, i);
+    if (!s || buf[s.at] !== 0x00) return null;
+    for (let e = s.at + 8; e + 4 <= s.end; e += 4) {
+        const program = (buf[e] << 8) | buf[e + 1];
+        if (program !== 0) return ((buf[e + 2] & 0x1f) << 8) | buf[e + 3];
+    }
+    return null;
+}
+
 /**
- * Where a joiner should start in `buf`: { at } is the last PAT at or before the latest video key
- * frame, or { at: -1, reason } when that cannot be said (the caller keeps its old join point).
+ * Collects one PSI section's packets as they come (a section may span several packets). `add(i)`
+ * returns the offsets of every packet of a section it has just completed, else null.
  */
-function keyframeJoinOffset(buf) {
+function sectionCollector(buf) {
+    let packets = null;
+    let need = 0;
+    return (i) => {
+        if (startsUnit(buf, i)) {
+            const p = payloadOf(buf, i);
+            if (p < 0) { packets = null; return null; }
+            const at = p + 1 + buf[p];
+            if (at + 3 > i + TS_PACKET) { packets = null; return null; }
+            packets = [i];
+            need = 3 + (((buf[at + 1] & 0x0f) << 8) | buf[at + 2]) - (i + TS_PACKET - at);
+        } else if (packets) {
+            const p = payloadOf(buf, i);
+            if (p < 0) return null;
+            packets.push(i);
+            need -= i + TS_PACKET - p;
+        } else return null;
+        if (need > 0) return null;
+        const done = packets;
+        packets = null;
+        return done;
+    };
+}
+
+/**
+ * Where a joiner should start in `buf` (#3): `{ at, tables, codec }`, where `at` is the first packet
+ * of the newest video key frame and `tables` the offsets of the packets that carry the most recent
+ * complete PAT and PMT before it (to be sent first, as found: a joiner's demuxer needs them to read
+ * the key frame). Nothing between those tables and the key frame belongs in the join: audio or
+ * pictures from before the key frame would start sound before the picture. `{ at: -1, reason }`
+ * when that cannot be said (the caller keeps its old join point).
+ */
+function keyframeJoin(buf) {
     try {
         const video = videoStreamOf(buf);
         if (video.reason) return { at: -1, reason: video.reason };
-        let lastPat = -1;
-        let at = -1;
+        const addPat = sectionCollector(buf);
+        let addPmt = sectionCollector(buf);
+        let pmtPid = null;
+        let pat = null;
+        let pmt = null;
+        let pick = null;
         let keys = 0;
         eachPacket(buf, (i) => {
             const pid = pidOf(buf, i);
-            if (pid === 0 && startsUnit(buf, i)) lastPat = i;
-            else if (pid === video.pid && isKeyFrame(buf, i, video.codec)) { keys++; at = lastPat; }
+            if (pid === 0) {
+                const done = addPat(i);
+                if (!done) return;
+                const next = pmtPidOf(buf, done[0]);
+                if (next === null) return;
+                pat = done;
+                if (next !== pmtPid) { pmtPid = next; pmt = null; addPmt = sectionCollector(buf); }
+            } else if (pid === pmtPid) {
+                const done = addPmt(i);
+                if (done && buf[sectionOf(buf, done[0]).at] === 0x02) pmt = done;
+            } else if (pid === video.pid && isKeyFrame(buf, i, video.codec)) {
+                keys++;
+                if (pat && pmt) pick = { at: i, tables: [...pat, ...pmt] };
+            }
         });
         if (!keys) return { at: -1, reason: 'no video key frame' };
-        if (at < 0) return { at: -1, reason: 'no PAT before the key frame' };
-        return { at, codec: video.codec };
+        if (!pick) return { at: -1, reason: 'no PAT and PMT before the key frame' };
+        return { ...pick, codec: video.codec };
     } catch (err) {
         return { at: -1, reason: 'the stream could not be read' };
     }
 }
 
-module.exports = { keyframeJoinOffset, videoStreamOf, isKeyFrame };
+module.exports = { keyframeJoin, videoStreamOf, isKeyFrame };

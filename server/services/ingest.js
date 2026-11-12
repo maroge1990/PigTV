@@ -5,8 +5,9 @@
  *
  * An ingest reads the stream with a plain HTTP(S) GET (no ffmpeg in between: subscribers get the
  * provider's own bytes, timestamp quirks and all), keeps a short ring of what it read (bounded by
- * bytes AND seconds), and hands a Readable to each subscriber, starting at a join point (the last
- * PAT before the newest video key frame in the buffer's final 6 s, else the last PAT in its final 2 s). A slow subscriber is evicted rather than slowing the reader. A
+ * bytes AND seconds), and hands a Readable to each subscriber, starting at a join point (the newest
+ * video key frame in the buffer's final 6 s, behind a copy of the PAT and PMT; else the last PAT in
+ * its final 2 s). A slow subscriber is evicted rather than slowing the reader. A
  * lost connection is reconnected for up to 10 s with the subscribers kept open; after that every
  * subscriber's stream ends with `upstream-lost`. The last subscriber leaving starts a 10 s linger.
  *
@@ -22,7 +23,7 @@ const { EventEmitter } = require('events');
 const { URL } = require('url');
 const { FeedPace } = require('./feedPace');
 const lagLimit = require('./feedLagLimit');
-const { keyframeJoinOffset } = require('./tsKeyframes');
+const { keyframeJoin } = require('./tsKeyframes');
 
 const TS_PACKET = 188;
 const SYNC = 0x47;
@@ -379,10 +380,12 @@ class Ingest extends EventEmitter {
     /**
      * A new subscriber, starting at the join point. The subscriber that opened this ingest
      * (`fromStart`) starts at the first PAT the connection brought, so it gets what a connection of
-     * its own would have (nothing has been dropped yet). Any other starts at the last PAT at or
-     * before the newest video key frame of the last joinLookbackMs (#3: a copy session's ffmpeg
-     * copies audio at once and video from a key frame, and a play that starts out of step stays so
-     * on AVPlayer); if none can be found, at the last PAT in the buffer's final 2 s, as before.
+     * its own would have (nothing has been dropped yet). Any other is handed the newest complete PAT
+     * and PMT before the newest video key frame of the last joinLookbackMs, then the stream from that
+     * key frame's first packet (#3: a copy session's ffmpeg copies audio at once and video from a key
+     * frame, and a play that starts out of step stays so on AVPlayer). If none can be found, or that
+     * backlog is over half the slow-consumer limit (it is handed over before the reader can read, and
+     * would end it at once), it starts at the last PAT in the buffer's final 2 s, as before.
      */
     subscribe(info = {}, { fromStart = false } = {}) {
         const sub = new Subscription(this, info);
@@ -402,11 +405,21 @@ class Ingest extends EventEmitter {
         const window = this.chunks.filter(c => c.at >= lookFrom).map(c => c.buf);
         if (window.length) {
             const joined = Buffer.concat(window);
-            const key = keyframeJoinOffset(joined);
-            if (key.at >= 0) { sub.deliver(joined.subarray(key.at)); return sub; }
-            if (!this.noKeyframeLogged) {
-                this.noKeyframeLogged = true;
-                this.log(`a reader joined at the newest PAT: ${key.reason} in the last ${Math.round(tuning.joinLookbackMs / 1000)}s`);
+            const key = keyframeJoin(joined);
+            const backlog = key.at >= 0 ? key.tables.length * TS_PACKET + joined.length - key.at : 0;
+            if (key.at >= 0 && backlog <= tuning.slowBytes / 2) {
+                sub.deliver(Buffer.concat(key.tables.map(o => joined.subarray(o, o + TS_PACKET))));
+                sub.deliver(joined.subarray(key.at));
+                return sub;
+            }
+            // Once per feed for each kind of fallback: the stream gave no key frame, or it was too far back.
+            const big = key.at >= 0;
+            this.joinFallbacksLogged = this.joinFallbacksLogged || new Set();
+            if (!this.joinFallbacksLogged.has(big)) {
+                this.joinFallbacksLogged.add(big);
+                this.log(big
+                    ? `a reader joined at the newest PAT: the backlog from the newest key frame (${(backlog / 1048576).toFixed(1)} MB) is over half the slow-reader limit`
+                    : `a reader joined at the newest PAT: ${key.reason} in the last ${Math.round(tuning.joinLookbackMs / 1000)}s`);
             }
         }
         const tailFrom = now - tuning.joinWindowMs;

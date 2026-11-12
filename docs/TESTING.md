@@ -110,7 +110,7 @@ What the Apple client relies on, and how a change to it is tested, is in
 
 1. A push runs the build verifier, then the suite once on Node 24 (D-52) inside the candidate image, which holds the pinned
    ffmpeg pair; the image is published only if both pass. Performance reporting remains separate/non-blocking. A web-only
-   push (the paths listed in `scripts/ci-test-plan.js`) skips 7 ffmpeg test files when the commit before it already has an
+   push (the paths listed in `scripts/ci-test-plan.js`) skips 8 ffmpeg test files when the commit before it already has an
    image (D-50); anything else, and every release before it promotes, runs the full suite. Pull requests run the full suite
    in `test.yml`. The release tests run on Ubuntu 24.04 rather than moving `ubuntu-latest`.
 2. The publish job builds **without pushing**, loads `pigtv:candidate`, verifies its actual binaries/capabilities and runs
