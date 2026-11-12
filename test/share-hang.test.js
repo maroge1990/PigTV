@@ -1646,3 +1646,75 @@ test('Settings checks a typed folder on a helper of its own: answered while the 
         shareFs.tuning.timeoutMs = 1500;
     }
 });
+
+/** Stand-in helpers for the Settings check: one that never answers and ignores kill until released, and one that answers. */
+function ownHelperStandIns() {
+    const { EventEmitter } = require('node:events');
+    const { run } = load('services/shareFsWorker');
+    const forks = [];
+    const fork = () => {
+        const helper = Object.assign(new EventEmitter(), {
+            connected: true, exitCode: null, signalCode: null, unref() {}, channel: { ref() {}, unref() {} }, hung: false,
+            kill() { this.connected = false; if (!this.hung) this.release(); },
+            release() { if (this.exitCode === null && this.signalCode === null) { this.signalCode = 'SIGKILL'; this.emit('exit', null, 'SIGKILL'); } },
+            send(msg) {
+                const { id, op, file, ...rest } = msg;
+                if (String(file).startsWith(slowShare)) { this.hung = true; return; }
+                setImmediate(() => {
+                    let result;
+                    try { result = real(() => run(op, String(file), rest)); } catch (err) { this.emit('message', { id, error: err.message, code: err.code || 'SHARE_ERROR' }); return; }
+                    if (this.connected) this.emit('message', { id, result });
+                });
+            }
+        });
+        forks.push(helper);
+        return helper;
+    };
+    return { fork, forks, releaseAll: () => { for (const h of forks) h.release(); } };
+}
+
+test('Settings: a hung typed path forks one helper however often it is saved; hung paths stop forking at the cap; a healthy path still answers; once released it is checked again', async () => {
+    const folder = load('services/recordingsFolder');
+    const stand = ownHelperStandIns();
+    const realFork = shareFs._spawner.fork;
+    shareFs.reset();
+    shareFs.tuning.timeoutMs = 300;
+    shareFs._spawner.fork = stand.fork;
+    const refusedAsHung = (r) => r.ok === false && /not responding/.test(r.reason);
+    try {
+        const hungDir = path.join(slowRecordings, 'Typed');
+        assert.ok(refusedAsHung(await folder.validateRecordingsPathSetting(hungDir)));
+        assert.equal(stand.forks.length, 1);
+        for (let i = 0; i < 5; i++) {
+            const t = Date.now();
+            assert.ok(refusedAsHung(await folder.validateRecordingsPathSetting(hungDir)));
+            assert.ok(Date.now() - t < 100, `answered in ${Date.now() - t} ms`);
+        }
+        const under = await folder.validateRecordingsPathSetting(path.join(hungDir, 'Deeper'));
+        assert.ok(refusedAsHung(under), 'a path under the stuck one counts as the same');
+        assert.ok(refusedAsHung(await folder.validateRecordingsPathSetting(slowShare)), 'so does a parent');
+        assert.equal(stand.forks.length, 1, 'one helper for six saves');
+        // A healthy path is still checked on a helper of its own.
+        assert.deepEqual(await folder.validateRecordingsPathSetting(path.join(healthy, 'Typed')), { ok: true });
+        assert.equal(stand.forks.length, 2);
+        // Distinct hung paths stop forking at the cap (4 un-exited in all, the healthy one having exited).
+        for (const n of ['a', 'b', 'c']) assert.ok(refusedAsHung(await folder.validateRecordingsPathSetting(path.join(slowShare, 'x', n))));
+        const forked = stand.forks.length;
+        const t = Date.now();
+        assert.ok(refusedAsHung(await folder.validateRecordingsPathSetting(path.join(slowShare, 'x', 'd'))));
+        assert.ok(Date.now() - t < 100);
+        assert.equal(stand.forks.length, forked, 'no fork beyond the cap');
+        assert.ok(shareFs._ownHelpers.size <= 4);
+        // Released (they exit): the path can be checked again.
+        stand.releaseAll();
+        assert.equal(shareFs._ownHelpers.size, 0);
+        assert.deepEqual(await folder.validateRecordingsPathSetting(path.join(healthy, 'Typed')), { ok: true });
+        assert.ok(refusedAsHung(await folder.validateRecordingsPathSetting(hungDir)));
+        assert.equal(stand.forks.length, forked + 2, 'the hung path forked a new helper once the old one had exited');
+    } finally {
+        shareFs._spawner.fork = realFork;
+        stand.releaseAll();
+        shareFs.reset();
+        shareFs.tuning.timeoutMs = 1500;
+    }
+});

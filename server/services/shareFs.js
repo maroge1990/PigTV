@@ -28,6 +28,11 @@ let nextId = 1;
 // With MAX_STUCK of them, calls fail at once instead of forking another into the same mount.
 const MAX_STUCK = 2;
 const stuck = new Set();
+// Helpers of withOwnHelper (a path typed in Settings) that have not exited yet: { path, helper, killed }. A killed one may be
+// stuck in the kernel on its hung mount, so a new request for the same (or a nested) path fails at once, and at most
+// MAX_OWN_HELPERS live or stuck ones exist at a time. They leave on the child's exit.
+const MAX_OWN_HELPERS = 4;
+const ownHelpers = new Set();
 const spawner = { fork: (file) => fork(file, [], { stdio: ['ignore', 'ignore', 'ignore', 'ipc'], serialization: 'json' }) };
 const pending = new Map(); // id -> { resolve, reject, timer }
 let unresponsiveSince = null;
@@ -159,9 +164,22 @@ const local = {
  * forked for it, each call with its own deadline, killed once `work` has settled. For a path an admin typed (Settings): it
  * never waits behind the shared helper's calls, nor counts toward its stuck set or its unresponsive state, so a local path
  * is answered while the share hangs. A missed deadline rejects with SHARE_UNRESPONSIVE (as `call`), and later calls fail at once.
+ * `path`: the typed path; while a helper killed for it (or a path under or over it) has not exited, a request fails at once
+ * without forking, as does any request while MAX_OWN_HELPERS helpers have not exited.
  */
-async function withOwnHelper(work, { timeoutMs = tuning.timeoutMs } = {}) {
+async function withOwnHelper(work, { timeoutMs = tuning.timeoutMs, path: typed = null } = {}) {
+    const resolved = typed ? path.resolve(String(typed)) : null;
+    const nested = (a, b) => { const r = path.relative(a, b); return r === '' || (!r.startsWith('..') && !path.isAbsolute(r)); };
+    if (!inProcess) {
+        if (resolved && [...ownHelpers].some(h => h.killed && h.path && (nested(h.path, resolved) || nested(resolved, h.path)))) {
+            throw unanswered('The folder is not answering (an earlier check of it is still stuck)', null);
+        }
+        if (ownHelpers.size >= MAX_OWN_HELPERS) {
+            throw unanswered('Folder checks are not answering (earlier ones are still stuck)', null);
+        }
+    }
     let helper = null;
+    let entry = null;
     let lost = null; // why later calls fail at once
     const waiting = new Map(); // id -> { resolve, reject, timer }
     let next = 1;
@@ -172,6 +190,9 @@ async function withOwnHelper(work, { timeoutMs = tuning.timeoutMs } = {}) {
         if (!helper) {
             helper = spawner.fork(path.join(__dirname, 'shareFsWorker.js'));
             const mine = helper;
+            entry = { path: resolved, helper: mine, killed: false };
+            ownHelpers.add(entry);
+            const mineEntry = entry;
             mine.on('message', (msg) => {
                 const w = waiting.get(msg && msg.id);
                 if (!w) return;
@@ -181,7 +202,7 @@ async function withOwnHelper(work, { timeoutMs = tuning.timeoutMs } = {}) {
                 else w.resolve(msg.result);
             });
             const gone = () => { lost = lost || 'The folder check stopped'; fail(unanswered(lost, exitOf(mine))); };
-            mine.on('exit', gone);
+            mine.on('exit', () => { ownHelpers.delete(mineEntry); gone(); });
             mine.on('error', gone);
         }
         const mine = helper;
@@ -191,6 +212,7 @@ async function withOwnHelper(work, { timeoutMs = tuning.timeoutMs } = {}) {
                 waiting.delete(id);
                 lost = `The folder did not answer within ${Math.round(timeoutMs / 1000)} s`;
                 const settled = exitOf(mine);
+                if (entry) entry.killed = true;
                 try { mine.kill('SIGKILL'); } catch (e) { /* gone */ }
                 reject(unanswered(lost, settled));
             }, timeoutMs);
@@ -207,7 +229,10 @@ async function withOwnHelper(work, { timeoutMs = tuning.timeoutMs } = {}) {
     try {
         return await work(io);
     } finally {
-        if (helper) { try { helper.kill('SIGKILL'); } catch (e) { /* gone */ } }
+        if (helper) {
+            if (entry && waiting.size > 0) entry.killed = true; // a call still unanswered may be stuck in the kernel
+            try { helper.kill('SIGKILL'); } catch (e) { /* gone */ }
+        }
     }
 }
 
@@ -249,6 +274,7 @@ function unresponsive() {
 function reset() {
     if (child) abandon(child);
     stuck.clear();
+    ownHelpers.clear();
     disks.clear();
     unresponsiveSince = null;
 }
@@ -256,4 +282,4 @@ function reset() {
 /** Tests: run calls in this process (true) or in the helper (false). */
 function _inProcess(on) { inProcess = !!on; }
 
-module.exports = { _inProcess, _spawner: spawner, _stuck: stuck, call, exists, stat, statfs, mkdir, writeProbe, identity, unlink, link, nlink, rename, sizeOf, local, withOwnHelper, diskInfo, unresponsive, reset, tuning };
+module.exports = { _inProcess, _spawner: spawner, _stuck: stuck, _ownHelpers: ownHelpers, call, exists, stat, statfs, mkdir, writeProbe, identity, unlink, link, nlink, rename, sizeOf, local, withOwnHelper, diskInfo, unresponsive, reset, tuning };

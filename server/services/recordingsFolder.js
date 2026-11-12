@@ -171,7 +171,7 @@ function refusalMessage(check, dir, minFreeGB) {
 async function validateRecordingsPathSetting(dir, share = null) {
     if (!dir) return { ok: true };
     try {
-        return share ? await validatePath(dir, share) : await require('./shareFs').withOwnHelper((io) => validatePath(dir, io));
+        return share ? await validatePath(dir, share) : await require('./shareFs').withOwnHelper((io) => validatePath(dir, io), { path: dir });
     } catch (e) {
         if (e.code !== 'SHARE_UNRESPONSIVE') throw e;
         return { ok: false, reason: `The recordings folder is not responding: ${dir}. Is the network share's server up?` };
