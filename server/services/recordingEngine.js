@@ -49,9 +49,12 @@ const failoverTuning = {
     // ever). #274 (D-10): each part has its own watchdog (watchForStall), sampling every
     // min(stallCheckMs, stallMs), so noticed within stallMs + 5 s (the tick's check took up to + 15 s).
     stallMs: 30 * 1000,
-    // The size read is a local readdir + stat of the part's epoch folder in appdata (never the
-    // share), so 5 s is cheap; 2 s would stat a long recording's thousands of segments for little gain.
-    stallCheckMs: 5 * 1000
+    // The size read is a few stats in the part's epoch folder in appdata (never the share; captureGrowth),
+    // whatever the recording's length.
+    stallCheckMs: 5 * 1000,
+    // #260 (0499): an epoch that ran at least this long before it ended is continued at once, a shorter one on
+    // the next tick. #274: a stall after such a run does not count against MAX_SEGMENT_RESUMES (onSegmentExit).
+    resumeAtOnceAfterMs: 60 * 1000
 };
 
 let tickTimer = null;
@@ -1110,10 +1113,14 @@ function spawnSegment(schedule, settings, { recordingId, workDir, route, index, 
     });
 }
 
-/** How much a capture has written: its file, or (R3) its current epoch's segments. */
+/**
+ * How much a capture has written: its current epoch's segments (R3), in appdata (#8: local). Asked every stallCheckMs
+ * of every part, so through captureGrowth (a few stats, whatever the epoch's length; 0576 review M2), not the
+ * readdir + stat of every segment captureBytes does. entry.growth is its memory of the epoch's final segments.
+ */
 async function captureSize(entry) {
-    // #8: a segmented capture is in appdata (local).
-    return segments.captureBytes(entry.outputPath);
+    if (!entry.growth) entry.growth = {};
+    return segments.captureGrowth(entry.outputPath, entry.growth);
 }
 
 /** Run ffmpeg for one part on its candidate. Its exit decides what happens next (onPartExit). */
@@ -1139,7 +1146,9 @@ function spawnPart(schedule, settings, { recordingId, outputPath, route, index, 
         spawnedAt: now, lastSize: 0, lastGrowthAt: now, played: false,
         stopRequested: false, stalled: false,
         // Wave 5: the shared feed it reads (null: its own connection), and why that feed ended.
-        feed, ingestKey: feed ? ingest.keyOf(feed.ingest.pool, candidate.url) : null, feedLost: null
+        feed, ingestKey: feed ? ingest.keyOf(feed.ingest.pool, candidate.url) : null, feedLost: null,
+        // #274: what the feed had handed over when the capture last grew (here: when the part started); captureActivity.
+        feedBytesAtGrowth: feed ? feed.bytesOut : null
     };
     active.set(schedule.id, entry);
     watchForStall(entry);
@@ -1212,8 +1221,7 @@ async function onPartExit(schedule, entry, exitCode) {
 // R3: how many times one segmented recording may start a new epoch after a failover (a provider
 // that keeps dropping must not restart ffmpeg for ever).
 const MAX_SEGMENT_RESUMES = 20;
-// #260 (0499): an epoch that ran at least this long before it ended is continued at once, a shorter one on the next tick.
-const RESUME_AT_ONCE_AFTER_MS = 60 * 1000;
+// #260 (0499): how long an epoch must have run to be continued at once is failoverTuning.resumeAtOnceAfterMs (1 min).
 
 /** #260 (0499): why a capture ended, for the log: the feed's reason, the exit, ffmpeg's last line (redacted). */
 function captureEndWhy(entry, exitCode) {
@@ -1253,7 +1261,7 @@ async function onSegmentExit(schedule, entry, exitCode) {
         // on a multi-provider route (as before) or a capture that had run a minute; one that ended sooner waits for the
         // next tick, so a capture that keeps ending cannot spin.
         const failover = entry.route.multi && providerReason;
-        const ranLong = now - entry.spawnedAt >= RESUME_AT_ONCE_AFTER_MS;
+        const ranLong = now - entry.spawnedAt >= failoverTuning.resumeAtOnceAfterMs;
         // #284: short captures that failed over in a row, and the candidate count of the route the run started on: each
         // provider gets one immediate try (one pass round that route), then a short capture waits for the tick.
         const prior = entry.segmented.shortRun;
@@ -1261,6 +1269,12 @@ async function onSegmentExit(schedule, entry, exitCode) {
             ? { count: (prior?.count || 0) + 1, of: prior?.of || entry.route.candidates.length }
             : null;
         const atOnce = ranLong || (shortRun && shortRun.count < shortRun.of);
+        // #274 (0576 review M1): a part that ran a minute and then stalled does not use up one of the
+        // MAX_SEGMENT_RESUMES: a provider that pauses now and then over a long event would otherwise end the recording
+        // at its 21st pause, where before 0576 it only left gaps. Such resumes are bounded by time instead (each costs
+        // at least resumeAtOnceAfterMs + stallMs). A stall sooner than that (a provider that connects and goes silent at
+        // once) and every other early end still count, so the cap still stops a capture that keeps failing.
+        const freeResume = entry.stalled && ranLong;
         const candidate = entry.route.candidates[entry.index];
         if (failover) providerRouting.noteFailure(candidate, entry.route.primaryKey);
         else if (entry.stalled) noteSingleRouteStall(schedule, candidate); // #274 (D-10): a stall with one provider counts too
@@ -1269,7 +1283,7 @@ async function onSegmentExit(schedule, entry, exitCode) {
             '; it continues in the same recording');
         continuations.set(schedule.id, {
             schedule, nextPart: 1, lostAt: now, starting: false, waitingLogged: false,
-            resume: { recordingId: entry.recordingId, workDir: entry.segmented.workDir, resumes: entry.segmented.resumes + 1, shortRun,
+            resume: { recordingId: entry.recordingId, workDir: entry.segmented.workDir, resumes: entry.segmented.resumes + (freeResume ? 0 : 1), shortRun,
                 why: failover ? 'the provider dropped out' : `the capture ended (${why})` }
         });
         if (!atOnce) return;
@@ -1419,35 +1433,41 @@ function stopStallWatch(entry) {
 
 /**
  * The watchdog's sample: when the capture last grew (null before it has), and the breaker's success once it has
- * written more than 1 KB. A single-provider capture on a shared feed that has been handed nothing since the last
- * sample is excused for now: a silent feed is the ingest's to judge (it reconnects, or ends the feed, which ends
- * this part once). Acting on it here too would end this part and then, after the resume joins the same dying
- * ingest, the next one as well: two resumes for one silence. A feed that delivers while the capture does not
- * grow, or one that has ended, is this watchdog's. Multi-provider routes are unchanged (their resume is elsewhere).
+ * written more than 1 KB. A single-provider capture on a shared feed that has handed it nothing at all since the
+ * capture last grew (or since the part started) is excused for now: a silent feed is the ingest's to judge (it
+ * reconnects, or ends the feed, which ends this part once). Acting on it here too would end this part and then, after
+ * the resume joins the same dying ingest, the next one as well: two resumes for one silence. The excuse is judged over
+ * the whole quiet spell, not per sample (0576 review, Codex high): once the feed has handed over any bytes since the
+ * last growth, it is over until the capture grows again, and the limit runs from the last moment it held. So a feed
+ * that delivers in bursts cannot keep alive an ffmpeg that reads but writes nothing (caught within the gap before the
+ * first burst + stallMs), and the excused spell itself lasts only while the ingest lets a feed be silent (its lag limit,
+ * at most 28 s, then reconnectMs, 10 s, before it ends the feed, which ends the excuse). A feed that has ended is this
+ * watchdog's. Multi-provider routes are not excused (their resume goes to another provider's ingest).
  */
 async function captureActivity(entry) {
     const now = Date.now();
+    // Read before the size: bytes handed over while it is read count as after the growth (never an excuse).
+    const fedBefore = entry.feed ? entry.feed.bytesOut : null;
     const size = await captureSize(entry);
     if (size > entry.lastSize) {
         entry.lastSize = size;
         entry.lastGrowthAt = now;
+        entry.feedBytesAtGrowth = fedBefore;
         if (!entry.played && size > 1024) {
             entry.played = true;
             providerRouting.noteSuccess(entry.route.candidates[entry.index]);
         }
     }
-    if (feedSilentForIngest(entry)) entry.feedExcusedAt = now;
+    if (feedSilentSinceGrowth(entry)) entry.feedExcusedAt = now;
     const grew = entry.lastSize > 0 ? entry.lastGrowthAt : null;
     return entry.feedExcusedAt ? Math.max(grew ?? 0, entry.feedExcusedAt) : grew;
 }
 
-/** A single-provider capture's live shared feed has handed it nothing since the last sample (see captureActivity). */
-function feedSilentForIngest(entry) {
+/** A single-provider capture's live shared feed has handed it nothing since the capture last grew (see captureActivity). */
+function feedSilentSinceGrowth(entry) {
     const feed = entry.feed;
     if (!feed || entry.route.multi || feed.endReason || feed.destroyed || feed.ingest?.closed) return false;
-    const silent = entry.feedBytesSeen !== undefined && feed.bytesOut === entry.feedBytesSeen;
-    entry.feedBytesSeen = feed.bytesOut;
-    return silent;
+    return feed.bytesOut === entry.feedBytesAtGrowth;
 }
 
 function onCaptureStall(entry, quietMs) {

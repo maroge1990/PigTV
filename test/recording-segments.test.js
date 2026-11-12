@@ -917,6 +917,7 @@ test('0499: a capture that ends early for no provider reason, with one provider:
 test('#274: a single-provider capture that goes silent is noticed, ended, and continues in a new epoch on the same provider', async () => {
     tuning.endGraceMs = 0;
     tuning.stallMs = 1500;
+    tuning.stallCheckMs = 250; // sampled well inside the limit (0576 review L6)
     setBehaviour(url.A, 'stall');
     const s = due({ windowMs: 60000 });
     await until(() => captures().length === 1 && rowsOf(s.id).length === 1, 'recording');
@@ -948,6 +949,7 @@ test('#274: a single-provider capture that goes silent is noticed, ended, and co
 test('#274: a stalled part that ignores "q" is killed; asked to stop meanwhile, it is not continued', async () => {
     tuning.endGraceMs = 0;
     tuning.stallMs = 1000;
+    tuning.stallCheckMs = 250;
     setBehaviour(url.A, 'stall-deaf');
     const s = due({ windowMs: 60000 });
     await until(() => captures().length === 1 && rowsOf(s.id).length === 1, 'recording');
@@ -977,6 +979,120 @@ test('#274: a delete or a container stop leaves no watchdog for the part', async
     await engine.deleteRecording(rowsOf(s.id)[0].id);
     assert.equal(engine._stallWatchCount(), 0, 'a delete leaves none');
 });
+
+// 0576 review (Opus M1): every stall used up one of the recording's 20 resumes, never given back, so a provider that
+// pauses now and then over a long event ended the recording for good at its 21st pause (before 0576 the pauses only
+// left gaps). A part that ran a minute (resumeAtOnceAfterMs, shortened here) and then stalled no longer counts.
+test('#274: more than 20 stalls, each after a run of at least resumeAtOnceAfterMs, leave the recording recording', async () => {
+    tuning.endGraceMs = 0;
+    tuning.stallMs = 300;
+    tuning.stallCheckMs = 50;
+    tuning.resumeAtOnceAfterMs = 200; // below stallMs: every stalled part has run at least this long
+    setBehaviour(url.A, 'stall');
+    const s = due({ windowMs: 120000 });
+    await until(() => captures().length === 1 && rowsOf(s.id).length === 1, 'recording');
+    const rec = rowsOf(s.id)[0];
+    // Ticking as the scheduler does (which would also start a part that waited for one).
+    await until(() => captures().length >= 24, '23 stalls continued', 40000);
+    assert.ok(!logLines.some(l => l.includes(`#${rec.id} ended early`) && l.includes('it ends here')), 'the cap was not reached');
+    assert.equal(scheduled.getById(s.id).status, 'recording');
+    assert.equal(recordings.getById(rec.id).segment_state, 'capturing');
+    assert.match(recordings.getById(rec.id).error, /^Gaps: (2[3-9]|[3-9]\d),/);
+    await engine.cancelScheduled(s.id);
+    await until(() => recordings.getById(rec.id).status === 'completed', 'finished', 10000);
+});
+
+test('#274: 21 stalls soon after the start still end the recording at the cap, as any early end does', async () => {
+    tuning.endGraceMs = 0;
+    tuning.stallMs = 300;
+    tuning.stallCheckMs = 50; // resumeAtOnceAfterMs stays 1 min: each part is short, continued on the next tick
+    setBehaviour(url.A, 'stall');
+    const s = due({ windowMs: 120000 });
+    await until(() => captures().length === 1 && rowsOf(s.id).length === 1, 'recording');
+    const rec = rowsOf(s.id)[0];
+    await until(() => scheduled.getById(s.id).status !== 'recording', 'ended at the cap', 40000);
+    assert.equal(captures().length, 21, 'the first capture and 20 continuations');
+    assert.ok(logLines.some(l => l.includes(`#${rec.id} ended early`) && l.includes('has been continued 20 times; it ends here')), 'the cap is logged');
+    assert.equal(scheduled.getById(s.id).status, 'completed', 'with its segments');
+});
+
+// 0576 review (Opus M2): the stall watch summed the epoch folder (a readdir and a stat per segment) every 5 s for every
+// recording, on the event loop that serves live HLS; a 6 h epoch has over 5,000 segments. It now asks a few stats.
+test('#274: captureGrowth is captureBytes\' sum, and a sample costs a few stats however many segments the epoch has', () => {
+    const dir = fs.mkdtempSync(path.join(sandbox, 'growth-'));
+    const name = (i) => `a${String(i).padStart(6, '0')}.ts`;
+    const state = {};
+    const write = (file, bytes) => fs.writeFileSync(path.join(dir, file), Buffer.alloc(bytes));
+    assert.equal(segments.captureGrowth(dir, state), 0, 'nothing yet');
+    // As ffmpeg writes with temp_file: the segment grows under .tmp, is renamed, the playlist is rewritten.
+    let playlist = '#EXTM3U\n';
+    for (let i = 0; i < 3000; i++) {
+        write(`${name(i)}.tmp`, 100 + (i % 7));
+        if (i % 500 === 0) assert.equal(segments.captureGrowth(dir, state), segments.captureBytes(dir), `while ${i} is written`);
+        fs.renameSync(path.join(dir, `${name(i)}.tmp`), path.join(dir, name(i)));
+        playlist += `#EXTINF:4.0,\n${name(i)}\n`;
+        fs.writeFileSync(path.join(dir, 'archive.m3u8'), playlist);
+        if (i % 40 === 0) assert.equal(segments.captureGrowth(dir, state), segments.captureBytes(dir), `after ${i}`);
+    }
+    assert.equal(segments.captureGrowth(dir, state), segments.captureBytes(dir));
+    // A writer without temp_file grows the newest segment in place: still seen.
+    write(name(3000), 10);
+    const before = segments.captureGrowth(dir, state);
+    write(name(3000), 500);
+    assert.equal(segments.captureGrowth(dir, state), before + 490, 'the newest segment grew in place');
+    assert.equal(segments.captureGrowth(dir, state), segments.captureBytes(dir));
+    // The cost of a sample on a 3,001-segment epoch: a handful of stats, no readdir.
+    const counted = countFsCalls(dir, () => segments.captureGrowth(dir, state));
+    assert.ok(counted <= 4, `${counted} fs calls`);
+    write(`${name(3001)}.tmp`, 70);
+    assert.equal(segments.captureGrowth(dir, state), segments.captureBytes(dir), 'the next segment being written');
+    fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('#274: the stall watch of a recording whose epoch holds thousands of segment files does a few fs calls per sample', async () => {
+    tuning.stallCheckMs = 250;
+    const s = due({ windowMs: 60000 });
+    await until(() => captures().length === 1 && rowsOf(s.id).length === 1 && engine.listActive().some(r => r.id === s.id), 'recording');
+    const epoch = path.join(rowsOf(s.id)[0].work_dir, 'e1');
+    // Segment-named files a 6 h epoch would hold (numbered out of the capture's way, which goes on writing its own).
+    for (let i = 0; i < 3000; i++) fs.writeFileSync(path.join(epoch, `a9${String(i).padStart(6, '0')}.ts`), 'x');
+    let calls = 0;
+    await countFsCallsAsync(epoch, async () => { await sleep(1100); }, (n) => { calls = n; }); // about four samples
+    // captureBytes: a readdir and 3,000+ stats per sample. captureGrowth: the newest segment and the few after it
+    // (the fake writes one every 60 ms), the one being written, the playlist.
+    assert.ok(calls > 0, 'it was sampled');
+    assert.ok(calls < 300, `${calls} fs calls in the epoch folder in about four samples`);
+    await engine.cancelScheduled(s.id);
+});
+
+/** fs calls (stat, lstat, readdir, sync or not) on paths inside `dir` while `work` runs. */
+const FS_NAMES = ['statSync', 'lstatSync', 'readdirSync', 'existsSync', 'stat', 'lstat', 'readdir'];
+function patchFs(dir, onCall) {
+    const saved = {};
+    const inside = (p) => typeof p === 'string' && (p === dir || p.startsWith(dir + path.sep));
+    for (const k of FS_NAMES) {
+        saved[k] = fs[k];
+        fs[k] = function (p, ...rest) { if (inside(p)) onCall(); return saved[k].call(this, p, ...rest); };
+    }
+    const savedP = {};
+    for (const k of ['stat', 'lstat', 'readdir']) {
+        savedP[k] = fs.promises[k];
+        fs.promises[k] = function (p, ...rest) { if (inside(p)) onCall(); return savedP[k].call(this, p, ...rest); };
+    }
+    return () => { Object.assign(fs, saved); Object.assign(fs.promises, savedP); };
+}
+function countFsCalls(dir, work) {
+    let n = 0;
+    const restore = patchFs(dir, () => n++);
+    try { work(); } finally { restore(); }
+    return n;
+}
+async function countFsCallsAsync(dir, work, done) {
+    let n = 0;
+    const restore = patchFs(dir, () => n++);
+    try { await work(); } finally { restore(); }
+    done(n);
+}
 
 /** A schedule and a segmented row as a server that stopped mid-recording left them. */
 function leftByACrash({ windowMs }) {

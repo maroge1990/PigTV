@@ -235,6 +235,7 @@ test('an old two-part recording lists each part with its provider\'s name; delet
 test('a stalled recording (no new segments) continues in the same recording on the next provider', async () => {
     tuning.endGraceMs = 0;
     tuning.stallMs = 300;
+    tuning.stallCheckMs = 75; // sampled well inside the limit (0576 review L6)
     setBehaviour(url.A(101), 'stall');
     const s = due();
     await until(() => captures().length === 2 && engine.listActive().some(r => r.id === s.id && r.providerId === B.id), 'continued on Trex', 10000);

@@ -53,6 +53,7 @@ let server, base;
 // ---- ffmpeg: a segmented capture (-f hls) like ffmpeg's; from pipe:0 every byte of stdin goes into its segment ----
 const argsLog = path.join(sandbox, 'ffmpeg-args.log');
 const stallFlag = path.join(sandbox, 'ffmpeg-stall'); // while it exists, the fake reads nothing: its input queues up
+const deafFlag = path.join(sandbox, 'ffmpeg-deaf'); // #274: while it exists, the fake reads its input and writes none of it
 const FFMPEG = path.join(sandbox, 'ffmpeg-fake');
 fs.writeFileSync(FFMPEG, `#!${process.execPath}
 const fs = require('fs');
@@ -71,7 +72,9 @@ if (args[args.indexOf('-i') + 1] === 'pipe:0') {
   let listed = false;
   const stall = ${JSON.stringify(stallFlag)};
   const reading = () => { if (fs.existsSync(stall)) { process.stdin.pause(); setTimeout(reading, 50); } else process.stdin.resume(); };
+  const deaf = ${JSON.stringify(deafFlag)};
   process.stdin.on('data', (d) => {
+    if (fs.existsSync(deaf)) return;
     file.write(d);
     if (!listed) { listed = true; pl += '#EXTINF:4.000000,\\na000000.ts\\n'; putPlaylist(pl); }
     if (fs.existsSync(stall)) reading();
@@ -105,11 +108,12 @@ before(async () => {
         res.writeHead(200, { 'Content-Type': 'video/mp2t' });
         const first = connections[p] === 1;
         if (first) sent[p] = [];
+        // #274: /bursty hands over one burst every 600 ms (a feed the ingest is happy with, quiet between bursts).
         const timer = setInterval(() => {
             const chunk = Buffer.concat(Array.from({ length: 30 }, () => { const n = seq++; return packet(n % 20 === 0 ? 0 : 256, n); }));
             if (first) sent[p].push(chunk);
             res.write(chunk);
-        }, 20);
+        }, p.startsWith('/bursty') ? 600 : 20);
         if (p.startsWith('/dies')) setTimeout(() => { clearInterval(timer); req.socket.destroy(); }, 400);
         // #274: its first connection goes silent after 400 ms and stays open; a reconnect is healthy.
         if (p.startsWith('/quiet') && first) setTimeout(() => clearInterval(timer), 400);
@@ -128,6 +132,7 @@ before(async () => {
     item.run(`${A.id}:pos_3`, A.id, 'pos_3', 'Odd', 3, 'odd', `${base}/html`);
     item.run(`${A.id}:pos_4`, A.id, 'pos_4', 'Shaky', 4, 'shaky', `${base}/dies.ts`);
     item.run(`${A.id}:pos_5`, A.id, 'pos_5', 'Quiet', 5, 'quiet', `${base}/quiet.ts`);
+    item.run(`${A.id}:pos_6`, A.id, 'pos_6', 'Bursty', 6, 'bursty', `${base}/bursty.ts`);
     await db.settings.update({ recordingsPath: path.join(sandbox, 'recordings'), minFreeSpaceGB: 0, maxConcurrentRecordings: 5,
         maxProviderStreams: 1, sharedIngestEnabled: true });
     engine.init({ ffmpegPath: FFMPEG, ffprobePath: 'ffprobe' });
@@ -286,6 +291,7 @@ test('#274: a single-provider recording on a silent shared feed is left to the i
     console.warn = (...a) => { warned.push(a.join(' ')); realWarn(...a); };
     const behindMs = ingest.tuning.behindMs;
     tuning.stallMs = 1000; // far shorter than the ingest's own rule below
+    tuning.stallCheckMs = 250; // sampled well inside the limit (0576 review L6)
     ingest.tuning.behindMs = 3000;
     try {
         const s = due('pos_5', 'quiet');
@@ -308,6 +314,7 @@ test('#274: a single-provider recording whose ffmpeg stops reading a shared feed
     const tuning = engine._failoverTuning;
     const saved = { ...tuning };
     tuning.stallMs = 1000;
+    tuning.stallCheckMs = 250;
     tuning.endGraceMs = 0;
     try {
         const s = due();
@@ -318,6 +325,39 @@ test('#274: a single-provider recording whose ffmpeg stops reading a shared feed
         } finally {
             fs.unlinkSync(stallFlag);
         }
+        assert.match(recordings.getById(rowOf(s).id).error || '', /^Gaps: 1, .*no data/);
+        assert.equal(recordings.listBySchedule(s.id).length, 1, 'one recording');
+        await engine.cancelScheduled(s.id);
+    } finally {
+        Object.assign(tuning, saved);
+    }
+});
+
+// 0576 review (Codex, high): the excuse for a silent feed was renewed by any sample that saw no new bytes since the one
+// before, so a feed that arrives in bursts kept excusing an ffmpeg that reads its input and writes nothing: neither the
+// watchdog nor the ingest (the feed is healthy) ever acted, and the rest of the programme was lost. The excuse now holds
+// only while the feed has handed over nothing at all since the capture last grew.
+test('#274: a single-provider capture that reads a bursty shared feed and writes nothing is ended within the limit and continued', async () => {
+    const tuning = engine._failoverTuning;
+    const saved = { ...tuning };
+    tuning.stallMs = 1000;
+    tuning.stallCheckMs = 250; // bursts every 600 ms: most samples see no new bytes since the last one
+    tuning.endGraceMs = 0;
+    try {
+        const s = due('pos_6', 'bursty');
+        await until(() => sizeOf(segmentOf(s)) > 1024, 'some data');
+        fs.writeFileSync(deafFlag, '1'); // ffmpeg goes on reading and writes nothing more
+        const deafAt = Date.now();
+        try {
+            await until(() => captures().length === 2, 'continued after the stall', 10000);
+        } finally {
+            fs.unlinkSync(deafFlag);
+        }
+        // The limit (1 s) from the last growth, at most one burst gap (0.6 s) and one sample (0.25 s) late, then the
+        // exit and the next tick: well under 5 s, where the old excuse never let it stall at all.
+        const tookMs = Date.now() - deafAt;
+        assert.ok(tookMs < 5000, `continued ${tookMs} ms after it stopped writing`);
+        assert.equal(connections['/bursty.ts'], 1, 'the feed was never the ingest\'s to end: one connection');
         assert.match(recordings.getById(rowOf(s).id).error || '', /^Gaps: 1, .*no data/);
         assert.equal(recordings.listBySchedule(s.id).length, 1, 'one recording');
         await engine.cancelScheduled(s.id);

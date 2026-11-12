@@ -20,9 +20,13 @@ const PREFIX = /^(?:m3u|xtream)_\d+_/;
 /**
  * The bare item id, whichever spelling was supplied: String(id) with one composite prefix removed. A null or
  * undefined id is the string 'null'/'undefined', as String() makes it; callers that want '' guard first.
+ * A prefix with nothing after it (`m3u_1_`) is returned as it came, as the helper before 0573 did: stripped, it
+ * would be '', which a favourite would store and a quarantine key would share with every other such id.
  */
 function bareChannelId(id) {
-    return String(id).replace(PREFIX, '');
+    const s = String(id);
+    const bare = s.replace(PREFIX, '');
+    return bare === '' ? s : bare;
 }
 
 /** The composite spelling the web app uses, for a bare id. */

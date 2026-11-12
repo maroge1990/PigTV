@@ -177,6 +177,39 @@ function captureBytes(epochDir) {
     return total;
 }
 
+// The most segment names one captureGrowth sample looks for past the last it saw (a real capture writes one per 4 s).
+const GROWTH_STEPS = 64;
+
+/**
+ * #274 (0576 review M2): captureBytes' total for the stall watch, at a bounded cost per sample whatever the epoch's
+ * length: no readdir, a few stats. ffmpeg numbers the segments a000000.ts, a000001.ts… (start 0) and writes only the
+ * newest: with temp_file under a<n>.ts.tmp, renamed once complete (a writer without temp_file grows a<n>.ts in place;
+ * either way a segment is final once the next one exists). So `state` (one object per epoch, kept by the caller)
+ * remembers the bytes of the final segments before `next`; a sample stats the newest it knew of and any after it, the
+ * file being written, and the playlist. Every byte ffmpeg writes is in one of those, so real output always moves the
+ * total; nothing else does (the epoch folder is new for each run). A numbering gap would only stop the segment count
+ * (the playlist still grows with each segment). The same sum as captureBytes, which stays for a one-off total.
+ */
+function captureGrowth(epochDir, state) {
+    // next: one past the newest segment seen; doneBytes: the segments before that newest one (final, never re-read).
+    if (!Number.isInteger(state.next)) { state.next = 0; state.doneBytes = 0; }
+    const sizeOf = (name) => { try { return fs.statSync(path.join(epochDir, name)).size; } catch (e) { return null; } };
+    const seg = (i) => `a${String(i).padStart(6, '0')}.ts`;
+    // The newest segment seen last time (it may have grown in place), then the ones after it.
+    let i = Math.max(0, state.next - 1);
+    let newest = null;
+    for (let step = 0; step < GROWTH_STEPS; step++, i++) {
+        const size = sizeOf(seg(i));
+        if (size === null) break;
+        if (newest !== null) state.doneBytes += newest.size; // a later one exists: the one before is final
+        newest = { i, size };
+    }
+    if (newest) state.next = newest.i + 1;
+    const writing = sizeOf(`${seg(state.next)}.tmp`) || 0;
+    const playlist = sizeOf('archive.m3u8') || 0;
+    return state.doneBytes + (newest ? newest.size : 0) + writing + playlist;
+}
+
 /**
  * An epoch whose ffmpeg is gone (it was stopped, it died, the server restarted) is complete: a
  * graceful stop ends the playlist itself; anything else leaves it open, which a follower would
@@ -994,7 +1027,7 @@ function status() {
 }
 
 module.exports = {
-    SEGMENT_SEC, workRoot, ioFor, workDirFor, isWorkDir, epochs, nextEpoch, captureInput, captureArgs, captureBytes,
+    SEGMENT_SEC, workRoot, ioFor, workDirFor, isWorkDir, epochs, nextEpoch, captureInput, captureArgs, captureBytes, captureGrowth,
     sealEpoch, sealAll, stitchArchive, recordedSeconds, archiveSegmentCount,
     viewArgs, _resetFreeBytes,
     _partInput: partInput,

@@ -120,10 +120,13 @@ test('one channel identity serves both: the failover key and a schedule\'s stabl
 
 test('bareChannelId is exactly the inline strip it replaced, for every input those sites see', () => {
     const inline = (id) => String(id).replace(new RegExp('^(?:m3u|xtream)_\\d+_'), '');
-    for (const id of ['pos_9', 'm3u_5_pos_9', 'xtream_6_1042', 'xtream_6_1_2', '1042', 1042, '', 'm3u_5_', 'm3u__x',
+    for (const id of ['pos_9', 'm3u_5_pos_9', 'xtream_6_1042', 'xtream_6_1_2', '1042', 1042, '', 'm3u__x',
         'M3U_5_x', 'm3u_5_a\nb', 'm3u_5_m3u_5_x', null, undefined, 0]) {
         assert.equal(bareChannelId(id), inline(id), JSON.stringify(id));
     }
+    // Except a prefix with nothing after it: kept as it came (as before 0573), never '' (a junk favourite, a shared key).
+    assert.equal(bareChannelId('m3u_5_'), 'm3u_5_');
+    assert.equal(bareChannelId('xtream_6_'), 'xtream_6_');
 });
 
 test('a row\'s guide id: the column, else the stored data, then the admin\'s mapping', () => {
