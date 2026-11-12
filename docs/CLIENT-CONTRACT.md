@@ -708,8 +708,9 @@ on a race weekend, 1 h otherwise; nothing is fetched unless the page is asked fo
   (`false`, nobody), kept on the device. The C-O dashboard's own `avoidSpoilers` is separate until Live now is
   reassessed.
 - Apple (74–78): Sport tab → "Sport pages" → Formula 1. A session is played, recorded and waited for as a C-I event on
-  its channels' own times; spoiler content stays hidden until the preferences are known; changes are sent one field
-  at a time, in order. Since Apple 74 every C-I Watch/Record uses the chosen channel's `start`/`end` (#20).
+  its channels' own times; spoiler content stays hidden until the preferences are known. Since Apple 74 every C-I
+  Watch/Record uses the chosen channel's `start`/`end` (#20). Since #278 the app only reads this route (`GET`): its
+  Hide scores chip saves through `PUT /api/sports/follows` (C-U) and the app keeps no device copy.
 
 ### C-Q. Sport pages: NFL. Flag: `sportPageNfl` (0379, #21)
 
