@@ -7,9 +7,8 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 *Overwritten at the end of every session. 12 Nov 2026 (audit batches E, #273, J, #278, and F, #274; H, L and D the day before).*
 
-- **Released:** server **v0502** (`:release`, 9 Nov) and Apple **191** on TestFlight (tvOS and iOS). A release runs on
-  Mark's go-ahead (D-45). Pushed since, not released: server **0503 to 0577**, Apple **192 to 218**. Next builds: server
-  **0578**, Apple **219**.
+- **Released:** server **v0579** (`:release`, 13 Nov; v0577 the day before) and Apple **218** uploaded to TestFlight
+  (tvOS and iOS, 12 Nov). A release runs on Mark's go-ahead (D-45). Next builds: server **0580**, Apple **219**.
 - **The 10 Nov audit** was filed as batch issues #269–#280; each issue's first comment holds the detail and later
   comments Mark's decisions. Pushed: A (#269), I (#277), C (#271), B (#270), G (#275), K (#279), H (#276), L (#280),
   D (#272, with #281), E (#273), J (#278), F (#274). The audit's batches are all pushed.
@@ -76,8 +75,12 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
     signed off. Rig on 0577: play start 4,901 ms (5,398 on 0572), admission, failover, overrun and a stalled
     single-provider recording pass. Not seen end to end: a hung share. Evidence: `docs/evidence/2026-11-12-batch-f/`.
   - Filed: #302 (a stall's gap note under-counts), #303, #304, and the three seen on the way: #305, #306, #307.
+- **13 Nov, 0578 and 0579 pushed and released (#3, open for Mark's iPad check):** a play that joined a feed already
+  running began with up to a group of pictures of sound before any picture, and the iPad played it out of step (Fox
+  Cricket 501, 12 Nov). A joiner now starts on the newest video key frame. Real capture: 0.04 to 1.79 s before, 0.04
+  to 0.08 s after; the rig agrees. Left as #309: three edge cases from Codex's sign-off (Mark: ship and file) and
+  high-bitrate feeds keeping the old join. Evidence: `docs/evidence/2026-11-13-avsync-join/`.
 - **Decisions waiting on Mark** (device passes are listed under Waiting on Mark below):
-  - A release (nothing since v0502 and Apple 191 is released), then a TestFlight build from 218.
   - #288: how long a recording keeps trying when every provider is down. #304: should a single-provider stall show
     the provider as down. #307: the provider's host in three log lines. #232: Top Shelf, snapshot or live.
   - The Appdata Backup setting: don't stop PigTV, or move it from Sunday 04:00. #240. #266's rows.
