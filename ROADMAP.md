@@ -75,73 +75,70 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
   - Reviews: two Codex highs (a deleted recording's file put back; a bursty feed hiding a dead capture), both fixed and
     signed off. Rig on 0577: play start 4,901 ms (5,398 on 0572), admission, failover, overrun and a stalled
     single-provider recording pass. Not seen end to end: a hung share. Evidence: `docs/evidence/2026-11-12-batch-f/`.
-  - Filed: #302 (a stall's gap note under-counts), #303, #304. Seen on the way, for Mark: a waiting reason that stays
-    after the recording starts; "Infinitys silent" in a log line; the provider's host and port in three log lines.
-- **Waiting on Mark:**
-  - A release: nothing since v0502 and Apple 191 is released.
-  - T5 device checks: #278 (on a TestFlight build from 218; steps on the issue), #280 (on a build from 208; steps in
-    its evidence folder and on the issue), #279 (on a
-    build from 203), #271 (one real recording end to end, on a build from 0509), #277 (open Sport once on each
-    device, on a build from 197), #246 (stop the container mid-recording), #260, #274 (steps on the issue), the iPhone and iPad fixes in
-    176–191, Watch on…, and T4 for #259 at the next race.
-  - #288: how long a recording keeps trying when every provider is down (today about 5 minutes).
-  - The Appdata Backup setting: don't stop PigTV, or move it from Sunday 04:00.
-  - #240. Whether #293's missing focus tint is fixed before the next TestFlight build.
-  - #295's colour point: darker status colours for small text are the brand kit's to decide.
-  - #304: whether a single-provider stall should show the provider as down.
+  - Filed: #302 (a stall's gap note under-counts), #303, #304, and the three seen on the way: #305, #306, #307.
+- **Decisions waiting on Mark** (device passes are listed under Waiting on Mark below):
+  - A release (nothing since v0502 and Apple 191 is released), then a TestFlight build from 218.
+  - #288: how long a recording keeps trying when every provider is down. #304: should a single-provider stall show
+    the provider as down. #307: the provider's host in three log lines. #232: Top Shelf, snapshot or live.
+  - The Appdata Backup setting: don't stop PigTV, or move it from Sunday 04:00. #240. #266's rows.
+  - Whether #293's missing focus tint is fixed before the next TestFlight build. #295's colour point (brand kit).
 - **Open investigation:** #3 (sound out of step on the iPad): the relay join measured clean; the device meter (#267)
   and the marker (#268) are filed, not built (Mark).
-- **Next:** the Apple batch for the five faults seen during J (last comments on #278); then #262 (iPadOS/iOS 17+,
-  three sites need fallbacks).
+- **Next:** the batches under Now, regrouped on 12 Nov after every open issue was read against 0577 and 218.
 
 ## Now
 
-1. **Sport on the devices** (#21, D-39, D-40): Mark's T5 pass of the front page, NFL, Cricket and F1 on TestFlight
-   build 90, then the iPad layout check and the iPhone question (#177); #186, #187, #191, #192 fold in.
-2. **Every other team sport on Apple** (D-40): one page design on C-T (the server side is 0388–0389), after step 1;
-   then sports without two teams.
-3. **The sport revamp (D-41), before more pages; deployed and tested as a whole once complete (Mark, 1 Nov):**
-   - Server: built 0390–0432 (#193–#203, #206, #12, #29's measurement, #52).
-   - Web: #199 built (0418–0421); the web's sport pages are parked (D-43).
-   - Apple: built 91–101 (#200 with #201–#205, #187, #190, #52; the Apple TV sport pages to D-43); iPad/iPhone
-     (#186, #177) after the Apple TV device check.
-   - Combined test (T3 then T5): all of the above plus #20, #22–#24, #191, #192.
-   The web brand fixes W1–W9 (PR #189's README) follow.
-3. Batch 8: #4 relay renewal (capture first, a device test with renewal on, released alone): waits for Mark.
-4. #29: measured on the rig (0409); its production pilot is a read-only Status check at the combined deploy. #20 per-channel airing times inside the sport work.
+Batches regrouped on 12 Nov 2026 after the audit (every open issue read against server 0577 and Apple 218). Each is one
+theme and one review round. Order within a section is the order to take them.
 
-## Next (P1)
+1. **Apple 1, the five faults seen during batch J** (last comments on #278; Mark: fix), with #301, #298, #293's
+   simulator items and #203's "On air" wording. Simulators against the rig.
+2. **Server 1, recording follow-ups** (full review rule): #302 gap note · #286 low-disk reason · #305 waiting reason ·
+   #303 one schedule per failed read · #306 log text; #304 and #288 join once Mark has answered them.
+3. **Server 2, Status and sign-in:** #299 provider names · #300 device rows of a deleted user · #61's warming line ·
+   #307 once Mark has answered. Codex (sign-in code).
+4. **Apple 2, iPadOS and iOS 17+ (#262):** seven sites need fallbacks, not three; redo the 17.0 trial build.
 
-- #3 A/V out of step on iPhone/iPad (D-24) · #5, #6, #7 start-up and recovery feel: built, on the Test Round
-- #12 overlapping recordings: built, on the Test Round · #14 Top Shelf with a page open: built, on the Test Round
-- #17 play from live on a recording in progress (Mark's request) · #19 who is playing: built, on the Test Round
-- #18 tvOS focus after a non-preferred channel: Apple 62, on the Test Round · #22, #23, #24 cricket and roster
-  recognition: fixed, proven at the next Test match
+## Next
 
-## Later (P2)
+5. **Server 3, the rest of the share:** #289 (segment copies, the owners' sweep, the route's access checks, ad
+   detection) · #290 items 1 and 2. Full review rule.
+6. **Sport 1, matching:** #296 (a listing with no English name), with what #231 left. Full review rule.
+7. **Sport 2, one source for the sport pages:** #297 · #282 · #29's re-measure; then #291 (after a read of production's
+   settings; its item 2 is partly wrong, see the issue).
+8. **Sport 3, pickers:** #265 step 2 · #266 (server and Apple), once Mark confirms the rows.
+9. **Web 1:** #62 play errors · #63 first run without a Home page · #64 Settings.js and sign-out · #292 · #295.
 
-- Playback and recording: #25 frozen after a long play · #26 watch-from-start test · #27 timestamp step · #30 reconnect
-  or switch · #34 follower deaths · #35 display mode resets · #36 zap chain · #37 live pause policy (D-26) · #38 tmpfs
-  in bytes · #40 retention · #41 simplify the hot spots · #74 fake-provider stall run
-- Providers, guide and operations: #43 backups · #44 crash alert · #45 diagnose without SSH
-- Apple client: #46 stale Home (built, on the Test Round) · #47 degraded `/api/info` · #49 presentation · #50 AppModel
-  split · #51 observation rule · #53 iOS tests in CI · #54 sign-in tests · #55 launch requests · #56 richer programmes ·
-  #57 search · #58 player overlay
-- Contract and web: #48 Apple routes test · #52 contract fixtures · #60 player error texts · #61 Status facts (built,
-  on the Test Round) · #62 recordings parity · #63 first run · #64 Settings.js
-- Device sessions for Mark: #28 hardware encodes · #31 recordings test day · #32 watch-while-recording · #33 HE-AAC
+## Later (each needs a capture, a real provider, a device or a design choice first)
 
-**Parked (P3):** #188 lists everything; `gh issue list --state closed --label parked`. #101 (a multi-track channel on a
-device) stays open on the Test Round.
+- **A/V sync:** #267 meter · #268 marker, then #3 and #27. **Relay and recovery (released alone, D-25):** #4 · #41's
+  transition table and invariant test · #74 · #30. **Start speed:** #240 · #36 · #38.
+- **Operations:** #43 · #44 · #45 · #28. **Tests:** #26, and the stored replay for #22 to #24 re-run after 0551.
+- **Apple launch and tests:** #54 · #55 · #53 · the flaky ChannelWarmer test · #283. **Apple structure:** #50 · #51.
+- **Apple player:** #25 · #35 · #58 · #308 (Start over from live) · #101. **Apple, design first:** #56 · #57 · #232.
+  **Brand kit:** #294.
+
+## Waiting on Mark (no code is waiting; steps are on each issue)
+
+- **Device passes, on a release that includes 0577 and a TestFlight build from 218:**
+  - Playback: #5 · #6 · #7 · #14 · #18 · #19 · #33 · #37 · #46 · #49.
+  - Recording day: #12 · #17 · #31 · #32 · #217 · #246 · #260 (P0) · #271 · #274.
+  - Sport: #20 · #191 to #199 · #200 to #202 · #204 · #205 · #210 to #216 · #218 · #223 · #230 · #233 · #234 · #261 ·
+    #263 · #264; at a real event: #22 to #24 · #206 · #222 · #231 · #235.
+  - Layout and brand: #190 · #211 · #225 to #229 · #243 · #277 to #280.
+- **Read-only checks after a release (Claude runs them):** #237 · #247 · #273 · #29; #259 at the next race.
+- **#21** (the sport rebuild) closes when the sport pass is done: everything under it is built or filed.
+
+**Parked (P3):** #188 lists everything; `gh issue list --state closed --label parked`.
 
 ## How to pick work
 
-1. `gh issue list --label P0`, then `--label P1`. A P0 always comes first (none open on 31 Oct).
-2. Otherwise take the next item under **Now**; when Now is empty, the next P1, then by theme from Later.
+1. `gh issue list --label P0`, then `--label P1`. A P0 always comes first (#260 is built and waits for its device check).
+2. Otherwise take the next batch under **Now**, then **Next**; **Later** only once its capture, device or design choice exists.
 3. Read the issue, its evidence folder and the area page in `docs/architecture/` before touching code; capture first on
    the playback path.
-4. An issue that needs a device look is not "worked": its steps go on Mark's Test Round page, and it closes when he
-   reports (D-38). Everything else closes on T1–T3 evidence once pushed.
+4. An issue that needs a device look is not "worked": its numbered steps go in a comment on the issue, it gets the
+   `needs-device-test` label, and it closes when he reports (D-38). Everything else closes on T1–T3 evidence once pushed.
 5. Keep a batch inside one theme so its one Codex round has one focus (AGENTS.md › Reviews).
 6. New problems become issues with the template; security matters become private advisories; someday items get the
    `parked` label and a line in #188.

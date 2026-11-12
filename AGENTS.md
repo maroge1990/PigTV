@@ -71,8 +71,8 @@ test. Never batch unrelated areas to save time; a fix whose live effect must be 
   (next) · `P2` (soon) · `P3` (someday); `server` · `apple` · `web`; `needs-device-test`. Body (`.github/ISSUE_TEMPLATE/`):
   symptom · how to reproduce · evidence · cause (once known) · acceptance with its test tier; where it came from.
 - **Claude closes an issue once its fix is pushed with T1–T3 evidence**, in a comment naming the build (D-38). An issue
-  whose acceptance names T5, or labelled `needs-device-test`, stays open until Mark reports the device check (his Test
-  Round checklist holds those steps), and a closed one is reopened if his check contradicts it.
+  whose acceptance names T5, or labelled `needs-device-test`, stays open until Mark reports the device check (its
+  numbered steps are a comment on the issue; ROADMAP › Waiting on Mark groups them), and a closed one is reopened if his check contradicts it.
 - Anything that would help someone attack an exposed server (auth or redaction bypass) is a **private security
   advisory**, never a public issue, commit text or doc.
 - Docs never list open work; they may link an issue. Size budgets warn, never fail (`verify-build.sh`, D-22, D-47).
