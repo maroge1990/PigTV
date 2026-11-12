@@ -1,0 +1,4 @@
+window c6-guide-up -> c6-guide-5min: 320s
+   6  GET /api/recordings 200   (first at +18s)
+   6  GET /api/recordings/scheduled 200   (first at +18s)
+   1  GET /api/library/favourites 200   (first at +198s)

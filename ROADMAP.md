@@ -5,14 +5,14 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 12 Nov 2026 (audit batch E: #273; H, L and D the day before).*
+*Overwritten at the end of every session. 12 Nov 2026 (audit batches E, #273, and J, #278; H, L and D the day before).*
 
 - **Released:** server **v0502** (`:release`, 9 Nov) and Apple **191** on TestFlight (tvOS and iOS). A release runs on
-  Mark's go-ahead (D-45). Pushed since, not released: server **0503 to 0566**, Apple **192 to 208**. Next builds: server
-  **0567**, Apple **209**.
+  Mark's go-ahead (D-45). Pushed since, not released: server **0503 to 0566**, Apple **192 to 218**. Next builds: server
+  **0567**, Apple **219**.
 - **The 10 Nov audit** was filed as batch issues #269–#280; each issue's first comment holds the detail and later
   comments Mark's decisions. Pushed: A (#269), I (#277), C (#271), B (#270), G (#275), K (#279), H (#276), L (#280),
-  D (#272, with #281), E (#273). Left, in this order: **J (#278), F (#274)**; the handover note is a comment on #278.
+  D (#272, with #281), E (#273), J (#278). Left: **F (#274)**; the handover note is a comment on #274.
 - **11 Nov, batch H pushed with CI green, server 0534 to 0541 (#276, closed):** the web app under brand 1.8.
   - Mark's picks: no Home page (the app opens on Live TV, favourites first); compact Sport cards; Recordings as
     picture cards; text at 16 px with the guide grid, the channel list and the admin tables as recorded exceptions.
@@ -52,9 +52,22 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
     `docs/evidence/2026-11-12-batch-e/`. T4 after a release: production's write-ahead log size and write rate.
   - Filed on the way: #299 (the Status page shows no provider name on sessions and recordings, since 0175), #300 (deleting
     a user leaves that user's device rows behind; nothing is exposed).
+- **12 Nov, batch J pushed, Apple 209 to 218 (#278, open for Mark's device check):** the Apple apps ask for less and
+  keep each piece of state in one place.
+  - Under the full-screen live player nothing but playback is requested (the minute pass and the pages rest, and run
+    once when it closes); favourites every 5 minutes; the Guide's sport list at most every 5 minutes; the Sport front
+    page no longer redraws on every scroll step.
+  - Recording rules have one owner: a team's "Record every game" switch in Settings › Sport and Recordings › Scheduled
+    read one list and send through one queue. Hide scores has one writer and one function that decides it.
+  - Review: Opus no high; Codex one high (a rule could be sent while the rules had not loaded), fixed in 218 with the
+    medium and three lows, signed off. Simulators against the rig: six checks pass. Evidence:
+    `docs/evidence/2026-11-12-batch-j/`. The audit's larger merges were not built; they are listed on #278.
+  - Seen on the way, for Mark: no screen draws the cricket page's Hide scores chip; the iPhone strip's LIVE pill has no
+    word in it; a suspended game's fixture card says "Played".
 - **Waiting on Mark:**
   - A release: nothing since v0502 and Apple 191 is released.
-  - T5 device checks: #280 (on a TestFlight build from 208; steps in its evidence folder and on the issue), #279 (on a
+  - T5 device checks: #278 (on a TestFlight build from 218; steps on the issue), #280 (on a build from 208; steps in
+    its evidence folder and on the issue), #279 (on a
     build from 203), #271 (one real recording end to end, on a build from 0509), #277 (open Sport once on each
     device, on a build from 197), #246 (stop the container mid-recording), #260, the iPhone and iPad fixes in
     176–191, Watch on…, and T4 for #259 at the next race.
@@ -65,8 +78,7 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
   - Batch F (#274): the two recommended items only, or all six.
 - **Open investigation:** #3 (sound out of step on the iPad): the relay join measured clean; the device meter (#267)
   and the marker (#268) are filed, not built (Mark).
-- **Next:** batch J (#278: Apple; scout first, batch L moved its lines; Codex round; Mark's device check at the
-  end); then F (#274, after Mark's scope answer); then #262 (iPadOS/iOS 17+, three sites need fallbacks).
+- **Next:** F (#274, after Mark's scope answer); then #262 (iPadOS/iOS 17+, three sites need fallbacks).
 
 ## Now
 

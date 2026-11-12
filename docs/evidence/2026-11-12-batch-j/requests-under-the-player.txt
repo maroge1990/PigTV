@@ -1,0 +1,19 @@
+window c1-sport-start -> c1-sport-end: 120s
+   2  GET /api/recordings 200   (first at +42s)
+   2  GET /api/sports/pages/preferences 200   (first at +42s)
+   2  GET /api/recordings/scheduled 200   (first at +42s)
+   2  GET /api/sports/front 200   (first at +42s)
+window b-player-start -> b-player-end: 180s
+   1  GET /api/providers/reminders 200   (first at +1s)
+   1  POST /api/playback/resolve 200   (first at +7s)
+  90  GET /api/transcode/<session>/<file> 200   (first at +7s)
+  35  GET /api/playback/conflict 200   (first at +7s)
+   1  POST /api/playback/client-event 204   (first at +7s)
+window b-closing -> b-after-close-end: 15s
+   1  POST /api/playback/client-event 204   (first at +0s)
+   1  DELETE /api/playback/<id> 200   (first at +1s)
+   1  GET /api/sports/pages/preferences 200   (first at +1s)
+   1  GET /api/providers/reminders 200   (first at +1s)
+   1  GET /api/sports/front 200   (first at +1s)
+   1  GET /api/recordings 200   (first at +1s)
+   1  GET /api/recordings/scheduled 200   (first at +1s)
