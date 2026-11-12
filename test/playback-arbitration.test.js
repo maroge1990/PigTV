@@ -26,7 +26,8 @@ const playbackStrategy = load('services/playbackStrategy');
 let server, base;
 let activeRecordings = [];
 const resolveCalls = [];
-recordingEngine.listActive = () => activeRecordings;
+// C-2: the coordinator reads the running recordings from its one source.
+load('services/streamCoordinator').setRecordingsSource(() => activeRecordings);
 recordingEngine.stopForViewer = async () => {};
 playbackStrategy.resolve = async (opts) => {
     resolveCalls.push(opts);

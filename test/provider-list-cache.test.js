@@ -96,9 +96,9 @@ function readEverything() {
     coordinator.providerLimit(B.id, S);
     coordinator.poolOf(C.id);
     coordinator.samePool(B.id, C.id);
-    coordinator.hasFreeConnection(B.id, S, []);
-    coordinator.canAdmitWithoutDisturbing({ providerId: B.id, owner: 'device:tv', settings: S, activeRecordings: [] });
-    coordinator.canRecordFreely(C.id, S, []);
+    coordinator.hasFreeConnection(B.id, S);
+    coordinator.canAdmitWithoutDisturbing({ providerId: B.id, owner: 'device:tv', settings: S });
+    coordinator.canRecordFreely(C.id, S);
     routing.snapshot();
     recordingEngine.listRecordings();
 }

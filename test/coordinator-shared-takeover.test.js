@@ -9,13 +9,23 @@ const vm = require('node:vm');
 // database and ingest stubbed (no network, no database), as in the review's reproduction - whose
 // assertions described the defect; these describe the fix. ingest-playback.test.js checks the
 // same through the route with real subscribers and provider connections.
+// The ingest functions the coordinator reads (C-2), over the stubbed ingests, as ingest.js defines them.
+function stubIngest(list) {
+    const open = () => list.filter(i => !i.closed);
+    return {
+        idleInPool: () => [],
+        pinnedInPool: (pool) => open().filter(i => i.pool === pool && i.subs && i.subs.size > 0
+            && [...i.subs].every(s => s.info && s.info.purpose === 'renewal-pin')),
+        holdsConnection: (key, pool) => open().some(i => i.key === key && i.pool === pool && i.state !== 'connecting')
+    };
+}
 function loadCoordinator(sessions) {
     const mod = { exports: {} };
     const stubs = {
         './recordingGuideEnd': require('../server/services/recordingGuideEnd'), // the window's one owner (item 1)
         './transcodeSession': { getAllSessions: () => sessions, peekSession: () => null },
         '../db/sqlite': { isOpen: () => false },
-        './ingest': { idleInPool: () => [], _registry: new Map() }
+        './ingest': stubIngest([])
     };
     vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../server/services/streamCoordinator.js'), 'utf8'), {
         module: mod, require: (name) => { if (stubs[name]) return stubs[name]; throw new Error(name); },
@@ -29,7 +39,8 @@ const rec = (id) => ({ id, title: `Fixture ${id}`, channel_name: 'Fixture', prog
 
 test('PB2: two recordings on one ingest - the takeover stops both and closes the ingest', () => {
     const c = loadCoordinator([]);
-    const verdict = c.requestForViewer({ force: true, activeRecordings: [rec(1), rec(2)], settings, owner: 'new' });
+    c.setRecordingsSource(() => [rec(1), rec(2)]);
+    const verdict = c.requestForViewer({ force: true, settings, owner: 'new' });
     assert.equal(verdict.allowed, true);
     assert.deepEqual(plain(verdict.sacrificed).sort(), [1, 2]);
     assert.deepEqual(plain(verdict.closeIngests), ['shared']);
@@ -37,7 +48,8 @@ test('PB2: two recordings on one ingest - the takeover stops both and closes the
 
 test('PB2: a recording and a viewer on one ingest - the viewer is released with it', () => {
     const c = loadCoordinator([{ id: 'viewer', owner: 'other', ingestKey: 'shared', providerId: null, idleMs: 0, startTime: Date.now() }]);
-    const verdict = c.requestForViewer({ force: true, activeRecordings: [rec(1)], settings, owner: 'new' });
+    c.setRecordingsSource(() => [rec(1)]);
+    const verdict = c.requestForViewer({ force: true, settings, owner: 'new' });
     assert.equal(verdict.allowed, true);
     assert.deepEqual(plain(verdict.sacrificed), [1]);
     assert.deepEqual(plain(verdict.release.map(r => r.stream.id)), ['viewer']);
@@ -46,9 +58,10 @@ test('PB2: a recording and a viewer on one ingest - the viewer is released with 
 
 test('PB2: still counted once - without force it is one recording conflict, and nothing is released', () => {
     const c = loadCoordinator([]);
-    const verdict = c.requestForViewer({ force: false, activeRecordings: [rec(1), rec(2)], settings: { maxProviderStreams: 2 }, owner: 'new' });
+    c.setRecordingsSource(() => [rec(1), rec(2)]);
+    const verdict = c.requestForViewer({ force: false, settings: { maxProviderStreams: 2 }, owner: 'new' });
     assert.equal(verdict.allowed, true, 'two recordings on one ingest use one of two connections');
-    const asked = c.requestForViewer({ force: false, activeRecordings: [rec(1), rec(2)], settings, owner: 'new' });
+    const asked = c.requestForViewer({ force: false, settings, owner: 'new' });
     assert.equal(asked.allowed, false);
     assert.equal(asked.conflict.type, 'recording-in-progress');
     assert.equal(asked.sacrificed, undefined);
@@ -59,10 +72,10 @@ test('PB2: still counted once - without force it is one recording conflict, and 
 test('#37: a shared ingest with a paused viewer is asked about, never taken silently; a recording takes it only if every reader is paused or idle', () => {
     const paused = { id: 'paused', owner: 'tv', ingestKey: 'shared', providerId: null, idleMs: 10 * 60000, paused: true, startTime: Date.now() };
     const c = loadCoordinator([paused]);
-    const asked = c.requestForViewer({ force: false, activeRecordings: [], settings, owner: 'ipad' });
+    const asked = c.requestForViewer({ force: false, settings, owner: 'ipad' });
     assert.equal(asked.allowed, false, 'the iPad is asked');
     assert.equal(asked.conflict.type, 'viewer-in-progress');
-    assert.equal(c.canRecordFreely(null, settings, []), true, 'a recording may take a paused reader\'s connection');
+    assert.equal(c.canRecordFreely(null, settings), true, 'a recording may take a paused reader\'s connection');
     const watching = { id: 'watching', owner: 'phone', ingestKey: 'shared', providerId: null, idleMs: 0, startTime: Date.now() };
-    assert.equal(loadCoordinator([paused, watching]).canRecordFreely(null, settings, []), false, 'not while another reader watches');
+    assert.equal(loadCoordinator([paused, watching]).canRecordFreely(null, settings), false, 'not while another reader watches');
 });

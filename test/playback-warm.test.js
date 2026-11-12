@@ -32,7 +32,7 @@ const { probeCache, analyzeProbeResult } = load('services/streamProbe');
 
 let server, base;
 let activeRecordings = [];
-recordingEngine.listActive = () => activeRecordings;
+coordinator.setRecordingsSource(() => activeRecordings); // C-2: the coordinator's one recordings source
 recordingEngine.stopForViewer = async () => {};
 
 // One provider, one channel per id.
@@ -254,7 +254,7 @@ test('a warm session ends when its time runs out', async () => {
     const st = warming.status(await db.settings.get());
     assert.equal(st.expired, 1);
     assert.equal(st.active, 0);
-    assert.equal(coordinator.hasFreeConnection(1, { maxProviderStreams: 1 }, []), true, 'and the connection is free again');
+    assert.equal(coordinator.hasFreeConnection(1, { maxProviderStreams: 1 }), true, 'and the connection is free again');
 });
 
 test('a recording that falls due takes the warm session first', async () => {
@@ -276,4 +276,27 @@ test('info says the server can warm, and whether it is switched on', async () =>
     assert.equal(off.warmingEnabled, false);
     await setWarming(true);
     assert.equal((await (await fetch(`${base}/api/info`)).json()).warmingEnabled, true);
+});
+
+// C-2 (#274 item 5): the running recordings cannot be read (a database error). Warming used to swallow that
+// into "no recordings" and take the connection a recording may hold; now nothing is warmed on that request,
+// nothing crashes, and the next request with a readable list warms as usual.
+test('C-2: recordings that cannot be read warm nothing, and the next request warms', async () => {
+    await setWarming(true);
+    coordinator.setRecordingsSource(() => { throw new Error('SQLITE_BUSY: database is locked'); });
+    const warns = [];
+    const warn = console.warn;
+    console.warn = (...a) => warns.push(a.join(' '));
+    let refused;
+    try { refused = await warm(tv(), 11); } finally {
+        console.warn = warn;
+        coordinator.setRecordingsSource(() => activeRecordings);
+    }
+    assert.equal(refused.status, 204, 'nothing warmed');
+    assert.equal(starts, 0, 'no stream was started');
+    assert.equal(coordinator.listLeases().length, 0, 'no lease left behind');
+    assert.equal(warns.filter(w => /\[Warm\] failed/.test(w)).length, 1, 'logged once');
+    const next = await warm(tv(), 11);
+    assert.equal(next.status, 200, 'the next request warms');
+    assert.equal(starts, 1);
 });

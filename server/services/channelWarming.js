@@ -138,15 +138,15 @@ async function warm(ctx) {
 
         const providerRouting = require('./providerRouting');
         const plan = await providerRouting.plan(parseInt(sourceId), channelId);
-        let recordings = [];
-        try { recordings = require('./recordingEngine').listActive(); } catch (e) { /* none counted */ }
 
         // The first provider with a connection nobody is using. No second choice by reclaiming.
+        // C-2: when the running recordings cannot be read tryReserveFree throws; the catch below
+        // makes that "nothing warmed" for this request (a recording may hold the connection).
         let candidate = null;
         let lease = null;
         let reclaimedDuringStart = false;
         for (const c of plan.candidates) {
-            lease = coordinator().tryReserveFree(c.providerId, 'warm', settings, recordings, {
+            lease = coordinator().tryReserveFree(c.providerId, 'warm', settings, {
                 owner,
                 onReclaim: (why) => { if (why === 'reclaimed') { reclaimedDuringStart = true; stats.reclaimed++; } }
             });

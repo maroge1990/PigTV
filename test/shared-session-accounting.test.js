@@ -78,7 +78,7 @@ test('R1-M1: real viewers and mixed warm/standby readers share one counted conne
     assert.equal(connections, 1);
     assert.equal(sessions.getAllSessions().filter(s => s.ingestKey === one.ingestKey).length, 4);
     assert.equal(await used(), 1, 'Status counts physical connections');
-    const ask = { owner: 'device:other', settings, providerId: A.id, activeRecordings: [] };
+    const ask = { owner: 'device:other', settings, providerId: A.id };
     const v = c.requestForViewer(ask);
     assert.equal(v.allowed, false, 'mixed group is not reclaimable as warm/standby');
     assert.equal(v.conflict.type, 'viewer-in-progress');

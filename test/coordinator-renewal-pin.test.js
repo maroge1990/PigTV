@@ -9,13 +9,23 @@ const vm = require('node:vm');
 // open while backups are tried. No session or recording names that ingest and it is not idle, so
 // admission did not count it: with a limit of one, a sibling feed or another device was admitted
 // beside it. The real streamCoordinator with its registries stubbed, as in coordinator-own-stream.
+// The ingest functions the coordinator reads (C-2), over the stubbed ingests, as ingest.js defines them.
+function stubIngest(list) {
+    const open = () => list.filter(i => !i.closed);
+    return {
+        idleInPool: () => [],
+        pinnedInPool: (pool) => open().filter(i => i.pool === pool && i.subs && i.subs.size > 0
+            && [...i.subs].every(s => s.info && s.info.purpose === 'renewal-pin')),
+        holdsConnection: (key, pool) => open().some(i => i.key === key && i.pool === pool && i.state !== 'connecting')
+    };
+}
 function loadCoordinator(sessions, ingests = []) {
     const mod = { exports: {} };
     const stubs = {
         './recordingGuideEnd': require('../server/services/recordingGuideEnd'), // the window's one owner (item 1)
         './transcodeSession': { getAllSessions: () => sessions, peekSession: () => null },
         '../db/sqlite': { isOpen: () => false },
-        './ingest': { idleInPool: () => [], _registry: new Map(ingests.map((i, n) => [n, i])) }
+        './ingest': stubIngest(ingests)
     };
     vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../server/services/streamCoordinator.js'), 'utf8'), {
         module: mod, require: (name) => { if (stubs[name]) return stubs[name]; throw new Error(name); },

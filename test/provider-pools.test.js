@@ -57,6 +57,7 @@ async function threeProviders() {
 }
 
 let server, base, realListActive, userId;
+let running = []; // the running recordings the coordinator sees (C-2)
 const resolveCalls = [];
 
 before(async () => {
@@ -67,8 +68,8 @@ before(async () => {
     // #209 (0454): a channel is played only when its source's channel list holds it.
     sqlite.getDb().prepare("INSERT INTO playlist_items (id, source_id, item_id, type, name) VALUES (?, ?, '505', 'live', 'Fox')").run(`${A.id}:505`, A.id);
 
-    realListActive = recordingEngine.listActive; // listActive is stubbed for the route
-    recordingEngine.listActive = () => [];
+    realListActive = recordingEngine.listActive; // the real one, for the listActive test below
+    coordinator.setRecordingsSource(() => running); // C-2: what the coordinator counts as recording
     recordingEngine.stopForViewer = async () => {};
     playbackStrategy.resolve = async (opts) => {
         resolveCalls.push(opts);
@@ -84,6 +85,7 @@ before(async () => {
 });
 
 afterEach(async () => {
+    running = [];
     for (const s of transcodeSession.getAllSessions()) await transcodeSession.removeSession(s.id);
     coordinator._leases.clear(); // R11: these tests decide and never start anything, so they never release the leases a verdict carries
     for (const id of [...coordinator._prompts.keys()]) coordinator.clearPrompt(id);
@@ -133,7 +135,7 @@ test('limit: the primary with backups takes the larger of its account and maxPro
 
 test('a viewer on A: a second device is refused on A but fits on B (canAdmitWithoutDisturbing)', async () => {
     await session('device:tv', 5, A.id);
-    const opts = { owner: 'device:ipad', settings: S, activeRecordings: [] };
+    const opts = { owner: 'device:ipad', settings: S };
     assert.equal(coordinator.canAdmitWithoutDisturbing({ ...opts, providerId: A.id }), false);
     assert.equal(coordinator.canAdmitWithoutDisturbing({ ...opts }), false, 'no providerId is the primary pool');
     assert.equal(coordinator.canAdmitWithoutDisturbing({ ...opts, providerId: B.id }), true);
@@ -199,34 +201,39 @@ test('a device admitted on B has its own stream on A released (replacement), and
 
 test('a recording on B counts against B only', async () => {
     const onB = recordingOn(B.id);
-    const onA = coordinator.requestForViewer({ owner: 'device:tv', settings: S, providerId: A.id, activeRecordings: [onB] });
+    running = [onB];
+    const onA = coordinator.requestForViewer({ owner: 'device:tv', settings: S, providerId: A.id });
     assert.deepEqual(onA, { allowed: true, release: [] });
 
-    const blocked = coordinator.requestForViewer({ owner: 'device:tv', settings: S, providerId: B.id, activeRecordings: [onB] });
+    const blocked = coordinator.requestForViewer({ owner: 'device:tv', settings: S, providerId: B.id });
     assert.equal(blocked.allowed, false);
     assert.equal(blocked.conflict.type, 'recording-in-progress');
     assert.equal(blocked.conflict.providerId, B.id);
 
-    const forced = coordinator.requestForViewer({ owner: 'device:tv', settings: S, providerId: B.id, activeRecordings: [onB, recordingOn(A.id, 71)], force: true });
+    running = [onB, recordingOn(A.id, 71)];
+    const forced = coordinator.requestForViewer({ owner: 'device:tv', settings: S, providerId: B.id, force: true });
     assert.deepEqual(forced.sacrificed, [70], 'force on B stops only the recording on B');
 
     // A schedule row with no providerId counts in its source's pool (the primary's).
     const legacyRow = { ...recordingOn(undefined, 72) }; delete legacyRow.providerId;
-    assert.equal(coordinator.requestForViewer({ owner: 'device:tv', settings: S, providerId: A.id, activeRecordings: [legacyRow] }).allowed, false);
-    assert.equal(coordinator.requestForViewer({ owner: 'device:tv', settings: S, providerId: B.id, activeRecordings: [legacyRow] }).allowed, true);
+    running = [legacyRow];
+    assert.equal(coordinator.requestForViewer({ owner: 'device:tv', settings: S, providerId: A.id }).allowed, false);
+    assert.equal(coordinator.requestForViewer({ owner: 'device:tv', settings: S, providerId: B.id }).allowed, true);
 });
 
 // --------------------------------------------------------------- recordings --
 
 test('canRecordFreely: free slot or idle reclaim, never a live viewer; recordings already on the provider count', async () => {
     await session('device:tv', 5, A.id);
-    assert.equal(coordinator.canRecordFreely(A.id, S, []), false, 'a live viewer on A');
-    assert.equal(coordinator.canRecordFreely(B.id, S, []), true);
-    assert.equal(coordinator.canRecordFreely(B.id, S, [recordingOn(B.id)]), false, 'a recording already holds B');
-    assert.equal(coordinator.canRecordFreely(C.id, S, [recordingOn(B.id)]), true);
+    assert.equal(coordinator.canRecordFreely(A.id, S), false, 'a live viewer on A');
+    assert.equal(coordinator.canRecordFreely(B.id, S), true);
+    running = [recordingOn(B.id)];
+    assert.equal(coordinator.canRecordFreely(B.id, S), false, 'a recording already holds B');
+    assert.equal(coordinator.canRecordFreely(C.id, S), true);
+    running = [];
 
     const stale = await session('device:old', 300, C.id);
-    assert.equal(coordinator.canRecordFreely(C.id, S, []), true, 'an abandoned stream can be reclaimed');
+    assert.equal(coordinator.canRecordFreely(C.id, S), true, 'an abandoned stream can be reclaimed');
     assert.ok(alive(stale), 'asking reclaims nothing');
     const verdict = await coordinator.requestForRecording(due(90), S, C.id);
     assert.equal(verdict.allowed, true);
@@ -336,10 +343,12 @@ test('with no backup configured every scenario has today\'s outcome, whatever pr
     assert.deepEqual(other, { allowed: true, release: [] });
 
     // Every recording counts, whatever its provider.
-    const rec = coordinator.requestForViewer({ owner: 'device:x', settings: { ...S, maxProviderStreams: 2 }, providerId: A.id, activeRecordings: [recordingOn(C.id)] });
+    running = [recordingOn(C.id)];
+    const rec = coordinator.requestForViewer({ owner: 'device:x', settings: { ...S, maxProviderStreams: 2 }, providerId: A.id });
     assert.equal(rec.allowed, false);
     assert.equal(rec.conflict.type, 'recording-in-progress');
     assert.equal(rec.conflict.providerId, undefined);
+    running = [];
 
     // Recording prompt and announce: the viewer is asked whichever provider the schedule names.
     coordinator.announceUpcoming(due(95), S, C.id);
@@ -355,7 +364,7 @@ test('0181: two sources with the same server and login are one pool; another log
     // Trex configured with Strong8K's server and login (the 1 Oct live cause), written with another case and the default port.
     await db.sources.update(B.id, { url: 'HTTP://Strong.invalid:80/', username: 'u' });
     await session('device:tv', 5, A.id);
-    const opts = { owner: 'device:ipad', settings: S, activeRecordings: [] };
+    const opts = { owner: 'device:ipad', settings: S };
     assert.equal(coordinator.canAdmitWithoutDisturbing({ ...opts, providerId: B.id }), false, 'a second viewer on the twin is not admitted');
     assert.equal(coordinator.canAdmitWithoutDisturbing({ ...opts, providerId: A.id }), false);
     assert.equal(coordinator.canAdmitWithoutDisturbing({ ...opts, providerId: C.id }), true, 'an unrelated provider is unaffected');

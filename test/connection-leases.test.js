@@ -27,8 +27,9 @@ const coordinator = load('services/streamCoordinator');
 const { probeCache, analyzeProbeResult } = load('services/streamProbe');
 
 let server, base;
+// C-2: the coordinator reads the running recordings from its one source (the engine registered listActive).
 let activeRecordings = [];
-recordingEngine.listActive = () => activeRecordings;
+coordinator.setRecordingsSource(() => activeRecordings);
 recordingEngine.stopForViewer = async () => {};
 
 const S = { maxProviderStreams: 1, viewerIdleTimeoutSec: 60 };
@@ -133,10 +134,10 @@ test('the lease hands its count to the session: counted once, never twice, never
     assert.equal(sessions().length, 1);
     const mine = coordinator.listLeases().filter(l => l.sessionId === body.sessionId);
     assert.equal(mine.length, 1, 'the lease is bound to the session it became');
-    assert.equal(coordinator.hasFreeConnection(null, S, []), false, 'the connection is taken');
+    assert.equal(coordinator.hasFreeConnection(null, S), false, 'the connection is taken');
     assert.equal(coordinator.requestForViewer({ owner: 'device:other', settings: S }).allowed, false);
     // limit 2: one session + a bound lease is one connection, so a second is free
-    assert.equal(coordinator.hasFreeConnection(null, { ...S, maxProviderStreams: 2 }, []), true, 'never counted twice');
+    assert.equal(coordinator.hasFreeConnection(null, { ...S, maxProviderStreams: 2 }), true, 'never counted twice');
 });
 
 test('a viewer resolve racing a recording start never exceeds the limit', async () => {
@@ -145,7 +146,7 @@ test('a viewer resolve racing a recording start never exceeds the limit', async 
     const verdict = await coordinator.requestForRecording(schedule, S);
     assert.equal(verdict.allowed, true);
     assert.ok(verdict.lease, 'the recording took a lease with its decision');
-    const v = coordinator.requestForViewer({ owner: 'device:tv', settings: S, activeRecordings: [] });
+    const v = coordinator.requestForViewer({ owner: 'device:tv', settings: S });
     assert.equal(v.allowed, false);
     assert.equal(v.conflict.type, 'recording-in-progress');
     assert.equal(v.conflict.scheduleId, 77);
@@ -167,7 +168,7 @@ test('a viewer resolve racing a recording start never exceeds the limit', async 
 test('a forced viewer takes the lease of a recording that has not started: that start gives up', async () => {
     const schedule = { id: 78, title: 'Film', channel_name: 'Ch 2', program_end: Date.now() + 3600000, post_buffer_min: 0 };
     const { lease } = await coordinator.requestForRecording(schedule, S);
-    const verdict = await coordinator.admitViewer({ owner: 'device:tv', settings: S, force: true, activeRecordings: [] });
+    const verdict = await coordinator.admitViewer({ owner: 'device:tv', settings: S, force: true });
     assert.equal(verdict.allowed, true);
     assert.deepEqual(verdict.sacrificed, [78]);
     assert.equal(coordinator.leaseAlive(lease), false, 'the recording must not start after all');
@@ -178,14 +179,15 @@ test('a recording lease is not counted twice once the recording is running', asy
     const schedule = { id: 79, title: 'Quiz', channel_name: 'Ch 3', program_end: Date.now() + 3600000, post_buffer_min: 0 };
     const { lease } = await coordinator.requestForRecording(schedule, { ...S, maxProviderStreams: 2 });
     const two = { ...S, maxProviderStreams: 2 };
-    assert.equal(coordinator.hasFreeConnection(null, two, []), true, 'one of two taken by the lease');
+    assert.equal(coordinator.hasFreeConnection(null, two), true, 'one of two taken by the lease');
     // The row now says 'recording': listActive() lists it, and the lease (still unbound) must not add a second.
-    const running = [{ id: 79, providerId: null, title: 'Quiz' }];
-    assert.equal(coordinator.hasFreeConnection(null, two, running), true, 'the recording counts once');
-    assert.equal(coordinator.canRecordFreely(null, two, running), true);
+    activeRecordings = [{ id: 79, providerId: null, title: 'Quiz' }];
+    assert.equal(coordinator.hasFreeConnection(null, two), true, 'the recording counts once');
+    assert.equal(coordinator.canRecordFreely(null, two), true);
     coordinator.bindLeaseToRecording(lease, 5);
-    assert.equal(coordinator.hasFreeConnection(null, two, running), true);
-    assert.equal(coordinator.hasFreeConnection(null, two, []), true, 'bound: the engine counts the row, not the lease');
+    assert.equal(coordinator.hasFreeConnection(null, two), true);
+    activeRecordings = [];
+    assert.equal(coordinator.hasFreeConnection(null, two), true, 'bound: the engine counts the row, not the lease');
 });
 
 // ---------------------------------------------------------------- release --
@@ -215,9 +217,9 @@ test('a direct play (no session at all) leaves no lease behind', async () => {
 
 test('an unbound lease expires, with a warning, and stops counting', async () => {
     const lease = coordinator.takeLease(null, 'viewer', { owner: 'device:tv', ttlMs: 30 });
-    assert.equal(coordinator.hasFreeConnection(null, S, []), false);
+    assert.equal(coordinator.hasFreeConnection(null, S), false);
     await sleep(60);
-    const [free, warnings] = await quietly(async () => coordinator.hasFreeConnection(null, S, []));
+    const [free, warnings] = await quietly(async () => coordinator.hasFreeConnection(null, S));
     assert.equal(free, true, 'a leaked lease cannot hold a connection forever');
     assert.equal(coordinator.leaseAlive(lease), false);
     assert.ok(warnings.some(w => /expired unbound/.test(w)), 'and it says so');
@@ -227,24 +229,24 @@ test('an unbound lease expires, with a warning, and stops counting', async () =>
 // ------------------------------------------------------ standby and warm --
 
 test('tryReserveFree: a lease only when a connection is free, atomically, and never by disturbing anybody', async () => {
-    const one = coordinator.tryReserveFree(null, 'standby', S, []);
+    const one = coordinator.tryReserveFree(null, 'standby', S);
     assert.ok(one);
-    assert.equal(coordinator.tryReserveFree(null, 'standby', S, []), null, 'two callers cannot both find it free');
+    assert.equal(coordinator.tryReserveFree(null, 'standby', S), null, 'two callers cannot both find it free');
     coordinator.releaseLease(one);
     const s = await transcodeSession.createSession('http://provider.invalid/live/1.ts', { owner: 'device:tv', live: true });
     s.lastAccess = Date.now() - 600000; // abandoned: reclaimable by a viewer, but not something a standby may take
-    assert.equal(coordinator.tryReserveFree(null, 'standby', S, []), null);
+    assert.equal(coordinator.tryReserveFree(null, 'standby', S), null);
     assert.equal(sessions().length, 1, 'nothing was reclaimed');
     activeRecordings = [{ id: 1, providerId: null }];
     await transcodeSession.removeSession(s.id);
-    assert.equal(coordinator.tryReserveFree(null, 'warm', S, activeRecordings), null, 'a recording holds it');
+    assert.equal(coordinator.tryReserveFree(null, 'warm', S), null, 'a recording holds it');
 });
 
 test('a standby start loses cleanly to a viewer that arrives during its probe', async () => {
     let told = null;
-    const lease = coordinator.tryReserveFree(null, 'standby', S, [], { owner: 'standby:r1', onReclaim: (why) => { told = why; } });
+    const lease = coordinator.tryReserveFree(null, 'standby', S, { owner: 'standby:r1', onReclaim: (why) => { told = why; } });
     assert.ok(lease);
-    const verdict = await coordinator.admitViewer({ owner: 'device:tv', settings: S, activeRecordings: [] });
+    const verdict = await coordinator.admitViewer({ owner: 'device:tv', settings: S });
     assert.equal(verdict.allowed, true, 'the viewer is admitted without a prompt');
     assert.deepEqual(verdict.release.map(r => r.cause), ['standby']);
     assert.equal(told, 'reclaimed', 'the standby\'s owner is told to stop');
@@ -264,7 +266,7 @@ test('warm is reclaimed first and silently: before a standby, with no prompt and
     const two = { ...S, maxProviderStreams: 2 };
     const warm = await transcodeSession.createSession('http://provider.invalid/live/w.ts', { owner: 'device:tv', live: true, warm: true });
     const standby = await transcodeSession.createSession('http://provider.invalid/live/s.ts', { owner: 'standby:r', live: true, standby: true });
-    const verdict = await coordinator.admitViewer({ owner: 'device:ipad', settings: two, activeRecordings: [] });
+    const verdict = await coordinator.admitViewer({ owner: 'device:ipad', settings: two });
     assert.equal(verdict.allowed, true);
     assert.deepEqual(verdict.release.map(r => [r.stream.id, r.cause]), [[warm.id, 'warm']]);
     assert.equal(sessions().some(s => s.id === warm.id), false, 'the warm session is gone');
@@ -283,15 +285,15 @@ test('warm never displaces a viewer or a recording, and a recording takes it fir
     assert.equal(sessions().some(s => s.id === warm.id), false);
     assert.ok(verdict.lease);
     // The recording holds the only connection: a warm lease is refused, and a viewer is asked, not given it.
-    assert.equal(coordinator.tryReserveFree(null, 'warm', S, []), null);
-    assert.equal(coordinator.requestForViewer({ owner: 'device:ipad', settings: S, activeRecordings: [] }).allowed, false);
+    assert.equal(coordinator.tryReserveFree(null, 'warm', S), null);
+    assert.equal(coordinator.requestForViewer({ owner: 'device:ipad', settings: S }).allowed, false);
     coordinator.releaseLease(verdict.lease);
 });
 
 test('a warm lease is reclaimed by a viewer mid-probe, calling onReclaim', async () => {
     let told = null;
-    const lease = coordinator.tryReserveFree(null, 'warm', S, [], { owner: 'device:tv', onReclaim: (why) => { told = why; } });
-    const verdict = await coordinator.admitViewer({ owner: 'device:ipad', settings: S, activeRecordings: [] });
+    const lease = coordinator.tryReserveFree(null, 'warm', S, { owner: 'device:tv', onReclaim: (why) => { told = why; } });
+    const verdict = await coordinator.admitViewer({ owner: 'device:ipad', settings: S });
     assert.equal(verdict.allowed, true);
     assert.deepEqual(verdict.release.map(r => r.cause), ['warm']);
     assert.equal(told, 'reclaimed');
@@ -302,12 +304,12 @@ test('a warm lease is reclaimed by a viewer mid-probe, calling onReclaim', async
 test('a standby takes the only spare connection from a warm channel; nothing else does', async () => {
     let reclaimed = 0;
     const warm = coordinator.takeLease(null, 'warm', { owner: 'device:tv', onReclaim: () => { reclaimed++; } });
-    assert.equal(coordinator.tryReserveFree(null, 'standby', S, []), null, 'no free connection while the warm one holds it');
-    assert.equal(coordinator.tryReserveFree(null, 'warm', S, []), null, 'a second warm takes nothing');
-    const standby = await coordinator.reserveTakingWarm(null, 'standby', S, []);
+    assert.equal(coordinator.tryReserveFree(null, 'standby', S), null, 'no free connection while the warm one holds it');
+    assert.equal(coordinator.tryReserveFree(null, 'warm', S), null, 'a second warm takes nothing');
+    const standby = await coordinator.reserveTakingWarm(null, 'standby', S);
     assert.ok(standby, 'the standby gets the connection');
     assert.equal(coordinator.leaseAlive(warm), false, 'the warm channel gave it up');
     assert.equal(reclaimed, 1);
-    assert.equal(await coordinator.reserveTakingWarm(null, 'standby', S, []), null, 'with no warm channel left, nothing more is taken');
+    assert.equal(await coordinator.reserveTakingWarm(null, 'standby', S), null, 'with no warm channel left, nothing more is taken');
     coordinator.releaseLease(standby);
 });

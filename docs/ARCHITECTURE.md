@@ -65,6 +65,10 @@ The full detail, and the lessons from each fault, are in [`architecture/playback
   session on that provider even when a connection is free or the play joins the ingest that session reads (FR-11, 0286); a
   `user:` owner (a browser login, maybe in several tabs) keeps it while there is room. (The `soft` mode for the movie/series page's
   `POST /api/transcode/session` went with that route in 0122.)
+- What it counts: transcode sessions, its own leases, the shared ingests (through `ingest.js`'s functions) and the running
+  recordings. Those come from **one source**, `recordingEngine.listActive`, registered with `setRecordingsSource` when the engine
+  loads; no caller hands them in (C-2). If that read throws (a database error) the decision throws too, never counting none: the
+  play route fails the request, a relay leg, standby or warm start is not made on that attempt, and the recording tick retries.
 - Idle sweep: live sessions after **5 min** (`PIGTV_LIVE_IDLE_TIMEOUT_SEC`), seekable ones after 30 min. That's deliberately not
   ~2 min: the 60 s rule already reclaims on demand.
 - **Takeover vs failure** (0094): a displaced client sees only a 404. `admitViewer` leaves an owner-only record (~15 min, in memory),

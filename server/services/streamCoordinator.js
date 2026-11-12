@@ -180,6 +180,17 @@ function terminalStatus(sessionId, owner) {
     return rec.status;
 }
 
+// The running recordings (C-2): ONE source, registered by recordingEngine when it loads
+// (setRecordingsSource(listActive)), and recordingsNow() is the only place this module reads it.
+// No caller hands recordings in, so none can forget to and count a recording's connection as free.
+// With no source registered (the coordinator loaded alone: a test, a tool script) recordings count
+// as none. A source that throws (a database error) is NOT swallowed: the throw leaves the admission
+// or count being made, so nobody is admitted onto a connection a recording may hold; each caller
+// decides what a failed attempt means for it.
+let recordingsSource = null;
+function setRecordingsSource(fn) { recordingsSource = typeof fn === 'function' ? fn : null; }
+function recordingsNow() { return recordingsSource ? (recordingsSource() || []) : []; }
+
 function activeStreams() {
     // HLS sessions are the only streams since 0103 (the piped remux is gone).
     return transcodeSession.getAllSessions().map(s => ({
@@ -378,10 +389,11 @@ function listLeases() {
  * recording and no standby on it? Stricter than canAdmitWithoutDisturbing, which would reclaim
  * an idle stream: a standby must never take anything from anybody. Leases count (R11).
  */
-function hasFreeConnection(providerId, settings = {}, activeRecordings = []) {
+function hasFreeConnection(providerId, settings = {}) {
     const dir = providerDirectory();
     const pool = poolKey(providerId, dir);
-    return streamsInPool(pool, dir, activeRecordings).length + recordingsInPool(activeRecordings, pool, dir).length < providerLimit(providerId, settings, dir);
+    const recordings = recordingsNow();
+    return streamsInPool(pool, dir, recordings).length + recordingsInPool(recordings, pool, dir).length < providerLimit(providerId, settings, dir);
 }
 
 /**
@@ -390,8 +402,8 @@ function hasFreeConnection(providerId, settings = {}, activeRecordings = []) {
  * synchronous step, so two callers cannot both find the same connection free. For work that
  * starts after an await (a standby's probe, a warm channel's start) and must not take anything.
  */
-function tryReserveFree(providerId, purpose, settings = {}, activeRecordings = [], extra = {}) {
-    if (!hasFreeConnection(providerId, settings, activeRecordings)) return null;
+function tryReserveFree(providerId, purpose, settings = {}, extra = {}) {
+    if (!hasFreeConnection(providerId, settings)) return null;
     return takeLease(providerId, purpose, extra);
 }
 
@@ -402,16 +414,17 @@ function tryReserveFree(providerId, purpose, settings = {}, activeRecordings = [
  * the same synchronous step as the decision, and the warm stream is released before this returns,
  * so the caller's probe starts only once the provider has one connection fewer.
  */
-async function reserveTakingWarm(providerId, purpose, settings = {}, activeRecordings = [], extra = {}) {
-    const free = tryReserveFree(providerId, purpose, settings, activeRecordings, extra);
+async function reserveTakingWarm(providerId, purpose, settings = {}, extra = {}) {
+    const free = tryReserveFree(providerId, purpose, settings, extra);
     if (free) return free;
     const dir = providerDirectory();
     const pool = poolKey(providerId, dir);
-    const streams = streamsInPool(pool, dir, activeRecordings);
+    const recordings = recordingsNow();
+    const streams = streamsInPool(pool, dir, recordings);
     const warm = streams.find(s => s.warm);
     if (!warm) return null;
     // Room once the warm one is gone, and only then.
-    if (streams.length - 1 + recordingsInPool(activeRecordings, pool, dir).length >= providerLimit(providerId, settings, dir)) return null;
+    if (streams.length - 1 + recordingsInPool(recordings, pool, dir).length >= providerLimit(providerId, settings, dir)) return null;
     const lease = takeLease(providerId, purpose, extra);
     console.log(`[Coordinator] Releasing ${warm.id} (warm) for a ${purpose}: keeping the playing channel going comes first`);
     await releaseStream(warm);
@@ -531,12 +544,12 @@ function streamsInPool(pool, dir, recordings = undefined) {
     const idle = ingest.idleInPool(pool);
     // An ingest read only by a relay's renewal pins (its session retired while backups are tried)
     // still holds its connection; nothing else names it, so it is counted here (reset review, 0318).
-    const pinned = [...ingest._registry.values()].filter(i => !i.closed && i.pool === pool && i.subs && i.subs.size > 0
-        && [...i.subs].every(s => s.info && s.info.purpose === 'renewal-pin'));
+    const pinned = ingest.pinnedInPool(pool);
     if (!sessions.some(s => s.ingestKey) && idle.length === 0 && pinned.length === 0) return [...sessions, ...pending];
 
-    let recs = recordings;
-    if (recs === undefined) { try { recs = require('./recordingEngine').listActive(); } catch (e) { recs = []; } }
+    // Read here, and only here, when the caller has not read them already (requestForRecording):
+    // with no shared ingest in the pool the recordings change nothing in this list.
+    const recs = recordings === undefined ? recordingsNow() : recordings;
     const recKeys = new Set((recs || []).filter(r => r.ingestKey && poolKey(recordingProvider(r), dir) === pool).map(r => r.ingestKey));
     const out = [];
     const groups = new Map();
@@ -578,8 +591,7 @@ function streamsInPool(pool, dir, recordings = undefined) {
 function ingestInPool(key, pool, dir, recordings) {
     if (!key) return false;
     if ((recordings || []).some(r => r.ingestKey === key && poolKey(recordingProvider(r), dir) === pool)) return true;
-    const live = require('./ingest');
-    return [...live._registry.values()].some(i => !i.closed && i.key === key && i.pool === pool && i.state !== 'connecting');
+    return require('./ingest').holdsConnection(key, pool);
 }
 
 // The recordings in a pool: the running ones, plus recordings that have been admitted but whose
@@ -685,8 +697,9 @@ async function releaseStream(stream) {
 /**
  * Can a recording take the stream now?
  *
- * Returns { allowed, reason, prompted } — never throws, because a coordinator
- * failure must not be the thing that stops a recording.
+ * Returns { allowed, reason, prompted }. Throws only when the running recordings
+ * cannot be read (recordingsNow): the engine's tick then logs it and leaves the
+ * schedule as it was, to be asked again on the next tick.
  */
 async function requestForRecording(schedule, settings = {}, providerId = undefined) {
     const idleTimeout = Number.isFinite(settings.viewerIdleTimeoutSec)
@@ -798,16 +811,13 @@ async function requestForRecording(schedule, settings = {}, providerId = undefin
  * Unlike requestForRecording, recordings already running on the provider count
  * (D4: a recording holds a connection until it ends), so a second recording is
  * not stacked onto a provider whose only connection a recording already holds.
- * `activeRecordings` defaults to recordingEngine.listActive().
+ * Throws when the recordings cannot be read (recordingsNow).
  */
-function canRecordFreely(providerId, settings = {}, activeRecordings = undefined) {
+function canRecordFreely(providerId, settings = {}) {
     const dir = providerDirectory();
     const pool = poolKey(providerId, dir);
     const limit = providerLimit(providerId, settings, dir);
-    let recordings = activeRecordings;
-    if (recordings === undefined) {
-        try { recordings = require('./recordingEngine').listActive(); } catch (e) { recordings = []; }
-    }
+    const recordings = recordingsNow();
     const held = recordingsInPool(recordings, pool, dir).length;
     const cutoff = (Number.isFinite(settings.viewerIdleTimeoutSec)
         ? settings.viewerIdleTimeoutSec : DEFAULT_IDLE_TIMEOUT_SEC) * 1000;
@@ -905,7 +915,7 @@ function ownerKey(user) {
  * abandoned ones, then this owner's own earlier stream, and only then
  * something somebody else may be watching.
  */
-function requestForViewer({ force = false, activeRecordings = [], settings = {}, owner = null, providerId = undefined, adopt = null, joinIngest = null } = {}) {
+function requestForViewer({ force = false, settings = {}, owner = null, providerId = undefined, adopt = null, joinIngest = null } = {}) {
     // Everything below is within the pool of the provider asked for (0173): its
     // streams, its recordings, its limit. No providerId is the primary's pool,
     // which with no backup configured is every stream, as before.
@@ -928,7 +938,8 @@ function requestForViewer({ force = false, activeRecordings = [], settings = {},
         return activeStreams().filter(s => s.owner === owner && !s.standby && !s.warm && s.id !== adopt
             && poolKey(s.providerId, dir) === pool && !gone.has(s.id)).map(s => ({ stream: s, cause: 'replacement' }));
     };
-    const recordings = recordingsInPool(activeRecordings, pool, dir);
+    const running = recordingsNow(); // read once: every count below sees the same list
+    const recordings = recordingsInPool(running, pool, dir);
 
     // The caller is asking to open one more connection, so count it. A
     // recording holds a connection of its own: its ffmpeg talks to the
@@ -938,8 +949,8 @@ function requestForViewer({ force = false, activeRecordings = [], settings = {},
     // session: it already holds the connection the +1 below asks for, so it is not counted.
     // Wave 5: joining an ingest that already holds a connection here asks for no new one, and
     // that ingest is never released to make room for joining it.
-    const joining = ingestInPool(joinIngest, pool, dir, activeRecordings);
-    const streams = streamsInPool(pool, dir, activeRecordings).filter(s => !adopt || s.id !== adopt)
+    const joining = ingestInPool(joinIngest, pool, dir, running);
+    const streams = streamsInPool(pool, dir, running).filter(s => !adopt || s.id !== adopt)
         .filter(s => !(joining && s.ingestKey === joinIngest))
         .sort((a, b) => (b.warm === true) - (a.warm === true) || (b.standby === true) - (a.standby === true) || b.idleMs - a.idleMs);
     let need = streams.length + recordings.length + (joining ? 0 : 1) - limit;
@@ -1029,8 +1040,8 @@ function requestForViewer({ force = false, activeRecordings = [], settings = {},
  * replaced - with no 409 and no force? Non-mutating: for walking a channel's
  * providers in order (P6) before admitViewer is called on the one chosen.
  */
-function canAdmitWithoutDisturbing({ providerId = undefined, owner = null, settings = {}, activeRecordings = [], joinIngest = null } = {}) {
-    return requestForViewer({ force: false, providerId, owner, settings, activeRecordings, joinIngest }).allowed === true;
+function canAdmitWithoutDisturbing({ providerId = undefined, owner = null, settings = {}, joinIngest = null } = {}) {
+    return requestForViewer({ force: false, providerId, owner, settings, joinIngest }).allowed === true;
 }
 
 /**
@@ -1093,6 +1104,8 @@ module.exports = {
     leaseAlive,
     listLeases,
     LEASE_TTL_MS,
+    // C-2: where the running recordings come from (recordingEngine registers listActive)
+    setRecordingsSource,
     // Provider pools (0173)
     providerLimit,
     hasFreeConnection,

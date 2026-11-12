@@ -1277,6 +1277,20 @@ else
     echo "  ✓ the composite-id prefix is written only in services/channelIds.js"
 fi
 
+echo "=== C-2: one source for the running recordings, ingest read through its functions (#274) ==="
+# Callers handed the coordinator the recordings, with a default of none: one that forgot counted a recording's
+# connection as free. recordingEngine registers listActive (setRecordingsSource); the coordinator never fetches it.
+if grep -nE "require\(['\"]\./recordingEngine['\"]\)" server/services/streamCoordinator.js | grep -q .; then
+    echo "  ✗ STILL PRESENT: streamCoordinator.js requires recordingEngine (use the registered recordings source)"; FAIL=1
+else
+    echo "  ✓ the coordinator does not require recordingEngine"
+fi
+if grep -rn "_registry" server --include=*.js | grep -v "^server/services/ingest.js:" | grep -q .; then
+    echo "  ✗ STILL PRESENT: ingest's private _registry is read outside ingest.js (use its exported functions)"; FAIL=1
+else
+    echo "  ✓ ingest's registry is read only inside ingest.js"
+fi
+
 # Documentation size budgets (30 Oct reset, decision D-22): warnings only, never a failure. A warning means
 # something probably belongs elsewhere; it is never a reason to cut useful detail.
 echo "=== Doc size budgets (warnings only) ==="

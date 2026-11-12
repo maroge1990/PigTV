@@ -8,13 +8,23 @@ const vm = require('node:vm');
 // provider's limit forced it; a play that joined the shared ingest the earlier stream was reading
 // (or found a free connection) left that stream running, ffmpeg and relay with it, until the idle
 // sweep. The real streamCoordinator with its registries stubbed, as in coordinator-shared-takeover.
+// The ingest functions the coordinator reads (C-2), over the stubbed ingests, as ingest.js defines them.
+function stubIngest(list) {
+    const open = () => list.filter(i => !i.closed);
+    return {
+        idleInPool: () => [],
+        pinnedInPool: (pool) => open().filter(i => i.pool === pool && i.subs && i.subs.size > 0
+            && [...i.subs].every(s => s.info && s.info.purpose === 'renewal-pin')),
+        holdsConnection: (key, pool) => open().some(i => i.key === key && i.pool === pool && i.state !== 'connecting')
+    };
+}
 function loadCoordinator(sessions, ingests = []) {
     const mod = { exports: {} };
     const stubs = {
         './recordingGuideEnd': require('../server/services/recordingGuideEnd'), // the window's one owner (item 1)
         './transcodeSession': { getAllSessions: () => sessions, peekSession: () => null },
         '../db/sqlite': { isOpen: () => false },
-        './ingest': { idleInPool: () => [], _registry: new Map(ingests.map((i, n) => [n, i])) }
+        './ingest': stubIngest(ingests)
     };
     vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../server/services/streamCoordinator.js'), 'utf8'), {
         module: mod, require: (name) => { if (stubs[name]) return stubs[name]; throw new Error(name); },

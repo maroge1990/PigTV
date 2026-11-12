@@ -30,6 +30,7 @@ const strategy = load('services/playbackStrategy');
 const recordingEngine = load('services/recordingEngine');
 const db = load('db');
 recordingEngine.listActive = () => [];
+load('services/streamCoordinator').setRecordingsSource(() => []); // C-2: what the coordinator counts as recording
 
 const ALLOWED = ['The provider refused this channel', 'The provider did not respond', 'This channel is not available'];
 const assertShowable = (message, label) => {

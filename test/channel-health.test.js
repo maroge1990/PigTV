@@ -26,6 +26,7 @@ const sqlite = load('db/sqlite');
 const strategy = load('services/playbackStrategy');
 const recordingEngine = load('services/recordingEngine');
 recordingEngine.listActive = () => [];
+load('services/streamCoordinator').setRecordingsSource(() => []); // C-2: what the coordinator counts as recording
 
 const DAY = 24 * 60 * 60 * 1000;
 let server, base, adminToken, admin, source, health;

@@ -196,11 +196,10 @@ async function routeFor(schedule) {
 
 /** The first candidate after `from` with a free connection (canRecordFreely), or -1. */
 function freeCandidate(route, settings, from = 0) {
-    const recordings = listActive();
     for (let i = from; i < route.candidates.length; i++) {
         // Wave 5: a stream already being read by a shared ingest costs no connection to join.
         if (ingest.enabled(settings) && liveIngestFor(route.candidates[i])) return i;
-        if (coordinator.canRecordFreely(route.candidates[i].providerId, settings, recordings)) return i;
+        if (coordinator.canRecordFreely(route.candidates[i].providerId, settings)) return i;
     }
     return -1;
 }
@@ -1962,3 +1961,6 @@ module.exports = {
     _chooseProvider: chooseProvider, // #137: which candidate a join-only start is given
     segments
 };
+
+// C-2: the coordinator counts the running recordings from this one source, read at each decision.
+coordinator.setRecordingsSource(listActive);

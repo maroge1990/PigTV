@@ -235,9 +235,13 @@ test('switch off: its own connection, no ingest', async () => {
 test('the pool counts recordings on one ingest as one connection', async () => {
     const settings = { ...(await db.settings.get()), maxProviderStreams: 2 };
     const row = (id, ingestKey) => ({ id, source_id: A.id, providerId: A.id, ...(ingestKey ? { ingestKey } : {}) });
-    assert.equal(coordinator.canRecordFreely(A.id, settings, [row(1, 'k'), row(2, 'k')]), true, 'two on one ingest: one of two connections used');
-    assert.equal(coordinator.canRecordFreely(A.id, settings, [row(1, 'k'), row(2, 'j')]), false, 'two ingests: both used');
-    assert.equal(coordinator.canRecordFreely(A.id, settings, [row(1), row(2)]), false, 'without an ingest, as today');
+    // C-2: the coordinator's one recordings source, set to these rows for the test, the engine's again after.
+    const withRows = (rows) => { coordinator.setRecordingsSource(() => rows); return coordinator.canRecordFreely(A.id, settings); };
+    try {
+        assert.equal(withRows([row(1, 'k'), row(2, 'k')]), true, 'two on one ingest: one of two connections used');
+        assert.equal(withRows([row(1, 'k'), row(2, 'j')]), false, 'two ingests: both used');
+        assert.equal(withRows([row(1), row(2)]), false, 'without an ingest, as today');
+    } finally { coordinator.setRecordingsSource(engine.listActive); }
 });
 
 test('a provider that dies for good: the ingest gives up, the recording goes on in the same row on its own connection, and what it captured is kept', async () => {

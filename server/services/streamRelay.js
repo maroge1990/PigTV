@@ -71,7 +71,6 @@ const strategy = () => require('./playbackStrategy');
 const interruptions = () => require('./playbackInterruptions');
 const playbackEvents = () => require('./playbackEvents');
 const ingest = () => require('./ingest');
-const activeRecordings = () => { try { return require('./recordingEngine').listActive(); } catch (e) { return []; } };
 
 class Relay {
     /**
@@ -600,10 +599,18 @@ class Relay {
                 this.close('the viewer is watching something else');
                 return null;
             }
-            const ask = { force: false, adopt, activeRecordings: activeRecordings(), settings: ctx.settings, owner: ctx.owner, providerId: candidate.providerId,
+            const ask = { force: false, adopt, settings: ctx.settings, owner: ctx.owner, providerId: candidate.providerId,
                 joinIngest: ingest().sourceFor(candidate, ctx.settings)?.key || null };
-            if (!coordinator().canAdmitWithoutDisturbing(ask)) continue;
-            const verdict = await coordinator().admitViewer(ask);
+            // C-2: the running recordings could not be read (a database error): nobody is admitted
+            // on this attempt, as a recording may hold the connection. Not a crash; logged once.
+            let verdict;
+            try {
+                if (!coordinator().canAdmitWithoutDisturbing(ask)) continue;
+                verdict = await coordinator().admitViewer(ask);
+            } catch (err) {
+                this.log(`could not count the provider's connections (${redact(err && err.message)}); not started`);
+                return null;
+            }
             if (!verdict.allowed) continue;
             // A renewal pin's connection this relay gave up to its own next leg (0318): if that leg
             // fails, the primary may still be started again (Codex review of 0318).
@@ -665,10 +672,12 @@ class Relay {
             && !this.unusable.has(c.providerId)
             && !coordinator().samePool(c.providerId, playingOn));
         const opts = { owner: `standby:${this.id}` };
-        let candidate = usable.find(c => (lease = coordinator().tryReserveFree(c.providerId, 'standby', ctx.settings, activeRecordings(), opts)));
+        // C-2: when the running recordings cannot be read these throw before any lease is taken;
+        // tendStandby logs it and tries again after STANDBY_RETRY_MS.
+        let candidate = usable.find(c => (lease = coordinator().tryReserveFree(c.providerId, 'standby', ctx.settings, opts)));
         for (const c of candidate ? [] : usable) {
             if (this.closed || this.standby) return;
-            if ((lease = await coordinator().reserveTakingWarm(c.providerId, 'standby', ctx.settings, activeRecordings(), opts))) { candidate = c; break; }
+            if ((lease = await coordinator().reserveTakingWarm(c.providerId, 'standby', ctx.settings, opts))) { candidate = c; break; }
         }
         if (!candidate) return;
         let leg;

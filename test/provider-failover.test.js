@@ -131,6 +131,7 @@ before(async () => {
     for (const n of [7001, 7002, 7003, 7004]) bc.run(C.id, String(n), `Dream ${n}`, url.C(n));
 
     recordingEngine.listActive = () => [];
+    coordinator.setRecordingsSource(() => []); // C-2: what the coordinator counts as recording
     recordingEngine.stopForViewer = async () => {};
     const realCreate = transcodeSession.createSession;
     transcodeSession.createSession = async (u, o = {}) => {
@@ -571,7 +572,7 @@ test('PB3: a recording that starts on the backup while the primary is starting i
     await sessionOn(C.id, 'device:lounge'); // the second backup is full
     behaviour.set(url.A(102), 'slow502');
     let running = [];
-    recordingEngine.listActive = () => running;
+    coordinator.setRecordingsSource(() => running);
     try {
         const pending = play('pos_2');
         await sleep(250); // the primary is starting (it fails at 600 ms)
@@ -581,7 +582,7 @@ test('PB3: a recording that starts on the backup while the primary is starting i
         assert.equal(startsOf(url.B(5002)), 0, 'nothing started on Trex');
         assert.ok(!coordinator.activeStreams().some(x => x.providerId === B.id), 'no session on Trex beside its recording');
     } finally {
-        recordingEngine.listActive = () => [];
+        coordinator.setRecordingsSource(() => []);
     }
 });
 
@@ -590,7 +591,7 @@ test('PB3: a recording on the backup that ends while the primary is starting no 
     await sessionOn(C.id, 'device:lounge');
     behaviour.set(url.A(102), 'slow502');
     let running = [onB];
-    recordingEngine.listActive = () => running;
+    coordinator.setRecordingsSource(() => running);
     try {
         const pending = play('pos_2');
         await sleep(250);
@@ -600,6 +601,6 @@ test('PB3: a recording on the backup that ends while the primary is starting no 
         assert.equal(r.body.provider.id, B.id);
         assert.equal(r.body.provider.failover, true);
     } finally {
-        recordingEngine.listActive = () => [];
+        coordinator.setRecordingsSource(() => []);
     }
 });

@@ -23,10 +23,15 @@ async function session(owner, idleSec, opts = {}) {
     return s;
 }
 
+// C-2: the coordinator reads the running recordings from its one source; a test sets the list it holds.
+let running = [];
+coordinator.setRecordingsSource(() => running);
+
 const recording = { id: 7, title: 'The News', channel_name: 'ABC', program_end: Date.now() + 3600000, post_buffer_min: 2 };
 
 afterEach(async () => {
     for (const s of transcodeSession.getAllSessions()) await transcodeSession.removeSession(s.id);
+    running = [];
     coordinator._leases.clear(); // R11: these tests decide and never start anything, so they never release the leases a verdict carries
 });
 
@@ -100,12 +105,13 @@ test('there is no soft mode any more (0122): another viewer is always put as a q
 });
 
 test('a recording in progress is still reported, and force still sacrifices it', () => {
-    const asked = coordinator.requestForViewer({ settings: ONE_STREAM, owner: 'device:a', activeRecordings: [recording] });
+    running = [recording];
+    const asked = coordinator.requestForViewer({ settings: ONE_STREAM, owner: 'device:a' });
     assert.equal(asked.allowed, false);
     assert.equal(asked.conflict.type, 'recording-in-progress');
     assert.equal(asked.conflict.scheduleId, 7);
 
-    const forced = coordinator.requestForViewer({ settings: ONE_STREAM, owner: 'device:a', activeRecordings: [recording], force: true });
+    const forced = coordinator.requestForViewer({ settings: ONE_STREAM, owner: 'device:a', force: true });
     assert.equal(forced.allowed, true);
     assert.deepEqual(forced.sacrificed, [7]);
 });
@@ -152,7 +158,7 @@ test('live sessions are swept on the live timeout, seekable ones on the longer o
 test('recording-in-progress endsAt is the recording\'s real stop: its guide end + post, or its capped event stop', () => {
     const MAX = 4 * 3600000;
     const floor = recording.program_end + recording.post_buffer_min * 60000;
-    const ask = (r) => coordinator.requestForViewer({ settings: ONE_STREAM, owner: 'device:a', activeRecordings: [r] }).conflict.endsAt;
+    const ask = (r) => { running = [r]; return coordinator.requestForViewer({ settings: ONE_STREAM, owner: 'device:a' }).conflict.endsAt; };
     assert.equal(ask(recording), floor, 'no event stop: the floor');
     assert.equal(ask({ ...recording, event_stop: floor + 3600000 }), floor + 3600000, 'an event running over');
     assert.equal(ask({ ...recording, event_stop: floor - 1000 }), floor, 'never before the floor');
@@ -162,7 +168,7 @@ test('recording-in-progress endsAt is the recording\'s real stop: its guide end 
 test('a lease-shaped recording row carries the schedule\'s event stop to the viewer\'s conflict', () => {
     const floor = recording.program_end + recording.post_buffer_min * 60000;
     coordinator.takeLease(null, 'recording', { schedule: { ...recording, event_stop: floor + 1800000 } });
-    const asked = coordinator.requestForViewer({ settings: ONE_STREAM, owner: 'device:a', activeRecordings: [] });
+    const asked = coordinator.requestForViewer({ settings: ONE_STREAM, owner: 'device:a' });
     assert.equal(asked.conflict.type, 'recording-in-progress');
     assert.equal(asked.conflict.endsAt, floor + 1800000);
 });

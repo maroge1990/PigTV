@@ -25,6 +25,7 @@ const strategy = load('services/playbackStrategy');
 const recordingEngine = load('services/recordingEngine');
 const db = load('db');
 recordingEngine.listActive = () => [];
+load('services/streamCoordinator').setRecordingsSource(() => []); // C-2: what the coordinator counts as recording
 
 const STREAM = 'http://provider.invalid/live/user/pass/441367.m3u8';
 const BODY = Buffer.alloc(32 * 1024, 9);

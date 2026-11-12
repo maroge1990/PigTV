@@ -427,9 +427,9 @@ test('standby: when its connection is taken the relay carries on without it', as
 test('the coordinator treats a standby as abandoned: a viewer and a recording take its connection unasked', async () => {
     const settings = { maxProviderStreams: 1 };
     const sb = fakeSession({ owner: 'standby:s1', standby: true });
-    assert.equal(coordinator.hasFreeConnection(null, settings, []), false, 'a standby holds the connection it runs on');
-    assert.equal(coordinator.canRecordFreely(null, settings, []), true, 'but it does not stop a recording being placed there');
-    const verdict = coordinator.requestForViewer({ settings, owner: 'device:ipad', activeRecordings: [] });
+    assert.equal(coordinator.hasFreeConnection(null, settings), false, 'a standby holds the connection it runs on');
+    assert.equal(coordinator.canRecordFreely(null, settings), true, 'but it does not stop a recording being placed there');
+    const verdict = coordinator.requestForViewer({ settings, owner: 'device:ipad' });
     assert.equal(verdict.allowed, true);
     assert.deepEqual(verdict.release.map(x => [x.stream.id, x.cause]), [[sb.id, 'standby']]);
     coordinator.announceUpcoming({ id: 41, title: 'News', channel_name: 'ABC', program_start: Date.now() + 60000 }, settings);
@@ -789,4 +789,58 @@ test('N2: budget exhaustion on two channels quarantines channels without trippin
         assert.equal(routing.providerState(1), 'up', 'budget alone must not block the whole provider');
         assert.ok(interruptions.summary().recent.every(item => item.providerReason === false));
     } finally { routing.noteFailure = failure; routing.reset(); }
+});
+
+// C-2 (#274 item 5): the running recordings cannot be read (a database error). The relay used to swallow that into
+// "no recordings" and could start a leg or a standby on a connection a recording holds; now that attempt starts
+// nothing, nothing throws out of it, and the next attempt with a readable list starts as usual.
+const unreadable = () => { throw new Error('SQLITE_BUSY: database is locked'); };
+test('C-2: a cold start with recordings that cannot be read starts nothing; the next attempt does', async () => {
+    const front = fakeSession(); write(front, 0, 2);
+    const r = await silently(() => relay.adopt(front, ctx()));
+    clearInterval(r.timer);
+    coordinator.setRecordingsSource(unreadable);
+    let leg;
+    const logs = [];
+    const log = console.log;
+    console.log = (...a) => logs.push(a.join(' '));
+    try { leg = await r.startCold([B], front.id); } finally { console.log = log; coordinator.setRecordingsSource(null); }
+    assert.equal(leg, null, 'not admitted on this attempt');
+    assert.equal(logs.filter(l => /could not count the provider's connections/.test(l)).length, 1, 'logged once');
+    assert.deepEqual(started, [], 'nothing was started on the backup');
+    assert.equal(coordinator.listLeases().filter(l => l.purpose === 'viewer').length, 0, 'no lease left behind');
+    leg = await silently(() => r.startCold([B], front.id));
+    assert.ok(leg, 'a readable list: the next attempt starts');
+    assert.deepEqual(started.map(s => s.provider), [B.providerId]);
+    await silently(() => r.close('test over'));
+});
+
+test('C-2: a standby with recordings that cannot be read is not started; the next attempt starts it', async () => {
+    const samePool = coordinator.samePool;
+    coordinator.samePool = (a, b) => a === b;
+    const until = async (cond) => { const end = Date.now() + 5000; while (!cond() && Date.now() < end) await new Promise(res => setTimeout(res, 10)); };
+    try {
+        const s = fakeSession(); write(s, 0, 2);
+        const r = await silently(() => relay.adopt(s, ctx({ settings: withStandby })));
+        clearInterval(r.timer);
+        await silently(() => r.tick());
+        coordinator.setRecordingsSource(unreadable);
+        const warns = [];
+        const warn = console.warn;
+        console.warn = (...a) => warns.push(a.join(' '));
+        try {
+            r.standbyAt = 0;
+            await r.tendStandby();
+            await until(() => !r.startingStandby);
+        } finally { console.warn = warn; coordinator.setRecordingsSource(null); }
+        assert.equal(r.standby, null, 'no standby');
+        assert.deepEqual(started.filter(x => x.standby), [], 'nothing was started for it');
+        assert.equal(warns.filter(w => /standby failed/.test(w)).length, 1, 'logged once');
+        assert.ok(r.standbyAt > Date.now(), 'tried again on the standby\'s own retry cadence');
+        r.standbyAt = 0;
+        await silently(async () => { await r.tendStandby(); await until(() => !r.startingStandby); });
+        assert.ok(r.standby, 'a readable list: the next attempt starts it');
+        assert.deepEqual(started.filter(x => x.standby).map(x => x.provider), [B.providerId]);
+        await silently(() => r.close('test over'));
+    } finally { coordinator.samePool = samePool; }
 });

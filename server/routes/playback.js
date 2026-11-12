@@ -102,11 +102,10 @@ router.post('/resolve', requireToken, async (req, res) => {
         // The provider may allow only one connection. If a recording is using
         // it, say so and let the caller decide, rather than starting a stream
         // that will fail for reasons the user cannot see.
+        // Loading the engine registers the running recordings with the coordinator, which reads
+        // them at every admission (PB3, 0234; C-2), never once up front.
         const recordingEngine = require('../services/recordingEngine');
         const coordinator = require('../services/streamCoordinator');
-        // PB3 (0234): read at every admission, never once up front - a recording can start (and
-        // bind its lease) or end on any provider while an earlier candidate probes.
-        const activeRecordings = () => recordingEngine.listActive();
 
         // Who is asking decides what counts as "somebody else": this device's
         // own earlier stream is simply replaced, an abandoned one is reclaimed,
@@ -181,7 +180,7 @@ router.post('/resolve', requireToken, async (req, res) => {
         if (warmKey) {
             const entry = await warming.forResolve(owner, warmKey, settings);
             if (entry && warming.claim(owner)) {
-                const verdict = await coordinator.admitViewer({ force: false, activeRecordings: activeRecordings(), settings, owner, providerId: entry.candidate.providerId, adopt: entry.sessionId });
+                const verdict = await coordinator.admitViewer({ force: false, settings, owner, providerId: entry.candidate.providerId, adopt: entry.sessionId });
                 const adopted = verdict.allowed ? warming.adopt(owner) : null;
                 if (adopted) {
                     const { candidate: warmCandidate, ...warmDecision } = adopted;
@@ -201,7 +200,7 @@ router.post('/resolve', requireToken, async (req, res) => {
                 console.warn(`[Playback] failover: stopped after ${lastTried.providerName}: less than ${providerRouting.MIN_START_MS / 1000}s left of the resolve`);
                 break;
             }
-            const ask = { force: false, activeRecordings: activeRecordings(), settings, owner, providerId: candidate.providerId, joinIngest: ingestFor(candidate)?.key || null };
+            const ask = { force: false, settings, owner, providerId: candidate.providerId, joinIngest: ingestFor(candidate)?.key || null };
             if (!coordinator.canAdmitWithoutDisturbing(ask)) continue;
             const verdict = await coordinator.admitViewer(ask);
             if (!verdict.allowed) continue;
@@ -239,7 +238,6 @@ router.post('/resolve', requireToken, async (req, res) => {
             const first = candidates[0];
             const verdict = await coordinator.admitViewer({
                 force: force === true,
-                activeRecordings: activeRecordings(),
                 settings,
                 owner,
                 providerId: first.providerId,

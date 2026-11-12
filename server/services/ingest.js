@@ -504,6 +504,17 @@ function idleInPool(pool) {
     return [...registry.values()].filter(i => !i.closed && i.pool === pool && i.subs.size === 0 && i.waiters === 0);
 }
 
+/** Ingests in `pool` read only by a relay's renewal pins (its session retired while backups are tried): still a connection. */
+function pinnedInPool(pool) {
+    return [...registry.values()].filter(i => !i.closed && i.pool === pool && i.subs && i.subs.size > 0
+        && [...i.subs].every(s => s.info && s.info.purpose === 'renewal-pin'));
+}
+
+/** Does the ingest with this key hold a connection in `pool` now (open, past connecting)? */
+function holdsConnection(key, pool) {
+    return [...registry.values()].some(i => !i.closed && i.key === key && i.pool === pool && i.state !== 'connecting');
+}
+
 /** Close the idle ingests of a pool (another connection is about to be opened there), except `keepKey`. */
 function closeIdleInPool(pool, keepKey = null) {
     for (const i of idleInPool(pool)) if (i.key !== keepKey) i.close('its connection is needed');
@@ -519,4 +530,5 @@ function list() { return [...registry.values()].filter(i => !i.closed).map(i => 
 function status() { return { ingests: list(), recent: history.slice(0, 5) }; }
 function closeAll(why = 'shutdown') { for (const i of [...registry.values()]) i.close(why); }
 
-module.exports = { enabled, sourceFor, subscribe, liveFor, idleInPool, closeIdleInPool, closeKey, list, status, closeAll, keyOf, looksLikeTs, firstPatOffset, lastPatOffset, tuning, _registry: registry };
+module.exports = { enabled, sourceFor, subscribe, liveFor, idleInPool, pinnedInPool, holdsConnection, closeIdleInPool, closeKey, list, status, closeAll, keyOf, looksLikeTs, firstPatOffset, lastPatOffset, tuning,
+    _registry: registry }; // _registry: a test seam only (tests plant and inspect ingests); no module reads it
