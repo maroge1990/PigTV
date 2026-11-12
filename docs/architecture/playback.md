@@ -192,7 +192,7 @@ of spot fixes.
 4. Keep the sample.
 
 **Reading ffmpeg's log.** Harmless: `non-existing PPS/SPS`, `decode_slice_header error`, `no frame!`, `Increasing reorder buffer`
-(joining mid-GOP), and a handful per hour of `Non-monotonic DTS` / `Packet duration … out of range`. A *flood* of those two means
+(joining mid-GOP; a reader joining a running shared feed starts on a key frame since #3, [`ingest.md`](ingest.md) › Subscribers), and a handful per hour of `Non-monotonic DTS` / `Packet duration … out of range`. A *flood* of those two means
 a wrong classification. `Could not find codec parameters … eac3 … 0 channels` means the probe ended early; suspect it if audio is
 silent from the start. **Real problems:** `Could not write header`, `FFmpeg exited with code`, `was killed`,
 `Releasing stalled session`, `[HLS] 404 for …`, `asking the server again` repeating on one channel.

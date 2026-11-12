@@ -15,6 +15,7 @@ const EXPECTED_SKIP = [
     'test/hls-copy-dts.test.js',
     'test/hls-finite-source.test.js',
     'test/hls-timestamp-skew.test.js',
+    'test/ingest-join-avsync.test.js',
     'test/logo-alpha.test.js',
     'test/recording-codec-probe.test.js',
     'test/recording-segments-media.test.js',
