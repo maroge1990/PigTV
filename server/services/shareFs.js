@@ -203,7 +203,10 @@ async function withOwnHelper(work, { timeoutMs = tuning.timeoutMs, path: typed =
             });
             const gone = () => { lost = lost || 'The folder check stopped'; fail(unanswered(lost, exitOf(mine))); };
             mine.on('exit', () => { ownHelpers.delete(mineEntry); gone(); });
-            mine.on('error', gone);
+            // A child that failed to spawn emits 'error' and 'close' but never 'exit': it has no pid and cannot be stuck.
+            const leave = () => ownHelpers.delete(mineEntry);
+            mine.on('error', () => { if (!mine.pid) leave(); gone(); });
+            mine.on('close', leave);
         }
         const mine = helper;
         return new Promise((resolve, reject) => {

@@ -1673,6 +1673,40 @@ function ownHelperStandIns() {
     return { fork, forks, releaseAll: () => { for (const h of forks) h.release(); } };
 }
 
+test('Settings: helpers that fail to spawn leave no entry behind, so later checks still fork and answer', async () => {
+    const { EventEmitter } = require('node:events');
+    const folder = load('services/recordingsFolder');
+    const stand = ownHelperStandIns();
+    const realFork = shareFs._spawner.fork;
+    shareFs.reset();
+    shareFs.tuning.timeoutMs = 1500;
+    let failing = true;
+    // A child that never spawned (EAGAIN): no pid, emits 'error' then 'close', never 'exit'.
+    const failedFork = () => {
+        const dead = Object.assign(new EventEmitter(), {
+            connected: false, exitCode: null, signalCode: null, pid: undefined, unref() {}, channel: null, kill() { return false; }, send() {}
+        });
+        setImmediate(() => { dead.emit('error', Object.assign(new Error('spawn EAGAIN'), { code: 'EAGAIN' })); dead.emit('close', -1, null); });
+        return dead;
+    };
+    shareFs._spawner.fork = (f) => (failing ? failedFork() : stand.fork(f));
+    try {
+        for (let i = 0; i < 6; i++) {
+            const r = await folder.validateRecordingsPathSetting(path.join(healthy, 'Typed' + i));
+            assert.equal(r.ok, false, `failed spawn ${i} answers`);
+        }
+        assert.equal(shareFs._ownHelpers.size, 0, 'no entry is left by a helper that never spawned');
+        failing = false;
+        assert.deepEqual(await folder.validateRecordingsPathSetting(path.join(healthy, 'Typed')), { ok: true });
+        assert.equal(stand.forks.length, 1, 'a healthy check forked a helper');
+    } finally {
+        shareFs._spawner.fork = realFork;
+        stand.releaseAll();
+        shareFs.reset();
+        shareFs.tuning.timeoutMs = 1500;
+    }
+});
+
 test('Settings: a hung typed path forks one helper however often it is saved; hung paths stop forking at the cap; a healthy path still answers; once released it is checked again', async () => {
     const folder = load('services/recordingsFolder');
     const stand = ownHelperStandIns();
