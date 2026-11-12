@@ -30,6 +30,7 @@ const path = require('path');
 const { redact } = require('../redact');
 const { parseFrameRate } = require('./streamProbe');
 const { parseMediaPlaylist, renderMediaPlaylist } = require('./hlsPlaylist');
+const { startOnFirstFree, SKIP, STOP } = require('./playbackStart');
 
 // `settings` is the settings object the resolve already holds (db.settings.get()).
 const enabled = (settings) => !!settings && settings.relayEnabled === true;
@@ -587,40 +588,39 @@ class Relay {
         } catch (err) {
             return null;
         }
-        for (const candidate of candidates) {
-            if (this.closed) return null;
-            if (this.unusable.has(candidate.providerId)) continue;
-            // The viewer has started something else since: this play is over, and admitting
-            // it again would stop what they are watching now.
-            // A newer request still probing holds only an unbound viewer lease (Codex review of 0320):
-            // it counts too, so a fallback never takes the connection reserved for it.
-            if (coordinator().activeStreams().some(s => s.owner && s.owner === ctx.owner && s.id !== adopt && !s.warm)
-                || (ctx.owner && coordinator().listLeases().some(l => l.purpose === 'viewer' && l.owner === ctx.owner && !l.sessionId))) {
-                this.close('the viewer is watching something else');
-                return null;
-            }
-            const ask = { force: false, adopt, settings: ctx.settings, owner: ctx.owner, providerId: candidate.providerId,
-                joinIngest: ingest().sourceFor(candidate, ctx.settings)?.key || null };
+        // D-7: the walk (admit without disturbing, admit, start on the lease, give back an unbound
+        // lease) is services/playbackStart.js; what is the relay's own is here.
+        return startOnFirstFree(candidates, {
+            before: (candidate) => {
+                if (this.closed) return STOP;
+                if (this.unusable.has(candidate.providerId)) return SKIP;
+                // The viewer has started something else since: this play is over, and admitting
+                // it again would stop what they are watching now.
+                // A newer request still probing holds only an unbound viewer lease (Codex review of 0320):
+                // it counts too, so a fallback never takes the connection reserved for it.
+                if (coordinator().activeStreams().some(s => s.owner && s.owner === ctx.owner && s.id !== adopt && !s.warm)
+                    || (ctx.owner && coordinator().listLeases().some(l => l.purpose === 'viewer' && l.owner === ctx.owner && !l.sessionId))) {
+                    this.close('the viewer is watching something else');
+                    return STOP;
+                }
+                return undefined;
+            },
+            ask: (candidate) => ({ force: false, adopt, settings: ctx.settings, owner: ctx.owner, providerId: candidate.providerId,
+                joinIngest: ingest().sourceFor(candidate, ctx.settings)?.key || null }),
             // C-2: the running recordings could not be read (a database error): nobody is admitted
             // on this attempt, as a recording may hold the connection. Not a crash; logged once.
-            let verdict;
-            try {
-                if (!coordinator().canAdmitWithoutDisturbing(ask)) continue;
-                verdict = await coordinator().admitViewer(ask);
-            } catch (err) {
+            admissionFailed: (err) => {
                 this.log(`could not count the provider's connections (${redact(err && err.message)}); not started`);
-                return null;
-            }
-            if (!verdict.allowed) continue;
+            },
             // A renewal pin's connection this relay gave up to its own next leg (0318): if that leg
             // fails, the primary may still be started again (Codex review of 0318).
-            for (const { stream } of verdict.release || []) if (stream.pinned) this.reclaimedPins.add(stream.ingestKey);
+            admitted: (verdict) => {
+                for (const { stream } of verdict.release || []) if (stream.pinned) this.reclaimedPins.add(stream.ingestKey);
+            },
             // R11: the lease taken with the admission is bound to the leg's session, or given back.
-            let leg;
-            try { leg = await this.startLeg(candidate, { owner: ctx.owner, lease: verdict.lease, deadlineAt, renewal }); } finally { coordinator().releaseUnbound(verdict.lease); }
-            if (leg) return leg;
-        }
-        return null;
+            // A leg that cannot be used (null) goes on to the next candidate.
+            start: (candidate, i, lease) => this.startLeg(candidate, { owner: ctx.owner, lease, deadlineAt, renewal })
+        });
     }
 
     // ---- the standby -----------------------------------------------------------------------

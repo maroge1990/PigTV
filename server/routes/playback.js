@@ -19,6 +19,7 @@ const { bareChannelId } = require('../services/channelIds');
 const { redact } = require('../redact');
 const { MESSAGES: FAILURE_TEXT, clientSafe } = require('../services/playbackErrors');
 const playbackStrategy = require('../services/playbackStrategy');
+const { startOnFirstFree, STOP } = require('../services/playbackStart');
 const { streamAuth } = require('../auth');
 const { createLimiter } = require('../services/rateLimit');
 const playbackEvents = require('../services/playbackEvents');
@@ -192,41 +193,38 @@ router.post('/resolve', requireToken, async (req, res) => {
             }
         }
 
-        for (let i = 0; !decision && i < candidates.length; i++) {
-            const candidate = candidates[i];
-            // 0180: the owner's newer request took over while this one was walking.
-            if (isSuperseded(owner, generation)) throw playbackStrategy.supersededError();
-            if (lastError && deadlineAt && deadlineAt - Date.now() < providerRouting.MIN_START_MS) {
-                console.warn(`[Playback] failover: stopped after ${lastTried.providerName}: less than ${providerRouting.MIN_START_MS / 1000}s left of the resolve`);
-                break;
-            }
-            const ask = { force: false, settings, owner, providerId: candidate.providerId, joinIngest: ingestFor(candidate)?.key || null };
-            if (!coordinator.canAdmitWithoutDisturbing(ask)) continue;
-            const verdict = await coordinator.admitViewer(ask);
-            if (!verdict.allowed) continue;
-            // R11: the lease is released on every way out that leaves no session to count:
-            // a probe that failed (and the failover to the next candidate), a start overtaken
-            // by the viewer's next play, the client gone, a direct play. Once the session exists
-            // the lease is bound to it and releaseUnbound leaves it alone.
-            const lease = verdict.lease;
-            try {
-                if (clientGone()) throw playbackStrategy.supersededError();
-                decision = await start(candidate, i, lease);
-                chosen = candidate;
-                break;
-            } catch (err) {
-                // 0180: stopped on request (or overtaken), not a provider failure: nothing
-                // is noted and no later candidate is started.
-                if (err.superseded || !routing || !providerRouting.isProviderFailure(err)) throw err;
-                lastError = err;
-                failedOver = true;
-                providerRouting.noteFailure(candidate, routing.primaryKey);
-                const next = candidates.slice(i + 1)[0];
-                if (failoverPossible) console.warn(`[Playback] failover: ${candidate.providerName} (${candidate.via}) failed for "${eventChannel || routing.channelName || 'channel'}"` +
-                    ` - ${clientSafe(redact(err.message)).split('. ')[0]}; ${next ? `trying ${next.providerName} (${next.via})` : 'no provider left'}`);
-            } finally {
-                coordinator.releaseUnbound(lease);
-            }
+        // D-7: the walk itself (admit without disturbing, admit, start on the lease, give back an
+        // unbound lease on every way out) is services/playbackStart.js; what is the route's own is here.
+        if (!decision) {
+            await startOnFirstFree(candidates, {
+                before: () => {
+                    // 0180: the owner's newer request took over while this one was walking.
+                    if (isSuperseded(owner, generation)) throw playbackStrategy.supersededError();
+                    if (lastError && deadlineAt && deadlineAt - Date.now() < providerRouting.MIN_START_MS) {
+                        console.warn(`[Playback] failover: stopped after ${lastTried.providerName}: less than ${providerRouting.MIN_START_MS / 1000}s left of the resolve`);
+                        return STOP;
+                    }
+                    return undefined;
+                },
+                ask: (candidate) => ({ force: false, settings, owner, providerId: candidate.providerId, joinIngest: ingestFor(candidate)?.key || null }),
+                start: async (candidate, i, lease) => {
+                    if (clientGone()) throw playbackStrategy.supersededError();
+                    decision = await start(candidate, i, lease);
+                    chosen = candidate;
+                    return true;
+                },
+                failed: (err, candidate, i) => {
+                    // 0180: stopped on request (or overtaken), not a provider failure: nothing
+                    // is noted and no later candidate is started.
+                    if (err.superseded || !routing || !providerRouting.isProviderFailure(err)) throw err;
+                    lastError = err;
+                    failedOver = true;
+                    providerRouting.noteFailure(candidate, routing.primaryKey);
+                    const next = candidates.slice(i + 1)[0];
+                    if (failoverPossible) console.warn(`[Playback] failover: ${candidate.providerName} (${candidate.via}) failed for "${eventChannel || routing.channelName || 'channel'}"` +
+                        ` - ${clientSafe(redact(err.message)).split('. ')[0]}; ${next ? `trying ${next.providerName} (${next.via})` : 'no provider left'}`);
+                }
+            });
         }
 
         if (!decision) {

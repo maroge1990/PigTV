@@ -844,3 +844,57 @@ test('C-2: a standby with recordings that cannot be read is not started; the nex
         await silently(() => r.close('test over'));
     } finally { coordinator.samePool = samePool; }
 });
+
+// ---- D-7 (#274 item 4): the cold start's steps that no test above pinned on their own, characterised before the
+// walk moved into services/playbackStart.js (each fails if its step is removed from startCold) ----
+
+test('D-7: a closed relay starts nothing on a cold start', async () => {
+    const front = fakeSession(); write(front, 0, 2);
+    const r = await silently(() => relay.adopt(front, ctx()));
+    clearInterval(r.timer);
+    await silently(() => r.close('test over'));
+    const leg = await silently(() => r.startCold([B], front.id));
+    assert.equal(leg, null);
+    assert.deepEqual(started, []);
+    assert.equal(coordinator.listLeases().filter(l => l.purpose === 'viewer').length, 0);
+});
+
+test('D-7: a provider marked unusable is passed over by a cold start; the next candidate is tried', async () => {
+    const front = fakeSession(); write(front, 0, 2);
+    const r = await silently(() => relay.adopt(front, ctx()));
+    clearInterval(r.timer);
+    const C3 = { ...B, providerId: 3, providerName: 'Third', url: 'http://c.invalid/3.ts', channelKey: '3' };
+    r.unusable.add(B.providerId);
+    try {
+        const leg = await silently(() => r.startCold([B, C3], front.id));
+        assert.ok(leg, 'started on the next candidate');
+        assert.deepEqual(started.map(s => s.provider), [3], 'the unusable provider was never started');
+    } finally { await silently(() => r.close('test over')); }
+});
+
+test('D-7: a cold start that finds the viewer watching something else ends the relay itself, and starts nothing', async () => {
+    const front = fakeSession(); write(front, 0, 2);
+    const r = await silently(() => relay.adopt(front, ctx()));
+    clearInterval(r.timer);
+    const other = fakeSession({ owner: 'device:tv', providerId: 2 });
+    const leg = await silently(() => r.startCold([B], front.id));
+    assert.equal(leg, null);
+    assert.equal(r.closed, true, 'startCold closes the relay, not only its caller');
+    assert.deepEqual(started, []);
+    assert.equal(registry.has(other.id), true, 'the viewer\'s new stream is untouched');
+});
+
+test('D-7: a candidate whose leg cannot start is given up and the next one is started, its lease given back', async () => {
+    const front = fakeSession(); write(front, 0, 2);
+    const r = await silently(() => relay.adopt(front, ctx()));
+    clearInterval(r.timer);
+    const C3 = { ...B, providerId: 3, providerName: 'Third', url: 'http://c.invalid/3.ts', channelKey: '3' };
+    const resolve = strategy.resolve;
+    strategy.resolve = async (opts) => { if (opts.url === B.url) throw Error('Server returned 5XX Server Error reply'); return resolve(opts); };
+    try {
+        const leg = await silently(() => r.startCold([B, C3], front.id));
+        assert.ok(leg, 'the second candidate became the leg');
+        assert.deepEqual(started.map(s => s.provider), [3]);
+        assert.equal(coordinator.listLeases().filter(l => l.purpose === 'viewer' && l.providerId === B.providerId).length, 0, 'the failed start\'s lease was given back');
+    } finally { strategy.resolve = resolve; await silently(() => r.close('test over')); }
+});

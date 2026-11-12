@@ -47,6 +47,10 @@ ingest that sessions read through is [`ingest.md`](ingest.md); the Apple player'
   (`FFmpeg exited with code N` / `was killed (SIG)`). The software-decode retry (clear the folder, restart on the CPU) is only for an
   **encode** that really decoded on the GPU and died within 10 s **before any playlist**.
 - **A start stopped on request is not a failure** (0180). `stop()` sets `stopRequested`; `playbackStrategy.resolve` then throws `superseded` (route: HTTP 499, `{error: "Playback was replaced by a newer request", superseded: true}`) instead of failing over. Nothing is noted: no breaker, quarantine, channel-health row or failure event. The route also keeps a per-owner generation and starts no further candidate once the owner's newer resolve exists.
+- **One walk through the providers** (D-7): starting a viewer on the first candidate that can be admitted without disturbing
+  anybody (admit, start on the lease, give back a lease the start did not bind) is `playbackStart.js`, used by the route's first
+  pass and the relay's cold switch. Its header names the starts that are deliberately not this walk (forced pass, warm adopt,
+  standby, warming, recording).
 - **A failed start fails fast** (0113). `waitForPlaylist` returns as soon as ffmpeg has ended without a playlist (it used to poll out the
   15 s). `classifyInputFailure()` turns ffmpeg's `Server returned 4xx/404/5xx` / `Connection refused` into a fixed sentence for the
   resolve error (never the URL or ffmpeg's words). A **4xx other than 404, or a 5xx, within ffmpeg's first 3 s** (the provider allows

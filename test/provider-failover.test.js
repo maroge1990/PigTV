@@ -57,7 +57,9 @@ const SCRIPTS = {
     // Connects and never writes anything.
     hang: `setInterval(() => {}, 1000);`,
     // PB3: the 502, but only after a while (a start that takes time to fail).
-    slow502: `setTimeout(() => { ${stderr(['[in#0 @ 0x1] Error opening input: Server returned 5XX Server Error reply'])} process.exit(1); }, 600);`
+    slow502: `setTimeout(() => { ${stderr(['[in#0 @ 0x1] Error opening input: Server returned 5XX Server Error reply'])} process.exit(1); }, 600);`,
+    // D-7: the same, slower still, so a test can act while the walk is busy with it (>= 1 s margins on CI).
+    slower502: `setTimeout(() => { ${stderr(['[in#0 @ 0x1] Error opening input: Server returned 5XX Server Error reply'])} process.exit(1); }, 2000);`
 };
 const behaviour = new Map(); // url -> key of SCRIPTS (default ok)
 const starts = new Map();    // url -> ffmpeg starts (retries included)
@@ -603,4 +605,50 @@ test('PB3: a recording on the backup that ends while the primary is starting no 
     } finally {
         coordinator.setRecordingsSource(() => []);
     }
+});
+
+// ---- D-7 (#274 item 4): the walk's steps that no test above pinned on their own, characterised before the walk
+// moved into services/playbackStart.js (each fails if its step is removed from the route) ----
+
+test('D-7: a walk whose owner made a newer request (one that disturbed nothing) starts no further candidate', async () => {
+    behaviour.set(url.A(101), 'slower502');      // the primary fails for a provider reason after 2 s (twice: one retry)
+    const walking = play('pos_1');
+    for (let waited = 0; startsOf(url.A(101)) < 1 && waited < 5000; waited += 20) await sleep(20);
+    assert.equal(startsOf(url.A(101)), 1);
+    // The same device asks again, but this request is admitted nowhere: it moves the owner's
+    // generation on without stopping the session the first walk is starting.
+    const canAdmit = coordinator.canAdmitWithoutDisturbing;
+    const admit = coordinator.admitViewer;
+    coordinator.canAdmitWithoutDisturbing = () => false;
+    coordinator.admitViewer = async () => ({ allowed: false, conflict: null });
+    let newer;
+    try { newer = await play('pos_3'); } finally { coordinator.canAdmitWithoutDisturbing = canAdmit; coordinator.admitViewer = admit; }
+    assert.notEqual(newer.status, 200, newer.text);
+    assert.equal(startsOf(url.A(101)), 1, 'the newer request came while the primary was still starting');
+    const r = await walking;
+    assert.equal(r.status, 499, r.text);
+    assert.equal(startsOf(url.A(109)) + startsOf(url.B(5001)) + startsOf(url.C(7001)), 0, 'no further candidate was started');
+    assert.equal(routing.isQuarantined(A.id, 's101'), true, 'the primary\'s own failure was still noted');
+    assert.equal(coordinator.listLeases().filter(l => l.purpose === 'viewer').length, 0, 'no lease left behind');
+});
+
+test('D-7: a client that hung up while a candidate failed: the walk starts no further candidate', async () => {
+    behaviour.set(url.A(102), 'slower502');
+    const ac = new AbortController();
+    const pending = fetch(`${base}/api/playback/resolve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokenFor('tv')}` },
+        body: JSON.stringify({ sourceId: A.id, channelId: 'pos_2', capabilities: { segmentedDelivery: true } }),
+        signal: ac.signal
+    }).catch(() => null);
+    for (let waited = 0; startsOf(url.A(102)) < 1 && waited < 5000; waited += 20) await sleep(20);
+    assert.equal(startsOf(url.A(102)), 1);
+    ac.abort();
+    await pending;
+    // The primary fails for a provider reason (noted), and the walk then finds nobody left to start for.
+    for (let waited = 0; !routing.isQuarantined(A.id, 's102') && waited < 15000; waited += 50) await sleep(50);
+    assert.equal(routing.isQuarantined(A.id, 's102'), true);
+    await sleep(1000);
+    assert.equal(startsOf(url.B(5002)) + startsOf(url.C(7002)), 0, 'no backup was started for a client that is gone');
+    assert.equal(coordinator.listLeases().filter(l => l.purpose === 'viewer').length, 0, 'no lease left behind');
 });
