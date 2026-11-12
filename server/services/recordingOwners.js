@@ -71,28 +71,10 @@ function retire(id) { retired.add(id); }
 const owned = (id) => !retired.has(id) && Boolean(recordingsDb.getById(id));
 
 /**
- * A file this job just made, for a recording that is no longer its: removed. One that cannot be
- * removed now (not "already gone") is journalled, so the start-up sweep removes it (Codex review of 0274).
- */
-function withdraw(file, id, what) {
-    const identity = identityOf(file);
-    try { fs.unlinkSync(file); forget(file); } catch (e) {
-        if (e.code !== 'ENOENT') {
-            try {
-                cleanupDb().prepare(`INSERT INTO recording_cleanup (path, recording_id, created_at, kind, identity) VALUES (?, ?, ?, 'published', ?)
-                    ON CONFLICT (path) DO UPDATE SET kind = 'published', identity = excluded.identity`).run(file, id, Date.now(), identity);
-            } catch (err) { /* database closed */ }
-            console.warn(`[Recordings] #${id} was deleted while its ${what} was published; that copy could not be removed yet (${e.code}) and is removed at the next start`);
-            return;
-        }
-    }
-    console.log(`[Recordings] #${id} was deleted while its ${what} was published; that copy is removed too`);
-}
-
-/**
- * #287: withdraw() through bounded calls (`io`: shareFs, or shareFs.local for appdata), for the jobs that publish to the
- * share. A copy the share does not let go of now stays journalled as 'published' with its identity: the next attempt
- * (takeBack) or the start-up sweep removes it while that name is still that file.
+ * A file a job just made, for a recording that is no longer its: removed, through bounded calls (`io`: shareFs, or
+ * shareFs.local for appdata), for the jobs that publish to the share. A copy the share does not let go of now stays
+ * journalled as 'published' with its identity: the next attempt (takeBack) or the start-up sweep removes it while that
+ * name is still that file.
  */
 async function withdrawBounded(file, id, what, io = shareFs) {
     // #287: its own name (held by its publisher), so only another removal under way stops it.
@@ -134,9 +116,6 @@ const recorded = (p) => Boolean(cleanupDb().prepare('SELECT 1 FROM recordings WH
  * alone does not tell a replacement from the file journalled; its times and size do. None of these
  * change when the file's partial name is linked or removed (only ctime does), so publication keeps it.
  */
-function identityOf(p) {
-    try { return identityOfStat(fs.statSync(p, { bigint: true })); } catch (e) { return null; }
-}
 async function identityNow(p) {
     try { return identityOfStat(await fs.promises.stat(p, { bigint: true })); } catch (e) { return e.code === 'ENOENT' ? 'gone' : null; }
 }
@@ -488,4 +467,4 @@ async function takeBack(id, ioFor = () => shareFs) {
 
 const DELETED = 'Recording was deleted';
 
-module.exports = { retire, owned, withdraw, withdrawBounded, takeBack, hold, release, forget, removalPending, write, stopWriters, sweepCleanup, whenSwept, deferRemoval, retryDeleted, adoptable, partialFor, published, committed, DELETED, STOP_WAIT_MS, _setStopWaitMs, _setSweepWaitMs };
+module.exports = { retire, owned, withdrawBounded, takeBack, hold, release, forget, removalPending, write, stopWriters, sweepCleanup, whenSwept, deferRemoval, retryDeleted, adoptable, partialFor, published, committed, DELETED, STOP_WAIT_MS, _setStopWaitMs, _setSweepWaitMs };

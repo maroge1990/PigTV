@@ -11,6 +11,15 @@ const { recordings: recordingsDb } = require('../db/recordingsDb');
 const { getDb } = require('../db/sqlite');
 const jobs = require('./recordingJobs');
 const owners = require('./recordingOwners');
+const shareFs = require('./shareFs');
+
+/**
+ * The bounded file calls for `p`: on the recordings share through shareFs (a helper process with a deadline, so a hung
+ * share is an error and never a frozen event loop), in appdata the same calls made here (recordingSegments.ioFor). A call
+ * that misses its deadline rejects with code SHARE_UNRESPONSIVE. Looked up when called: recordingSegments needs this file.
+ */
+const ioFor = (p) => require('./recordingSegments').ioFor(p);
+const unresponsive = (err) => Boolean(err && err.code === 'SHARE_UNRESPONSIVE');
 
 // The binaries, set by recordingEngine.init (server/index.js finds them); plain names until then.
 const tools = { ffmpegPath: 'ffmpeg', ffprobePath: 'ffprobe' };
@@ -47,8 +56,19 @@ function getFreeSpaceGB(dir) {
     }
 }
 
-function fileSizeOf(file) {
-    try { return fs.statSync(file).size; } catch (e) { return 0; }
+/**
+ * getFreeSpaceGB() for a folder that may be on the share: a bounded call. null when it cannot be told (as there);
+ * a share that does not answer rejects with SHARE_UNRESPONSIVE.
+ */
+async function freeSpaceGBOn(dir) {
+    try {
+        const st = await ioFor(dir).statfs(dir);
+        return st ? st.freeBytes / (1024 ** 3) : null;
+    } catch (err) {
+        if (unresponsive(err)) throw err;
+        console.warn('[Recordings] Could not determine free space:', err.message);
+        return null;
+    }
 }
 
 function compressionTargetPath(originalPath) {
@@ -176,7 +196,7 @@ function nativePlaybackTargetPath(originalPath) {
  * the .mkv it was compressed from — checked for here so that setting
  * doesn't cause a redundant second remux of the same content.
  */
-function readyNativePlaybackPath(rec) {
+async function readyNativePlaybackPath(rec) {
     const original = rec.file_path;
     if (path.extname(original).toLowerCase() === '.mp4') return original;
 
@@ -184,7 +204,7 @@ function readyNativePlaybackPath(rec) {
     // encode now writes under a temporary name, but a file left in place by an
     // older version's interrupted encode must not be served either.
     const compressed = compressionTargetPath(original);
-    if (rec.compress_status === 'done' && fs.existsSync(compressed)) return compressed;
+    if (rec.compress_status === 'done' && await ioFor(compressed).exists(compressed)) return compressed;
 
     return null;
 }
@@ -234,10 +254,10 @@ const FFMPEG_STALL_MS = 10 * 60 * 1000;
 /**
  * Run ffmpeg, resolving { code, tail } once it exits. With `watchFile`, it is also
  * killed if that file stops growing for `stallMs`, so one stuck job cannot hold
- * its queue (and the recording it belongs to) forever. #287: a caller may pass `sizeOf`, an async
- * size check (the finishing queue's: shareFs, bounded and off the event loop, for a file on the
- * share); it runs one at a time, and a size it cannot read (null) counts as no growth. Without
- * one, the size is read here as it always was.
+ * its queue (and the recording it belongs to) forever. #287: `sizeOf` is the async size check
+ * (ioFor(file).sizeOf: shareFs, bounded and off the event loop, for a file on the share); it runs
+ * one at a time, and a size it cannot read (null) counts as no growth. Without one, the file is
+ * read as a local one (shareFs.local.sizeOf): pass one for any file that may be on the share.
  */
 function runFfmpegCollectingTail(args, { watchFile = null, stallMs = FFMPEG_STALL_MS, signal = null, sizeOf = null } = {}) {
     return new Promise((resolve) => {
@@ -262,6 +282,7 @@ function runFfmpegCollectingTail(args, { watchFile = null, stallMs = FFMPEG_STAL
             let lastSize = -1;
             let lastGrowth = Date.now();
             let checking = false;
+            const read = sizeOf || shareFs.local.sizeOf;
             const judge = (size) => {
                 if (size > lastSize) { lastSize = size; lastGrowth = Date.now(); return; }
                 if (Date.now() - lastGrowth < stallMs) return;
@@ -270,12 +291,11 @@ function runFfmpegCollectingTail(args, { watchFile = null, stallMs = FFMPEG_STAL
                 try { proc.kill('SIGKILL'); } catch (e) { /* already gone */ }
             };
             watchdog = setInterval(() => {
-                if (!sizeOf) return judge(fileSizeOf(watchFile));
                 if (checking) return; // never two checks at once
                 checking = true;
-                Promise.resolve().then(() => sizeOf(watchFile)).catch(() => null).then((read) => {
+                Promise.resolve().then(() => read(watchFile)).catch(() => null).then((size) => {
                     checking = false;
-                    if (!ended) judge(read ?? 0);
+                    if (!ended) judge(size ?? 0);
                 });
             }, Math.min(30 * 1000, stallMs));
             if (watchdog.unref) watchdog.unref();
@@ -358,19 +378,20 @@ async function nativeFileIsComplete(file) {
 }
 
 async function ensureNativePlayback(rec) {
-    const ready = readyNativePlaybackPath(rec);
+    const ready = await readyNativePlaybackPath(rec);
     if (ready) return ready;
 
+    // The share's calls are bounded: one that is not answered rejects with SHARE_UNRESPONSIVE and the attempt ends there.
     const input = rec.file_path;
-    if (!fs.existsSync(input)) {
+    if (!(await ioFor(input).exists(input))) {
         throw new Error('Recording file is missing');
     }
 
     const output = nativePlaybackTargetPath(input);
-    if (fs.existsSync(output)) {
+    if (await ioFor(output).exists(output)) {
         if (await nativeFileIsComplete(output)) return output;
         console.warn(`[Recordings] Discarding incomplete native file for #${rec.id}: ${output}`);
-        try { fs.unlinkSync(output); } catch (e) { /* remade below */ }
+        try { await ioFor(output).unlink(output); } catch (e) { if (unresponsive(e)) throw e; /* remade below */ }
     }
 
     let job = nativeRemuxes.get(rec.id);
@@ -402,8 +423,10 @@ const NATIVE_START_GRACE_MS = 1500;
  *                                             so asking again after being told starts a fresh attempt
  *   { state: 'idle' }                         nothing has been started
  */
-function pollNativePlayback(rec) {
-    if (readyNativePlaybackPath(rec) || verifiedNativeFiles.has(nativePlaybackTargetPath(rec.file_path))) {
+async function pollNativePlayback(rec) {
+    // A share that does not answer cannot say it is ready: not an error here (a Play that starts the remux reports it).
+    const ready = await readyNativePlaybackPath(rec).catch(() => null);
+    if (ready || verifiedNativeFiles.has(nativePlaybackTargetPath(rec.file_path))) {
         return { state: 'ready' };
     }
     if (nativeStarts.has(rec.id) || nativeRemuxes.has(rec.id)) return { state: 'preparing' };
@@ -454,7 +477,8 @@ async function remuxForNativePlayback(rec, input, output) {
     // name is debris from a remux that was killed; no other remux of this
     // recording can be running (see nativeRemuxes). 0273: the temporary name is
     // its own (recordingOwners.partialFor, journalled); the old fixed one is cleared.
-    try { fs.unlinkSync(`${output}.partial`); } catch (e) { /* none */ }
+    const io = ioFor(output);
+    try { await io.unlink(`${output}.partial`); } catch (e) { if (unresponsive(e)) throw e; /* none */ }
     const partial = owners.partialFor(output);
 
     const codecs = await nativeTools.codecs(input);
@@ -465,19 +489,20 @@ async function remuxForNativePlayback(rec, input, output) {
     // (ffmpeg may open its output only after the deletion) removes what it made before it ends.
     const result = await owners.write(rec.id, async (signal, made) => {
         made(partial);
-        const r = await nativeTools.ffmpeg(args, { watchFile: partial, signal });
-        if (!owners.owned(rec.id)) { try { fs.unlinkSync(partial); } catch (e) { /* never made */ } }
+        const r = await nativeTools.ffmpeg(args, { watchFile: partial, signal, sizeOf: io.sizeOf });
+        if (!owners.owned(rec.id)) { try { await io.unlink(partial); } catch (e) { /* never made, or stays journalled */ } }
         return r;
     });
     // Nothing is published, for every caller sharing this remux.
     if (!owners.owned(rec.id)) throw new Error(owners.DELETED);
-    if (result.code !== 0 || !fs.existsSync(partial)) {
-        try { fs.unlinkSync(partial); } catch (e) { /* nothing to clean */ }
+    if (result.code !== 0 || !(await io.exists(partial))) {
+        try { await io.unlink(partial); } catch (e) { /* nothing to clean */ }
         console.error(`[Recordings] Native remux of #${rec.id} failed:\n  ${result.tail.join('\n  ')}`);
         throw new Error(result.tail.slice(-3).join(' | ') || `ffmpeg exited with code ${result.code}`);
     }
 
-    fs.renameSync(partial, output);
+    // A rename the share does not answer may still land: the partial stays (journalled) and the next call finds either name.
+    await io.rename(partial, output);
     verifiedNativeFiles.add(output);
     console.log(`[Recordings] #${rec.id} ready for native playback`);
     return output;
@@ -563,25 +588,29 @@ async function checkPrepared(original, prepared, { signal = null } = {}) {
  * between leaves a spare .mkv, never a row pointing at nothing; a restart finds
  * "<name>.mp4" already there and finishes the job.
  */
-function adoptPrepared(rec, prepared) {
+async function adoptPrepared(rec, prepared) {
     const original = rec.file_path;
+    const io = ioFor(original);
     let target = preparedTargetPath(original);
+    // A call the share does not answer rejects (SHARE_UNRESPONSIVE) before the row moves or the original goes: whether the
+    // rename landed is then unknown, and the next pass finds "<name>.mp4" there (prepareRecording) or the .native.mp4 still.
     if (prepared !== target) {
-        if (fs.existsSync(target)) {
+        if (await io.exists(target)) {
             // Not ours (a stray file of the same name): leave it, keep the .native.mp4 name.
             target = prepared;
         } else {
-            fs.renameSync(prepared, target);
+            await io.rename(prepared, target);
             verifiedNativeFiles.delete(prepared);
         }
     }
     verifiedNativeFiles.add(target);
-    const size = fileSizeOf(target);
+    const there = await io.stat(target);
+    const size = there ? there.size : 0;
     getDb().prepare('UPDATE recordings SET file_path = ?, file_size_bytes = ? WHERE id = ?').run(target, size || null, rec.id);
     recordingsDb.setNativeStatus(rec.id, 'ready');
     recordingsDb.setNativeVersion(rec.id, NATIVE_VERSION);
     try {
-        fs.unlinkSync(original);
+        await io.unlink(original);
         console.log(`[Recordings] #${rec.id} is now ${path.basename(target)}; the .mkv it was made from is deleted`);
     } catch (err) {
         console.warn(`[Recordings] #${rec.id} is now ${path.basename(target)}, but ${path.basename(original)} could not be deleted: ${err.message}`);
@@ -592,7 +621,16 @@ function adoptPrepared(rec, prepared) {
 /** One recording through preparation. Never throws: the outcome is in its row. */
 async function prepareRecording(rec) {
     const original = rec.file_path;
-    if (!original || !fs.existsSync(original)) {
+    let missing;
+    try {
+        missing = !original || !(await ioFor(original).exists(original));
+    } catch (err) {
+        // The share does not answer: not "missing" (that is final); tried again, without counting an attempt.
+        console.error(`[Recordings] Could not prepare #${rec.id}: ${err.message}`);
+        recordingsDb.setNativeStatus(rec.id, 'pending', { error: err.message });
+        return;
+    }
+    if (missing) {
         // Possibly a crash after the rename and the row update but before the delete.
         recordingsDb.setNativeStatus(rec.id, 'failed', { error: 'Recording file is missing' });
         return;
@@ -605,14 +643,16 @@ async function prepareRecording(rec) {
     }
 
     recordingsDb.setNativeStatus(rec.id, 'preparing', { attempt: true });
+    const io = ioFor(original);
     try {
         // A restart between the rename and the row update leaves "<name>.mp4" made
         // already; anything else at that name is checked like any other result.
         const leftover = preparedTargetPath(original);
-        let prepared = fs.existsSync(leftover) && await nativeFileIsComplete(leftover) ? leftover : null;
+        let prepared = await io.exists(leftover) && await nativeFileIsComplete(leftover) ? leftover : null;
         if (!prepared) {
-            const free = getFreeSpaceGB(path.dirname(original));
-            const needGB = fileSizeOf(original) / (1024 ** 3) * 1.05;
+            const free = await freeSpaceGBOn(path.dirname(original));
+            const originalStat = await io.stat(original);
+            const needGB = (originalStat ? originalStat.size : 0) / (1024 ** 3) * 1.05;
             if (free !== null && free < needGB + 1) {
                 throw new Error(`Not enough free space to prepare it (${free.toFixed(1)} GB free, ${needGB.toFixed(1)} GB needed)`);
             }
@@ -630,13 +670,13 @@ async function prepareRecording(rec) {
         const check = await checkPrepared(original, prepared);
         if (!owners.owned(rec.id)) {
             // R5-D1: deleted while it was checked: not adopted, and a remux made since goes too.
-            if (prepared === nativePlaybackTargetPath(original) && fs.existsSync(prepared)) owners.withdraw(prepared, rec.id, 'MP4');
+            if (prepared === nativePlaybackTargetPath(original) && await io.exists(prepared)) await owners.withdrawBounded(prepared, rec.id, 'MP4', io);
             verifiedNativeFiles.delete(prepared);
             return;
         }
         if (!check.ok) {
             // Not served as if it were the recording: a later Play remuxes afresh.
-            try { fs.unlinkSync(prepared); } catch (e) { /* already gone */ }
+            try { await io.unlink(prepared); } catch (e) { /* already gone, or the share does not answer: left for a later pass */ }
             verifiedNativeFiles.delete(prepared);
             throw new Error(`Prepared file failed its check: ${check.reason}`);
         }
@@ -646,7 +686,7 @@ async function prepareRecording(rec) {
             recordingsDb.setNativeVersion(rec.id, NATIVE_VERSION);
             return;
         }
-        adoptPrepared(recordingsDb.getById(rec.id) || rec, prepared);
+        await adoptPrepared(recordingsDb.getById(rec.id) || rec, prepared);
     } catch (err) {
         if (!owners.owned(rec.id)) return; // R5-D1: deleted meanwhile; nothing to record
         const attempts = (recordingsDb.getById(rec.id)?.native_attempts) || 0;
@@ -691,7 +731,7 @@ function nativeQueueStatus() {
 
 module.exports = {
     tools, setToolPaths,
-    fileSizeOf, getFreeSpaceGB, compressionTargetPath, nativePlaybackTargetPath, preparedTargetPath,
+    getFreeSpaceGB, ioFor, compressionTargetPath, nativePlaybackTargetPath, preparedTargetPath,
     probeCodecs, probeDuration, buildNativeRemuxArgs, runFfmpegCollectingTail, nativeTools, verifiedNativeFiles,
     ensureNativePlayback, pollNativePlayback, startNativePlayback, startNativePlaybackAndWait,
     prepareRecording, processNativeQueue, nativeQueueStatus, checkPrepared,

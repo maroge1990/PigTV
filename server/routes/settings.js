@@ -51,7 +51,7 @@ router.put('/', requireAdmin, async (req, res) => {
         }
         if (typeof updates.recordingsPath === 'string' && updates.recordingsPath.trim()) {
             const { validateRecordingsPathSetting } = require('../services/recordingsFolder');
-            const check = validateRecordingsPathSetting(updates.recordingsPath.trim());
+            const check = await validateRecordingsPathSetting(updates.recordingsPath.trim());
             if (!check.ok) return res.status(400).json({ error: check.reason });
         }
         const updatedSettings = await settings.update(updates);

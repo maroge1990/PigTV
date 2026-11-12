@@ -107,16 +107,17 @@ async function checkRecordingsFolderAsync(dir, minFreeGB = 10, share = require('
 }
 
 /**
+ * (Bounded: a share that does not answer rejects with SHARE_UNRESPONSIVE.)
  * True when `dir`'s filesystem is under 1 GB in total: an unmounted share's mount
  * point (Unraid keeps /mnt/remotes on a 1 MB tmpfs), not a real recordings volume.
  * False when it can't be told (no statfs), so an unknown never blocks recording.
  */
-function onTinyFilesystem(dir) {
+async function onTinyFilesystem(dir, share = require('./shareFs')) {
     try {
-        if (typeof fs.statfsSync !== 'function') return false;
-        const st = fs.statfsSync(dir);
-        return st.blocks * st.bsize < TINY_FS_BYTES;
+        const st = await share.statfs(dir);
+        return st ? st.totalBytes < TINY_FS_BYTES : false;
     } catch (e) {
+        if (e.code === 'SHARE_UNRESPONSIVE') throw e;
         return false;
     }
 }
@@ -162,34 +163,40 @@ function refusalMessage(check, dir, minFreeGB) {
  * below creates exactly that folder on first use - refusing here would reject
  * the normal case (choosing a not-yet-created subfolder), not just typos and
  * unmounted shares.
- * -> { ok } or { ok: false, reason }.
+ * -> { ok } or { ok: false, reason }. Its file calls go through shareFs (a typed path may be a hung share; the settings
+ * route answers from a request handler): a share that does not answer within the deadline is refused as not responding.
  */
-function validateRecordingsPathSetting(dir) {
+async function validateRecordingsPathSetting(dir, share = require('./shareFs')) {
     if (!dir) return { ok: true };
+    try {
+        return await validatePath(dir, share);
+    } catch (e) {
+        if (e.code !== 'SHARE_UNRESPONSIVE') throw e;
+        return { ok: false, reason: `The recordings folder is not responding: ${dir}. Is the network share's server up?` };
+    }
+}
+
+async function validatePath(dir, share) {
     // 0167: a relative path ("fake") resolves against the server's own working
     // folder, whose parent always exists, so it passed every check below.
     if (!path.isAbsolute(dir)) {
         return { ok: false, reason: `The recordings folder must be a full path starting with /, for example /app/recordings/SERVER01_Video/Recordings (got "${dir}")` };
     }
-    if (fs.existsSync(dir)) {
-        try {
-            const probe = path.join(dir, `.pigtv-write-test-${process.pid}-${Date.now()}`);
-            fs.writeFileSync(probe, 'pigtv');
-            fs.unlinkSync(probe);
-        } catch (e) {
+    if (await share.exists(dir)) {
+        if (!(await share.writeProbe(dir))) {
             return { ok: false, reason: `The recordings folder is not writable: ${dir}` };
         }
-        if (onTinyFilesystem(dir)) {
+        if (await onTinyFilesystem(dir, share)) {
             return { ok: false, reason: `The recordings folder isn't on a real volume (under 1 GB in total): ${dir}. Is the network share connected?` };
         }
         return { ok: true };
     }
     const parent = path.dirname(dir);
-    if (!fs.existsSync(parent)) {
+    if (!(await share.exists(parent))) {
         return { ok: false, reason: `The recordings folder does not exist, and neither does its parent (${parent}). Is the share mounted?` };
     }
     // The folder would be created inside a disconnected share's empty mount point.
-    if (onTinyFilesystem(parent)) {
+    if (await onTinyFilesystem(parent, share)) {
         return { ok: false, reason: `The recordings folder does not exist, and its parent isn't on a real volume (under 1 GB in total): ${parent}. Is the network share connected?` };
     }
     return { ok: true };

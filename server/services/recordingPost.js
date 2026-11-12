@@ -3,11 +3,10 @@
  * recordingEngine.js in the simplification build). Both run one at a time, never while a
  * capture is running, and never on the recording preparation is working on.
  */
-const fs = require('fs');
 const { recordings: recordingsDb } = require('../db/recordingsDb');
 const jobs = require('./recordingJobs');
 const owners = require('./recordingOwners');
-const { tools, nativeTools, verifiedNativeFiles, compressionTargetPath } = require('./recordingMedia');
+const { tools, nativeTools, verifiedNativeFiles, compressionTargetPath, ioFor } = require('./recordingMedia');
 
 async function getSettings() {
     const { settings } = require('../db');
@@ -108,13 +107,19 @@ async function compressRecording(rec, settings) {
     // temporary name is its own (recordingOwners.partialFor, journalled).
     const partial = owners.partialFor(output);
 
-    if (!fs.existsSync(input)) {
+    // The share's calls are bounded: one that is not answered rejects with SHARE_UNRESPONSIVE, which ends the job here (the
+    // queue records it as failed, as for any other error) with the original and the row untouched.
+    const io = ioFor(input);
+    const drop = async (file) => { try { await io.unlink(file); } catch (e) { /* none there, or left for the start-up sweep (journalled) */ } };
+    if (!(await io.exists(input))) {
         recordingsDb.setCompressStatus(rec.id, 'failed', { error: 'Original file is missing' });
         return;
     }
-    try { fs.unlinkSync(`${output}.partial`); } catch (e) { /* none left by an earlier run (the fixed name before 0273) */ }
+    try { await io.unlink(`${output}.partial`); } catch (e) { if (e.code === 'SHARE_UNRESPONSIVE') throw e; /* none left by an earlier run (the fixed name before 0273) */ }
 
-    const originalSize = fs.statSync(input).size;
+    const inputStat = await io.stat(input);
+    if (!inputStat) throw new Error('Original file is missing');
+    const originalSize = inputStat.size;
     const sourceDuration = await nativeTools.duration(input);
 
     recordingsDb.setCompressStatus(rec.id, 'running', { originalSize });
@@ -124,23 +129,23 @@ async function compressRecording(rec, settings) {
     // (ffmpeg may open its output only after the deletion) removes what it made and publishes nothing.
     const result = await owners.write(rec.id, async (signal, made) => {
         made(partial);
-        let r = await nativeTools.ffmpeg(buildCompressArgs(input, partial, settings), { watchFile: partial, signal });
+        let r = await nativeTools.ffmpeg(buildCompressArgs(input, partial, settings), { watchFile: partial, signal, sizeOf: io.sizeOf });
         // Some VAAPI drivers implement constant-quantiser rate control only and
         // reject a bitrate target outright. Retry once in CQP rather than leaving
         // the recording uncompressed.
         if (r.code !== 0 && r.tail.some(l => l.includes('RC mode')) && !signal.aborted) {
             console.log(`[Recordings] Encoder wants constant quality; retrying #${rec.id} in CQP`);
-            try { fs.unlinkSync(partial); } catch (e) { /* nothing to clean */ }
-            r = await nativeTools.ffmpeg(buildCompressArgs(input, partial, settings, { forceCqp: true }), { watchFile: partial, signal });
+            await drop(partial);
+            r = await nativeTools.ffmpeg(buildCompressArgs(input, partial, settings, { forceCqp: true }), { watchFile: partial, signal, sizeOf: io.sizeOf });
         }
-        if (!owners.owned(rec.id)) { try { fs.unlinkSync(partial); } catch (e) { /* never made */ } }
+        if (!owners.owned(rec.id)) await drop(partial);
         return r;
     });
     if (!owners.owned(rec.id)) return;
     const code = result.code;
-    if (code !== 0 || !fs.existsSync(partial)) {
+    if (code !== 0 || !(await io.exists(partial))) {
         console.error(`[Recordings] Compression of #${rec.id} failed:\n  ${result.tail.join('\n  ')}`);
-        try { fs.unlinkSync(partial); } catch (e) { /* nothing to clean */ }
+        await drop(partial);
         recordingsDb.setCompressStatus(rec.id, 'failed', {
             error: result.tail.slice(-3).join(' | ') || `ffmpeg exited with code ${code}`
         });
@@ -154,14 +159,15 @@ async function compressRecording(rec, settings) {
     // original on the strength of a check that never ran.
     const newDuration = await nativeTools.duration(partial);
     if (!owners.owned(rec.id)) {
-        try { fs.unlinkSync(partial); } catch (e) { /* removed with the recording */ }
+        await drop(partial); // removed with the recording
         return;
     }
-    const newSize = fs.statSync(partial).size;
+    const partialStat = await io.stat(partial);
+    const newSize = partialStat ? partialStat.size : 0;
     const verified = sourceDuration > 0 && newDuration > 0 && newDuration >= sourceDuration * 0.95;
 
     if (!verified || newSize < 1024) {
-        try { fs.unlinkSync(partial); } catch (e) { /* ignore */ }
+        await drop(partial);
         const unreadable = !(sourceDuration > 0) || !(newDuration > 0);
         recordingsDb.setCompressStatus(rec.id, 'failed', {
             error: unreadable
@@ -174,13 +180,14 @@ async function compressRecording(rec, settings) {
     if (newSize >= originalSize) {
         // Re-encoding made it bigger, which happens on already-efficient
         // sources. Keep the original and say so.
-        try { fs.unlinkSync(partial); } catch (e) { /* ignore */ }
+        await drop(partial);
         recordingsDb.setCompressStatus(rec.id, 'skipped', { error: 'Compressed file was no smaller' });
         console.log(`[Recordings] #${rec.id} left as-is; compression saved nothing`);
         return;
     }
 
-    fs.renameSync(partial, output);
+    // A rename the share does not answer may still land, so nothing is deleted: the original stays and the row is not moved.
+    await io.rename(partial, output);
 
     if (settings.postRecordKeepOriginal === true) {
         recordingsDb.setCompressStatus(rec.id, 'done', { fileSize: originalSize });
@@ -192,7 +199,7 @@ async function compressRecording(rec, settings) {
     // leaves a spare original on disk, never a row pointing at nothing.
     recordingsDb.setCompressStatus(rec.id, 'done', { fileSize: newSize, filePath: output });
     try {
-        fs.unlinkSync(input);
+        await io.unlink(input);
     } catch (err) {
         console.warn(`[Recordings] #${rec.id} compressed, but the original could not be removed: ${err.message}`);
     }

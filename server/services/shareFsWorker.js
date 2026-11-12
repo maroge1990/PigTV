@@ -14,7 +14,7 @@ const HANG = process.env.PIGTV_TEST_SHARE_HANG || null;
 
 const under = (f, dir) => f === dir || f.startsWith(dir + path.sep);
 
-/** `extra`: a call's further arguments ({ to } for link). */
+/** `extra`: a call's further arguments ({ to } for link and rename). */
 function run(op, file, extra = {}) {
     if (HANG && (under(file, HANG) || (extra && extra.to && under(String(extra.to), HANG)))) {
         const view = new Int32Array(new SharedArrayBuffer(4));
@@ -44,6 +44,8 @@ function run(op, file, extra = {}) {
         }
         // #287: a second name for `file`, never over an existing one (EEXIST is the caller's to see).
         case 'link': fs.linkSync(file, String(extra.to)); return true;
+        // A file moved to a new name beside it, replacing a file already there (renameSync's own rule); an errno answer keeps its code.
+        case 'rename': fs.renameSync(file, String(extra.to)); return true;
         case 'mkdir': fs.mkdirSync(file); return true;
         case 'writeProbe': {
             const probe = path.join(file, `.pigtv-write-test-${process.pid}-${Date.now()}`);

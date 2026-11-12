@@ -1244,3 +1244,168 @@ test('#287: a withdraw while the share fails fast leaves no mark: once the share
     assert.equal(real(() => fs.existsSync(file)), false, 'removed once the share answers');
     assert.deepEqual(journalOf(900016), []);
 });
+
+// ---- the rest of the post-capture pipeline: compression, preparation, the remux, the playback poll, the settings check ----
+
+/** A finished recording with a 20 kB .mkv beside the others in `dirPath` (bigger than the stand-in ffmpeg's 5 kB result). */
+function postRecording(dirPath, name) {
+    const rec = completedRecording(path.join(dirPath, `${name}.mkv`), name);
+    real(() => fs.writeFileSync(rec.file_path, Buffer.alloc(20000)));
+    return load('db/recordingsDb').recordings.getById(rec.id);
+}
+const sqlDb = () => load('db/sqlite').getDb();
+
+test('compression, preparation, the remux and the playback poll make no synchronous call on the share', async () => {
+    const { recordings } = load('db/recordingsDb');
+    const media = load('services/recordingMedia');
+    hangMs = 400;
+    try {
+        const kept = postRecording(slowRecordings, 'Squeezed kept');
+        const replaced = postRecording(slowRecordings, 'Squeezed replaced');
+        const prepared = postRecording(slowRecordings, 'Prepared');
+        const played = postRecording(slowRecordings, 'Played');
+        blocked.length = 0;
+        const { worst } = await loopFreeze(async () => {
+            await engine._compressRecording(kept, { postRecordKeepOriginal: true });
+            assert.equal(recordings.getById(kept.id).compress_status, 'done');
+            assert.deepEqual(await engine.pollNativePlayback(recordings.getById(kept.id)), { state: 'ready' }, 'served from the compressed file');
+
+            await engine._compressRecording(replaced, { postRecordKeepOriginal: false });
+            const after = recordings.getById(replaced.id);
+            assert.equal(after.compress_status, 'done');
+            assert.equal(after.file_path, media.compressionTargetPath(replaced.file_path));
+
+            await engine._prepareRecording(prepared);
+            const ready = recordings.getById(prepared.id);
+            assert.equal(ready.native_status, 'ready');
+            assert.equal(ready.file_path, media.preparedTargetPath(prepared.file_path));
+
+            const served = await engine.ensureNativePlayback(played);
+            assert.equal(served, media.nativePlaybackTargetPath(played.file_path));
+            assert.deepEqual(await engine.pollNativePlayback(played), { state: 'ready' });
+        });
+        assert.deepEqual([...blocked], [], 'no synchronous call on the share');
+        assert.ok(worst() < 300, `the event loop stalled for ${worst()} ms`);
+        real(() => {
+            assert.equal(fs.existsSync(replaced.file_path), false, 'the original it replaced is gone');
+            assert.equal(fs.existsSync(prepared.file_path), false, 'and the .mkv the MP4 replaced');
+            assert.equal(fs.existsSync(kept.file_path), true, 'a kept original stays');
+            assert.equal(fs.existsSync(media.compressionTargetPath(replaced.file_path)), true);
+        });
+    } finally {
+        hangMs = 3000;
+    }
+});
+
+test('with the share hung, compression, preparation, the remux and the poll end within the deadline and delete nothing', async () => {
+    const media = load('services/recordingMedia');
+    const { recordings } = load('db/recordingsDb');
+    hangMs = 400;
+    shareFs.reset();
+    shareFs.tuning.timeoutMs = 600;
+    try {
+        const squeeze = postRecording(recordingsPath, 'Hung squeeze');
+        const prep = postRecording(recordingsPath, 'Hung prepare');
+        const play = postRecording(recordingsPath, 'Hung play');
+        const poll = postRecording(recordingsPath, 'Hung poll');
+        sqlDb().prepare(`UPDATE recordings SET compress_status = 'done' WHERE id = ?`).run(poll.id);
+        blocked.length = 0;
+        const timed = async (work) => { const began = Date.now(); const out = await work(); return { out, ms: Date.now() - began }; };
+        const { worst } = await loopFreeze(async () => {
+            shareFs.reset();
+            let t = await timed(() => assert.rejects(() => engine._compressRecording(squeeze, { postRecordKeepOriginal: false }), { code: 'SHARE_UNRESPONSIVE' }));
+            assert.ok(t.ms < 3000, `compression ended in ${t.ms} ms`);
+            shareFs.reset();
+            t = await timed(() => engine._prepareRecording(prep));
+            assert.ok(t.ms < 3000, `preparation ended in ${t.ms} ms`);
+            const row = recordings.getById(prep.id);
+            assert.equal(row.native_status, 'pending', 'and is tried again later');
+            assert.match(row.native_error, /recordings share|not respond|did not answer/i);
+            assert.equal(row.file_path, prep.file_path);
+            shareFs.reset();
+            t = await timed(() => assert.rejects(() => engine.ensureNativePlayback(play), { code: 'SHARE_UNRESPONSIVE' }));
+            assert.ok(t.ms < 3000, `the remux ended in ${t.ms} ms`);
+            shareFs.reset();
+            t = await timed(() => engine.pollNativePlayback(recordings.getById(poll.id)));
+            assert.deepEqual(t.out, { state: 'idle' }, 'a poll that cannot tell is not an error');
+            assert.ok(t.ms < 3000, `the poll ended in ${t.ms} ms`);
+        });
+        assert.deepEqual([...blocked], [], 'no synchronous call on the share');
+        assert.ok(worst() < 300, `the event loop stalled for ${worst()} ms`);
+        real(() => { for (const r of [squeeze, prep, play, poll]) assert.equal(fs.existsSync(r.file_path), true, `${path.basename(r.file_path)} is still there`); });
+        assert.equal(recordings.getById(squeeze.id).file_path, squeeze.file_path);
+        void media;
+    } finally {
+        shareFs.reset();
+        shareFs.tuning.timeoutMs = 1500;
+        hangMs = 3000;
+    }
+});
+
+test('a rename the share does not answer leaves the original and the row alone; the next pass finishes the job', async () => {
+    const media = load('services/recordingMedia');
+    const { recordings } = load('db/recordingsDb');
+    const helpers = stallingHelpers((op) => op === 'rename');
+    const realFork = shareFs._spawner.fork;
+    shareFs.reset();
+    shareFs.tuning.timeoutMs = 500;
+    shareFs._spawner.fork = helpers.fork;
+    hangMs = 400;
+    try {
+        const squeeze = postRecording(slowRecordings, 'Late squeeze');
+        const prep = postRecording(slowRecordings, 'Late prepare');
+        const play = postRecording(slowRecordings, 'Late play');
+        blocked.length = 0;
+        const { worst } = await loopFreeze(async () => {
+            await assert.rejects(() => engine._compressRecording(squeeze, { postRecordKeepOriginal: false }), { code: 'SHARE_UNRESPONSIVE' });
+            assert.equal(recordings.getById(squeeze.id).file_path, squeeze.file_path, 'the row still has the original');
+            assert.notEqual(recordings.getById(squeeze.id).compress_status, 'done');
+            await engine._prepareRecording(prep);
+            assert.equal(recordings.getById(prep.id).native_status, 'pending');
+            assert.equal(recordings.getById(prep.id).file_path, prep.file_path);
+            await assert.rejects(() => engine.ensureNativePlayback(play), { code: 'SHARE_UNRESPONSIVE' });
+        });
+        assert.deepEqual([...blocked], [], 'no synchronous call on the share');
+        assert.ok(worst() < 300, `the event loop stalled for ${worst()} ms`);
+        real(() => { for (const r of [squeeze, prep, play]) assert.equal(fs.existsSync(r.file_path), true, `${path.basename(r.file_path)} was not deleted`); });
+        // The share answers again: the renames it held land late. The next pass finds a whole MP4 where it was going.
+        helpers.release();
+        shareFs._spawner.fork = realFork;
+        shareFs.reset();
+        await engine._prepareRecording(recordings.getById(prep.id));
+        const done = recordings.getById(prep.id);
+        assert.equal(done.native_status, 'ready');
+        assert.equal(done.file_path, media.preparedTargetPath(prep.file_path));
+        assert.equal(await engine.ensureNativePlayback(play), media.nativePlaybackTargetPath(play.file_path), 'and a Play finds the remux that landed');
+    } finally {
+        helpers.release();
+        shareFs._spawner.fork = realFork;
+        shareFs.reset();
+        shareFs.tuning.timeoutMs = 1500;
+        hangMs = 3000;
+    }
+});
+
+test('saving a recordings folder on a hung share answers with an error within the deadline', async () => {
+    const folder = load('services/recordingsFolder');
+    shareFs.reset();
+    shareFs.tuning.timeoutMs = 600;
+    hangMs = 400;
+    blocked.length = 0;
+    try {
+        const began = Date.now();
+        const { result, worst } = await loopFreeze(() => folder.validateRecordingsPathSetting(path.join(recordingsPath, 'Newly typed')));
+        assert.equal(result.ok, false);
+        assert.match(result.reason, /not responding/);
+        assert.ok(Date.now() - began < 3000, 'answered within the deadline');
+        assert.deepEqual([...blocked], [], 'no synchronous call on the share');
+        assert.ok(worst() < 300, `the event loop stalled for ${worst()} ms`);
+        // And a folder on a share that answers is still accepted.
+        assert.deepEqual(await folder.validateRecordingsPathSetting(path.join(slowRecordings, 'Newly typed')), { ok: true });
+        assert.deepEqual([...blocked], [], 'no synchronous call on the share');
+    } finally {
+        shareFs.reset();
+        shareFs.tuning.timeoutMs = 1500;
+        hangMs = 3000;
+    }
+});

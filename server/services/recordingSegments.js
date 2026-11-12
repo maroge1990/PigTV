@@ -994,7 +994,7 @@ function status() {
 }
 
 module.exports = {
-    SEGMENT_SEC, workRoot, workDirFor, isWorkDir, epochs, nextEpoch, captureInput, captureArgs, captureBytes,
+    SEGMENT_SEC, workRoot, ioFor, workDirFor, isWorkDir, epochs, nextEpoch, captureInput, captureArgs, captureBytes,
     sealEpoch, sealAll, stitchArchive, recordedSeconds, archiveSegmentCount,
     viewArgs, _resetFreeBytes,
     _partInput: partInput,

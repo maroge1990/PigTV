@@ -384,7 +384,7 @@ router.get('/:id/playback', async (req, res) => {
             // Polling flavour, for a client that cannot wait out a long remux (the Apple
             // client's requests time out after 35 s). Ready -> 200 as below; still working
             // -> 202 and ask again; failed -> 500 once, and asking again starts afresh.
-            let status = recordingEngine.pollNativePlayback(rec);
+            let status = await recordingEngine.pollNativePlayback(rec);
             if (status.state === 'idle') status = await recordingEngine.startNativePlaybackAndWait(rec);
             if (status.state === 'failed') {
                 return res.status(500).json({

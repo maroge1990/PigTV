@@ -11,7 +11,8 @@
  * Calls: exists, stat ({size, mtimeMs} or null), statfs ({freeBytes, totalBytes}), mkdir, writeProbe (write and
  * remove a small file: true or false), identity (which file is there, or null; #141), unlink (true, or false when
  * nothing was there; #141), link (a second name, never over an existing file: an errno answer such as EEXIST keeps its
- * code; #287) and nlink (how many names a file has, or null; #287). Paths only; nothing here knows what the share holds.
+ * code; #287), nlink (how many names a file has, or null; #287) and rename (a file moved to a new name, replacing one already
+ * there: the publish of a remux, an adoption or a compression). Paths only; nothing here knows what the share holds.
  * `local` makes the same calls in this process, for a path on a local disk (appdata).
  */
 const { fork } = require('child_process');
@@ -92,7 +93,7 @@ function abandon(which) {
 // Tests that fake the filesystem in this process (a patched fs.statfsSync) run the calls here instead.
 let inProcess = false;
 
-/** `extra`: further arguments, sent with the call ({ to } for link). */
+/** `extra`: further arguments, sent with the call ({ to } for link and rename). */
 function call(op, file, { timeoutMs = tuning.timeoutMs } = {}, extra = {}) {
     if (inProcess) return runHere(op, file, extra);
     if (!(child && child.connected) && stuck.size >= MAX_STUCK) {
@@ -131,6 +132,7 @@ const identity = (file, opts) => call('identity', file, opts);
 const unlink = (file, opts) => call('unlink', file, opts);
 const link = (file, to, opts) => call('link', file, opts, { to: String(to) });
 const nlink = (file, opts) => call('nlink', file, opts);
+const rename = (file, to, opts) => call('rename', file, opts, { to: String(to) });
 /** The size of `file`: 0 when it is missing, null when the share does not say (#143: unknown is not "no growth"). */
 async function sizeOf(file, opts) {
     try { const s = await stat(file, opts); return s ? s.size : 0; } catch (e) { return null; }
@@ -141,8 +143,9 @@ function runHere(op, file, extra) {
 }
 /** #287: the same calls, made in this process: for a path on a local disk (appdata), which never hangs. */
 const local = {
-    exists: (f) => runHere('exists', f), stat: (f) => runHere('stat', f), identity: (f) => runHere('identity', f),
+    exists: (f) => runHere('exists', f), stat: (f) => runHere('stat', f), statfs: (f) => runHere('statfs', f), identity: (f) => runHere('identity', f),
     unlink: (f) => runHere('unlink', f), link: (f, to) => runHere('link', f, { to: String(to) }), nlink: (f) => runHere('nlink', f),
+    rename: (f, to) => runHere('rename', f, { to: String(to) }),
     async sizeOf(f) { try { const s = await runHere('stat', f); return s ? s.size : 0; } catch (e) { return null; } }
 };
 
@@ -191,4 +194,4 @@ function reset() {
 /** Tests: run calls in this process (true) or in the helper (false). */
 function _inProcess(on) { inProcess = !!on; }
 
-module.exports = { _inProcess, _spawner: spawner, _stuck: stuck, call, exists, stat, statfs, mkdir, writeProbe, identity, unlink, link, nlink, sizeOf, local, diskInfo, unresponsive, reset, tuning };
+module.exports = { _inProcess, _spawner: spawner, _stuck: stuck, call, exists, stat, statfs, mkdir, writeProbe, identity, unlink, link, nlink, rename, sizeOf, local, diskInfo, unresponsive, reset, tuning };

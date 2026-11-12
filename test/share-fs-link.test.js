@@ -108,3 +108,36 @@ test('#287: sent and settled on each way a call can fail', async () => {
         shareFs.tuning.timeoutMs = was;
     }
 });
+
+for (const [label, io] of [['through the helper', shareFs], ['in this process (local)', shareFs.local]]) {
+    test(`rename ${label}: moves a file, replaces an existing target, keeps the errno`, async () => {
+        const sub = fs.mkdtempSync(path.join(dir, 'r-'));
+        const a = path.join(sub, 'a.partial');
+        const b = path.join(sub, 'b.mp4');
+        fs.writeFileSync(a, 'new');
+        assert.equal(await io.rename(a, b), true);
+        assert.equal(fs.existsSync(a), false);
+        assert.equal(fs.readFileSync(b, 'utf8'), 'new');
+        fs.writeFileSync(a, 'newer');
+        assert.equal(await io.rename(a, b), true, 'over an existing file, as renameSync does');
+        assert.equal(fs.readFileSync(b, 'utf8'), 'newer');
+        await assert.rejects(() => io.rename(a, b), { code: 'ENOENT' }, 'a missing source keeps its errno');
+    });
+}
+
+test('rename: a call the share does not answer misses its deadline as SHARE_UNRESPONSIVE and changes nothing', async () => {
+    shareFs.reset();
+    const was = shareFs.tuning.timeoutMs;
+    shareFs.tuning.timeoutMs = 1000;
+    const from = path.join(dir, 'moving.partial');
+    fs.writeFileSync(from, 'finished');
+    try {
+        await assert.rejects(() => shareFs.rename(from, path.join(hung, 'to.mp4')), { code: 'SHARE_UNRESPONSIVE' }, 'its destination on the hung share');
+        shareFs.reset();
+        await assert.rejects(() => shareFs.rename(path.join(hung, 'x'), path.join(dir, 'y.mp4')), { code: 'SHARE_UNRESPONSIVE' }, 'its source on the hung share');
+    } finally {
+        shareFs.reset();
+        shareFs.tuning.timeoutMs = was;
+    }
+    assert.equal(fs.existsSync(from), true, 'nothing was renamed');
+});

@@ -121,7 +121,7 @@ test('a finished recording is prepared, the MP4 replaces the .mkv, and the .mkv 
     assert.ok(fs.existsSync(r.mp4));
     assert.ok(!fs.existsSync(r.file), '.mkv deleted');
     assert.ok(!fs.existsSync(r.native), 'nothing left under the temporary .native.mp4 name');
-    assert.equal(engine.pollNativePlayback(after).state, 'ready');
+    assert.equal((await engine.pollNativePlayback(after)).state, 'ready');
     assert.equal(await engine.ensureNativePlayback(after), r.mp4, 'Play serves it with no further work');
 });
 
@@ -317,7 +317,7 @@ test('R5-D1: a viewer\'s remux (shared by preparation) of a recording deleted me
     await Promise.all([play, prep]);
     assert.equal(row(r.id), null);
     assert.deepEqual(leftovers(r), []);
-    assert.deepEqual(engine.pollNativePlayback({ id: r.id, file_path: r.file }), { state: 'failed', reason: 'file-missing' });
+    assert.deepEqual(await engine.pollNativePlayback({ id: r.id, file_path: r.file }), { state: 'failed', reason: 'file-missing' });
 });
 
 test('R5-D1: the remux is still shared by playback and preparation of a recording that is kept', async () => {
@@ -526,7 +526,7 @@ test('K: a withdrawal that cannot remove its file (I/O error) records it for the
     const listed = () => getDb().prepare('SELECT path FROM recording_cleanup WHERE path = ?').all(file).length;
     fs.chmodSync(sub, 0o555); // the removal fails (EACCES), as on a share that refuses it
     try {
-        engine._owners.withdraw(file, 999999, 'recording');
+        await engine._owners.withdrawBounded(file, 999999, 'recording');
         assert.equal(fs.existsSync(file), true);
         assert.equal(listed(), 1, 'recorded for the start-up sweep');
     } finally { fs.chmodSync(sub, 0o755); }

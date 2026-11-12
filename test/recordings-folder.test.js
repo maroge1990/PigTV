@@ -75,28 +75,28 @@ test('formatBytes: MB under a GB, GB at and above it', () => {
     assert.equal(formatBytes(null), 'an unknown amount');
 });
 
-test('validateRecordingsPathSetting: an existing, writable folder is fine', () => {
+test('validateRecordingsPathSetting: an existing, writable folder is fine', async () => {
     const dir = path.join(scratch, 'writable-existing');
     fs.mkdirSync(dir, { recursive: true });
-    assert.deepEqual(validateRecordingsPathSetting(dir), { ok: true });
+    assert.deepEqual(await validateRecordingsPathSetting(dir), { ok: true });
 });
 
-test('validateRecordingsPathSetting: a not-yet-created folder is fine when its parent exists (getRecordingsRoot creates it later)', () => {
+test('validateRecordingsPathSetting: a not-yet-created folder is fine when its parent exists (getRecordingsRoot creates it later)', async () => {
     const dir = path.join(scratch, 'not-yet-created');
-    assert.deepEqual(validateRecordingsPathSetting(dir), { ok: true });
+    assert.deepEqual(await validateRecordingsPathSetting(dir), { ok: true });
 });
 
-test('validateRecordingsPathSetting: a relative path is refused, even one whose parent (the working folder) exists (0167)', () => {
+test('validateRecordingsPathSetting: a relative path is refused, even one whose parent (the working folder) exists (0167)', async () => {
     for (const dir of ['fake', 'recordings/new', './here']) {
-        const result = validateRecordingsPathSetting(dir);
+        const result = await validateRecordingsPathSetting(dir);
         assert.equal(result.ok, false, dir);
         assert.match(result.reason, /full path starting with \//);
     }
 });
 
-test('validateRecordingsPathSetting: refused when neither the path nor its parent exists', () => {
+test('validateRecordingsPathSetting: refused when neither the path nor its parent exists', async () => {
     const dir = path.join(scratch, 'nope', 'still-nope', 'recordings');
-    const result = validateRecordingsPathSetting(dir);
+    const result = await validateRecordingsPathSetting(dir);
     assert.equal(result.ok, false);
     assert.match(result.reason, /does not exist, and neither does its parent/);
 });
@@ -117,12 +117,12 @@ function withTinyFilesystem(fn) {
     return Promise.resolve().then(fn).finally(() => { fs.statfsSync = real; share._inProcess(false); });
 }
 
-test('validateRecordingsPathSetting: refused on a tiny filesystem, existing or not yet created (0160)', () => withTinyFilesystem(() => {
-    const existing = validateRecordingsPathSetting(path.join(tinyRoot, 'SERVER01_Video'));
+test('validateRecordingsPathSetting: refused on a tiny filesystem, existing or not yet created (0160)', () => withTinyFilesystem(async () => {
+    const existing = await validateRecordingsPathSetting(path.join(tinyRoot, 'SERVER01_Video'));
     assert.equal(existing.ok, false);
     assert.match(existing.reason, /isn't on a real volume/);
 
-    const notYet = validateRecordingsPathSetting(path.join(tinyRoot, 'SERVER01_Video', 'Recordings'));
+    const notYet = await validateRecordingsPathSetting(path.join(tinyRoot, 'SERVER01_Video', 'Recordings'));
     assert.equal(notYet.ok, false);
     assert.match(notYet.reason, /its parent isn't on a real volume/);
     assert.ok(!fs.existsSync(path.join(tinyRoot, 'SERVER01_Video', 'Recordings')));

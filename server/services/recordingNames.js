@@ -25,20 +25,7 @@ function sanitizeForFs(str) {
         .slice(0, 150) || 'Untitled';
 }
 
-/** `dir/baseName.ext`, or `dir/baseName (2).ext` and so on when that is taken. */
-function uniqueFilePath(dir, baseName, ext) {
-    const fs = require('fs');
-    const path = require('path');
-    let candidate = path.join(dir, `${baseName}${ext}`);
-    let n = 2;
-    while (fs.existsSync(candidate)) {
-        candidate = path.join(dir, `${baseName} (${n})${ext}`);
-        n++;
-    }
-    return candidate;
-}
-
-/** #287: uniqueFilePath through `exists` (an async check, e.g. shareFs.exists: bounded, off the event loop). */
+/** `dir/baseName.ext`, or `dir/baseName (2).ext` and so on when that is taken, through `exists` (an async check, e.g. shareFs.exists: bounded, off the event loop). */
 async function uniqueFilePathAsync(dir, baseName, ext, exists) {
     const path = require('path');
     let candidate = path.join(dir, `${baseName}${ext}`);
@@ -46,4 +33,4 @@ async function uniqueFilePathAsync(dir, baseName, ext, exists) {
     return candidate;
 }
 
-module.exports = { formatLocalStamp, sanitizeForFs, uniqueFilePath, uniqueFilePathAsync };
+module.exports = { formatLocalStamp, sanitizeForFs, uniqueFilePathAsync };

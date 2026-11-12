@@ -157,5 +157,6 @@ Durable facts from the 22–26 Oct repair batches (0227–0280):
   destroyed, a copy awaited) and waits until each has removed what it made, before it removes the files and the row (0264),
   at most 30 s (0270). Every file a writer makes has a name of its own and is journalled in `recording_cleanup` until it
   is published or removed; the start-up sweep removes what a crash or an abandoned writer left (0273).
-  Share files are published with `link()`, never by rename over an existing name.
+  A recording's MP4 is published with `link()`, never by rename over an existing name. The later jobs (remux for native playback, adopting the
+  MP4, compression) also go through shareFs, with `rename()` into place; a call the share does not answer fails the job and deletes nothing.
 - A schedule with a stable channel identity never falls back to its stored position (resolve, guide-follow, blockers) (0228).

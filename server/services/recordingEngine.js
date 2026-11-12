@@ -31,7 +31,7 @@ const segments = require('./recordingSegments'); // R3: segmented recordings
 const owners = require('./recordingOwners'); // R5-D1: recordings being deleted, for every job
 const { recordingWindow } = require('./recordingGuideEnd');
 const ingest = require('./ingest'); // Wave 5: shared ingest (docs/SHARED-INGEST.md)
-const { fileSizeOf, getFreeSpaceGB, compressionTargetPath, nativePlaybackTargetPath, verifiedNativeFiles } = media;
+const { getFreeSpaceGB, compressionTargetPath, nativePlaybackTargetPath, verifiedNativeFiles } = media;
 const { processCompressionQueue, processAdDetectionQueue } = post;
 
 const TICK_INTERVAL_MS = 15 * 1000;
