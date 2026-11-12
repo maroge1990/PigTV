@@ -111,6 +111,8 @@ before(async () => {
             res.write(chunk);
         }, 20);
         if (p.startsWith('/dies')) setTimeout(() => { clearInterval(timer); req.socket.destroy(); }, 400);
+        // #274: its first connection goes silent after 400 ms and stays open; a reconnect is healthy.
+        if (p.startsWith('/quiet') && first) setTimeout(() => clearInterval(timer), 400);
         res.on('close', () => clearInterval(timer));
     });
     server.listen(0, '127.0.0.1');
@@ -125,6 +127,7 @@ before(async () => {
     item.run(`${A.id}:pos_2`, A.id, 'pos_2', 'Fox League', 2, 'fl', `${base}/fl.ts`);
     item.run(`${A.id}:pos_3`, A.id, 'pos_3', 'Odd', 3, 'odd', `${base}/html`);
     item.run(`${A.id}:pos_4`, A.id, 'pos_4', 'Shaky', 4, 'shaky', `${base}/dies.ts`);
+    item.run(`${A.id}:pos_5`, A.id, 'pos_5', 'Quiet', 5, 'quiet', `${base}/quiet.ts`);
     await db.settings.update({ recordingsPath: path.join(sandbox, 'recordings'), minFreeSpaceGB: 0, maxConcurrentRecordings: 5,
         maxProviderStreams: 1, sharedIngestEnabled: true });
     engine.init({ ffmpegPath: FFMPEG, ffprobePath: 'ffprobe' });
@@ -269,6 +272,57 @@ test('a provider that dies for good: the ingest gives up, the recording goes on 
         assert.equal(recordings.getById(rec.id).segment_state, 'done');
     } finally {
         ingest.tuning.reconnectMs = 10000;
+    }
+});
+
+// #274 (D-10): every recording's part is watched for a stall now, with one provider too. A silent shared feed is the
+// ingest's to judge (it reconnects, or ends the feed, which ends the part once): the recording's watchdog acting on the
+// same silence would end the part and then, its resume joining the same ingest, the next one as well.
+test('#274: a single-provider recording on a silent shared feed is left to the ingest, which reconnects; the part goes on', async () => {
+    const tuning = engine._failoverTuning;
+    const saved = { ...tuning };
+    const warned = [];
+    const realWarn = console.warn;
+    console.warn = (...a) => { warned.push(a.join(' ')); realWarn(...a); };
+    const behindMs = ingest.tuning.behindMs;
+    tuning.stallMs = 1000; // far shorter than the ingest's own rule below
+    ingest.tuning.behindMs = 3000;
+    try {
+        const s = due('pos_5', 'quiet');
+        await until(() => sizeOf(segmentOf(s)) > 1024, 'some data');
+        await until(() => connections['/quiet.ts'] >= 2, 'the ingest reconnected', 15000);
+        const at = sizeOf(segmentOf(s));
+        await until(() => sizeOf(segmentOf(s)) > at, 'the same part grows again');
+        assert.equal(captures().length, 1, 'one run: the part was not ended for the feed\'s silence');
+        assert.ok(!warned.some(l => /has had no data/.test(l)), 'no stall of the recording');
+        assert.equal(engine._stallWatchCount(), 1, 'still watched');
+        await engine.cancelScheduled(s.id);
+    } finally {
+        Object.assign(tuning, saved);
+        ingest.tuning.behindMs = behindMs;
+        console.warn = realWarn;
+    }
+});
+
+test('#274: a single-provider recording whose ffmpeg stops reading a shared feed that still delivers is ended and continued', async () => {
+    const tuning = engine._failoverTuning;
+    const saved = { ...tuning };
+    tuning.stallMs = 1000;
+    tuning.endGraceMs = 0;
+    try {
+        const s = due();
+        await until(() => sizeOf(segmentOf(s)) > 1024, 'some data');
+        fs.writeFileSync(stallFlag, '1'); // ffmpeg reads nothing more: its segment stops growing while the feed delivers
+        try {
+            await until(() => captures().length === 2, 'continued after the stall', 15000);
+        } finally {
+            fs.unlinkSync(stallFlag);
+        }
+        assert.match(recordings.getById(rowOf(s).id).error || '', /^Gaps: 1, .*no data/);
+        assert.equal(recordings.listBySchedule(s.id).length, 1, 'one recording');
+        await engine.cancelScheduled(s.id);
+    } finally {
+        Object.assign(tuning, saved);
     }
 });
 

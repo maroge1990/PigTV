@@ -247,7 +247,7 @@ Client events carry no session id, so the mapping is owner → last resolve (as 
   session ends unrequested, so a player's single re-resolve lands elsewhere. Connections are **leased before the probe**
   (0198), so two starts can't double-book one.
 - **Recordings** take the first candidate with a free connection (else the prompt flow on the first). A capture that dies
-  or stalls for 30 s continues in the same recording, in a new epoch on the next free provider
+  or stalls for 30 s continues in the same recording, in a new epoch on the next free provider, or on the same one when it is the only one
   ([`architecture/recording.md`](architecture/recording.md) › Segmented recordings).
 
 - A sibling-link decision that changes what is listed bumps the guide version (0250).

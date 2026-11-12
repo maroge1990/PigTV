@@ -16,6 +16,13 @@
  * Two limits are used. Before the first output a process is probing the source
  * and legitimately quiet, so it gets a longer grace; once it has produced
  * output, silence for stallMs means it has stopped.
+ *
+ * Users (#274, D-10): transcodeSession (HLS files landing), recordingEngine (a recording part's segments
+ * growing, every route; what a stall then does is the engine's) and recordingMedia's runFfmpegCollectingTail
+ * (a remux/compress output file growing; it counts an unreadable size as no growth itself).
+ * Not users, by design:
+ * - ingest.js checkStall judges lag behind real time and connect/reconnect deadlines, not silence.
+ * - the relay's lastProgressAt acts on silence only when a standby is ready to take over.
  */
 
 function positiveInt(value, fallback) {

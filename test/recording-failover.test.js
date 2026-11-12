@@ -250,6 +250,16 @@ test('a stalled recording (no new segments) continues in the same recording on t
     assert.ok(routing.isQuarantined(A.id, 's101'), 'the stalled provider is skipped for this channel');
 });
 
+test('#274: a failover leaves one watchdog, the new part\'s; a stop leaves none', async () => {
+    tuning.endGraceMs = 0;
+    setBehaviour(url.A(101), 'dies');
+    const s = due();
+    await until(() => captures().length === 2 && engine.listActive().some(r => r.id === s.id && r.providerId === B.id), 'continued on Trex', 10000);
+    assert.equal(engine._stallWatchCount(), 1, 'the dead part\'s watchdog went with it');
+    await engine.stopAllActive(3000);
+    assert.equal(engine._stallWatchCount(), 0);
+});
+
 test('a recording whose provider died, with no other free, waits (no prompt, no connection held), then continues when one frees up', async () => {
     tuning.endGraceMs = 0;
     setBehaviour(url.A(101), 'dies');

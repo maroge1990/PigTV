@@ -12,6 +12,7 @@ const { getDb } = require('../db/sqlite');
 const jobs = require('./recordingJobs');
 const owners = require('./recordingOwners');
 const shareFs = require('./shareFs');
+const { createStallWatchdog } = require('./stallWatchdog');
 
 /**
  * The bounded file calls for `p`: on the recordings share through shareFs (a helper process with a deadline, so a hung
@@ -279,26 +280,29 @@ function runFfmpegCollectingTail(args, { watchFile = null, stallMs = FFMPEG_STAL
         let watchdog = null;
         let ended = false;
         if (watchFile) {
+            // #274 (D-10): the shared stallWatchdog owns the timing; this wrapper owns what growth means. The
+            // watchdog never acts on a failed measurement, but here a size that cannot be read (#287: null, or a
+            // rejected check on a hung share) must count as no growth, as it always has: so the wrapper never
+            // fails a sample, it keeps the time of the last growth itself and hands back that.
             let lastSize = -1;
             let lastGrowth = Date.now();
-            let checking = false;
             const read = sizeOf || shareFs.local.sizeOf;
-            const judge = (size) => {
-                if (size > lastSize) { lastSize = size; lastGrowth = Date.now(); return; }
-                if (Date.now() - lastGrowth < stallMs) return;
-                tail.push(`Stopped: ${path.basename(watchFile)} did not grow for ${Math.round(stallMs / 1000)}s`);
-                clearInterval(watchdog);
-                try { proc.kill('SIGKILL'); } catch (e) { /* already gone */ }
-            };
-            watchdog = setInterval(() => {
-                if (checking) return; // never two checks at once
-                checking = true;
-                Promise.resolve().then(() => read(watchFile)).catch(() => null).then((size) => {
-                    checking = false;
-                    if (!ended) judge(size ?? 0);
-                });
-            }, Math.min(30 * 1000, stallMs));
-            if (watchdog.unref) watchdog.unref();
+            watchdog = createStallWatchdog({
+                label: `ffmpeg ${path.basename(watchFile)}`,
+                getLastActivity: async () => {
+                    const size = await Promise.resolve().then(() => read(watchFile)).catch(() => null);
+                    if ((size ?? 0) > lastSize) { lastSize = size ?? 0; lastGrowth = Date.now(); }
+                    return lastGrowth;
+                },
+                onStall: () => {
+                    if (ended) return;
+                    tail.push(`Stopped: ${path.basename(watchFile)} did not grow for ${Math.round(stallMs / 1000)}s`);
+                    try { proc.kill('SIGKILL'); } catch (e) { /* already gone */ }
+                },
+                stallMs,
+                startupMs: stallMs, // one limit, from the start as from the last growth
+                checkIntervalMs: Math.min(30 * 1000, stallMs) // the watchdog runs one check at a time (#287)
+            });
         }
         proc.stderr.on('data', d => {
             for (const line of d.toString().split('\n')) {
@@ -307,7 +311,7 @@ function runFfmpegCollectingTail(args, { watchFile = null, stallMs = FFMPEG_STAL
         });
         const done = (code) => {
             ended = true;
-            if (watchdog) clearInterval(watchdog);
+            if (watchdog) watchdog.stop();
             if (signal) signal.removeEventListener('abort', onAbort);
             resolve({ code, tail });
         };

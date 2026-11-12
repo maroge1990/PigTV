@@ -911,6 +911,73 @@ test('0499: a capture that ends early for no provider reason, with one provider:
     assert.equal(captures().length, 2, 'a requested stop is not continued');
 });
 
+// #274 (D-10): the stall check skipped every route without a backup, so a single-provider capture whose provider went
+// silent without closing sat there until the hard stop. Now every part has its own watchdog; with one provider a stall
+// ends the part and 0499's continuation resumes it on the same provider.
+test('#274: a single-provider capture that goes silent is noticed, ended, and continues in a new epoch on the same provider', async () => {
+    tuning.endGraceMs = 0;
+    tuning.stallMs = 1500;
+    setBehaviour(url.A, 'stall');
+    const s = due({ windowMs: 60000 });
+    await until(() => captures().length === 1 && rowsOf(s.id).length === 1, 'recording');
+    assert.equal(engine._stallWatchCount(), 1, 'its part is watched');
+    setBehaviour(url.A, 'ok'); // the next run (the fake reads this when it starts) is healthy
+    await until(() => captures().length === 2 && engine.listActive().some(r => r.id === s.id), 'continued after the stall', 15000);
+    const rows = rowsOf(s.id);
+    assert.equal(rows.length, 1, 'one recording');
+    const rec = recordings.getById(rows[0].id);
+    assert.equal(rec.segment_state, 'capturing');
+    assert.equal(scheduled.getById(s.id).status, 'recording');
+    assert.deepEqual(inputs(), [url.A, url.A], 'the same provider');
+    assert.equal(captures()[1][captures()[1].length - 1], path.join(rec.work_dir, 'e2', 'archive.m3u8'), 'a new epoch of the same recording');
+    assert.match(rec.error, /^Gaps: 1, \d+ s in all \(the last: the capture ended \(no data; .*\)\)\.$/);
+    assert.ok(logLines.some(l => new RegExp(`#${rec.id} has had no data for \\d+s; ending this part`).test(l)), 'the stall is logged (no provider name with one)');
+    assert.equal(routing.snapshot().providers.find(p => p.id === A.id).recentFailures, 1, 'the stall counts toward the provider\'s breaker');
+    assert.equal(engine._stallWatchCount(), 1, 'one watchdog: the first part\'s went with it');
+    // The first part's watchdog cannot act on the second: two more stall windows pass and it records on.
+    const stallLines = logLines.filter(l => /has had no data/.test(l)).length;
+    await sleep(2 * tuning.stallMs + 1000);
+    assert.equal(captures().length, 2, 'no further run');
+    assert.ok(engine.listActive().some(r => r.id === s.id), 'the second part still records');
+    assert.equal(logLines.filter(l => /has had no data/.test(l)).length, stallLines, 'no further stall');
+    await engine.cancelScheduled(s.id);
+    assert.equal(engine._stallWatchCount(), 0, 'a cancel leaves no watchdog');
+    await until(() => recordings.getById(rec.id).status === 'completed', 'finished', 10000);
+});
+
+test('#274: a stalled part that ignores "q" is killed; asked to stop meanwhile, it is not continued', async () => {
+    tuning.endGraceMs = 0;
+    tuning.stallMs = 1000;
+    setBehaviour(url.A, 'stall-deaf');
+    const s = due({ windowMs: 60000 });
+    await until(() => captures().length === 1 && rowsOf(s.id).length === 1, 'recording');
+    const rec = rowsOf(s.id)[0];
+    await settle(() => logLines.some(l => l.includes(`#${rec.id} has had no data`)), 'the stall noticed', 10000);
+    assert.equal(engine._stallWatchCount(), 0, 'the watchdog has done its work');
+    // Still running (it ignores "q"): the cancel arrives before the stall's kill, so the exit is a requested stop.
+    assert.ok(engine.listActive().some(r => r.id === s.id), 'not exited yet');
+    await engine.cancelScheduled(s.id);
+    assert.equal(scheduled.getById(s.id).status, 'cancelled');
+    await sleep(1200);
+    await engine.tick();
+    assert.equal(captures().length, 1, 'a stop that was asked for is never continued');
+    await until(() => recordings.getById(rec.id).status === 'completed', 'finished with what it had', 10000);
+});
+
+test('#274: a delete or a container stop leaves no watchdog for the part', async () => {
+    tuning.endGraceMs = 0;
+    const s = due({ windowMs: 60000 });
+    await until(() => engine.listActive().some(r => r.id === s.id), 'recording');
+    assert.equal(engine._stallWatchCount(), 1);
+    await engine.stopAllActive(3000, { forRestart: true });
+    assert.equal(engine._stallWatchCount(), 0, 'left to resume: no watchdog');
+    engine._reconcileOnStartup();
+    await until(() => captures().length === 2 && engine.listActive().some(r => r.id === s.id), 'resumed');
+    assert.equal(engine._stallWatchCount(), 1, 'the resumed part has its own');
+    await engine.deleteRecording(rowsOf(s.id)[0].id);
+    assert.equal(engine._stallWatchCount(), 0, 'a delete leaves none');
+});
+
 /** A schedule and a segmented row as a server that stopped mid-recording left them. */
 function leftByACrash({ windowMs }) {
     const s = due({ windowMs });

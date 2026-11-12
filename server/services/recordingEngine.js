@@ -31,6 +31,7 @@ const segments = require('./recordingSegments'); // R3: segmented recordings
 const owners = require('./recordingOwners'); // R5-D1: recordings being deleted, for every job
 const { recordingWindow } = require('./recordingGuideEnd');
 const ingest = require('./ingest'); // Wave 5: shared ingest (docs/SHARED-INGEST.md)
+const { createStallWatchdog } = require('./stallWatchdog');
 const { getFreeSpaceGB, compressionTargetPath, nativePlaybackTargetPath, verifiedNativeFiles } = media;
 const { processCompressionQueue, processAdDetectionQueue } = post;
 
@@ -45,8 +46,12 @@ const failoverTuning = {
     endGraceMs: 10 * 1000,
     // A recording file that has not grown for this long has stalled (the provider went
     // silent without closing the connection; ffmpeg's -reconnect can wait on it for
-    // ever). Checked on the scheduler's tick, so noticed within stallMs + 15 s.
-    stallMs: 30 * 1000
+    // ever). #274 (D-10): each part has its own watchdog (watchForStall), sampling every
+    // min(stallCheckMs, stallMs), so noticed within stallMs + 5 s (the tick's check took up to + 15 s).
+    stallMs: 30 * 1000,
+    // The size read is a local readdir + stat of the part's epoch folder in appdata (never the
+    // share), so 5 s is cheap; 2 s would stat a long recording's thousands of segments for little gain.
+    stallCheckMs: 5 * 1000
 };
 
 let tickTimer = null;
@@ -60,6 +65,8 @@ jobs.capturing = () => active.size; // capture outranks every recording job
 // for a free connection. Still `recording`; retried every tick until the stop time.
 // scheduledId -> { schedule, nextPart, lostAt, starting, waitingLogged }
 const continuations = new Map();
+// #274 (D-10): the live stall watchdogs, one per running part (a count for tests: _stallWatchCount).
+const stallWatchdogs = new Set();
 
 // The settings the last tick read, for callers that cannot wait for them (#12's clash list).
 let knownSettings = null;
@@ -1135,6 +1142,7 @@ function spawnPart(schedule, settings, { recordingId, outputPath, route, index, 
         feed, ingestKey: feed ? ingest.keyOf(feed.ingest.pool, candidate.url) : null, feedLost: null
     };
     active.set(schedule.id, entry);
+    watchForStall(entry);
     if (feed) {
         proc.stdin.on('error', () => { /* ffmpeg exited first */ });
         // Why the feed ended; its queued bytes still drain, and pipe() then ends stdin.
@@ -1193,6 +1201,7 @@ function currentStopTime(scheduleOrId) {
 
 /** A capture's ffmpeg has exited: its lease goes, and onSegmentExit decides what happens next. */
 async function onPartExit(schedule, entry, exitCode) {
+    stopStallWatch(entry);
     if (entry.hardStopTimer) clearTimeout(entry.hardStopTimer);
     // R11: the ffmpeg is gone, so the connection its lease stood for is too. (A failover to
     // another provider below is counted by the schedule's row, which stays 'recording'.)
@@ -1254,6 +1263,7 @@ async function onSegmentExit(schedule, entry, exitCode) {
         const atOnce = ranLong || (shortRun && shortRun.count < shortRun.of);
         const candidate = entry.route.candidates[entry.index];
         if (failover) providerRouting.noteFailure(candidate, entry.route.primaryKey);
+        else if (entry.stalled) noteSingleRouteStall(schedule, candidate); // #274 (D-10): a stall with one provider counts too
         console.warn(`[Recordings] #${entry.recordingId} ended early (${why})` +
             (entry.route.multi && candidate?.providerName ? ` on ${candidate.providerName}` : '') +
             '; it continues in the same recording');
@@ -1378,35 +1388,90 @@ function finishSchedule(scheduleId, why = null) {
 }
 
 /**
- * 0177: a recording whose file has stopped growing has stalled - its provider went
- * silent without closing the connection. Only with a backup to move to (the route is
- * multi); stopped the way a stop is, but marked stalled, so onPartExit continues it on
- * the next provider. Also where a part that is recording counts as a success for its
- * provider's breaker (a half-open provider is up again).
+ * 0177, #274 (D-10): a recording whose file has stopped growing has stalled - its provider went silent without closing
+ * the connection. Every running part is watched (stallWatchdog, one per part, from its start to its exit); what follows
+ * depends on the route, not whether it is noticed. It is stopped the way a stop is, but marked stalled and not asked
+ * for, so onSegmentExit continues it: with a backup (route multi) on the next provider, as since 0177; with one
+ * provider in a new epoch on the same one, through 0499's early-end continuation (≤ MAX_SEGMENT_RESUMES, the gap noted).
+ * The sampling is also where a part that is recording counts as a success for its provider's breaker (a half-open
+ * provider is up again).
  */
-async function checkRecordingStalls(now = Date.now()) {
-    for (const entry of [...active.values()]) {
-        if (!entry.route || !entry.route.multi || entry.stopRequested || entry.stalled) continue;
-        const size = await captureSize(entry);
-        if (entry.stopRequested || entry.stalled || !active.has(entry.schedule.id)) continue;
-        if (size > entry.lastSize) {
-            entry.lastSize = size;
-            entry.lastGrowthAt = now;
-            if (!entry.played && size > 1024) {
-                entry.played = true;
-                providerRouting.noteSuccess(entry.route.candidates[entry.index]);
-            }
-            continue;
+function watchForStall(entry) {
+    stopStallWatch(entry);
+    entry.stallWatchdog = createStallWatchdog({
+        label: `Recordings #${entry.recordingId}`,
+        getLastActivity: () => captureActivity(entry),
+        onStall: (quietMs) => onCaptureStall(entry, quietMs),
+        stallMs: failoverTuning.stallMs,
+        startupMs: failoverTuning.stallMs, // as before: before any growth, measured from the part's start
+        checkIntervalMs: Math.min(failoverTuning.stallCheckMs, failoverTuning.stallMs)
+    });
+    stallWatchdogs.add(entry.stallWatchdog);
+}
+
+/** The part has ended, or a stop was asked for: its watchdog goes (it never outlives its part). */
+function stopStallWatch(entry) {
+    if (!entry.stallWatchdog) return;
+    entry.stallWatchdog.stop();
+    stallWatchdogs.delete(entry.stallWatchdog);
+    entry.stallWatchdog = null;
+}
+
+/**
+ * The watchdog's sample: when the capture last grew (null before it has), and the breaker's success once it has
+ * written more than 1 KB. A single-provider capture on a shared feed that has been handed nothing since the last
+ * sample is excused for now: a silent feed is the ingest's to judge (it reconnects, or ends the feed, which ends
+ * this part once). Acting on it here too would end this part and then, after the resume joins the same dying
+ * ingest, the next one as well: two resumes for one silence. A feed that delivers while the capture does not
+ * grow, or one that has ended, is this watchdog's. Multi-provider routes are unchanged (their resume is elsewhere).
+ */
+async function captureActivity(entry) {
+    const now = Date.now();
+    const size = await captureSize(entry);
+    if (size > entry.lastSize) {
+        entry.lastSize = size;
+        entry.lastGrowthAt = now;
+        if (!entry.played && size > 1024) {
+            entry.played = true;
+            providerRouting.noteSuccess(entry.route.candidates[entry.index]);
         }
-        if (now - entry.lastGrowthAt < failoverTuning.stallMs) continue;
-        entry.stalled = true;
-        console.warn(`[Recordings] #${entry.recordingId} has had no data for ${Math.round((now - entry.lastGrowthAt) / 1000)}s ` +
-            `from ${entry.route.candidates[entry.index].providerName}; ending this part`);
-        try { askToStop(entry); } catch (e) { /* killed below */ }
-        const proc = entry.proc;
-        // A stalled ffmpeg may be blocked reading the input and never see the "q".
-        setTimeout(() => { if (proc.exitCode === null && proc.signalCode === null) { try { proc.kill('SIGKILL'); } catch (e) { /* gone */ } } }, 5000).unref?.();
     }
+    if (feedSilentForIngest(entry)) entry.feedExcusedAt = now;
+    const grew = entry.lastSize > 0 ? entry.lastGrowthAt : null;
+    return entry.feedExcusedAt ? Math.max(grew ?? 0, entry.feedExcusedAt) : grew;
+}
+
+/** A single-provider capture's live shared feed has handed it nothing since the last sample (see captureActivity). */
+function feedSilentForIngest(entry) {
+    const feed = entry.feed;
+    if (!feed || entry.route.multi || feed.endReason || feed.destroyed || feed.ingest?.closed) return false;
+    const silent = entry.feedBytesSeen !== undefined && feed.bytesOut === entry.feedBytesSeen;
+    entry.feedBytesSeen = feed.bytesOut;
+    return silent;
+}
+
+function onCaptureStall(entry, quietMs) {
+    stopStallWatch(entry);
+    if (entry.stopRequested || entry.stalled || active.get(entry.schedule.id) !== entry) return;
+    entry.stalled = true;
+    // The provider is named only when there is more than one to choose from.
+    const from = entry.route.multi ? ` from ${entry.route.candidates[entry.index].providerName}` : '';
+    console.warn(`[Recordings] #${entry.recordingId} has had no data for ${Math.round(quietMs / 1000)}s${from}; ending this part`);
+    try { askToStop(entry); } catch (e) { /* killed below */ }
+    const proc = entry.proc;
+    // A stalled ffmpeg may be blocked reading the input and never see the "q".
+    setTimeout(() => { if (proc.exitCode === null && proc.signalCode === null) { try { proc.kill('SIGKILL'); } catch (e) { /* gone */ } } }, 5000).unref?.();
+}
+
+/**
+ * #274 (D-10): a single-provider stall counts toward its provider's breaker as a multi-route one does (noteFailure,
+ * keyed by the channel's identity as a route's primaryKey is). It cannot hold back this recording's own resume: a
+ * single route never consults the breaker or quarantine (routeFor), and a plan with nowhere else to go keeps the primary.
+ */
+function noteSingleRouteStall(schedule, candidate) {
+    if (!candidate) return;
+    const key = providerRouting.channelIdentity(schedule.source_id, schedule.channel_item_id)?.key ?? bareChannelId(schedule.channel_item_id);
+    providerRouting.noteFailure({ ...candidate, channelKey: key }, key);
 }
 
 async function stopRecording(scheduledId, reasonStatus = 'completed') {
@@ -1415,6 +1480,8 @@ async function stopRecording(scheduledId, reasonStatus = 'completed') {
     if (entry.hardStopTimer) clearTimeout(entry.hardStopTimer);
     // Asked for (0177): an exit that follows is never a provider failure to fail over from.
     entry.stopRequested = true;
+    stopStallWatch(entry); // #274: nothing left for it to notice
+
     // 0490 Codex round 1 (medium): a cancel during the shutdown wins over leaving it to resume.
     if (reasonStatus === 'cancelled') entry.leaveForRestart = false;
 
@@ -1726,11 +1793,10 @@ async function tick() {
             await startRecording(schedule, choice);
         }
 
-        // 0177: a part whose provider died and that waits for a free one, and
-        // recordings whose file has stopped growing (default path, with backups).
+        // 0177: a part whose provider died and that waits for a free one. (A capture that has stopped growing is
+        // its own watchdog's: watchForStall, #274.)
         for (const scheduleId of [...continuations.keys()]) await continuePart(scheduleId, now);
         followEvents(now); // #217
-        await checkRecordingStalls(now);
         keepWatchCopies(); // #17: beside the tick (0457)
 
         // Give a viewer notice before a recording is actually due, rather than
@@ -1957,6 +2023,7 @@ module.exports = {
     _reconcileJobsOnStartup: reconcileJobsOnStartup,
     _reconcileOnStartup: reconcileOnStartup, // R3: what a restart does to a recording in progress
     _failoverTuning: failoverTuning,
+    _stallWatchCount: () => stallWatchdogs.size, // #274: no part's watchdog outlives it
     _stopTimeOf: stopTimeOf, // #217: the stop the hard stop and the stop checks read
     _chooseProvider: chooseProvider, // #137: which candidate a join-only start is given
     segments

@@ -24,6 +24,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
  *   setBehaviour     (inputUrl, kind): 'ok' | 'dies' (reset by peer after 400 ms) | 'ends-once' (first capture ends by itself after 400 ms)
  *                    | 'refuses' (#284: exits 1 at once with an HTTP 502, writing nothing)
  *                    | 'stall' (one segment, then nothing until "q")
+ *                    | 'stall-deaf' (#274: one segment, then nothing, and "q" is ignored: only a kill ends it)
  *   behaviour        the url -> kind map (written through to the script; edit via setBehaviour)
  *   starts           () every argument array ffmpeg was started with, oldest first
  *   captures         () the starts that are captures (not watch-copy followers)
@@ -95,10 +96,10 @@ if (args.includes('hls')) {
   };
   segment();
   // 'stall': one segment, then nothing (the provider went silent without closing); it still answers "q".
-  if (kind === 'stall') setInterval(() => {}, 1000);
+  if (kind === 'stall' || kind === 'stall-deaf') setInterval(() => {}, 1000);
   else setInterval(segment, 60);
   process.stdin.on('data', (d) => {
-    if (!String(d).includes('q')) return;
+    if (!String(d).includes('q') || kind === 'stall-deaf') return;
     putPlaylist(pl + '#EXT-X-ENDLIST\\n');
     process.stderr.write('[tcp @ 0x1] Connection reset by peer\\n');
     process.exit(1);
