@@ -106,11 +106,13 @@ theme and one review round. Order within a section is the order to take them.
 
 5. **Server 3, the rest of the share:** #289 (segment copies, the owners' sweep, the route's access checks, ad
    detection) · #290 items 1 and 2. Full review rule.
-6. **Sport 1, matching:** #296 (a listing with no English name), with what #231 left. Full review rule.
-7. **Sport 2, one source for the sport pages:** #297 · #282 · #29's re-measure; then #291 (after a read of production's
+6. **Server 4, key-frame join edge cases (#309, full review rule):** the fallback's byte budget, the video PID from
+   complete PMTs, duplicate table packets, high-bitrate feeds.
+7. **Sport 1, matching:** #296 (a listing with no English name), with what #231 left. Full review rule.
+8. **Sport 2, one source for the sport pages:** #297 · #282 · #29's re-measure; then #291 (after a read of production's
    settings; its item 2 is partly wrong, see the issue).
-8. **Sport 3, pickers:** #265 step 2 · #266 (server and Apple), once Mark confirms the rows.
-9. **Web 1:** #62 play errors · #63 first run without a Home page · #64 Settings.js and sign-out · #292 · #295.
+9. **Sport 3, pickers:** #265 step 2 · #266 (server and Apple), once Mark confirms the rows.
+10. **Web 1:** #62 play errors · #63 first run without a Home page · #64 Settings.js and sign-out · #292 · #295.
 
 ## Later (each needs a capture, a real provider, a device or a design choice first)
 
