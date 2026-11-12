@@ -12,6 +12,7 @@ const vm = require('node:vm');
 function loadCoordinator(sessions) {
     const mod = { exports: {} };
     const stubs = {
+        './recordingGuideEnd': require('../server/services/recordingGuideEnd'), // the window's one owner (item 1)
         './transcodeSession': { getAllSessions: () => sessions, peekSession: () => null },
         '../db/sqlite': { isOpen: () => false },
         './ingest': { idleInPool: () => [], _registry: new Map() }

@@ -147,3 +147,22 @@ test('live sessions are swept on the live timeout, seekable ones on the longer o
     assert.ok(ids.includes(seekable.id), 'a seekable session keeps the 30 minute allowance');
     assert.ok(ids.includes(fresh.id));
 });
+
+// Item 1 (recordingWindow): the viewer's conflict says when the recording will really stop, an event overrun included.
+test('recording-in-progress endsAt is the recording\'s real stop: its guide end + post, or its capped event stop', () => {
+    const MAX = 4 * 3600000;
+    const floor = recording.program_end + recording.post_buffer_min * 60000;
+    const ask = (r) => coordinator.requestForViewer({ settings: ONE_STREAM, owner: 'device:a', activeRecordings: [r] }).conflict.endsAt;
+    assert.equal(ask(recording), floor, 'no event stop: the floor');
+    assert.equal(ask({ ...recording, event_stop: floor + 3600000 }), floor + 3600000, 'an event running over');
+    assert.equal(ask({ ...recording, event_stop: floor - 1000 }), floor, 'never before the floor');
+    assert.equal(ask({ ...recording, event_stop: floor + 9 * 3600000 }), floor + MAX, 'capped');
+});
+
+test('a lease-shaped recording row carries the schedule\'s event stop to the viewer\'s conflict', () => {
+    const floor = recording.program_end + recording.post_buffer_min * 60000;
+    coordinator.takeLease(null, 'recording', { schedule: { ...recording, event_stop: floor + 1800000 } });
+    const asked = coordinator.requestForViewer({ settings: ONE_STREAM, owner: 'device:a', activeRecordings: [] });
+    assert.equal(asked.conflict.type, 'recording-in-progress');
+    assert.equal(asked.conflict.endsAt, floor + 1800000);
+});

@@ -29,6 +29,7 @@ const post = require('./recordingPost');
 const jobs = require('./recordingJobs');
 const segments = require('./recordingSegments'); // R3: segmented recordings
 const owners = require('./recordingOwners'); // R5-D1: recordings being deleted, for every job
+const { recordingWindow } = require('./recordingGuideEnd');
 const ingest = require('./ingest'); // Wave 5: shared ingest (docs/SHARED-INGEST.md)
 const { fileSizeOf, getFreeSpaceGB, compressionTargetPath, nativePlaybackTargetPath, verifiedNativeFiles } = media;
 const { processCompressionQueue, processAdDetectionQueue } = post;
@@ -554,8 +555,7 @@ function clashOutcome(rows, settings, { hard = false } = {}) {
     };
     const events = [];
     for (const r of rows) {
-        const start = r.program_start - (r.pre_buffer_min || 0) * 60000;
-        const end = r.program_end + (r.post_buffer_min || 0) * 60000;
+        const { startsAt: start, stopsAt: end } = recordingWindow(r);
         if (end > start) events.push([start, 1, r], [end, 0, r]);
     }
     events.sort((x, y) => x[0] - y[0] || x[1] - y[1]); // a window ending as another starts does not overlap it
@@ -998,7 +998,7 @@ function startStillWanted(schedule, owner) {
     const now = scheduledDb.getById(schedule.id);
     if (!now || (now.status !== 'scheduled' && now.status !== 'waiting')) return false;
     // 0445 (Codex 0444 round 1, high): its start-early was cut while it got ready (editScheduled), so it is not due yet.
-    if (now.program_start - (now.pre_buffer_min || 0) * 60000 > Date.now()) {
+    if (recordingWindow(now).startsAt > Date.now()) {
         console.log(`[Recordings] Schedule #${schedule.id}: its start moved later while it got ready; not started yet`);
         return false;
     }
@@ -1042,7 +1042,7 @@ let choiceEpoch = 0;
  */
 function holds(rows, settings) {
     const out = new Map(clashOutcome(rows, settings, { hard: true }).beatenBy);
-    const windowOf = (r) => [r.program_start - (r.pre_buffer_min || 0) * 60000, r.program_end + (r.post_buffer_min || 0) * 60000];
+    const windowOf = (r) => { const w = recordingWindow(r); return [w.startsAt, w.stopsAt]; };
     for (const r of rows) {
         if (out.has(r.id) || !r.clash_winner || r.status !== 'waiting') continue;
         const w = scheduledDb.getById(r.clash_winner);
@@ -1079,7 +1079,7 @@ async function startPartLeased(schedule, route, index, { refuse, lease = null, m
 
 /** How much of the recording was missed before it started (a viewer held it back). */
 function noteLateStart(schedule, recordingId) {
-    const intendedStart = schedule.program_start - (schedule.pre_buffer_min || 0) * 60000;
+    const intendedStart = recordingWindow(schedule).startsAt;
     const lateBy = Date.now() - intendedStart;
     if (lateBy > 30000) {
         recordingsDb.markPartial(recordingId, lateBy);
@@ -1732,7 +1732,7 @@ async function tick() {
         let outcome = null;
         for (const schedule of due) {
             // Skip if its window already fully passed (findMissed handles the log/status)
-            if (schedule.program_end + (schedule.post_buffer_min * 60000) < now) continue;
+            if (recordingWindow(schedule).stopsAt < now) continue;
             if (active.has(schedule.id)) continue;
 
             const settings = await getSettings();
@@ -1789,7 +1789,7 @@ async function tick() {
         const leadMs = (settingsForLead.recordingPromptLeadMin ?? coordinator.DEFAULT_PROMPT_LEAD_MIN) * 60000;
         for (const schedule of scheduledDb.listUpcoming()) {
             if (schedule.status !== 'scheduled' && schedule.status !== 'waiting') continue;
-            const startsAt = schedule.program_start - (schedule.pre_buffer_min || 0) * 60000;
+            const { startsAt } = recordingWindow(schedule);
             if (startsAt - now <= leadMs && startsAt > now) {
                 // 0177: no warning when a provider has a free connection for it.
                 const providerId = await announceProviderFor(schedule, settingsForLead);

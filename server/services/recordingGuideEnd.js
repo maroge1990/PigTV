@@ -80,6 +80,7 @@ function tvgIdFor(db, schedule) {
 
 /** Apply guideEndFor to every pending/running schedule. Returns [{ id, from, to, guideEnd }]. */
 function apply({ now = Date.now(), db = getDb() } = {}) {
+    // The SQL below mirrors recordingWindow().stopsAt (and recordingsDb.js's copies): change one, change both.
     const schedules = db.prepare(`
         SELECT * FROM scheduled_recordings
         WHERE status IN ('scheduled', 'waiting', 'recording')
@@ -121,6 +122,15 @@ const floorOf = (s) => s.program_end + (s.post_buffer_min || 0) * 60000;
 function stopOf(s) {
     const floor = floorOf(s);
     return Number.isFinite(s.event_stop) && s.event_stop > floor ? Math.min(s.event_stop, floor + overrun.OVERRUN_MAX) : floor;
+}
+
+/**
+ * A scheduled recording's time window, the one owner of it in JS: `startsAt` (guide start less the start-early),
+ * `floor` (guide end + post-padding) and `stopsAt` (stopOf: the event stop, capped). The SQL copies (recordingsDb.js,
+ * `apply` above) mirror it; change one, change both.
+ */
+function recordingWindow(s) {
+    return { startsAt: s.program_start - (s.pre_buffer_min || 0) * 60000, floor: floorOf(s), stopsAt: stopOf(s) };
 }
 
 /**
@@ -204,5 +214,5 @@ function endView(schedule, catalog, now = Date.now()) {
     return { endsWith: linked ? 'event' : 'guide', stopsAt, ...(extended ? { overrun: true } : {}) };
 }
 
-module.exports = { apply, guideEndFor, normTitle, gameFor, eventStop, endView, floorOf, stopOf,
+module.exports = { apply, guideEndFor, normTitle, gameFor, eventStop, endView, floorOf, stopOf, recordingWindow,
     MATCH_WINDOW_MS, SAME_START_MS, MAX_EXTENSION_MS, JOIN_WINDOW_MS, EARLY_MS };

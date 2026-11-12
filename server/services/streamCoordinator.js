@@ -70,6 +70,7 @@
  */
 
 const transcodeSession = require('./transcodeSession');
+const { recordingWindow } = require('./recordingGuideEnd');
 
 // A session that has not asked for a segment in this long is assumed dead.
 // Transcode sessions are polled continuously by a playing client, so silence
@@ -360,6 +361,7 @@ function leaseAsRecording(l) {
         channel_name: sch.channel_name || 'this channel',
         program_end: sch.program_end || Date.now(),
         post_buffer_min: sch.post_buffer_min || 0,
+        ...(Number.isFinite(sch.event_stop) ? { event_stop: sch.event_stop } : {}),
         providerId: l.providerId
     };
 }
@@ -830,7 +832,7 @@ function pendingPrompt(settings = {}, providerId = undefined) {
         if (entry.declinedAt) continue;
         if (dir && poolKey(entry.providerId, dir) !== poolKey(providerId, dir)) continue;
         const s = entry.schedule;
-        const startsAt = s.program_start - (s.pre_buffer_min || 0) * 60000;
+        const { startsAt } = recordingWindow(s);
         if (startsAt - now > leadMs) continue;
 
         return {
@@ -981,7 +983,7 @@ function requestForViewer({ force = false, activeRecordings = [], settings = {},
                     scheduleId: rec.id,
                     title: rec.title,
                     channelName: rec.channel_name,
-                    endsAt: rec.program_end + (rec.post_buffer_min || 0) * 60000,
+                    endsAt: recordingWindow(rec).stopsAt,
                     message: `"${rec.title}" is recording on ${rec.channel_name}. Your provider allows one stream at a time, so watching now will stop that recording. What has been recorded so far is kept.`
                 })
             };

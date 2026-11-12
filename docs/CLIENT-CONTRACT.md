@@ -269,6 +269,10 @@ A channel resolve (`sourceId` + `channelId`) carries
   on it) and its `conflict.message` starts "Every provider that carries this channel is in use."
 - A stream that dies mid-play for a provider reason is quarantined there, so the client's single re-resolve lands on the
   next provider. The whole resolve stays under 30 s (the client's request timeout is 35 s).
+- The 409 for a recording that holds the connection has `conflict: { type: "recording-in-progress", scheduleId, title,
+  channelName, endsAt, message }` (`endsAt`: a number, ms since the epoch). `endsAt` is when that recording will actually
+  stop: its guide end plus finish-late, or, while a sport event runs over, its event stop (capped at 4 h past the
+  former). It can move later while the recording runs.
 
 ### C-K. Licence reminders. Flag: `providerReminders`
 
