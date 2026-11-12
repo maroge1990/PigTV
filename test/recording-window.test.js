@@ -6,7 +6,7 @@ const path = require('node:path');
 
 // Item 1: a scheduled recording's window has one owner, recordingGuideEnd.recordingWindow. The clash check and the
 // hold check must read the event stop (#217) through it: a schedule that starts while another still records its
-// event's overrun is a clash, and a waiting loser keeps its hold on a winner that is still running.
+// event's overrun is shown as a clash, but is never held for it (it starts late when a slot frees).
 const sandbox = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'pigtv-window-')));
 fs.cpSync(path.join(__dirname, '../server'), path.join(sandbox, 'server'), { recursive: true });
 fs.cpSync(path.join(__dirname, '../package.json'), path.join(sandbox, 'package.json'));
@@ -82,14 +82,31 @@ test('a schedule that starts inside another recording\'s event overrun clashes w
     scheduled.setStatus(game.id, 'cancelled'); scheduled.setStatus(next.id, 'cancelled');
 });
 
-test('a waiting loser keeps its hold on a winner that is still recording its overrun', async () => {
+test('a schedule due during a winner\'s overrun is not held for it: it waits for a free slot and starts late', async () => {
+    const roomForBoth = { maxConcurrentRecordings: 2, maxProviderStreams: 2 };
+    // At the cap (1), the winner still recording its overrun: the advisory list shows the clash, the hard hold does not.
     const t0 = Date.now() + 20 * HOUR;
     const winner = sched('pos_1', 'ff', t0, HOUR, { status: 'recording', event_stop: t0 + 3 * HOUR });
+    const fresh = sched('pos_2', 'fl', t0 + 2 * HOUR, HOUR);
+    const atCap = await listed({ maxConcurrentRecordings: 1, maxProviderStreams: 1 });
+    assert.deepEqual(atCap.get(fresh.id).conflictsWith, [winner.id], 'shown as a clash');
+    assert.equal(atCap.get(fresh.id).beatenBy, undefined, 'but not held by the overrun');
+    // A waiting loser that names the overrunning winner as its hold: not held while the winner records ...
     const loser = sched('pos_2', 'fl', t0 + 2 * HOUR, HOUR, { status: 'waiting', clash_winner: winner.id });
-    // Room for both, so the clash check alone holds nothing back: only the stored hold can.
-    const list = await listed({ maxConcurrentRecordings: 2, maxProviderStreams: 2 });
-    assert.deepEqual(list.get(loser.id).beatenBy, [winner.id]);
-    sqlite.getDb().prepare('UPDATE scheduled_recordings SET event_stop = NULL WHERE id = ?').run(winner.id);
-    assert.equal((await listed({ maxConcurrentRecordings: 2, maxProviderStreams: 2 })).get(loser.id).beatenBy, undefined, 'the winner ended at its guide end');
-    scheduled.setStatus(winner.id, 'cancelled'); scheduled.setStatus(loser.id, 'cancelled');
+    assert.equal((await listed(roomForBoth)).get(loser.id).beatenBy, undefined, 'winner still recording its overrun');
+    // ... nor once the winner has completed with its event stop in the past (the guide windows no longer overlap).
+    scheduled.setStatus(winner.id, 'completed');
+    sqlite.getDb().prepare('UPDATE scheduled_recordings SET event_stop = ? WHERE id = ?').run(Date.now() - MIN, winner.id);
+    assert.equal((await listed(roomForBoth)).get(loser.id).beatenBy, undefined, 'winner completed');
+    for (const r of [winner, fresh, loser]) scheduled.setStatus(r.id, 'cancelled');
+});
+
+test('a real overlap inside the guide window (floor) is still held hard', async () => {
+    const t0 = Date.now() + 30 * HOUR;
+    const winner = sched('pos_1', 'ff', t0, HOUR, { status: 'recording' });
+    const clash = sched('pos_2', 'fl', t0 + 30 * MIN, HOUR);                                   // starts before the winner's guide end
+    assert.deepEqual((await listed({ maxConcurrentRecordings: 1, maxProviderStreams: 1 })).get(clash.id).beatenBy, [winner.id], 'at the cap');
+    const stored = sched('pos_2', 'fl', t0 + 30 * MIN, HOUR, { status: 'waiting', clash_winner: winner.id });
+    assert.deepEqual((await listed({ maxConcurrentRecordings: 2, maxProviderStreams: 2 })).get(stored.id).beatenBy, [winner.id], 'the stored hold');
+    for (const r of [winner, clash, stored]) scheduled.setStatus(r.id, 'cancelled');
 });

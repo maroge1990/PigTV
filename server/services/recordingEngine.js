@@ -520,7 +520,9 @@ function outranks(a, b) {
  * recordings share an ingest; its own when they do not, #135); at a moment when more connections are wanted than the
  * cap, or than a provider pool's limit for the schedules on it (#136: a backup is not counted, so this may warn when
  * a backup could have helped), every schedule then wanted lists those on other connections. One sweep over the
- * windows' boundaries (#134), padding included.
+ * windows' boundaries (#134), padding included. The advisory list counts a sport event's overrun (`stopsAt`); `hard`
+ * stops at the guide end plus padding (`floor`), so a schedule due during another's overrun waits for a free slot and
+ * starts late, as before 0567 (D-42's "a loser never records the part after the winner" is for clashes seen when scheduling).
  */
 function clashOutcome(rows, settings, { hard = false } = {}) {
     const sharing = ingest.enabled(settings);
@@ -555,7 +557,8 @@ function clashOutcome(rows, settings, { hard = false } = {}) {
     };
     const events = [];
     for (const r of rows) {
-        const { startsAt: start, stopsAt: end } = recordingWindow(r);
+        const w = recordingWindow(r);
+        const start = w.startsAt, end = hard ? w.floor : w.stopsAt; // an overrun is shown as a clash, never held on (see above)
         if (end > start) events.push([start, 1, r], [end, 0, r]);
     }
     events.sort((x, y) => x[0] - y[0] || x[1] - y[1]); // a window ending as another starts does not overlap it
@@ -1038,11 +1041,12 @@ let choiceEpoch = 0;
  * 0411 (0410 Codex round 1, high): the schedules each one waits for, by id: those that win its clash now (clashOutcome,
  * `hard`), else the winner it already lost to (`clash_winner`), for as long as that one holds: until it is cancelled,
  * deleted or never started (missed), or their windows no longer overlap. A winner that recorded or failed keeps the
- * hold, so a loser never records the part after the winner (D-42: it waits until someone chooses it).
+ * hold, so a loser never records the part after the winner (D-42: it waits until someone chooses it). The overlap is
+ * judged to `floor`, not an overrun (`stopsAt`): a schedule due during a winner's overtime is not held for it and starts late.
  */
 function holds(rows, settings) {
     const out = new Map(clashOutcome(rows, settings, { hard: true }).beatenBy);
-    const windowOf = (r) => { const w = recordingWindow(r); return [w.startsAt, w.stopsAt]; };
+    const windowOf = (r) => { const w = recordingWindow(r); return [w.startsAt, w.floor]; };
     for (const r of rows) {
         if (out.has(r.id) || !r.clash_winner || r.status !== 'waiting') continue;
         const w = scheduledDb.getById(r.clash_winner);

@@ -456,3 +456,18 @@ test('0412: both due, the other chosen during a start: the chosen one records; t
     assert.equal(statusOf(first), 'waiting');
     assert.equal(scheduled.getById(later.id).clash_winner ?? null, null, 'no hold left on the chosen one');
 });
+
+// 0569 (the owner's call): an event's overrun is shown as a clash, but never held on: a schedule due while the winner
+// runs over waits for a free slot (not "Clashes with", no hold) and starts late once the winner stops.
+test('a schedule due during another\'s event overrun waits for a slot and starts when it stops', async () => {
+    const first = schedule('pos_1', 'ff', { startIn: -1000, lengthMs: 1500 });          // guide end in 0.5 s ...
+    sqlite.getDb().prepare('UPDATE scheduled_recordings SET event_stop = ? WHERE id = ?').run(Date.now() + 3000, first.id); // ... runs over, to its event stop
+    await until(() => recordings.listBySchedule(first.id)[0]?.status === 'recording', 'the first one records');
+    const later = schedule('pos_2', 'fl', { startIn: 800, lengthMs: 20000 });           // due in its overrun
+    await until(() => statusOf(later) === 'waiting', 'the second one is due and waits', 4000);
+    const row = scheduled.getById(later.id);
+    assert.ok(!String(row.error).startsWith('Clashes with'), `waits for a slot, not a clash hold: ${row.error}`);
+    assert.equal(row.clash_winner ?? null, null);
+    await until(() => recordings.listBySchedule(later.id)[0]?.status === 'recording', 'the second one starts once the first stops at its event stop', 8000);
+    assert.equal(recordings.listBySchedule(first.id)[0]?.status === 'recording', false, 'the first has stopped');
+});
