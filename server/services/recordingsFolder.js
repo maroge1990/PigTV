@@ -163,13 +163,15 @@ function refusalMessage(check, dir, minFreeGB) {
  * below creates exactly that folder on first use - refusing here would reject
  * the normal case (choosing a not-yet-created subfolder), not just typos and
  * unmounted shares.
- * -> { ok } or { ok: false, reason }. Its file calls go through shareFs (a typed path may be a hung share; the settings
- * route answers from a request handler): a share that does not answer within the deadline is refused as not responding.
+ * -> { ok } or { ok: false, reason }. Its file calls go through a share helper of their own (shareFs.withOwnHelper: a
+ * typed path may be a hung share, and the settings route answers from a request handler; M2, review of 0568: never
+ * behind the shared helper, which may be stuck on the old share): a path that does not answer within the deadline is
+ * refused as not responding. `share`: another set of calls (tests).
  */
-async function validateRecordingsPathSetting(dir, share = require('./shareFs')) {
+async function validateRecordingsPathSetting(dir, share = null) {
     if (!dir) return { ok: true };
     try {
-        return await validatePath(dir, share);
+        return share ? await validatePath(dir, share) : await require('./shareFs').withOwnHelper((io) => validatePath(dir, io));
     } catch (e) {
         if (e.code !== 'SHARE_UNRESPONSIVE') throw e;
         return { ok: false, reason: `The recordings folder is not responding: ${dir}. Is the network share's server up?` };

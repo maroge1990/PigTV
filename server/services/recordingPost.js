@@ -108,13 +108,18 @@ async function compressRecording(rec, settings) {
     const partial = owners.partialFor(output);
 
     // The share's calls are bounded: one that is not answered rejects with SHARE_UNRESPONSIVE, which ends the job here (the
-    // queue records it as failed, as for any other error) with the original and the row untouched.
+    // queue puts it back to pending, to be tried again) with the original and the row untouched.
     const io = ioFor(input);
     const drop = async (file) => { try { await io.unlink(file); } catch (e) { /* none there, or left for the start-up sweep (journalled) */ } };
     if (!(await io.exists(input))) {
         recordingsDb.setCompressStatus(rec.id, 'failed', { error: 'Original file is missing' });
         return;
     }
+    // Codex review of 0568: what an earlier pass journalled and never committed goes first, while it is still that very
+    // file: a compressed MP4 whose rename missed its deadline and landed later, and its partial. It is encoded again
+    // rather than finished from (the safer choice: the original is only ever removed after a check made in this pass).
+    await owners.takeBack(rec.id, ioFor);
+    if (owners.removalPending(output)) throw owners.stillRemoving(output); // before any work: tried again later
     try { await io.unlink(`${output}.partial`); } catch (e) { if (e.code === 'SHARE_UNRESPONSIVE') throw e; /* none left by an earlier run (the fixed name before 0273) */ }
 
     const inputStat = await io.stat(input);
@@ -127,7 +132,9 @@ async function compressRecording(rec, settings) {
 
     // R5-D1, 0264: a writer of the recording - a deletion stops it and waits; one deleted while it ran
     // (ffmpeg may open its output only after the deletion) removes what it made and publishes nothing.
-    const result = await owners.write(rec.id, async (signal, made) => {
+    // Codex review of 0568: the check and the publication too (owners.publishByRename), so a deletion waits for the rename
+    // and the row is set only while the recording is still owned.
+    const outcome = await owners.write(rec.id, async (signal, made, until) => {
         made(partial);
         let r = await nativeTools.ffmpeg(buildCompressArgs(input, partial, settings), { watchFile: partial, signal, sizeOf: io.sizeOf });
         // Some VAAPI drivers implement constant-quantiser rate control only and
@@ -138,71 +145,74 @@ async function compressRecording(rec, settings) {
             await drop(partial);
             r = await nativeTools.ffmpeg(buildCompressArgs(input, partial, settings, { forceCqp: true }), { watchFile: partial, signal, sizeOf: io.sizeOf });
         }
-        if (!owners.owned(rec.id)) await drop(partial);
-        return r;
-    });
-    if (!owners.owned(rec.id)) return;
-    const code = result.code;
-    if (code !== 0 || !(await io.exists(partial))) {
-        console.error(`[Recordings] Compression of #${rec.id} failed:\n  ${result.tail.join('\n  ')}`);
-        await drop(partial);
-        recordingsDb.setCompressStatus(rec.id, 'failed', {
-            error: result.tail.slice(-3).join(' | ') || `ffmpeg exited with code ${code}`
-        });
-        return;
-    }
+        if (!owners.owned(rec.id)) { await drop(partial); return { deleted: true }; }
+        const code = r.code;
+        if (code !== 0 || !(await io.exists(partial))) {
+            console.error(`[Recordings] Compression of #${rec.id} failed:\n  ${r.tail.join('\n  ')}`);
+            await drop(partial);
+            return { status: 'failed', error: r.tail.slice(-3).join(' | ') || `ffmpeg exited with code ${code}` };
+        }
 
-    // Verify before trusting it. A truncated encode is worse than a large file,
-    // so the original is only replaced when the result covers the same span.
-    // 0192 (audit R08): both lengths must actually be known. An unreadable length
-    // used to count as a pass, and with "keep original" off that deleted the
-    // original on the strength of a check that never ran.
-    const newDuration = await nativeTools.duration(partial);
-    if (!owners.owned(rec.id)) {
-        await drop(partial); // removed with the recording
-        return;
-    }
-    const partialStat = await io.stat(partial);
-    const newSize = partialStat ? partialStat.size : 0;
-    const verified = sourceDuration > 0 && newDuration > 0 && newDuration >= sourceDuration * 0.95;
+        // Verify before trusting it. A truncated encode is worse than a large file,
+        // so the original is only replaced when the result covers the same span.
+        // 0192 (audit R08): both lengths must actually be known. An unreadable length
+        // used to count as a pass, and with "keep original" off that deleted the
+        // original on the strength of a check that never ran.
+        const newDuration = await nativeTools.duration(partial);
+        if (!owners.owned(rec.id)) {
+            await drop(partial); // removed with the recording
+            return { deleted: true };
+        }
+        const partialStat = await io.stat(partial);
+        const newSize = partialStat ? partialStat.size : 0;
+        const verified = sourceDuration > 0 && newDuration > 0 && newDuration >= sourceDuration * 0.95;
 
-    if (!verified || newSize < 1024) {
-        await drop(partial);
-        const unreadable = !(sourceDuration > 0) || !(newDuration > 0);
-        recordingsDb.setCompressStatus(rec.id, 'failed', {
-            error: unreadable
+        if (!verified || newSize < 1024) {
+            await drop(partial);
+            const unreadable = !(sourceDuration > 0) || !(newDuration > 0);
+            return { status: 'failed', error: unreadable
                 ? 'Result could not be verified (a length could not be read); the original is kept'
-                : `Result failed verification (${Math.round(newDuration || 0)}s vs ${Math.round(sourceDuration || 0)}s)`
+                : `Result failed verification (${Math.round(newDuration || 0)}s vs ${Math.round(sourceDuration || 0)}s)` };
+        }
+
+        if (newSize >= originalSize) {
+            // Re-encoding made it bigger, which happens on already-efficient
+            // sources. Keep the original and say so.
+            await drop(partial);
+            return { status: 'skipped', error: 'Compressed file was no smaller' };
+        }
+
+        // A rename the share does not answer may still land, so nothing is deleted: the original stays and the row is not
+        // moved (the rejection reaches the queue, which tries again later; the next pass takes that copy back first).
+        // The row moves to the new file before the old one goes: a crash in between
+        // leaves a spare original on disk, never a row pointing at nothing.
+        const mine = await owners.publishByRename(rec.id, partial, output, io, until, 'compressed MP4', () => {
+            if (settings.postRecordKeepOriginal === true) recordingsDb.setCompressStatus(rec.id, 'done', { fileSize: originalSize });
+            else recordingsDb.setCompressStatus(rec.id, 'done', { fileSize: newSize, filePath: output });
         });
+        if (!mine) return { deleted: true };
+        if (settings.postRecordKeepOriginal !== true) {
+            try {
+                await io.unlink(input);
+            } catch (err) {
+                console.warn(`[Recordings] #${rec.id} compressed, but the original could not be removed: ${err.message}`);
+            }
+        }
+        return { published: true, newSize };
+    });
+    if (outcome.deleted) return;
+    if (outcome.status) {
+        if (!owners.owned(rec.id)) return;
+        recordingsDb.setCompressStatus(rec.id, outcome.status, { error: outcome.error });
+        if (outcome.status === 'skipped') console.log(`[Recordings] #${rec.id} left as-is; compression saved nothing`);
         return;
     }
-
-    if (newSize >= originalSize) {
-        // Re-encoding made it bigger, which happens on already-efficient
-        // sources. Keep the original and say so.
-        await drop(partial);
-        recordingsDb.setCompressStatus(rec.id, 'skipped', { error: 'Compressed file was no smaller' });
-        console.log(`[Recordings] #${rec.id} left as-is; compression saved nothing`);
-        return;
-    }
-
-    // A rename the share does not answer may still land, so nothing is deleted: the original stays and the row is not moved.
-    await io.rename(partial, output);
 
     if (settings.postRecordKeepOriginal === true) {
-        recordingsDb.setCompressStatus(rec.id, 'done', { fileSize: originalSize });
         console.log(`[Recordings] #${rec.id} compressed alongside the original`);
         return;
     }
-
-    // The row moves to the new file before the old one goes: a crash in between
-    // leaves a spare original on disk, never a row pointing at nothing.
-    recordingsDb.setCompressStatus(rec.id, 'done', { fileSize: newSize, filePath: output });
-    try {
-        await io.unlink(input);
-    } catch (err) {
-        console.warn(`[Recordings] #${rec.id} compressed, but the original could not be removed: ${err.message}`);
-    }
+    const { newSize } = outcome;
     verifiedNativeFiles.delete(input);
     const saved = ((1 - newSize / originalSize) * 100).toFixed(0);
     console.log(`[Recordings] #${rec.id} compressed: ${(originalSize / 1e9).toFixed(2)} GB -> ${(newSize / 1e9).toFixed(2)} GB (${saved}% smaller)`);
@@ -292,7 +302,9 @@ async function processCompressionQueue() {
         await compressRecording(pending[0], settings);
     } catch (err) {
         console.error('[Recordings] Compression error:', err.message);
-        recordingsDb.setCompressStatus(pending[0].id, 'failed', { error: err.message });
+        // A share that did not answer (or a late call of an earlier pass that may still land) is not a failure: pending
+        // again, so a later tick of the queue tries it (one recording per tick, each call bounded by its deadline).
+        recordingsDb.setCompressStatus(pending[0].id, err.code === 'SHARE_UNRESPONSIVE' ? 'pending' : 'failed', { error: err.message });
     } finally {
         compressing = false;
         jobs.compressing = null;

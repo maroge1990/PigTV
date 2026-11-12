@@ -19,7 +19,7 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   `chooseProvider()` then gives it that candidate (0326, #137), and at the cap its start is abandoned back to waiting if
   the feed it gets is not that one (`joinedAsPromised()`, 0325, #133). Clashes
   are shown when scheduling: `listScheduled()` adds `conflictsWith` (up to ten ids) to each upcoming schedule that, at
-  some moment of its window (with pre/post padding), is one of more connections than the cap or than its source's
+  some moment of its window (with pre/post padding, and a sport event's overrun once it runs over), is one of more connections than the cap or than its source's
   provider pool allows (`clashOutcome()`, one sweep over the windows' boundaries with live schedules grouped by connection, #134, #138). With shared ingest on a channel's
   schedules share one connection; with it off each needs its own (#135). Backups are not counted (#136), so it may warn
   when a backup could have carried one. `POST /recordings/schedule` answers with it too; the web guide's toast and
@@ -158,5 +158,8 @@ Durable facts from the 22–26 Oct repair batches (0227–0280):
   at most 30 s (0270). Every file a writer makes has a name of its own and is journalled in `recording_cleanup` until it
   is published or removed; the start-up sweep removes what a crash or an abandoned writer left (0273).
   A recording's MP4 is published with `link()`, never by rename over an existing name. The later jobs (remux for native playback, adopting the
-  MP4, compression) also go through shareFs, with `rename()` into place; a call the share does not answer fails the job and deletes nothing.
+  MP4, compression) also go through shareFs, with `rename()` into place. That rename runs inside the job's writer (a
+  deletion waits for it): its final name is journalled with the file's identity before it, ownership is asked again after
+  it, and a rename that misses its deadline keeps the writer until it can no longer land. A call the share does not answer
+  deletes nothing and leaves the job pending for a later pass, which first takes back what the missed call may have left.
 - A schedule with a stable channel identity never falls back to its stored position (resolve, guide-follow, blockers) (0228).

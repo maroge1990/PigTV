@@ -13,7 +13,8 @@
  * nothing was there; #141), link (a second name, never over an existing file: an errno answer such as EEXIST keeps its
  * code; #287), nlink (how many names a file has, or null; #287) and rename (a file moved to a new name, replacing one already
  * there: the publish of a remux, an adoption or a compression). Paths only; nothing here knows what the share holds.
- * `local` makes the same calls in this process, for a path on a local disk (appdata).
+ * `local` makes the same calls in this process, for a path on a local disk (appdata); `withOwnHelper` makes them on a
+ * helper of their own (a path an admin typed in Settings).
  */
 const { fork } = require('child_process');
 const path = require('path');
@@ -133,7 +134,11 @@ const unlink = (file, opts) => call('unlink', file, opts);
 const link = (file, to, opts) => call('link', file, opts, { to: String(to) });
 const nlink = (file, opts) => call('nlink', file, opts);
 const rename = (file, to, opts) => call('rename', file, opts, { to: String(to) });
-/** The size of `file`: 0 when it is missing, null when the share does not say (#143: unknown is not "no growth"). */
+/**
+ * The size of `file`: 0 when it is missing, null when the share does not say (#143: unknown, not 0, for a caller that
+ * reports it). The stall watch of an ffmpeg job (recordingMedia.runFfmpegCollectingTail) counts null as no growth, so a
+ * job writing to a share that stopped answering is stopped after its stall time.
+ */
 async function sizeOf(file, opts) {
     try { const s = await stat(file, opts); return s ? s.size : 0; } catch (e) { return null; }
 }
@@ -148,6 +153,63 @@ const local = {
     rename: (f, to) => runHere('rename', f, { to: String(to) }),
     async sizeOf(f) { try { const s = await runHere('stat', f); return s ? s.size : 0; } catch (e) { return null; } }
 };
+
+/**
+ * M2 (review of 0568): `work(io)` with calls (exists, stat, statfs, writeProbe) on a helper of its own: a fresh one,
+ * forked for it, each call with its own deadline, killed once `work` has settled. For a path an admin typed (Settings): it
+ * never waits behind the shared helper's calls, nor counts toward its stuck set or its unresponsive state, so a local path
+ * is answered while the share hangs. A missed deadline rejects with SHARE_UNRESPONSIVE (as `call`), and later calls fail at once.
+ */
+async function withOwnHelper(work, { timeoutMs = tuning.timeoutMs } = {}) {
+    let helper = null;
+    let lost = null; // why later calls fail at once
+    const waiting = new Map(); // id -> { resolve, reject, timer }
+    let next = 1;
+    const fail = (err) => { for (const [id, w] of waiting) { waiting.delete(id); clearTimeout(w.timer); w.reject(err); } };
+    const ask = (op, file) => {
+        if (inProcess) return runHere(op, file, {});
+        if (lost) return Promise.reject(unanswered(lost, null));
+        if (!helper) {
+            helper = spawner.fork(path.join(__dirname, 'shareFsWorker.js'));
+            const mine = helper;
+            mine.on('message', (msg) => {
+                const w = waiting.get(msg && msg.id);
+                if (!w) return;
+                waiting.delete(msg.id);
+                clearTimeout(w.timer);
+                if (msg.error) w.reject(Object.assign(new Error(msg.error), { code: msg.code || 'SHARE_ERROR', sent: true, settled: Promise.resolve() }));
+                else w.resolve(msg.result);
+            });
+            const gone = () => { lost = lost || 'The folder check stopped'; fail(unanswered(lost, exitOf(mine))); };
+            mine.on('exit', gone);
+            mine.on('error', gone);
+        }
+        const mine = helper;
+        return new Promise((resolve, reject) => {
+            const id = next++;
+            const timer = setTimeout(() => {
+                waiting.delete(id);
+                lost = `The folder did not answer within ${Math.round(timeoutMs / 1000)} s`;
+                const settled = exitOf(mine);
+                try { mine.kill('SIGKILL'); } catch (e) { /* gone */ }
+                reject(unanswered(lost, settled));
+            }, timeoutMs);
+            waiting.set(id, { resolve, reject, timer });
+            try { mine.send({ id, op, file: String(file) }); } catch (err) {
+                waiting.delete(id);
+                clearTimeout(timer);
+                lost = 'The folder check could not be started';
+                reject(unanswered(lost, null));
+            }
+        });
+    };
+    const io = { exists: (f) => ask('exists', f), stat: (f) => ask('stat', f), statfs: (f) => ask('statfs', f), writeProbe: (f) => ask('writeProbe', f) };
+    try {
+        return await work(io);
+    } finally {
+        if (helper) { try { helper.kill('SIGKILL'); } catch (e) { /* gone */ } }
+    }
+}
 
 // ---- the Status page's disk line: cached, refreshed in the background, never awaited by a request ----
 const DISK_MAX_AGE_MS = 30 * 1000;
@@ -194,4 +256,4 @@ function reset() {
 /** Tests: run calls in this process (true) or in the helper (false). */
 function _inProcess(on) { inProcess = !!on; }
 
-module.exports = { _inProcess, _spawner: spawner, _stuck: stuck, call, exists, stat, statfs, mkdir, writeProbe, identity, unlink, link, nlink, rename, sizeOf, local, diskInfo, unresponsive, reset, tuning };
+module.exports = { _inProcess, _spawner: spawner, _stuck: stuck, call, exists, stat, statfs, mkdir, writeProbe, identity, unlink, link, nlink, rename, sizeOf, local, withOwnHelper, diskInfo, unresponsive, reset, tuning };

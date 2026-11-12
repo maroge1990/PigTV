@@ -1372,6 +1372,7 @@ test('a rename the share does not answer leaves the original and the row alone; 
         helpers.release();
         shareFs._spawner.fork = realFork;
         shareFs.reset();
+        shareFs.tuning.timeoutMs = 1500; // what must succeed now goes through a freshly forked helper: a full margin
         await engine._prepareRecording(recordings.getById(prep.id));
         const done = recordings.getById(prep.id);
         assert.equal(done.native_status, 'ready');
@@ -1400,12 +1401,248 @@ test('saving a recordings folder on a hung share answers with an error within th
         assert.ok(Date.now() - began < 3000, 'answered within the deadline');
         assert.deepEqual([...blocked], [], 'no synchronous call on the share');
         assert.ok(worst() < 300, `the event loop stalled for ${worst()} ms`);
-        // And a folder on a share that answers is still accepted.
+        // And a folder on a share that answers is still accepted (through a freshly forked helper: a full margin).
+        shareFs.tuning.timeoutMs = 1500;
         assert.deepEqual(await folder.validateRecordingsPathSetting(path.join(slowRecordings, 'Newly typed')), { ok: true });
         assert.deepEqual([...blocked], [], 'no synchronous call on the share');
     } finally {
         shareFs.reset();
         shareFs.tuning.timeoutMs = 1500;
         hangMs = 3000;
+    }
+});
+
+// ---- Codex and Opus reviews of 0568: a publication by rename is a writer's; a missed deadline is retried; Settings ----
+
+/**
+ * A stand-in share helper like deferringHelper, except that a call `hold(op, file)` picks is made at once and only its
+ * answer is held until release(): a rename that has landed while its caller still waits.
+ */
+function answerLateHelper(hold) {
+    const { EventEmitter } = require('node:events');
+    const { run } = load('services/shareFsWorker');
+    const held = [];
+    const fake = Object.assign(new EventEmitter(), {
+        connected: true, exitCode: null, signalCode: null, unref() {}, channel: { ref() {}, unref() {} },
+        kill() { this.connected = false; this.emit('exit', null, 'SIGKILL'); },
+        send(msg) {
+            const { id, op, file, ...extra } = msg;
+            let answer;
+            try { const result = real(() => run(op, file, extra)); answer = { id, result }; } catch (err) { answer = { id, error: err.message, code: err.code }; }
+            const reply = () => { if (fake.connected) fake.emit('message', answer); };
+            if (hold(op, String(file))) held.push(reply); else setImmediate(reply);
+        }
+    });
+    return { fake, release: () => { for (const a of held.splice(0)) a(); }, heldCount: () => held.length };
+}
+
+/** What is left of a recording made by postRecording: its files beside it, its row, its journal, a verified name. */
+function leftOf(rec, name) {
+    const media = load('services/recordingMedia');
+    const dir = path.dirname(rec.file_path);
+    return {
+        files: real(() => fs.readdirSync(dir)).filter(n => n.startsWith(`${name}.`)).sort(),
+        row: load('db/recordingsDb').recordings.getById(rec.id) || null,
+        journal: journalOf(rec.id),
+        verified: [...media.verifiedNativeFiles].filter(p => path.basename(p).startsWith(`${name}.`))
+    };
+}
+
+/** The three jobs that publish by rename, each started on `rec`, and which rename is theirs (the file it moves). */
+const renameJobs = {
+    remux: { run: (rec) => engine.ensureNativePlayback(rec), from: (rec, file) => file.startsWith(load('services/recordingMedia').nativePlaybackTargetPath(rec.file_path) + '.') },
+    adopt: { run: (rec) => engine._prepareRecording(rec), from: (rec, file) => file === load('services/recordingMedia').nativePlaybackTargetPath(rec.file_path) },
+    compress: { run: (rec) => engine._compressRecording(rec, { postRecordKeepOriginal: false }), from: (rec, file) => file.startsWith(load('services/recordingMedia').compressionTargetPath(rec.file_path) + '.') }
+};
+
+for (const [job, { run, from }] of Object.entries(renameJobs)) {
+    test(`a recording deleted while its ${job} renames the result into place: the deletion waits, and nothing of it is left`, async () => {
+        const rec = postRecording(slowRecordings, `Deleted mid ${job}`);
+        const name = path.basename(rec.file_path, '.mkv');
+        const owners = load('services/recordingOwners');
+        // The rename lands at once; its answer comes only after the deletion has begun.
+        const helper = answerLateHelper((op, file) => op === 'rename' && from(rec, file));
+        const realFork = shareFs._spawner.fork;
+        shareFs.reset();
+        shareFs.tuning.timeoutMs = 10000; // answered (late) well within its deadline
+        shareFs._spawner.fork = () => helper.fake;
+        try {
+            const working = run(rec).catch(e => e);
+            assert.ok(await until(() => helper.heldCount() === 1, 10000), 'the rename is out');
+            const deleting = engine.deleteRecording(rec.id);
+            assert.ok(await until(() => !owners.owned(rec.id), 5000), 'the deletion has begun');
+            await new Promise(r => setTimeout(r, 300)); // an old build's deletion completes meanwhile
+            helper.release();
+            await deleting;
+            await working;
+            assert.ok(await until(() => leftOf(rec, name).journal.length === 0, 3000), `journal: ${JSON.stringify(leftOf(rec, name).journal)}`);
+            assert.deepEqual(leftOf(rec, name), { files: [], row: null, journal: [], verified: [] }, 'no output, no partial, no row, nothing verified');
+        } finally {
+            helper.release();
+            shareFs._spawner.fork = realFork;
+            shareFs.reset();
+            shareFs.tuning.timeoutMs = 1500;
+        }
+    });
+
+    test(`a ${job} rename that misses its deadline and lands after the recording is deleted is withdrawn`, async () => {
+        const rec = postRecording(slowRecordings, `Late ${job} deleted`);
+        const name = path.basename(rec.file_path, '.mkv');
+        const owners = load('services/recordingOwners');
+        // Held past its deadline; on release it is made (it lands) and the killed helper exits only then.
+        const helpers = stallingHelpers((op, file) => op === 'rename' && from(rec, file), { exitOnRelease: true });
+        const realFork = shareFs._spawner.fork;
+        shareFs.reset();
+        shareFs.tuning.timeoutMs = 1000;
+        shareFs._spawner.fork = helpers.fork;
+        try {
+            await run(rec).catch(e => e);
+            assert.equal(helpers.heldCount(), 1, 'the rename went out and missed its deadline');
+            const deleting = engine.deleteRecording(rec.id);
+            assert.ok(await until(() => !owners.owned(rec.id), 5000), 'the deletion has begun');
+            await new Promise(r => setTimeout(r, 300)); // an old build's deletion completes meanwhile
+            helpers.release(); // the rename lands now, after the deletion began
+            await deleting;
+            assert.ok(await until(() => leftOf(rec, name).files.length === 0 && leftOf(rec, name).journal.length === 0, 5000),
+                `left: ${JSON.stringify(leftOf(rec, name))}`);
+            assert.deepEqual(leftOf(rec, name), { files: [], row: null, journal: [], verified: [] }, 'no output, no partial, no row, nothing verified');
+        } finally {
+            helpers.release();
+            shareFs._spawner.fork = realFork;
+            shareFs.reset();
+            shareFs.tuning.timeoutMs = 1500;
+        }
+    });
+}
+
+test('a compression whose rename misses its deadline is pending again, and a later pass completes it with no copy left over', async () => {
+    const { recordings } = load('db/recordingsDb');
+    const media = load('services/recordingMedia');
+    const rec = postRecording(slowRecordings, 'Squeeze retried');
+    const others = sqlDb().prepare(`SELECT id FROM recordings WHERE compress_status = 'pending' AND id != ?`).all(rec.id).map(r => r.id);
+    for (const id of others) sqlDb().prepare(`UPDATE recordings SET compress_status = NULL WHERE id = ?`).run(id);
+    sqlDb().prepare(`UPDATE recordings SET compress_status = 'pending' WHERE id = ?`).run(rec.id);
+    const kept = (await db.settings.get()).postRecordKeepOriginal;
+    await db.settings.update({ postRecordKeepOriginal: false });
+    const output = media.compressionTargetPath(rec.file_path);
+    const helpers = stallingHelpers((op, file) => op === 'rename' && file.startsWith(output + '.'));
+    const realFork = shareFs._spawner.fork;
+    shareFs.reset();
+    shareFs.tuning.timeoutMs = 1000;
+    shareFs._spawner.fork = helpers.fork;
+    try {
+        await engine.processCompressionQueue();
+        assert.equal(helpers.heldCount(), 1, 'the rename missed its deadline');
+        let row = recordings.getById(rec.id);
+        assert.equal(row.compress_status, 'pending', 'tried again later, not failed');
+        assert.match(row.compress_error || '', /did not answer/);
+        assert.equal(row.file_path, rec.file_path);
+        helpers.release(); // the rename lands late: a full-size copy beside the original
+        assert.equal(real(() => fs.existsSync(output)), true, 'the late rename landed');
+        shareFs._spawner.fork = realFork;
+        shareFs.reset();
+        shareFs.tuning.timeoutMs = 1500;
+        await engine.processCompressionQueue();
+        row = recordings.getById(rec.id);
+        assert.equal(row.compress_status, 'done');
+        assert.equal(row.file_path, output);
+        assert.deepEqual(real(() => fs.readdirSync(slowRecordings)).filter(n => n.startsWith('Squeeze retried.')), ['Squeeze retried.compressed.mp4'],
+            'the original replaced, and no other copy or partial left');
+        assert.ok(await until(() => journalOf(rec.id).length === 0, 3000), `journal: ${JSON.stringify(journalOf(rec.id))}`);
+    } finally {
+        helpers.release();
+        shareFs._spawner.fork = realFork;
+        shareFs.reset();
+        shareFs.tuning.timeoutMs = 1500;
+        for (const id of others) sqlDb().prepare(`UPDATE recordings SET compress_status = 'pending' WHERE id = ?`).run(id);
+        await db.settings.update({ postRecordKeepOriginal: kept });
+    }
+});
+
+test('preparation stays pending through more deadline misses than its attempts, each pass bounded; then it completes', async () => {
+    const { recordings } = load('db/recordingsDb');
+    const media = load('services/recordingMedia');
+    const rec = postRecording(slowRecordings, 'Prepare retried');
+    const native = media.nativePlaybackTargetPath(rec.file_path);
+    // The share answers its checks, but every rename of the remux is held past its deadline (and never lands).
+    const helpers = stallingHelpers((op, file) => op === 'rename' && file.startsWith(native + '.'));
+    const realFork = shareFs._spawner.fork;
+    shareFs.reset();
+    shareFs.tuning.timeoutMs = 1000;
+    shareFs._spawner.fork = helpers.fork;
+    try {
+        for (let pass = 1; pass <= 5; pass++) {
+            const remuxes = remuxed.length;
+            const began = Date.now();
+            await engine._prepareRecording(recordings.getById(rec.id));
+            const row = recordings.getById(rec.id);
+            assert.equal(row.native_status, 'pending', `pass ${pass}: tried again later, never failed`);
+            assert.equal(row.native_attempts || 0, 0, `pass ${pass}: no attempt used`);
+            assert.equal(helpers.heldCount(), pass, `pass ${pass}: one deadline missed`);
+            assert.equal(remuxed.length - remuxes, 1, `pass ${pass}: one remux`);
+            assert.ok(Date.now() - began < 2500, `pass ${pass} took ${Date.now() - began} ms`);
+        }
+        assert.equal(recordings.getById(rec.id).file_path, rec.file_path);
+    } finally {
+        shareFs._spawner.fork = realFork;
+        shareFs.reset();
+        shareFs.tuning.timeoutMs = 1500;
+    }
+    helpers.release();
+    await engine._prepareRecording(recordings.getById(rec.id));
+    const done = recordings.getById(rec.id);
+    assert.equal(done.native_status, 'ready');
+    assert.equal(done.file_path, media.preparedTargetPath(rec.file_path));
+    assert.deepEqual(real(() => fs.readdirSync(slowRecordings)).filter(n => n.startsWith('Prepare retried.')), ['Prepare retried.mp4'], 'nothing else left');
+    assert.ok(await until(() => journalOf(rec.id).length === 0, 3000), `journal: ${JSON.stringify(journalOf(rec.id))}`);
+});
+
+test('a prepared file whose size cannot be read is not adopted: the row and the original stay', async () => {
+    const { recordings } = load('db/recordingsDb');
+    const media = load('services/recordingMedia');
+    const rec = postRecording(slowRecordings, 'Unreadable prepared');
+    const native = media.nativePlaybackTargetPath(rec.file_path);
+    const target = media.preparedTargetPath(rec.file_path);
+    real(() => fs.writeFileSync(target, 'a stray file of that name')); // so the .native.mp4 is adopted under its own name
+    const duration = engine._nativeTools.duration;
+    const stat = shareFs.stat;
+    engine._nativeTools.duration = async (f, o) => (f === target ? null : duration(f, o));
+    shareFs.stat = async (f, o) => (f === native ? null : stat(f, o));
+    try {
+        await engine._prepareRecording(rec);
+        const row = recordings.getById(rec.id);
+        assert.equal(row.file_path, rec.file_path, 'the row still has the original');
+        assert.notEqual(row.native_status, 'ready');
+        assert.equal(real(() => fs.existsSync(rec.file_path)), true, 'the original is kept');
+    } finally {
+        engine._nativeTools.duration = duration;
+        shareFs.stat = stat;
+        real(() => { for (const f of [target, native]) fs.rmSync(f, { force: true }); });
+    }
+});
+
+test('Settings checks a typed folder on a helper of its own: answered while the share helper is stuck, refused on a hung path', async () => {
+    const folder = load('services/recordingsFolder');
+    shareFs.reset();
+    shareFs.tuning.timeoutMs = 1500;
+    try {
+        // A job of the shared helper is stuck on the hung share.
+        const stuckJob = shareFs.exists(path.join(recordingsPath, 'busy.mkv')).catch(e => e);
+        assert.deepEqual(await folder.validateRecordingsPathSetting(path.join(healthy, 'Typed')), { ok: true }, 'a healthy local path is accepted, not refused behind the stuck call');
+        assert.equal((await stuckJob).code, 'SHARE_UNRESPONSIVE');
+        // Earlier helpers still stuck in the kernel, as many as allowed: the shared helper's calls fail at once.
+        shareFs.reset();
+        shareFs._stuck.add({ stand: 'in' }).add({ stand: 'in too' });
+        await assert.rejects(() => shareFs.exists(healthy), { code: 'SHARE_UNRESPONSIVE' });
+        assert.deepEqual(await folder.validateRecordingsPathSetting(path.join(healthy, 'Typed')), { ok: true }, 'still accepted');
+        // The hung path itself is refused as not responding, within its deadline.
+        const t = Date.now();
+        const hung = await folder.validateRecordingsPathSetting(path.join(recordingsPath, 'Typed'));
+        assert.equal(hung.ok, false);
+        assert.match(hung.reason, /not responding/);
+        assert.ok(Date.now() - t < 3000, `refused in ${Date.now() - t} ms`);
+    } finally {
+        shareFs.reset();
+        shareFs.tuning.timeoutMs = 1500;
     }
 });

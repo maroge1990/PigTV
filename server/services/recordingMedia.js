@@ -386,6 +386,9 @@ async function ensureNativePlayback(rec) {
     if (!(await ioFor(input).exists(input))) {
         throw new Error('Recording file is missing');
     }
+    // What an earlier attempt journalled and never committed (a rename that missed its deadline and may have landed, its
+    // partial) is taken back first, while it is still that very file, so a late copy is never served or left untracked.
+    await owners.takeBack(rec.id, ioFor);
 
     const output = nativePlaybackTargetPath(input);
     if (await ioFor(output).exists(output)) {
@@ -478,6 +481,7 @@ async function remuxForNativePlayback(rec, input, output) {
     // recording can be running (see nativeRemuxes). 0273: the temporary name is
     // its own (recordingOwners.partialFor, journalled); the old fixed one is cleared.
     const io = ioFor(output);
+    if (owners.removalPending(output)) throw owners.stillRemoving(output); // before any work: tried again later
     try { await io.unlink(`${output}.partial`); } catch (e) { if (unresponsive(e)) throw e; /* none */ }
     const partial = owners.partialFor(output);
 
@@ -487,23 +491,29 @@ async function remuxForNativePlayback(rec, input, output) {
     console.log(`[Recordings] Remuxing #${rec.id} for native playback -> ${output}`);
     // R5-D1, 0264: a writer of the recording - a deletion stops it and waits; one deleted while it ran
     // (ffmpeg may open its output only after the deletion) removes what it made before it ends.
-    const result = await owners.write(rec.id, async (signal, made) => {
+    // Codex review of 0568: the publication too (owners.publishByRename), so a deletion waits for the rename.
+    const outcome = await owners.write(rec.id, async (signal, made, until) => {
         made(partial);
         const r = await nativeTools.ffmpeg(args, { watchFile: partial, signal, sizeOf: io.sizeOf });
-        if (!owners.owned(rec.id)) { try { await io.unlink(partial); } catch (e) { /* never made, or stays journalled */ } }
-        return r;
+        if (!owners.owned(rec.id)) {
+            try { await io.unlink(partial); } catch (e) { /* never made, or stays journalled */ }
+            return { deleted: true };
+        }
+        if (r.code !== 0 || !(await io.exists(partial))) {
+            try { await io.unlink(partial); } catch (e) { /* nothing to clean */ }
+            return { failed: r };
+        }
+        // A rename the share does not answer rejects; the partial and the name stay journalled for the next attempt.
+        const mine = await owners.publishByRename(rec.id, partial, output, io, until, 'native MP4', () => verifiedNativeFiles.add(output));
+        return mine ? {} : { deleted: true };
     });
     // Nothing is published, for every caller sharing this remux.
-    if (!owners.owned(rec.id)) throw new Error(owners.DELETED);
-    if (result.code !== 0 || !(await io.exists(partial))) {
-        try { await io.unlink(partial); } catch (e) { /* nothing to clean */ }
+    if (outcome.deleted || !owners.owned(rec.id)) throw new Error(owners.DELETED);
+    if (outcome.failed) {
+        const result = outcome.failed;
         console.error(`[Recordings] Native remux of #${rec.id} failed:\n  ${result.tail.join('\n  ')}`);
         throw new Error(result.tail.slice(-3).join(' | ') || `ffmpeg exited with code ${result.code}`);
     }
-
-    // A rename the share does not answer may still land: the partial stays (journalled) and the next call finds either name.
-    await io.rename(partial, output);
-    verifiedNativeFiles.add(output);
     console.log(`[Recordings] #${rec.id} ready for native playback`);
     return output;
 }
@@ -593,29 +603,51 @@ async function adoptPrepared(rec, prepared) {
     const io = ioFor(original);
     let target = preparedTargetPath(original);
     // A call the share does not answer rejects (SHARE_UNRESPONSIVE) before the row moves or the original goes: whether the
-    // rename landed is then unknown, and the next pass finds "<name>.mp4" there (prepareRecording) or the .native.mp4 still.
-    if (prepared !== target) {
-        if (await io.exists(target)) {
+    // rename landed is then unknown, and the next pass takes back "<name>.mp4" (journalled) or finds the .native.mp4 still.
+    // Codex review of 0568: a writer of the recording, so a deletion waits for the rename (owners.publishByRename), and the
+    // row moves only while it is still owned, with nothing awaited between that check and the move.
+    await owners.write(rec.id, async (signal, made, until) => {
+        if (!owners.owned(rec.id)) return; // R5-D1: deleted meanwhile
+        const move = (size) => {
+            getDb().prepare('UPDATE recordings SET file_path = ?, file_size_bytes = ? WHERE id = ?').run(target, size || null, rec.id);
+            recordingsDb.setNativeStatus(rec.id, 'ready');
+            recordingsDb.setNativeVersion(rec.id, NATIVE_VERSION);
+            verifiedNativeFiles.add(target);
+        };
+        if (prepared !== target && await io.exists(target)) {
             // Not ours (a stray file of the same name): leave it, keep the .native.mp4 name.
             target = prepared;
-        } else {
-            await io.rename(prepared, target);
-            verifiedNativeFiles.delete(prepared);
         }
-    }
-    verifiedNativeFiles.add(target);
-    const there = await io.stat(target);
-    const size = there ? there.size : 0;
-    getDb().prepare('UPDATE recordings SET file_path = ?, file_size_bytes = ? WHERE id = ?').run(target, size || null, rec.id);
-    recordingsDb.setNativeStatus(rec.id, 'ready');
-    recordingsDb.setNativeVersion(rec.id, NATIVE_VERSION);
-    try {
-        await io.unlink(original);
-        console.log(`[Recordings] #${rec.id} is now ${path.basename(target)}; the .mkv it was made from is deleted`);
-    } catch (err) {
-        console.warn(`[Recordings] #${rec.id} is now ${path.basename(target)}, but ${path.basename(original)} could not be deleted: ${err.message}`);
-    }
-    verifiedNativeFiles.delete(original);
+        // The prepared file's size (a rename keeps it): read before, so nothing is awaited between the last owned() and the
+        // move. Not there: the row and the original stay as they are.
+        const there = await io.stat(prepared);
+        if (!there) throw new Error('the prepared file is not there');
+        if (prepared === target) {
+            if (!owners.owned(rec.id)) return;
+            move(there.size);
+            owners.committed(target); // a late rename's name, if it was one: the recording's file now
+        } else {
+            let mine;
+            try {
+                mine = await owners.publishByRename(rec.id, prepared, target, io, until, 'MP4', () => {
+                    verifiedNativeFiles.delete(prepared);
+                    move(there.size);
+                });
+            } catch (err) {
+                verifiedNativeFiles.delete(prepared); // the rename may have landed: that name is no longer known to be there
+                throw err;
+            }
+            if (!mine) { verifiedNativeFiles.delete(prepared); return; } // deleted meanwhile: withdrawn
+        }
+        // The original goes inside the writer too: a deletion waits for it.
+        try {
+            await io.unlink(original);
+            console.log(`[Recordings] #${rec.id} is now ${path.basename(target)}; the .mkv it was made from is deleted`);
+        } catch (err) {
+            console.warn(`[Recordings] #${rec.id} is now ${path.basename(target)}, but ${path.basename(original)} could not be deleted: ${err.message}`);
+        }
+        verifiedNativeFiles.delete(original);
+    });
 }
 
 /** One recording through preparation. Never throws: the outcome is in its row. */
@@ -689,6 +721,14 @@ async function prepareRecording(rec) {
         await adoptPrepared(recordingsDb.getById(rec.id) || rec, prepared);
     } catch (err) {
         if (!owners.owned(rec.id)) return; // R5-D1: deleted meanwhile; nothing to record
+        if (unresponsive(err)) {
+            // The share did not answer (or a late call of an earlier attempt may still land): never a failure, and no
+            // attempt used. Tried again on a later tick of the queue (one recording per tick, each call bounded).
+            getDb().prepare('UPDATE recordings SET native_attempts = MAX(COALESCE(native_attempts, 0) - 1, 0) WHERE id = ?').run(rec.id);
+            console.error(`[Recordings] Could not prepare #${rec.id}: ${err.message}; tried again later`);
+            recordingsDb.setNativeStatus(rec.id, 'pending', { error: err.message });
+            return;
+        }
         const attempts = (recordingsDb.getById(rec.id)?.native_attempts) || 0;
         const giveUp = attempts >= NATIVE_MAX_ATTEMPTS || err.message === 'Recording file is missing';
         console.error(`[Recordings] Could not prepare #${rec.id} (attempt ${attempts}): ${err.message}`);

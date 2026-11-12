@@ -54,6 +54,10 @@
  * yet land later. So a name is journalled as 'published', with its file's identity, BEFORE the link (published()), and
  * each finish or move attempt first takes back what an earlier one journalled and never committed (takeBack(): the
  * sweep's rules, through bounded calls).
+ *
+ * Codex review of 0568: the jobs that publish by rename (remux, adoption, compression) do it inside their writer
+ * (publishByRename), with the name journalled first and ownership asked again after; a rename that missed its deadline
+ * keeps the writer (write's `until`) until it can no longer land. Each such job first takes back what an earlier pass left.
  */
 const fs = require('fs');
 const crypto = require('crypto');
@@ -132,6 +136,48 @@ function published(p, id, identity) {
     db.prepare(`INSERT INTO recording_cleanup (path, recording_id, created_at, kind, identity) VALUES (?, ?, ?, 'published', ?)`).run(p, id, Date.now(), identity);
     return true;
 }
+/**
+ * Codex review of 0568: `from`, a file writer `id` made (made()), put in place as `to` by a rename that replaces a file
+ * already there (the remux's .native.mp4, the adopted "<name>.mp4", the compressed MP4). Called inside that writer's work,
+ * with its `until`, so a deletion waits for the publication. `to` is held (never taken back meanwhile) and journalled as
+ * 'published' with the file's identity before the rename, so a rename that lands late is still this code's to take back;
+ * ownership is asked again after it: a recording retired meanwhile has `to` withdrawn (false). Otherwise `commit()` runs
+ * at once (nothing awaited since that check: the database says what `to` is) and `to` is committed (true).
+ * A rename the share does not answer rejects as before; the writer and the hold then last until it can no longer land
+ * (`settled`), when the same check withdraws `to` if the recording was retired meanwhile, and otherwise leaves it
+ * journalled for the next attempt's takeBack (or the sweep). A name whose earlier removal may still land is not taken:
+ * that rejects as SHARE_UNRESPONSIVE with nothing sent (the job is tried again later).
+ */
+async function publishByRename(id, from, to, io, until, what, commit = () => {}) {
+    if (removalPending(to)) throw stillRemoving(to);
+    hold(to);
+    let releaseHere = true;
+    try {
+        const identity = await io.identity(from);
+        if (!identity) throw new Error(`the finished file is missing (${path.basename(from)})`);
+        if (!published(to, id, identity)) throw new Error(`${path.basename(to)} is listed for another removal`);
+        try {
+            await io.rename(from, to);
+        } catch (err) {
+            if (err.code === 'SHARE_UNRESPONSIVE') {
+                if (err.sent === false) { forget(to); throw err; } // never sent: nothing can land
+                releaseHere = false; // held until it can no longer land, then checked as below
+                until((err.settled || new Promise(() => {})).then(async () => {
+                    try { if (!owned(id)) await withdrawBounded(to, id, what, io); } finally { release(to); }
+                }));
+            }
+            throw err; // an errno answer: `to` stays journalled, taken back (while it is that file) by the next attempt
+        }
+        if (!owned(id)) { await withdrawBounded(to, id, what, io); return false; }
+        commit();
+        committed(to);
+        return true;
+    } finally {
+        if (releaseHere) release(to);
+    }
+}
+const stillRemoving = (p) => Object.assign(new Error(`an earlier removal of ${path.basename(p)} may still land; tried again later`), { code: 'SHARE_UNRESPONSIVE', sent: false });
+
 /** The database points at `p` now: it is no longer debris. */
 function committed(p) { if (p) forget(p); }
 function forget(p) {
@@ -150,8 +196,10 @@ async function removeListed(p) {
 const partialFor = (file) => `${file}.${process.pid}-${crypto.randomBytes(4).toString('hex')}.partial`;
 
 /**
- * Run `work(signal, made)` as a writer of recording `id`; resolves or rejects as it does. `made(path)`
- * journals a file it is about to create (a partialFor name).
+ * Run `work(signal, made, until)` as a writer of recording `id`; resolves or rejects as it does. `made(path)`
+ * journals a file it is about to create (a partialFor name). `until(promise)`: a call of the work's that missed its
+ * deadline may still land (shareFs `settled`); the writer lasts until each such promise has settled, after the work
+ * has returned, so a deletion waits for it (stopWriters) and its files stay busy meanwhile.
  */
 function write(id, work) {
     const controller = new AbortController();
@@ -163,8 +211,11 @@ function write(id, work) {
         cleanupDb().prepare('INSERT OR IGNORE INTO recording_cleanup (path, recording_id, created_at) VALUES (?, ?, ?)').run(p, id, Date.now());
         entry.paths.add(p);
     };
-    const run = Promise.resolve().then(() => work(controller.signal, made));
-    const end = () => { entry.done = true; }; // #287: no longer busy (set before its caller resumes)
+    const lasting = [];
+    const until = (p) => { lasting.push(Promise.resolve(p).catch(() => {})); };
+    const run = Promise.resolve().then(() => work(controller.signal, made, until));
+    // #287: no longer busy (set before its caller resumes, when nothing outlasts the work)
+    const end = () => { if (lasting.length === 0) { entry.done = true; return; } return Promise.all(lasting.splice(0)).then(end); };
     entry.ended = run.then(end, end);
     if (!writers.has(id)) writers.set(id, new Set());
     writers.get(id).add(entry);
@@ -467,4 +518,4 @@ async function takeBack(id, ioFor = () => shareFs) {
 
 const DELETED = 'Recording was deleted';
 
-module.exports = { retire, owned, withdrawBounded, takeBack, hold, release, forget, removalPending, write, stopWriters, sweepCleanup, whenSwept, deferRemoval, retryDeleted, adoptable, partialFor, published, committed, DELETED, STOP_WAIT_MS, _setStopWaitMs, _setSweepWaitMs };
+module.exports = { retire, owned, withdrawBounded, takeBack, publishByRename, stillRemoving, hold, release, forget, removalPending, write, stopWriters, sweepCleanup, whenSwept, deferRemoval, retryDeleted, adoptable, partialFor, published, committed, DELETED, STOP_WAIT_MS, _setStopWaitMs, _setSweepWaitMs };
