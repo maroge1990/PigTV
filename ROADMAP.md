@@ -5,14 +5,14 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 12 Nov 2026 (audit batches E, #273, and J, #278; H, L and D the day before).*
+*Overwritten at the end of every session. 12 Nov 2026 (audit batches E, #273, J, #278, and F, #274; H, L and D the day before).*
 
 - **Released:** server **v0502** (`:release`, 9 Nov) and Apple **191** on TestFlight (tvOS and iOS). A release runs on
-  Mark's go-ahead (D-45). Pushed since, not released: server **0503 to 0566**, Apple **192 to 218**. Next builds: server
-  **0567**, Apple **219**.
+  Mark's go-ahead (D-45). Pushed since, not released: server **0503 to 0577**, Apple **192 to 218**. Next builds: server
+  **0578**, Apple **219**.
 - **The 10 Nov audit** was filed as batch issues #269–#280; each issue's first comment holds the detail and later
   comments Mark's decisions. Pushed: A (#269), I (#277), C (#271), B (#270), G (#275), K (#279), H (#276), L (#280),
-  D (#272, with #281), E (#273), J (#278). Left: **F (#274)**; the handover note is a comment on #274.
+  D (#272, with #281), E (#273), J (#278), F (#274). The audit's batches are all pushed.
 - **11 Nov, batch H pushed with CI green, server 0534 to 0541 (#276, closed):** the web app under brand 1.8.
   - Mark's picks: no Home page (the app opens on Live TV, favourites first); compact Sport cards; Recordings as
     picture cards; text at 16 px with the guide grid, the channel list and the admin tables as recorded exceptions.
@@ -64,21 +64,35 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
     `docs/evidence/2026-11-12-batch-j/`. The audit's larger merges were not built; they are listed on #278.
   - Seen on the way, for Mark: no screen draws the cricket page's Hide scores chip; the iPhone strip's LIVE pill has no
     word in it; a suspended game's fixture card says "Played".
+- **12 Nov, batch F pushed with CI green, server 0567 to 0577 (#274, open for Mark's device check):** recording and
+  playback duplicates, all six items, in two pushes.
+  - A recording's window has one owner: a viewer refused for a recording is told its real end, and the list shows a
+    clash during overtime. A recording due during another's overtime starts late (Mark), it is not held.
+  - The jobs after a recording (remux, adopt, compress) and the recordings-path check reach the share through its
+    bounded helper; a share that does not answer fails the job, deletes nothing and is retried.
+  - One owner each for a channel's id and stream address, the count of recordings on a provider, and the walk over
+    providers at play start. Every recording is watched for a stall; with one provider it resumes on that provider.
+  - Reviews: two Codex highs (a deleted recording's file put back; a bursty feed hiding a dead capture), both fixed and
+    signed off. Rig on 0577: play start 4,901 ms (5,398 on 0572), admission, failover, overrun and a stalled
+    single-provider recording pass. Not seen end to end: a hung share. Evidence: `docs/evidence/2026-11-12-batch-f/`.
+  - Filed: #302 (a stall's gap note under-counts), #303, #304. Seen on the way, for Mark: a waiting reason that stays
+    after the recording starts; "Infinitys silent" in a log line; the provider's host and port in three log lines.
 - **Waiting on Mark:**
   - A release: nothing since v0502 and Apple 191 is released.
   - T5 device checks: #278 (on a TestFlight build from 218; steps on the issue), #280 (on a build from 208; steps in
     its evidence folder and on the issue), #279 (on a
     build from 203), #271 (one real recording end to end, on a build from 0509), #277 (open Sport once on each
-    device, on a build from 197), #246 (stop the container mid-recording), #260, the iPhone and iPad fixes in
+    device, on a build from 197), #246 (stop the container mid-recording), #260, #274 (steps on the issue), the iPhone and iPad fixes in
     176–191, Watch on…, and T4 for #259 at the next race.
   - #288: how long a recording keeps trying when every provider is down (today about 5 minutes).
   - The Appdata Backup setting: don't stop PigTV, or move it from Sunday 04:00.
   - #240. Whether #293's missing focus tint is fixed before the next TestFlight build.
   - #295's colour point: darker status colours for small text are the brand kit's to decide.
-  - Batch F (#274): the two recommended items only, or all six.
+  - #304: whether a single-provider stall should show the provider as down.
 - **Open investigation:** #3 (sound out of step on the iPad): the relay join measured clean; the device meter (#267)
   and the marker (#268) are filed, not built (Mark).
-- **Next:** F (#274, after Mark's scope answer); then #262 (iPadOS/iOS 17+, three sites need fallbacks).
+- **Next:** the Apple batch for the five faults seen during J (last comments on #278); then #262 (iPadOS/iOS 17+,
+  three sites need fallbacks).
 
 ## Now
 
