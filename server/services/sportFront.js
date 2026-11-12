@@ -26,6 +26,7 @@ const isLive = g => ONGOING.has(g.status) || g.onAir === true;
 const byStart = (a, b) => a.start - b.start || a.id.localeCompare(b.id);
 const HOUR = 3600000;
 const FOOTBALL = new Set(require('./sportCatalog').sport('Football').leagues);
+const { bareChannelId } = require('./channelIds');
 const TYPICAL_HOURS = { F1: 2, MotoGP: 1, NFL: 3.25, NBA: 2.5, AFL: 3, AFLW: 2.5, NRLW: 2, 'Super Netball': 1.5, MLB: 3.25 };
 const CRICKET_HOURS = { t20: 4.5, odi: 9, test: 120, 'first-class': 120 };
 
@@ -122,7 +123,7 @@ function arrange(response, prefs, { logoFor = () => null } = {}) {
  */
 function annotateRecordings(games, schedules) {
     const byId = new Map(schedules.map(s => [s.id, s]));
-    const bare = (id) => String(id ?? '').replace(/^(?:m3u|xtream)_\d+_/, '');
+    const bare = (id) => bareChannelId(id ?? '');
     for (const g of games) {
         const times = (g.events || []).filter(e => Number.isFinite(e.start) && Number.isFinite(e.end));
         if (!times.length || !(g.channels || []).length) continue;

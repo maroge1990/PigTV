@@ -353,11 +353,7 @@ function visibleChannels(db) {
         const sport = sportCategories.isSport(r.source_id, r.category_id);
         const seen = byKey.get(key);
         if (seen) { seen.sportChannel = seen.sportChannel || sport; continue; } // cross-listed
-        let tvgId = r.tvg_id || null;
-        if (!tvgId) {
-            try { const d = JSON.parse(r.data || '{}'); tvgId = d.tvgId || d.epg_channel_id || null; } catch { tvgId = null; }
-        }
-        tvgId = epgMapping.effectiveTvgId(r.source_id, r.stable_id, r.item_id, tvgId);
+        const tvgId = epgMapping.rowTvgId(r.source_id, r);
         byKey.set(key, {
             key,
             order: byKey.size,

@@ -27,6 +27,7 @@
  * guide learns about a new warning dot without every play invalidating it.
  */
 const { getDb } = require('../db/sqlite');
+const { bareChannelId } = require('./channelIds');
 const { bumpLibraryRev } = require('./libraryRev');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -77,7 +78,7 @@ const classifyCounts = (c) => classify(c.attempts, c.failures, c.stalls, c.watch
 /** The identity (and current name) of a channel a client named by source + (bare or composite) id. */
 function channelFor(sourceId, channelId) {
     if (sourceId === undefined || sourceId === null || channelId === undefined || channelId === null) return null;
-    const stripped = String(channelId).replace(/^(?:m3u|xtream)_\d+_/, '');
+    const stripped = bareChannelId(channelId);
     const row = getDb().prepare(`
         SELECT source_id, name, COALESCE(stable_id, item_id) AS channel_key FROM playlist_items
         WHERE source_id = ? AND type = 'live' AND item_id = ? LIMIT 1

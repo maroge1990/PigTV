@@ -13,12 +13,16 @@
  */
 
 const COMPOSITE = /^(?:m3u|xtream)_\d+_(.+)$/;
+// The prefix alone. D-6 (#274): the one place it is written; every server site strips through bareChannelId
+// (scripts/verify-build.sh fails on an inline copy).
+const PREFIX = /^(?:m3u|xtream)_\d+_/;
 
-/** The bare item id, whichever spelling was supplied. */
+/**
+ * The bare item id, whichever spelling was supplied: String(id) with one composite prefix removed. A null or
+ * undefined id is the string 'null'/'undefined', as String() makes it; callers that want '' guard first.
+ */
 function bareChannelId(id) {
-    const s = String(id);
-    const m = COMPOSITE.exec(s);
-    return m ? m[1] : s;
+    return String(id).replace(PREFIX, '');
 }
 
 /** The composite spelling the web app uses, for a bare id. */

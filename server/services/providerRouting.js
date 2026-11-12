@@ -36,6 +36,7 @@ const providerAccounts = require('./providerAccounts');
 const channelLinks = require('./channelLinks');
 const { isStreamUrl } = require('./streamUrl');
 const { MESSAGES: FAILURE_TEXT } = require('./playbackErrors');
+const { bareChannelId } = require('./channelIds');
 
 const MINUTE = 60 * 1000;
 const BREAKER_WINDOW_MS = 5 * MINUTE;
@@ -212,40 +213,87 @@ function watchSession(session, candidate, primaryKey, label = null) {
 // ------------------------------------------------------------------ candidates --
 
 /**
- * Resolve a channel id to its upstream URL (moved from routes/playback.js, unchanged).
+ * The playlist row a channel names (D-6, #274: the one lookup playback and recording share), or null.
  *
- * Accepts either the bare item_id or the composite id a client may hold
- * (m3u_<source>_<item>), because both are in circulation.
+ * With a `stableId` (a schedule's channel identity) ONLY that identity is looked up: DVR-2 (0228) - when
+ * that channel has gone, its old position may now be another channel's, and recording that instead is worse
+ * than failing. Ordered by position, so a channel listed in several categories resolves to the same row every
+ * time. Without one, the id in any spelling in circulation: the bare item_id (the library API, the Apple
+ * client), the web's composite (m3u_<source>_<item>), or the fully-qualified `id` column.
  */
-async function streamUrlForChannel(sourceId, channelId) {
-    const source = await db.sources.getById(sourceId);
-    // 0118 (C-B): the client may show these, so they use its allowed wording;
-    // `detail` keeps what actually went wrong for the log.
-    if (!source) throw Object.assign(new Error(FAILURE_TEXT.notInPlaylist()), { status: 404, detail: `Source ${sourceId} not found` });
-
+function channelRow(sourceId, channelId, stableId = null) {
+    if (stableId) {
+        return getDb().prepare(`
+            SELECT item_id, stream_url, data FROM playlist_items
+            WHERE source_id = ? AND type = 'live' AND stable_id = ?
+            ORDER BY CASE WHEN sort_order IS NULL THEN 1 ELSE 0 END, sort_order ASC
+            LIMIT 1
+        `).get(sourceId, stableId) || null;
+    }
     const raw = String(channelId);
-    const stripped = raw.replace(/^(?:m3u|xtream)_\d+_/, '');
-
-    const item = getDb().prepare(`
-        SELECT stream_url, data FROM playlist_items
+    const stripped = bareChannelId(raw);
+    return getDb().prepare(`
+        SELECT item_id, stream_url, data FROM playlist_items
         WHERE source_id = ? AND type = 'live'
           AND (item_id = ? OR item_id = ? OR id = ?)
         LIMIT 1
-    `).get(sourceId, raw, stripped, `${sourceId}:${stripped}`);
-
-    // #209: an Xtream source built the address for any id and asked the provider (a 500 "not available from the
-    // provider"); an id its channel list does not hold is gone, said without contacting it.
-    if (!item) throw Object.assign(new Error(FAILURE_TEXT.notInPlaylist()), { status: 404, detail: `Channel ${channelId} not found` });
-    if (source.type === 'xtream') {
-        const api = xtreamApi.createFromSource(source);
-        return api.buildStreamUrl(channelId, 'live', 'ts');
-    }
-    const url = urlOfItem(item);
-    if (url) return url;
-
-    throw Object.assign(new Error(FAILURE_TEXT.noStreamUrl()), { status: 422, detail: 'Channel has no stream URL' });
+    `).get(sourceId, raw, stripped, `${sourceId}:${stripped}`) || null;
 }
 
+// Why a channel has no address, for a caller that words it its own way (recordingEngine keeps its old texts).
+const UNRESOLVED = Object.freeze({ source: 'source', channel: 'channel', url: 'url' });
+
+function unresolved(kind, message, status, detail) {
+    return Object.assign(new Error(message), { status, detail, unresolved: kind });
+}
+
+/**
+ * A channel's upstream address: the one owner for playback (plan) and recording (recordingEngine.resolveStreamUrl).
+ *
+ *   { sourceId, channelId, stableId = null, buildUnlistedXtream = false }
+ *
+ * - `stableId` (recording's schedule identity): on an M3U source, the identity only (channelRow, DVR-2). An Xtream
+ *   address is built from the stream id, so it is found by `channelId` there, as it always was.
+ * - `buildUnlistedXtream`: an Xtream id that is not in the channel list. False (playback): refused with a 404,
+ *   without contacting the provider - a viewer's tap on a dead id must not reach it (#209). True (recording):
+ *   the address is built anyway - a recording scheduled earlier is still attempted when a sync has since dropped
+ *   the channel from the list, and the provider gives the answer.
+ * - The Xtream address carries the bare stream id (the matched row's item_id), never the composite spelling.
+ *
+ * Throws an Error with `status` 404/422 and the client-safe wording (0118, C-B; `detail` says what went wrong,
+ * for the log) and `unresolved` (source | channel | url). The address carries the provider's login: never logged.
+ */
+async function streamUrlFor({ sourceId, channelId, stableId = null, buildUnlistedXtream = false }) {
+    const source = await db.sources.getById(sourceId);
+    if (!source) throw unresolved(UNRESOLVED.source, FAILURE_TEXT.notInPlaylist(), 404, `Source ${sourceId} not found`);
+
+    if (source.type === 'xtream') {
+        let item;
+        if (buildUnlistedXtream) {
+            try { item = channelRow(sourceId, channelId); } catch (e) { item = null; } // the list only names the id here
+        } else {
+            item = channelRow(sourceId, channelId);
+        }
+        if (!item && !buildUnlistedXtream) {
+            throw unresolved(UNRESOLVED.channel, FAILURE_TEXT.notInPlaylist(), 404, `Channel ${channelId} not found`);
+        }
+        const streamId = item ? item.item_id : bareChannelId(channelId);
+        return xtreamApi.createFromSource(source).buildStreamUrl(streamId, 'live', 'ts');
+    }
+
+    const item = channelRow(sourceId, channelId, stableId);
+    if (!item) throw unresolved(UNRESOLVED.channel, FAILURE_TEXT.notInPlaylist(), 404, `Channel ${channelId} not found`);
+    const url = urlOfItem(item);
+    if (url) return url;
+    throw unresolved(UNRESOLVED.url, FAILURE_TEXT.noStreamUrl(), 422, 'Channel has no stream URL');
+}
+
+/** A viewer's play (plan): the id must be in the channel list (#209). */
+function streamUrlForChannel(sourceId, channelId) {
+    return streamUrlFor({ sourceId, channelId });
+}
+
+/** A playlist row's address: the stream_url column, else the stored data's url / stream_url. */
 function urlOfItem(item) {
     if (!item) return null;
     if (item.stream_url) return item.stream_url;
@@ -257,16 +305,20 @@ function urlOfItem(item) {
     return null;
 }
 
-/** The primary channel's identity (the favourites' key) and name, or null when it is not in the playlist. */
+/**
+ * The channel a caller named (bare or composite id): `{ key: COALESCE(stable_id, item_id), name, stableId }`
+ * (`stableId` null for a row without one), or null when it is not in the playlist. Playback keys failover and
+ * quarantine on `key`; recordingEngine stores `stableId` on a schedule.
+ */
 function channelIdentity(sourceId, channelId) {
     try {
         const raw = String(channelId);
-        const stripped = raw.replace(/^(?:m3u|xtream)_\d+_/, '');
+        const stripped = bareChannelId(raw);
         const row = getDb().prepare(`
-            SELECT COALESCE(stable_id, item_id) AS channel_key, name FROM playlist_items
+            SELECT COALESCE(stable_id, item_id) AS channel_key, stable_id, name FROM playlist_items
             WHERE source_id = ? AND type = 'live' AND (item_id = ? OR item_id = ?) LIMIT 1
         `).get(Number(sourceId), raw, stripped);
-        return row ? { key: String(row.channel_key), name: row.name || null } : null;
+        return row ? { key: String(row.channel_key), name: row.name || null, stableId: row.stable_id || null } : null;
     } catch { return null; }
 }
 
@@ -306,7 +358,7 @@ async function plan(sourceId, channelId, now = Date.now()) {
     const map = providerMap();
     const primarySource = map.get(primaryId) || { id: primaryId, name: `Provider ${primaryId}` };
     const identity = channelIdentity(primaryId, channelId);
-    const primaryKey = identity ? identity.key : String(channelId).replace(/^(?:m3u|xtream)_\d+_/, '');
+    const primaryKey = identity ? identity.key : bareChannelId(channelId);
 
     const primary = {
         providerId: primaryId, providerName: providerName(primaryId, map), role: 'primary', via: 'primary',
@@ -394,8 +446,12 @@ function reset() {
 module.exports = {
     plan,
     candidatesFor,
+    streamUrlFor,
     streamUrlForChannel,
+    channelRow,
+    urlOfItem,
     channelIdentity,
+    UNRESOLVED,
     providerState,
     noteFailure,
     noteSuccess,

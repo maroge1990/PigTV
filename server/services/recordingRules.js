@@ -23,6 +23,7 @@
  * Dispatcharr's series rules (AGPL, read, not copied).
  */
 const { getDb } = require('../db/sqlite');
+const { bareChannelId } = require('./channelIds');
 const { scheduled: scheduledDb, initSchema } = require('../db/recordingsDb');
 
 const KINDS = ['sport', 'series', 'team', 'game'];
@@ -102,7 +103,7 @@ function validate(body = {}) {
     }
     if (kind === 'series') {
         const sourceId = Number(body.sourceId);
-        const channelId = body.channelId === undefined || body.channelId === null ? '' : String(body.channelId).replace(/^(?:m3u|xtream)_\d+_/, '');
+        const channelId = body.channelId === undefined || body.channelId === null ? '' : bareChannelId(body.channelId);
         if (!Number.isInteger(sourceId) || sourceId <= 0 || !channelId) return { error: 'a series rule needs sourceId and channelId' };
         const row = db().prepare(`SELECT item_id, stable_id, name FROM playlist_items WHERE source_id = ? AND type = 'live' AND (item_id = ? OR stable_id = ?) LIMIT 1`)
             .get(sourceId, channelId, channelId);
@@ -239,7 +240,7 @@ async function teamCandidates(rule, now, { games = null, events = null, only = n
         if (!pick) continue;
         const { e: on, ch } = pick;
         out.push({ identity: `game:${g.id}`, gameId: g.id, title: on.title, titles: [on.title, g.title], anyChannel: false, start: pick.start, end: pick.end,
-            sourceId: ch.sourceId, channelId: String(ch.id).replace(/^(?:m3u|xtream)_\d+_/, ''), stableId: ch.stableId || null,
+            sourceId: ch.sourceId, channelId: bareChannelId(ch.id), stableId: ch.stableId || null,
             channelName: ch.name, channelLogo: ch.logo || null, description: null });
     }
     return out;

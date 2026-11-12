@@ -89,7 +89,8 @@ scheduled recordings and history key on it; 845 channels are listed twice, shari
 an identity must never fall back to its stored `pos_N`. Joins use
 `(x.stable_id IS NOT NULL AND p.stable_id = x.stable_id) OR (x.stable_id IS NULL AND p.item_id = x.item_id)` plus a `GROUP BY` on
 the identity. Only *pending* schedules were backfilled. The provider's stream id and URL live in the row's `data` JSON, not
-`stream_url`.
+`stream_url`. Playback and recording share one id strip (`channelIds.bareChannelId`) and one channel → address resolve
+(`providerRouting.streamUrlFor`; recording passes the schedule's identity and may build an Xtream id the list no longer holds).
 
 **Hidden channels** (0347, #10). Every reader filters on `playlist_items.is_hidden`, which sits on the row and so on the
 position. `hiddenChannels.js` keeps the truth in `hidden_channels` (source, group, identity; a second copy of a channel in

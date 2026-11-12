@@ -429,15 +429,8 @@ router.get('/guide', (req, res) => {
             // The indexed column first (0111 — filled at ingest and backfilled at
             // startup); JSON.parse `data` only for the rows that predate it, so a
             // guide page no longer parses JSON for every row just to find this.
-            let tvgId = row.tvg_id || null;
-            if (!tvgId) {
-                try {
-                    const data = JSON.parse(row.data || '{}');
-                    tvgId = data.tvgId || data.epg_channel_id || null;
-                } catch (e) { /* ignore */ }
-            }
             // 0134: the admin's EPG mapping wins over the playlist's tvg-id.
-            tvgId = epgMapping.effectiveTvgId(row.source_id, row.stable_id, row.item_id, tvgId);
+            const tvgId = epgMapping.rowTvgId(row.source_id, row);
             return {
                 id: row.item_id,
                 sourceId: row.source_id,

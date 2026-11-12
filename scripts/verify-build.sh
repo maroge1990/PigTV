@@ -1268,6 +1268,15 @@ else
     echo "  ✓ no part-based capture path under server/ or test/"
 fi
 
+echo "=== D-6: one composite-id strip (#274) ==="
+# Playback and recording each stripped the web's composite id (m3u_<source>_<item>) with their own inline copy of the
+# regex, which is how they came to disagree about a channel. services/channelIds.js (bareChannelId) is the one copy.
+if grep -rnF "m3u|xtream)_" server --include=*.js | grep -v "^server/services/channelIds.js:" | grep -q .; then
+    echo "  ✗ STILL PRESENT: an inline composite-id regex under server/ (use bareChannelId from services/channelIds.js)"; FAIL=1
+else
+    echo "  ✓ the composite-id prefix is written only in services/channelIds.js"
+fi
+
 # Documentation size budgets (30 Oct reset, decision D-22): warnings only, never a failure. A warning means
 # something probably belongs elsewhere; it is never a reason to cut useful detail.
 echo "=== Doc size budgets (warnings only) ==="

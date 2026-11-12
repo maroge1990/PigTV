@@ -14,13 +14,13 @@ const { spawn } = require('child_process');
 const { sources: sourcesDb, getUserAgent } = require('../db');
 const { scheduled: scheduledDb, recordings: recordingsDb } = require('../db/recordingsDb');
 const { getDb } = require('../db/sqlite');
-const xtreamApi = require('./xtreamApi');
 const coordinator = require('./streamCoordinator');
 const { formatLocalStamp, sanitizeForFs } = require('./recordingNames');
 const { redact } = require('../redact');
 const { checkRecordingsFolder, checkRecordingsFolderAsync, refusalMessage, TINY_FS_BYTES } = require('./recordingsFolder');
 const shareFs = require('./shareFs'); // #8: file calls on the recordings share, off the event loop
 const providerRouting = require('./providerRouting');
+const { bareChannelId } = require('./channelIds');
 const { providerFailureIn } = require('./transcodeSession');
 // Split out in the simplification build: making recordings playable (media) and what runs
 // after one (post); jobs is what each is busy with. Everything is re-exported below.
@@ -119,75 +119,29 @@ function hasFreeSpace(dir, minGB, factor = 1) {
 }
 
 /**
- * Resolve a playable stream URL for a channel, mirroring the logic used by
- * the proxy/transcode routes for M3U (SQLite-backed) and Xtream sources.
- */
-/**
- * The identity of the channel a caller named, accepting the composite id the web
- * app sends and the bare one the native client does - the same forms
- * resolveStreamUrl accepts. Null when the channel is not in the playlist.
+ * The identity (stable_id) of the channel a caller named, accepting the composite id the web app sends and the
+ * bare one the native client does. Null when the channel is not in the playlist or has no identity, and on any
+ * error: never the reason a recording cannot be scheduled. The lookup is providerRouting's (D-6, #274).
  */
 function channelIdentity(sourceId, channelItemId) {
-    try {
-        const raw = String(channelItemId);
-        const stripped = raw.replace(/^(?:m3u|xtream)_\d+_/, '');
-        return getDb().prepare(`
-            SELECT stable_id FROM playlist_items
-            WHERE source_id = ? AND type = 'live' AND (item_id = ? OR item_id = ?) LIMIT 1
-        `).get(sourceId, raw, stripped)?.stable_id || null;
-    } catch (e) {
-        return null;   // never the reason a recording cannot be scheduled
-    }
+    return providerRouting.channelIdentity(sourceId, channelItemId)?.stableId || null;
 }
 
+/**
+ * A schedule's stream address: providerRouting.streamUrlFor (D-6, #274), the same resolve a play makes, with
+ * the schedule's identity (DVR-2: on M3U, that identity only) and `buildUnlistedXtream` - a recording scheduled
+ * earlier is still attempted on Xtream when a sync has dropped its stream id from the list.
+ * Throws plain Errors with the texts a failed schedule has always shown (its `error`).
+ */
 async function resolveStreamUrl(sourceId, channelItemId, stableId = null) {
-    const source = await sourcesDb.getById(sourceId);
-    if (!source) throw new Error(`Source ${sourceId} not found`);
-
-    if (source.type === 'xtream') {
-        const api = xtreamApi.createFromSource(source);
-        return api.buildStreamUrl(channelItemId, 'live', 'ts');
-    }
-
-    // M3U (and anything else synced into playlist_items) - stream URL lives in
-    // the stored item data (see syncService.saveStreams / m3uParser).
-    //
-    // The client identifies a channel by its composite id (m3u_<source>_<item>),
-    // which is what the EPG row carries, but playlist_items stores the bare
-    // item_id. Accept either, and the fully-qualified `id` column too, so a
-    // schedule stored by any of those forms still resolves.
-    const db = getDb();
-    const raw = String(channelItemId);
-    const stripped = raw.replace(/^(?:m3u|xtream)_\d+_/, '');
-
-    // The identity when the schedule carries one: it is what the schedule is FOR, and unlike the
-    // position it still means the same channel after a reorder. DVR-2 (0228): ONLY the identity -
-    // when that channel has gone, its old position may now be another channel's, and recording
-    // that instead is worse than failing. The position is for schedules that never had an identity.
-    // Ordered by position so a channel listed in several categories resolves to the same row every time.
-    const item = stableId ? db.prepare(`
-        SELECT stream_url, data FROM playlist_items
-        WHERE source_id = ? AND type = 'live' AND stable_id = ?
-        ORDER BY CASE WHEN sort_order IS NULL THEN 1 ELSE 0 END, sort_order ASC
-        LIMIT 1
-    `).get(sourceId, stableId) : db.prepare(`
-        SELECT stream_url, data FROM playlist_items
-        WHERE source_id = ? AND type = 'live'
-          AND (item_id = ? OR item_id = ? OR id = ?)
-        LIMIT 1
-    `).get(sourceId, raw, stripped, `${sourceId}:${stripped}`);
-
-    if (!item) throw new Error(`Channel ${channelItemId} not found for source ${sourceId}`);
-
-    if (item.stream_url) return item.stream_url;
-
     try {
-        const data = JSON.parse(item.data || '{}');
-        if (data.url) return data.url;
-        if (data.stream_url) return data.stream_url;
-    } catch (e) { /* fall through */ }
-
-    throw new Error(`No stream URL available for channel ${channelItemId}`);
+        return await providerRouting.streamUrlFor({ sourceId, channelId: channelItemId, stableId, buildUnlistedXtream: true });
+    } catch (err) {
+        if (err && err.unresolved === providerRouting.UNRESOLVED.source) throw new Error(`Source ${sourceId} not found`);
+        if (err && err.unresolved === providerRouting.UNRESOLVED.channel) throw new Error(`Channel ${channelItemId} not found for source ${sourceId}`);
+        if (err && err.unresolved === providerRouting.UNRESOLVED.url) throw new Error(`No stream URL available for channel ${channelItemId}`);
+        throw err;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -208,12 +162,7 @@ async function resolveStreamUrl(sourceId, channelItemId, stableId = null) {
  */
 function currentItemId(source, schedule) {
     if (!source || source.type === 'xtream' || !schedule.channel_stable_id) return schedule.channel_item_id;
-    const row = getDb().prepare(`
-        SELECT item_id FROM playlist_items
-        WHERE source_id = ? AND type = 'live' AND stable_id = ?
-        ORDER BY CASE WHEN sort_order IS NULL THEN 1 ELSE 0 END, sort_order ASC
-        LIMIT 1
-    `).get(schedule.source_id, schedule.channel_stable_id);
+    const row = providerRouting.channelRow(schedule.source_id, null, schedule.channel_stable_id);
     return row ? row.item_id : null;
 }
 
@@ -353,13 +302,11 @@ async function announceProviderFor(schedule, settings) {
 function programmeImage(sourceId, channelItemId, programStart) {
     try {
         const db = getDb();
-        const raw = String(channelItemId).replace(/^(?:m3u|xtream)_\d+_/, '');
+        const raw = bareChannelId(channelItemId);
         const row = db.prepare(`SELECT item_id, stable_id, tvg_id, data FROM playlist_items
             WHERE source_id = ? AND type = 'live' AND (item_id = ? OR stable_id = ?) LIMIT 1`).get(sourceId, raw, raw);
         if (!row) return null;
-        let tvgId = row.tvg_id || null;
-        if (!tvgId) { try { const d = JSON.parse(row.data || '{}'); tvgId = d.tvgId || d.epg_channel_id || null; } catch (e) { tvgId = null; } }
-        tvgId = require('./epgMapping').effectiveTvgId(sourceId, row.stable_id, row.item_id, tvgId);
+        const tvgId = require('./epgMapping').rowTvgId(sourceId, row);
         if (!tvgId) return null;
         const prog = db.prepare(`SELECT data FROM epg_live WHERE channel_id = ? AND start_time BETWEEN ? AND ?
             ORDER BY ABS(start_time - ?) LIMIT 1`).get(tvgId, programStart - 60000, programStart + 60000, programStart);
@@ -399,7 +346,7 @@ async function scheduleFromProgram({
 }) {
     if (!sourceId || !channelItemId) throw new Error('sourceId and channelItemId are required');
     // Store the bare item_id, not the client's composite m3u_<source>_<item>
-    channelItemId = String(channelItemId).replace(/^(?:m3u|xtream)_\d+_/, '');
+    channelItemId = bareChannelId(channelItemId);
     if (!programStart || !programEnd || programEnd <= programStart) {
         throw new Error('Valid programStart/programEnd are required');
     }

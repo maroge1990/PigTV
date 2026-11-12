@@ -15,6 +15,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { getDb } = require('../db/sqlite');
+const { bareChannelId } = require('../services/channelIds');
 const { redact } = require('../redact');
 const { MESSAGES: FAILURE_TEXT, clientSafe } = require('../services/playbackErrors');
 const playbackStrategy = require('../services/playbackStrategy');
@@ -41,7 +42,7 @@ function isSuperseded(owner, generation) {
 function channelNameFor(sourceId, channelId) {
     if (sourceId === undefined || channelId === undefined) return null;
     try {
-        const stripped = String(channelId).replace(/^(?:m3u|xtream)_\d+_/, '');
+        const stripped = bareChannelId(channelId);
         return getDb().prepare(`
             SELECT name FROM playlist_items WHERE source_id = ? AND type = 'live' AND item_id = ? LIMIT 1
         `).get(parseInt(sourceId), stripped)?.name || null;
@@ -456,7 +457,7 @@ function everyProviderMessage(conflict) {
 function recordHistory(req, sourceId, channelId) {
     if (sourceId !== undefined && channelId !== undefined && req.user) {
         try {
-            const stripped = String(channelId).replace(/^(?:m3u|xtream)_\d+_/, '');
+            const stripped = bareChannelId(channelId);
             // Name and identity from the same lookup: the identity is what makes
             // the row survive the provider reordering its playlist.
             const row = getDb().prepare(`

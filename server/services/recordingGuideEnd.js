@@ -73,9 +73,7 @@ function tvgIdFor(db, schedule) {
             WHERE source_id = ? AND type = 'live' AND item_id = ? LIMIT 1
         `).get(schedule.source_id, schedule.channel_item_id);
     if (!row) return null;
-    let tvg = row.tvg_id || null;
-    if (!tvg) { try { const d = JSON.parse(row.data || '{}'); tvg = d.tvgId || d.epg_channel_id || null; } catch { tvg = null; } }
-    return epgMapping.effectiveTvgId(schedule.source_id, row.stable_id, row.item_id, tvg);
+    return epgMapping.rowTvgId(schedule.source_id, row);
 }
 
 /** Apply guideEndFor to every pending/running schedule. Returns [{ id, from, to, guideEnd }]. */

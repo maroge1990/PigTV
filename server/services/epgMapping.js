@@ -25,6 +25,7 @@
  * 24 hours are offered: mapping to one without would not fix anything.
  */
 const { getDb } = require('../db/sqlite');
+const { bareChannelId } = require('./channelIds');
 const { bumpLibraryRev } = require('./libraryRev');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -56,6 +57,17 @@ function overrideFor(sourceId, stableId, itemId) {
 /** The tvg-id the library should use for a channel: the admin's mapping, else the playlist's. */
 function effectiveTvgId(sourceId, stableId, itemId, playlistTvgId) {
     return overrideFor(sourceId, stableId, itemId) || playlistTvgId || null;
+}
+
+/**
+ * A playlist row's guide id (D-6, #274: the one copy): the indexed tvg_id column, else the stored data's
+ * tvgId / epg_channel_id (rows from before the column), then the admin's mapping over it (effectiveTvgId).
+ * `row` needs item_id, stable_id, tvg_id and data.
+ */
+function rowTvgId(sourceId, row) {
+    let tvgId = row.tvg_id || null;
+    if (!tvgId) { try { const d = JSON.parse(row.data || '{}'); tvgId = d.tvgId || d.epg_channel_id || null; } catch (e) { tvgId = null; } }
+    return effectiveTvgId(sourceId, row.stable_id, row.item_id, tvgId);
 }
 
 // ---- name similarity --------------------------------------------------------
@@ -294,7 +306,7 @@ function listMappings() {
  */
 function setMapping(sourceId, channelId, tvgId) {
     const db = getDb();
-    const stripped = String(channelId).replace(/^(?:m3u|xtream)_\d+_/, '');
+    const stripped = bareChannelId(channelId);
     const row = db.prepare(`
         SELECT COALESCE(stable_id, item_id) AS channel_key FROM playlist_items
         WHERE source_id = ? AND type = 'live' AND item_id = ? LIMIT 1
@@ -369,7 +381,7 @@ function autoMapBatches() {
 function reset() { cache = null; }
 
 module.exports = {
-    effectiveTvgId, overrideFor, unmatched, searchEpgChannels, listMappings, setMapping,
+    effectiveTvgId, rowTvgId, overrideFor, unmatched, searchEpgChannels, listMappings, setMapping,
     normaliseName, similarity, reset, MAX_TVG_ID,
     // R10
     regionOfTvgId, regionOfChannel, regionAdjusted, autoMapPreview, autoMapApply, autoMapUndo, autoMapBatches, AUTO_THRESHOLD
