@@ -14,8 +14,10 @@ live parts of `SWIFT-CLIENT-HANDOFF.md` on 13 October 2026; their history (the C
   on is supported: `guideCursor`, `guideVersion`, `channelNumbers`, `channelHealth`, `scheduleHistory`, `devicePairing`,
   `providerReminders`, `clientEvents`, `livePause`, `playbackTerminalStatus`, `recordingPlaybackPolling`, `recordingPositions`,
   `recordingWatchLive`, `recordingRules`, `recordGameRules`, `warming`, `epgLogoFallback`. It still reads `channelQuality`,
-  `sportsEvents`, `sportFollows` and the computed sport flags. It no longer reads `sportFront` or `sportsDashboard` (the Sport tab is
-  always the front page, D-54) and, from Apple 193, never calls `GET /api/sports/dashboard`, `GET /api/library/recent`,
+  `sportsEvents`, `sportFollows` and the computed sport flags. It no longer reads `sportFront` or `sportsDashboard` to choose the Sport tab (it is
+  always the front page, D-54); from Apple 225 (#278) it reads them only to skip `GET /api/sports/preferences` when both are
+  `false` (the route is a 404 then), and asks as before when `/api/info` gives no answer. From Apple 227 (#203) it reads a
+  card's and an F1 session's `onAir` (absent or not `true`: not on air). From Apple 193 it never calls `GET /api/sports/dashboard`, `GET /api/library/recent`,
   `GET /api/sources` or `proxy/epg/<id>`. On servers 0476 to 0502 with scores off its Sport tab shows the front page's error state.
 - Every change is **additive** unless both sides change together. Anything in §2 changes only with a matching client change.
 - A change the client can see (including anything in `transcodeSession.js` / `playbackStrategy.js`) is written into this

@@ -5,10 +5,21 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 12 Nov 2026 (audit batches E, #273, J, #278, and F, #274; H, L and D the day before).*
+*Overwritten at the end of every session. 14 Nov 2026 (batch Apple 1, Apple 219 to 239; the read-only checks after v0579).*
 
 - **Released:** server **v0579** (`:release`, 13 Nov; v0577 the day before) and Apple **218** uploaded to TestFlight
-  (tvOS and iOS, 12 Nov). A release runs on Mark's go-ahead (D-45). Next builds: server **0580**, Apple **219**.
+  (tvOS and iOS, 12 Nov). A release runs on Mark's go-ahead (D-45). Next builds: server **0580**, Apple **240**. Apple 239 is pushed, not uploaded.
+- **14 Nov, batch Apple 1 pushed, Apple 219 to 239 (`PigTV-Swift` `2e4ddf7`):** Mark's three layout faults (#310 a
+  record mark is a corner icon, so a marked card keeps its size; #311 Apple TV Recordings' Coming up on the first screen
+  with nothing recorded; #312 the Sport strip no longer jolts the focused row), #278's five faults (the cricket Hide
+  scores chip removed, Mark's pick; the iPhone LIVE pill; "Suspended"; no `sports/preferences` 404 when the server's
+  sport flags are off; the ChannelWarmer flake), #298 (iPad F1 and banner widths, largest text), #293 (tint
+  everywhere, Mark's pick; the brand test hardened), #203 ("On air · starts …", D-42), #301's three lows.
+  `Tools/test.sh all` passed on 239. Reviews: Codex 1 medium, Opus 2 mediums, all fixed (236, 238) and signed off by
+  Codex; lows filed as #313. Evidence: `docs/evidence/2026-11-14-apple1/`. Not uploaded to TestFlight (Mark away).
+- **Read-only checks after v0579 (14 Nov):** #237 and #247 closed on their figures; #273 partly read (no busy-period
+  rate, no baseline); #29 needs the Status page's figures from Mark (admin sign-in). Production's container runs the
+  `:latest` image, not `:release` (D-45): to raise with Mark before the next server push.
 - **The 10 Nov audit** was filed as batch issues #269–#280; each issue's first comment holds the detail and later
   comments Mark's decisions. Pushed: A (#269), I (#277), C (#271), B (#270), G (#275), K (#279), H (#276), L (#280),
   D (#272, with #281), E (#273), J (#278), F (#274). The audit's batches are all pushed.
@@ -84,7 +95,7 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
   - #288: how long a recording keeps trying when every provider is down. #304: should a single-provider stall show
     the provider as down. #307: the provider's host in three log lines. #232: Top Shelf, snapshot or live.
   - The Appdata Backup setting: don't stop PigTV, or move it from Sunday 04:00. #240. #266's rows.
-  - Whether #293's missing focus tint is fixed before the next TestFlight build. #295's colour point (brand kit).
+  - #295's colour point (brand kit). Production on `:latest` rather than `:release`: switch it back, or record why.
 - **Open investigation:** #3 (sound out of step on the iPad): the relay join measured clean; the device meter (#267)
   and the marker (#268) are filed, not built (Mark).
 - **Next:** the batches under Now, regrouped on 12 Nov after every open issue was read against 0577 and 218.
@@ -94,44 +105,44 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 Batches regrouped on 12 Nov 2026 after the audit (every open issue read against server 0577 and Apple 218). Each is one
 theme and one review round. Order within a section is the order to take them.
 
-1. **Apple 1, the five faults seen during batch J** (last comments on #278; Mark: fix), with #301, #298, #293's
-   simulator items and #203's "On air" wording. Simulators against the rig.
-2. **Server 1, recording follow-ups** (full review rule): #302 gap note · #286 low-disk reason · #305 waiting reason ·
+1. **Server 1, recording follow-ups** (full review rule): #302 gap note · #286 low-disk reason · #305 waiting reason ·
    #303 one schedule per failed read · #306 log text; #304 and #288 join once Mark has answered them.
-3. **Server 2, Status and sign-in:** #299 provider names · #300 device rows of a deleted user · #61's warming line ·
+2. **Server 2, Status and sign-in:** #299 provider names · #300 device rows of a deleted user · #61's warming line ·
    #307 once Mark has answered. Codex (sign-in code).
-4. **Apple 2, iPadOS and iOS 17+ (#262):** seven sites need fallbacks, not three; redo the 17.0 trial build.
+3. **Apple 2, iPadOS and iOS 17+ (#262):** seven sites need fallbacks, not three; redo the 17.0 trial build.
 
 ## Next
 
-5. **Server 3, the rest of the share:** #289 (segment copies, the owners' sweep, the route's access checks, ad
+4. **Server 3, the rest of the share:** #289 (segment copies, the owners' sweep, the route's access checks, ad
    detection) · #290 items 1 and 2. Full review rule.
-6. **Server 4, key-frame join edge cases (#309, full review rule):** the fallback's byte budget, the video PID from
+5. **Server 4, key-frame join edge cases (#309, full review rule):** the fallback's byte budget, the video PID from
    complete PMTs, duplicate table packets, high-bitrate feeds.
-7. **Sport 1, matching:** #296 (a listing with no English name), with what #231 left. Full review rule.
-8. **Sport 2, one source for the sport pages:** #297 · #282 · #29's re-measure; then #291 (after a read of production's
+6. **Sport 1, matching:** #296 (a listing with no English name), with what #231 left. Full review rule.
+7. **Sport 2, one source for the sport pages:** #297 · #282 · #29's re-measure; then #291 (after a read of production's
    settings; its item 2 is partly wrong, see the issue).
-9. **Sport 3, pickers:** #265 step 2 · #266 (server and Apple), once Mark confirms the rows.
-10. **Web 1:** #62 play errors · #63 first run without a Home page · #64 Settings.js and sign-out · #292 · #295.
+8. **Sport 3, pickers:** #265 step 2 · #266 (server and Apple), once Mark confirms the rows.
+9. **Web 1:** #62 play errors · #63 first run without a Home page · #64 Settings.js and sign-out · #292 · #295.
 
 ## Later (each needs a capture, a real provider, a device or a design choice first)
 
 - **A/V sync:** #267 meter · #268 marker, then #3 and #27. **Relay and recovery (released alone, D-25):** #4 · #41's
   transition table and invariant test · #74 · #30. **Start speed:** #240 · #36 · #38.
 - **Operations:** #43 · #44 · #45 · #28. **Tests:** #26, and the stored replay for #22 to #24 re-run after 0551.
-- **Apple launch and tests:** #54 · #55 · #53 · the flaky ChannelWarmer test · #283. **Apple structure:** #50 · #51.
+- **Apple launch and tests:** #54 · #55 · #53 · #283 · #313 (Apple 1's review lows). **Apple structure:** #50 · #51.
 - **Apple player:** #25 · #35 · #58 · #308 (Start over from live) · #101. **Apple, design first:** #56 · #57 · #232.
   **Brand kit:** #294.
 
 ## Waiting on Mark (no code is waiting; steps are on each issue)
 
-- **Device passes, on a release that includes 0577 and a TestFlight build from 218:**
+- **Device passes, on a release that includes 0577 and a TestFlight build from 218 (Apple 1's items need one from 239):**
   - Playback: #5 · #6 · #7 · #14 · #18 · #19 · #33 · #37 · #46 · #49.
   - Recording day: #12 · #17 · #31 · #32 · #217 · #246 · #260 (P0) · #271 · #274.
   - Sport: #20 · #191 to #199 · #200 to #202 · #204 · #205 · #210 to #216 · #218 · #223 · #230 · #233 · #234 · #261 ·
     #263 · #264; at a real event: #22 to #24 · #206 · #222 · #231 · #235.
-  - Layout and brand: #190 · #211 · #225 to #229 · #243 · #277 to #280.
-- **Read-only checks after a release (Claude runs them):** #237 · #247 · #273 · #29; #259 at the next race.
+  - Layout and brand: #190 · #211 · #225 to #229 · #243 · #277 to #280; from 239: #310 · #311 · #312 · #298 · #293 · #203 ·
+    #278's five · #301.
+- **Read-only checks after a release (Claude runs them):** #273 (busy-period rate) · #29 (Mark's Status figures); #259 at
+  the next race.
 - **#21** (the sport rebuild) closes when the sport pass is done: everything under it is built or filed.
 
 **Parked (P3):** #188 lists everything; `gh issue list --state closed --label parked`.
