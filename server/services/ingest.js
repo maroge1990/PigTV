@@ -464,7 +464,8 @@ class Ingest extends EventEmitter {
             const key = keyframeJoin(joined);
             const backlog = key.at >= 0 ? key.tables.length * TS_PACKET + joined.length - key.at : 0;
             if (key.at >= 0 && backlog <= tuning.slowBytes) {
-                sub.deliverBacklog([Buffer.concat(key.tables.map(o => joined.subarray(o, o + TS_PACKET))), joined.subarray(key.at)]);
+                // Copies: a subarray would keep the whole look-back window alive while the reader reads.
+                sub.deliverBacklog([Buffer.concat(key.tables.map(o => joined.subarray(o, o + TS_PACKET))), Buffer.from(joined.subarray(key.at))]);
                 return sub;
             }
             // Once per feed for each kind of fallback: the stream gave no key frame, or it was too far back.
@@ -482,7 +483,7 @@ class Ingest extends EventEmitter {
         if (tail.length) {
             const joined = Buffer.concat(tail);
             const at = lastPatOffset(joined);
-            if (at >= 0 && joined.length - at <= tuning.slowBytes) sub.deliverBacklog([joined.subarray(at)]);
+            if (at >= 0 && joined.length - at <= tuning.slowBytes) sub.deliverBacklog([Buffer.from(joined.subarray(at))]);
             else if (at >= 0) {
                 // #309: over the same budget (sparse PATs, a burst), handing it over would end the
                 // reader here, before its consumer listens. It waits for the feed's next PAT instead.

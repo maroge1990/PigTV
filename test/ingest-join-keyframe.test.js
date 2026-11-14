@@ -260,6 +260,25 @@ test('#309 review: a reader waiting for a PAT that never comes is ended with a r
     assert.equal(said.length, 1, lines.join('\n'));
 });
 
+test('#309 review: a joiner\'s backlog is its own copy, so it does not keep the whole look-back window in memory', async () => {
+    // Opus review of #309, medium 2: the backlog was a view into the concatenated look-back window
+    // (up to the 48 MB ring), so every joiner pinned that copy until it had read its backlog.
+    await openAndWait('/rai', { minFrame: 150 }); // 6 s in: a full look-back, about 6x the backlog
+    const held = (sub) => (sub._readableState.buffer || []).filter(Boolean);
+    for (const old of [false, true]) {
+        if (old) T.slowBytes = 2048; // the old join, from the newest PAT
+        const sub = await ingest.subscribe({ pool: 'j', url: `${base}/rai`, purpose: 'viewer' });
+        const chunks = held(sub);
+        const total = chunks.reduce((n, c) => n + c.length, 0);
+        assert.ok(total > 0, 'it was handed a backlog');
+        for (const c of chunks) {
+            assert.ok(c.buffer.byteLength <= Math.max(total, Buffer.poolSize),
+                `a ${c.length} B backlog chunk holds ${c.buffer.byteLength} B of memory (backlog ${total} B, ${old ? 'old join' : 'key frame'})`);
+        }
+        sub.leave();
+    }
+});
+
 test('the buffer keeps the look-back window even when bufferMs is shorter, and no more than that', async () => {
     T.bufferMs = 500;
     T.joinLookbackMs = 3000;
