@@ -507,7 +507,13 @@ class LoopDetector {
         if (!this.verdict) return;
         const v = this.video;
         if (v.judged) v.judged.askAt = v.runSec() + Math.max(v.judged.period, tuning.minRunSec);
+        this.armedRun = v.runStart;
         this.verdict = null;
+    }
+
+    /** After rearm: is the run that was found still going on (the feed still repeating the same clip)? */
+    stillRepeating() {
+        return this.armedRun !== undefined && this.armedRun !== null && this.video.period > 0 && this.video.runStart === this.armedRun;
     }
 
     describe() {

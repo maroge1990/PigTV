@@ -332,7 +332,7 @@ class StatusPage {
         }
         const ing = status.ingest;
         if (ing && (ing.enabled || ing.ingests.length)) {
-            const rows = ing.ingests.map(i => `<li>Ingest ${e(i.id)} · ${e(i.state)} · ${e(i.subscribers.length)} reading (${i.subscribers.map(s => e(s.purpose || '?')).join(', ')}) · ${e(i.kbps)} kb/s · buffer ${e(Math.round(i.bufferBytes / 1048576))} MB · ${e(i.reconnects)} reconnects${typeof i.behindSec === 'number' ? ` · ${e(i.behindSec)} s behind real time (most ${e(i.maxBehindSec)} s)` : ''}</li>`).join('');
+            const rows = ing.ingests.map(i => `<li>Ingest ${e(i.id)} · ${e(i.state)} · ${e(i.subscribers.length)} reading (${i.subscribers.map(s => e(s.purpose || '?')).join(', ')}) · ${e(i.kbps)} kb/s · buffer ${e(Math.round(i.bufferBytes / 1048576))} MB · ${e(i.reconnects)} reconnects${typeof i.behindSec === 'number' ? ` · ${e(i.behindSec)} s behind real time (most ${e(i.maxBehindSec)} s)` : ''}${i.repeatingNote ? ` · <span class="status-event status-failure">${e(i.repeatingNote)}</span>` : ''}</li>`).join('');
             html.push(`<h4>Shared provider connections</h4>${rows ? `<ul>${rows}</ul>` : '<p class="setting-hint">None open.</p>'}`
                 + (ing.recent.length ? `<p class="setting-hint">Last closed: ${ing.recent.map(r => `ingest ${e(r.id)} (${e(r.why)})`).join(', ')}</p>` : ''));
         }
@@ -437,6 +437,12 @@ class StatusPage {
         return ` · ${one('ffmpeg')} · ${one('ffprobe')}${origins.length ? ` (${e(origins.join(', '))})` : ''}`;
     }
 
+    /** A recent play's reason as shown: #324's `repeating: …` reads "Feed repeating the same clip: …". */
+    reasonText(reason) {
+        const text = String(reason || '');
+        return text.startsWith('repeating: ') ? `Feed repeating the same clip: ${text.slice('repeating: '.length)}` : text;
+    }
+
     /** 0288: things wrong right now that are not in a table above (a provider that failed to sync, recordings stuck in appdata). */
     renderAttention(status) {
         const e = (v) => UI.escape(v);
@@ -519,7 +525,7 @@ class StatusPage {
                 `<span class="status-event status-${e(ev.type)}">${e(label[ev.type] || ev.type)}</span>`,
                 e(ev.channel || 'unknown'), e(ev.ownerName || ev.owner || '–'), e(ev.start || '–'),
                 ev.firstPictureSec !== null && ev.firstPictureSec !== undefined ? this.amt(`${ev.firstPictureSec.toFixed(1)}s`) : '–',
-                ev.type === 'failure' || ev.type === 'relay' ? e(ev.reason || '')
+                ev.type === 'failure' || ev.type === 'relay' ? e(this.reasonText(ev.reason))
                     : ev.type === 'play-end' ? `watched ${this.duration(ev.watchedSec)}, ${ev.stalls ?? 0} stall${ev.stalls === 1 ? '' : 's'}`
                         : e([ev.strategy, ev.videoMode].filter(Boolean).join(', '))
             ]),

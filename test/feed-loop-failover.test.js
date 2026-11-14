@@ -109,6 +109,11 @@ before(async () => {
             serve(res, data, { pauseAt: Math.floor(data.length / 10), wait: gate });
             return;
         }
+        if (req.url === '/loop-then-live.ts') {
+            // The loop's four passes, then other programming that goes on (a fresh encode, timestamps carrying on).
+            serve(res, Buffer.concat([feeds.loop, feeds.after4].map(f => fs.readFileSync(f))));
+            return;
+        }
         if (req.url === '/resend.ts') {
             // The first connection: one pass of the clip, then the provider drops it. The reconnect: the
             // same clip twice more with fresh timestamps (a resend), and the connection stays open.
@@ -426,4 +431,23 @@ for (const [label, setUp, undo] of [
         assert.equal(feed.endReason, null);
         feed.leave();
     } finally { out.restore(); undo(); }
+});
+
+// Opus #324: the note a looping feed carries while it plays on was never cleared when the provider went back to its
+// programme. Here: the loop's four passes with nowhere to go, then other programming.
+test('when a looping feed that played on stops repeating, Status no longer says so', { skip }, async () => {
+    routing.quarantine(B.id, '504'); // nowhere to go
+    gate = Promise.resolve();
+    const out = captureLog();
+    try {
+        const cand = { ...candA, url: `${base}/loop-then-live.ts` };
+        const feed = await ingest.subscribe({ ...ingest.sourceFor(cand, await settingsNow(), channelRef), purpose: 'viewer', owner: 'device:tv' });
+        feed.resume();
+        await until(() => out.lines.some(l => l.includes('no other provider for this channel: it plays on')), 'kept', 20000);
+        await until(() => out.lines.some(l => l.includes('is no longer repeating the same clip on "FOX Footy"')), 'stopped', 20000);
+        const shown = ingest.list().find(i => i.id === feed.ingest.id);
+        assert.equal(shown.repeatingNote, null, 'Status no longer says it repeats');
+        assert.equal(feed.endReason, null);
+        feed.leave();
+    } finally { out.restore(); }
 });

@@ -349,6 +349,7 @@ class Ingest extends EventEmitter {
         for (const sub of [...this.subs]) sub.deliver(chunk);
         const loop = this.loop && this.loop.push(chunk);
         if (loop && !this.loopDeciding) this.onLoop(loop);
+        else if (this.looping && this.looping.note && this.loop && !this.loopDeciding && !this.loop.stillRepeating()) this.loopEnded();
     }
 
     /**
@@ -394,6 +395,13 @@ class Ingest extends EventEmitter {
             }
             if (this.loop) this.loop.rearm(); // asked again once the same run has gone on one more period
         });
+    }
+
+    /** #324 (Opus): a loop that was played on has stopped: Status no longer says so, and a new one is said again. */
+    loopEnded() {
+        this.log(`${this.providerName || 'the provider'} is no longer repeating the same clip${this.channel ? ` on "${this.channel}"` : ''}`);
+        this.looping = null;
+        this.loopKeptNoted = false;
     }
 
     /** #324: another feed of this channel that could take over now, or null (none, or the channel is not known). */

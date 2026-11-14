@@ -355,3 +355,34 @@ test('#61: the page draws the warming line from the summary a details=0 response
     const html = h.page.render({ providers: [], sessions: [], recordings: { active: [], upcoming: [] }, warming: { enabled: true, active: 3 } });
     assert.ok(html.includes('Warming: 3 channels ready'));
 });
+
+// #324 (Opus): a looping feed that plays on (no other provider) is shown on its shared-connection row, and the recent
+// plays word the `repeating` reason for a person.
+test('Status shows a feed repeating the same clip on its ingest row and in the recent plays', async () => {
+    const elements = { 'status-content': { innerHTML: '', querySelector: () => null, addEventListener: () => {} }, 'status-updated': { textContent: '' } };
+    const note = 'Strong8K is repeating the same 36 s clip; no other provider for this channel';
+    const status = {
+        generatedAt: Date.now(), build: { display: 'build 0650' }, sessions: [], recordings: { active: [], upcoming: [] },
+        events: [{ at: Date.now(), type: 'relay', channel: 'FOX Footy', provider: 'Strong8K', reason: `repeating: ${note}` }],
+        ingest: { enabled: true, recent: [], ingests: [{ id: 3, state: 'live', subscribers: [{ purpose: 'viewer' }], kbps: 4700, bufferBytes: 0, reconnects: 0, repeatingNote: note }] },
+        sync: [], disk: { transcodeCache: { available: false }, recordings: { available: false } }
+    };
+    const context = vm.createContext({
+        console, localStorage: { getItem: () => 'tok' }, document: { getElementById: (id) => elements[id] || null },
+        setInterval: () => 1, clearInterval: () => {},
+        fetch: async () => ({ ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => status })
+    });
+    context.window = context;
+    loadUi(context);
+    vm.runInContext(js('api.js'), context);
+    loadUi(context);
+    vm.runInContext(js('pages/StatusPage.js'), context);
+    const page = new context.StatusPage({});
+    page.showDetails = true;
+    page.show();
+    await new Promise(r => setImmediate(r));
+    const html = elements['status-content'].innerHTML;
+    assert.ok(html.includes(`Ingest 3`) && html.includes(note), 'the ingest row says it repeats, and why it plays on');
+    assert.ok(html.includes(`Feed repeating the same clip: ${note}`), 'the recent play is worded');
+    assert.ok(!html.includes('repeating: Strong8K'), 'not the raw code');
+});

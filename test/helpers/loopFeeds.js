@@ -27,9 +27,9 @@ function makeFeeds(dir, { clipSec = 24, passes = 4 } = {}) {
     const total = clipSec * passes;
     const feeds = {
         clip: f('clip.ts'), loop: f('loop.ts'), live: f('live.ts'), slate: f('slate.ts'), slateLongGop: f('slate-long-gop.ts'),
-        loopLiveSound: f('loop-live-sound.ts'), loopSilent: f('loop-silent.ts'), clipVideo: f('clip-video.ts'), shifted: f('shifted.ts'), shifted2: f('shifted2.ts'), twiceThenLive: f('twice-then-live.ts'), clipSec, total
+        loopLiveSound: f('loop-live-sound.ts'), loopSilent: f('loop-silent.ts'), clipVideo: f('clip-video.ts'), shifted: f('shifted.ts'), shifted2: f('shifted2.ts'), after4: f('after4.ts'), twiceThenLive: f('twice-then-live.ts'), clipSec, total
     };
-    if (fs.existsSync(feeds.twiceThenLive)) return feeds;
+    if (fs.existsSync(feeds.twiceThenLive) && fs.existsSync(feeds.after4)) return feeds;
     ffmpeg([...moving(clipSec), ...noise(clipSec, 1), ...VIDEO, ...AUDIO, '-f', 'mpegts', feeds.clip]);
     ffmpeg(['-stream_loop', String(passes - 1), '-i', feeds.clip, '-c', 'copy', '-f', 'mpegts', feeds.loop]);
     // The clip again as its next pass would come: the same payloads, timestamps one period later.
@@ -40,6 +40,9 @@ function makeFeeds(dir, { clipSec = 24, passes = 4 } = {}) {
     const after = f('after.ts');
     ffmpeg(['-ss', '300', '-f', 'lavfi', '-i', `testsrc2=size=320x180:rate=25:duration=${300 + total}`, ...noise(total, 4), '-t', String(total),
         ...VIDEO, ...AUDIO, '-output_ts_offset', String(2 * clipSec), '-f', 'mpegts', after]);
+    // Other programming after the loop's last pass.
+    ffmpeg(['-ss', '300', '-f', 'lavfi', '-i', `testsrc2=size=320x180:rate=25:duration=${300 + total}`, ...noise(total, 5), '-t', String(total),
+        ...VIDEO, ...AUDIO, '-output_ts_offset', String(total), '-f', 'mpegts', feeds.after4]);
     fs.writeFileSync(feeds.twiceThenLive, Buffer.concat([feeds.clip, feeds.shifted, after].map(x => fs.readFileSync(x))));
     // A still picture (colour bars), silent: every group of pictures encodes the same.
     ffmpeg(['-f', 'lavfi', '-i', `smptebars=size=320x180:rate=25:duration=${total}`, ...silence(total), ...VIDEO, ...AUDIO, '-f', 'mpegts', feeds.slate]);
