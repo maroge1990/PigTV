@@ -1689,17 +1689,6 @@ class VideoPlayer {
         const nextIdx = currentIdx >= channels.length - 1 ? 0 : currentIdx + 1;
         window.app.channelList.selectChannel({ channelId: channels[nextIdx].id, sourceId: channels[nextIdx].sourceId });
     }
-
-    /**
-     * Toggle fullscreen
-     */
-    toggleFullscreen() {
-        if (document.fullscreenElement) {
-            document.exitFullscreen();
-        } else if (this.container) {
-            this.container.requestFullscreen();
-        }
-    }
 }
 
 // What resolvePlayback returns when the person declined to take the provider's only
