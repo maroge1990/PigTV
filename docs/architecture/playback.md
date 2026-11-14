@@ -131,9 +131,14 @@ toolchain; rollback is in [`../OPERATIONS.md`](../OPERATIONS.md).
 ## Web player
 
 **Web player** (`VideoPlayer.js`, 0102)
-- `play()` always resolves with `segmentedDelivery:true` and plays what comes back. **Recovery = ask the server again, once per
-  selection** (`recoverPlayback`): a failed resolve, or a fatal hls.js error including a segment 404, gets one fresh session. A
-  fatal *media* error is first tried in place (`recoverMediaError`, once). A second failure is shown and never looped.
+- `play()` always resolves with `segmentedDelivery:true` and plays what comes back. **Recovery = ask the server again**
+  (`recoverPlayback`): a failed resolve, or a fatal hls.js error including a segment 404, gets a fresh session (never the
+  dead one, which is given back first). Before the first picture, once per selection. **After it (#321, the Apple model):**
+  up to 3 reconnects in any 10 min, after 0, 3 and 10 s, with "Reconnecting…" on screen; each first asks
+  `terminal-status` and stops with "Playback moved to another device." on `taken-over`. A **stall** is the picture not
+  moving for 35 s while not paused, not seeking and the tab showing; it, and `ended` on a live stream, count as failures.
+  Out of attempts: the session is released and the error has **Try again**. A newer play, Stop, pagehide or sign-out
+  cancels a pending reconnect (the play generation). A fatal *media* error is first tried in place (`recoverMediaError`, once).
 - **Chrome aborts the whole `<video>` on one rejected audio frame.** On an audio `MEDIA_ERR_DECODE`, the player replays once
   with `audioEncode:true` (the session re-encodes only the audio) and remembers the channel in
   `localStorage['pigtv_audio_encode']`.

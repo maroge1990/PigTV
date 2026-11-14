@@ -1,0 +1,55 @@
+/* =====================================================
+   Live TV player additions (#321). Loaded after main.css; uses its tokens.
+   Playback keeps its protected dark media surfaces (DESIGN.md): no glass here.
+   ===================================================== */
+
+/* "Reconnecting…": a pill at the top of the picture while an automatic reconnect waits or runs. Under the in-player
+   question (z-index 60), over the controls. */
+.player-reconnecting {
+  position: absolute;
+  top: var(--space-lg);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--media-panel-strong);
+  color: var(--media-text);
+  border: 1px solid var(--media-boundary);
+  border-radius: var(--radius-full);
+  font-size: var(--text-md);
+  z-index: 55;
+  pointer-events: none;
+}
+
+.player-reconnecting.hidden {
+  display: none;
+}
+
+.player-reconnecting-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--media-boundary);
+  border-top-color: var(--media-accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+/* The error's Try again, and the idle overlay's Resume, sit under their sentence. */
+.player-overlay .player-retry-btn {
+  margin-top: var(--space-md);
+  min-height: 44px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-reconnecting-spinner {
+    animation: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .player-reconnecting {
+    border-color: CanvasText;
+  }
+}

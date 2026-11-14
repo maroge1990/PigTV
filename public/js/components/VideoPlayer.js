@@ -287,6 +287,9 @@ class VideoPlayer {
         // when nothing has played some seconds after loading began.
         this.video.addEventListener('loadstart', () => this.armStartWatch());
         this.video.addEventListener('playing', () => { this.clearStartWatch(); this.notePlaying(); });
+        this.video.addEventListener('playing', () => this.notePictureShown());
+        // #321: a live stream never ends. An end (the session's playlist closed) is a failure, recovered as one.
+        this.video.addEventListener('ended', () => this.handleStreamFailure('The stream ended', 'Ended'));
 
         // Measurement for comparing delivery paths (see reportPlayEnd): a stall is
         // the element running out of data after it had started, not a seek.
@@ -971,6 +974,7 @@ class VideoPlayer {
         this.showNowPlayingOverlay();
         this.fetchEpgData(channel);
         this.startConflictWatch();
+        this.startStallWatch();
         window.dispatchEvent(new CustomEvent('channelChanged', { detail: channel }));
     }
 
@@ -1059,6 +1063,9 @@ class VideoPlayer {
         if (!options.isRetry) {
             this._audioRetryKey = null;
             this._recoveredKey = null;
+            // #321: a fresh selection has shown nothing yet and has its whole reconnect budget.
+            this._hasPlayed = false;
+            this._recoveries = [];
         }
         this._audioEncodeActive = options.audioEncode === true || this.needsAudioEncode(channel);
 
@@ -1067,6 +1074,8 @@ class VideoPlayer {
             // moves the generation on: anything the previous play still awaits is now stale)
             this.stop();
             const generation = this._playGeneration;
+            // #321: an automatic reconnect says so until the new session shows a picture.
+            if (options.reconnect) this.showReconnecting();
             this._resolveAbort = typeof AbortController === 'function' ? new AbortController() : null;
             const signal = this._resolveAbort ? this._resolveAbort.signal : null;
             this.updateTranscodeStatus('hidden');
@@ -1097,34 +1106,199 @@ class VideoPlayer {
             if (!decision || decision.failed) {
                 // #60: asked again only when that can help (never for a channel that is not available)
                 if ((!decision || decision.retry) && this.recoverPlayback('The server could not start this channel')) return;
-                this.loadingSpinner?.classList.remove('show');
-                this.showError(decision?.message || 'This channel could not be started. Try again, or pick another channel.');
+                const words = decision?.message || 'This channel could not be started. Try again, or pick another channel.';
+                this.showFailure(this._hasPlayed ? `The stream ended. ${words}` : words);
                 return;
             }
             await this.playDecision(decision, channel);
         } catch (err) {
             console.error('Error playing channel:', err);
-            this.showError('Failed to play channel');
+            this.showFailure('Failed to play channel');
         }
     }
 
     /**
-     * The web player's recovery, now that there is one path: ask the server again,
-     * once per selection. A fresh resolve gets a fresh HLS session - what the Apple
-     * client does after a failure - so a session that failed to start, or died with a
-     * fatal hls.js error (including a segment 404, which hls.js never retries), gets
-     * one clean second attempt. A second failure is shown and left alone, so it can
-     * never loop. Returns whether a retry was started.
+     * The web player's recovery: ask the server again. A fresh resolve gets a fresh HLS session (the server may pick
+     * the standby or a backup), never the dead one, whose session is given back first.
+     *
+     * Before the first picture: once per selection, straight away (0102). A second failure is shown with Try again.
+     * #321, after the first picture (the Apple model, PlaybackModel.swift #5): up to RECOVERY_DELAYS_MS.length
+     * reconnects in any RECOVERY_WINDOW_MS, the n-th after RECOVERY_DELAYS_MS[n], with "Reconnecting…" on screen;
+     * one more failure in the window is the error, with Try again. Signals that arrive while a reconnect is already
+     * pending are the same failure. Returns whether a retry was started (or is already pending).
      */
     recoverPlayback(reason, { audioEncode = false } = {}) {
         const key = this.channelKey(this.currentChannel);
         // The channel's identity is what is replayed (0121: the web resolves by
         // source + bare id and never holds a stream URL).
-        if (!key || this._recoveredKey === key) return false;
+        if (!key) return false;
+        if (this._reconnectTimer || this._reconnectPending) return true;
+        if (this._hasPlayed) {
+            const delay = this.takeRecoverySlot();
+            if (delay === null) return false;
+            console.warn(`[Player] ${reason}; reconnecting in ${delay / 1000}s`);
+            this.scheduleReconnect(delay, audioEncode);
+            return true;
+        }
+        if (this._recoveredKey === key) return false;
         this._recoveredKey = key;
         console.warn(`[Player] ${reason}; asking the server again`);
         this.play(this.currentChannel, this.currentStreamUrl, { isRetry: true, audioEncode: audioEncode || this._audioEncodeActive });
         return true;
+    }
+
+    /** #321: uses one of the window's reconnects and says how long to wait before it (ms); null when none is left. */
+    takeRecoverySlot() {
+        const now = performance.now();
+        this._recoveries = (this._recoveries || []).filter(t => now - t < VideoPlayer.RECOVERY_WINDOW_MS);
+        if (this._recoveries.length >= VideoPlayer.RECOVERY_DELAYS_MS.length) return null;
+        const delay = VideoPlayer.RECOVERY_DELAYS_MS[this._recoveries.length];
+        this._recoveries.push(now);
+        return delay;
+    }
+
+    /**
+     * #321: the reconnect, after its wait. It belongs to the play that failed (its generation): a newer play, Stop,
+     * pagehide or sign-out (all through stop()) cancels it. Before resolving, the server is asked whether the failed
+     * session was taken over by another device (0094): then this player stops and says so, rather than taking the
+     * stream back.
+     */
+    scheduleReconnect(delay, audioEncode = false) {
+        const generation = this._playGeneration;
+        const failedSession = this.currentSessionId;
+        this.showReconnecting();
+        this._reconnectTimer = setTimeout(async () => {
+            this._reconnectTimer = null;
+            if (generation !== this._playGeneration) return;
+            this._reconnectPending = true;
+            let takenOver = false;
+            try { takenOver = failedSession ? await this.sessionWasTakenOver(failedSession) : false; } finally { this._reconnectPending = false; }
+            if (generation !== this._playGeneration) return;
+            if (takenOver) {
+                this.stop(); // gives the session back (already gone at the server: harmless)
+                this.showError('Playback moved to another device.');
+                return;
+            }
+            this.play(this.currentChannel, this.currentStreamUrl, { isRetry: true, reconnect: true, audioEncode: audioEncode || this._audioEncodeActive });
+        }, delay);
+    }
+
+    /** GET /api/playback/:id/terminal-status (0094): true only for `taken-over`; anything else (or no answer in 5 s) recovers. */
+    async sessionWasTakenOver(sessionId) {
+        try {
+            const token = localStorage.getItem('authToken');
+            const ask = fetch(`/api/playback/${encodeURIComponent(sessionId)}/terminal-status`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+                .then(res => (res && res.ok ? res.json() : null)).catch(() => null);
+            const answer = await Promise.race([ask, new Promise(resolve => setTimeout(() => resolve(null), 5000))]);
+            return !!answer && answer.status === 'taken-over';
+        } catch (err) { return false; }
+    }
+
+    /**
+     * #321: the playing stream failed (a stall, an end, a fatal error hls.js gave up on). Recover, or when the
+     * attempts are used up give the session back and show the error with Try again. Ignored when nothing is playing.
+     */
+    handleStreamFailure(reason, codeName) {
+        if (!this._playing || this._reconnectTimer || this._reconnectPending) return;
+        console.warn(`[Player] ${reason}`);
+        this.reportClientEvent({ ...this.describeMediaError(), event: 'media-error', code: null, codeName, message: reason });
+        this.stopStallWatch();
+        if (this.hls) { this.hls.destroy(); this.hls = null; }
+        this._playingAt = null;
+        if (this.recoverPlayback(reason)) return;
+        this.showFailure(this._hasPlayed ? 'The stream ended. Try again to reconnect.' : 'This channel could not start playing. Try again, or choose another channel.');
+    }
+
+    /** The play is over and could not be recovered: the stream is given back and the error stays, with Try again. */
+    showFailure(message) {
+        if (this._playing || this.currentSessionId) this.stop();
+        this.hideReconnecting();
+        this.loadingSpinner?.classList.remove('show');
+        this.showError(message, { retry: true });
+    }
+
+    /** Try again: the same channel as a fresh selection (a whole new reconnect budget). */
+    retry() {
+        const channel = this.currentChannel;
+        if (!channel) return;
+        this.play(channel, this.currentStreamUrl);
+    }
+
+    // ---- #321: the stall watch ----
+
+    /**
+     * A stall is the picture not moving while it should: currentTime has not advanced for STALL_TIMEOUT_MS while the
+     * stream is not paused, not seeking and the tab is showing (a background tab's player may be held back by the
+     * browser). It covers both a `waiting` that never ends and a frozen frame that still says "playing". Checked once a
+     * second from the moment a session is installed until the play stops.
+     */
+    startStallWatch() {
+        this.stopStallWatch();
+        this._progressAt = performance.now();
+        this._progressTime = this.video ? this.video.currentTime : 0;
+        const tick = () => {
+            this._stallTimer = setTimeout(tick, 1000);
+            this.checkStall();
+        };
+        this._stallTimer = setTimeout(tick, 1000);
+    }
+
+    stopStallWatch() {
+        if (this._stallTimer) clearTimeout(this._stallTimer);
+        this._stallTimer = null;
+    }
+
+    checkStall() {
+        const video = this.video;
+        if (!video || !this._playing || this._reconnectTimer || this._reconnectPending) return;
+        const now = performance.now();
+        const hidden = typeof document !== 'undefined' && document.hidden === true;
+        if (video.paused || video.seeking || hidden || video.currentTime !== this._progressTime) {
+            this._progressTime = video.currentTime;
+            this._progressAt = now;
+            return;
+        }
+        if (now - this._progressAt >= VideoPlayer.STALL_TIMEOUT_MS) {
+            this.handleStreamFailure(`The stream stopped for ${Math.round(VideoPlayer.STALL_TIMEOUT_MS / 1000)} seconds`, 'StallTimeout');
+        }
+    }
+
+    /** The element is showing pictures: the play has played, and a reconnect has worked. */
+    notePictureShown() {
+        if (!this._playing) return;
+        this._hasPlayed = true;
+        this._progressAt = performance.now();
+        this.hideReconnecting();
+    }
+
+    /** "Reconnecting…" over the player (and in the Now playing bar), from the failure until a picture is back. */
+    showReconnecting() {
+        this._reconnecting = true;
+        const doc = this._document || (typeof document !== 'undefined' ? document : null);
+        if (this.container && doc && typeof doc.createElement === 'function') {
+            if (!this._reconnectEl) {
+                const el = doc.createElement('div');
+                el.className = 'player-reconnecting';
+                el.setAttribute('role', 'status');
+                el.setAttribute('aria-live', 'polite');
+                const spinner = doc.createElement('span');
+                spinner.className = 'player-reconnecting-spinner';
+                spinner.setAttribute('aria-hidden', 'true');
+                const text = doc.createElement('span');
+                text.textContent = 'Reconnecting…';
+                el.appendChild(spinner);
+                el.appendChild(text);
+                this._reconnectEl = el;
+            }
+            this._reconnectEl.classList.remove('hidden');
+            if (!this._reconnectEl.parentNode) this.container.appendChild(this._reconnectEl);
+        }
+        this.loadingSpinner?.classList.add('show');
+    }
+
+    hideReconnecting() {
+        this._reconnecting = false;
+        if (this._reconnectEl) this._reconnectEl.classList.add('hidden');
     }
 
     /**
@@ -1170,7 +1344,10 @@ class VideoPlayer {
             console.error('Fatal HLS error:', data);
             this.handleHlsFatal(data);
             hls.destroy();
-            this.recoverPlayback(`HLS failed (${String(data.details || 'unknown')})`);
+            // #321: the session is gone too (a 404 once it was stopped or taken over): one failure, recovered as one.
+            this.stopStallWatch();
+            if (this.recoverPlayback(`HLS failed (${String(data.details || 'unknown')})`)) return;
+            this.showFailure(this._hasPlayed ? 'The stream ended. Try again to reconnect.' : 'This channel could not start playing. Try again, or choose another channel.');
         });
     }
 
@@ -1393,6 +1570,7 @@ class VideoPlayer {
         this._playT0 = null;
         this._playMeta = null;
         this.currentUrl = null;
+        this.hideReconnecting(); // #321: a reconnect whose takeover question was answered "no" is not reconnecting
         this.loadingSpinner?.classList.remove('show');
         this.controlsOverlay?.classList.add('hidden');
         this.overlay?.classList.remove('hidden');
@@ -1528,6 +1706,10 @@ class VideoPlayer {
         // PB5 (0235): whatever an earlier play() still awaits is no longer wanted.
         this._playGeneration = (this._playGeneration || 0) + 1;
         if (this._resolveAbort) { try { this._resolveAbort.abort(); } catch (e) { /* done */ } this._resolveAbort = null; }
+        // #321: a pending reconnect belongs to the play being stopped; the new generation already makes it stale.
+        if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null; }
+        this.stopStallWatch();
+        this.hideReconnecting();
         this.clearStartWatch();
         this.reportPlayEnd();
         this._playT0 = null; // nothing is being timed until the next play() begins
@@ -1831,14 +2013,25 @@ class VideoPlayer {
     /**
      * Show error overlay
      */
-    showError(message) {
+    showError(message, { retry = false } = {}) {
         this.overlay.classList.remove('hidden');
         // #60 (0475 Codex round 1): the message can be the server's own sentence: set as text, never as markup.
         const doc = this._document || document;
+        const content = this.overlay.querySelector('.overlay-content');
+        if (!content) return;
         const p = doc.createElement('p');
         p.style.color = 'var(--color-error)';
         p.textContent = String(message ?? '');
-        this.overlay.querySelector('.overlay-content').replaceChildren(p);
+        content.replaceChildren(p);
+        // #321: the error offers Try again (the same channel, as a fresh selection).
+        if (retry && this.currentChannel) {
+            const button = doc.createElement('button');
+            button.type = 'button';
+            button.className = 'btn btn-primary player-retry-btn';
+            button.textContent = 'Try again';
+            button.addEventListener('click', (e) => { if (e && e.stopPropagation) e.stopPropagation(); this.retry(); });
+            content.appendChild(button);
+        }
     }
 
     /**
@@ -1959,6 +2152,12 @@ VideoPlayer.SUPERSEDED = Symbol('playback-superseded');
 VideoPlayer.SIGNED_OUT = Symbol('playback-signed-out');
 /** #60: whether asking again can help: a provider that refused or did not answer (5xx, 429, 408), never "not available" (404) or a bad request. */
 VideoPlayer.retryable = (status) => status >= 500 || status === 429 || status === 408;
+// #321: the Apple player's numbers (PigTV-Swift PlaybackModel.swift, #5 and #6): after the first picture, up to three
+// reconnects in any 10 minutes, after 0, 3 and 10 s; a picture that has not moved for 35 s (above the 30 s live hold,
+// which can make an ordinary stall last ~30 s) is a failure.
+VideoPlayer.RECOVERY_DELAYS_MS = [0, 3000, 10000];
+VideoPlayer.RECOVERY_WINDOW_MS = 600000;
+VideoPlayer.STALL_TIMEOUT_MS = 35000;
 
 // Export
 window.VideoPlayer = VideoPlayer;

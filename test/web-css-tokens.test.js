@@ -5,7 +5,7 @@ const path = require('node:path');
 
 // #275: a var(--x) that nothing defines silently falls back to the browser's default (Canvas, CanvasText), and a
 // fallback inside var() hides it. Every custom property the pages READ must be DEFINED by a stylesheet they load
-// (main.css, pig-radiance.css, pig-glass.css, and #323's sport.css for the Sport pages) or set from JS.
+// (main.css, pig-radiance.css, pig-glass.css, #323's sport.css for the Sport pages, player.css) or set from JS.
 const PUBLIC = path.join(__dirname, '../public');
 const read = (f) => fs.readFileSync(path.join(PUBLIC, f), 'utf8');
 const noComments = (css) => css.replace(/\/\*[\s\S]*?\*\//g, '');
@@ -14,7 +14,7 @@ const jsFiles = (dir) => fs.readdirSync(path.join(PUBLIC, dir), { withFileTypes:
     return d.isDirectory() ? jsFiles(rel) : d.name.endsWith('.js') ? [rel] : [];
 });
 
-const CSS = ['css/main.css', 'css/pig-radiance.css', 'css/pig-glass.css', 'css/sport.css'];
+const CSS = ['css/main.css', 'css/pig-radiance.css', 'css/pig-glass.css', 'css/sport.css', 'css/player.css'];
 // The three properties pig-glass.css's .pig-concentric expects the element that uses it to set.
 const SET_BY_THE_USER_OF_THE_CLASS = new Set(['--pig-inset', '--pig-outer-radius', '--pig-radius-min']);
 

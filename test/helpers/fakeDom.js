@@ -61,7 +61,7 @@ class FakeElement {
         child.parentNode = this; this.children.push(child); return child;
     }
     append(...nodes) { nodes.forEach(n => this.appendChild(typeof n === 'string' ? Object.assign(new FakeElement('#text', this.ownerDocument), { _text: n }) : n)); }
-    replaceChildren() { this.children.forEach(c => { c.parentNode = null; }); this.children = []; this._text = ''; }
+    replaceChildren(...nodes) { this.children.forEach(c => { c.parentNode = null; }); this.children = []; this._text = ''; nodes.forEach(n => this.appendChild(n)); }
     remove() { if (this.parentNode) { this.parentNode.children.splice(this.parentNode.children.indexOf(this), 1); this.parentNode = null; } }
     get isConnected() { let n = this; while (n.parentNode) n = n.parentNode; return n === this.ownerDocument.body || n === this.ownerDocument.documentElement; }
     contains(other) { for (let n = other; n; n = n.parentNode) if (n === this) return true; return false; }
