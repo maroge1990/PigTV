@@ -187,6 +187,8 @@ class EpgGuide {
     async refreshTick({ now = Date.now() } = {}) {
         if (!this.loaded || !this.guideOnScreen()) return false;
         if (this._lastCheck && now - this._lastCheck < EpgGuide.REFRESH_MS - 1000) return false;
+        // #62: the record marks follow the recordings (only the Guide draws them).
+        if (window.app?.currentPage === 'guide') this.loadSchedules().then((ok) => { if (ok) this.syncRecordingMarks(); });
         try {
             const changed = await this.refreshIfChanged();
             if (!changed) return false;
@@ -911,11 +913,12 @@ class EpgGuide {
             const width = (progEnd - progStart) / 60000 * this.pixelsPerMinute;
             const isCurrent = prog.startMs <= now && prog.stopMs > now;
             const isRecordable = canRecord && prog.stopMs > now; // can't record something already over
+            const schedule = canRecord ? this.scheduleFor(channel.sourceId, channel.id, prog.startMs) : null;
 
             html += `
         <div class="epg-program ${isCurrent ? 'current' : ''}"
              role="button" tabindex="0" data-key-activate
-             aria-label="${UI.escape(prog.title || 'Unknown')}, ${UI.time(prog.startMs)}: details"
+             aria-label="${UI.escape(prog.title || 'Unknown')}, ${UI.time(prog.startMs)}${schedule ? `, ${EpgGuide.recordingText(schedule).toLowerCase()}` : ''}: details"
              style="width: ${width}px;"
              data-title="${UI.escape(prog.title || '')}"
              data-description="${UI.escape(prog.description || '')}"
@@ -923,7 +926,7 @@ class EpgGuide {
              data-stop="${prog.stop}"
              data-recordable="${isRecordable}"
              ${channelAttrs}>
-          <div class="epg-program-title">${UI.escape(prog.title || 'Unknown')}</div>
+          <div class="epg-program-title">${EpgGuide.recordingMarkHtml(schedule)}${UI.escape(prog.title || 'Unknown')}</div>
           <div class="epg-program-time pig-amount">
             ${UI.time(prog.startMs)}
           </div>
@@ -983,6 +986,31 @@ class EpgGuide {
     /** The schedules that still matter to the guide: waiting to start, or recording now. */
     static isActiveSchedule(row) {
         return !!row && ['scheduled', 'waiting', 'recording'].includes(row.status);
+    }
+
+    /** What a schedule row says about its programme, for people and for assistive technology. */
+    static recordingText(row) {
+        return row && row.status === 'recording' ? 'Recording now' : 'Recording scheduled';
+    }
+
+    /** #62: the record mark on a guide cell; none when the programme is not scheduled. It has a text alternative. */
+    static recordingMarkHtml(row) {
+        if (!row) return '';
+        const text = EpgGuide.recordingText(row);
+        return `<span class="epg-rec-mark${row.status === 'recording' ? ' recording-now' : ''}" role="img" aria-label="${text}" title="${text}"></span>`;
+    }
+
+    /** Put the record marks right on the cells on screen, after the schedules changed (no redraw of the grid). */
+    syncRecordingMarks() {
+        if (!this.container) return;
+        for (const cell of this.container.querySelectorAll('.epg-program[data-start]')) {
+            const row = cell.dataset.sourceId && cell.dataset.channelId
+                ? this.scheduleFor(cell.dataset.sourceId, cell.dataset.channelId, Date.parse(cell.dataset.start)) : null;
+            const title = cell.querySelector('.epg-program-title');
+            if (title) title.innerHTML = EpgGuide.recordingMarkHtml(row) + UI.escape(cell.dataset.title || 'Unknown');
+            const base = `${cell.dataset.title || 'Unknown'}, ${UI.time(Date.parse(cell.dataset.start))}`;
+            cell.setAttribute('aria-label', `${base}${row ? `, ${EpgGuide.recordingText(row).toLowerCase()}` : ''}: details`);
+        }
     }
 
     /** The active schedule for this airing (same channel, same start), or null. `startMs` in ms. */

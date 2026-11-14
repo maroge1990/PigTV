@@ -23,6 +23,8 @@ class GuidePage {
             // is due (F7): a return after a while does not show stale data for 5 minutes.
             this.app.epgGuide.render();
             this.app.epgGuide.refreshTick();
+            // #62: what is scheduled may have changed on the Recordings page since the guide was drawn.
+            this.app.epgGuide.loadSchedules?.().then((ok) => { if (ok) this.app.epgGuide.syncRecordingMarks(); });
         }
     }
 
