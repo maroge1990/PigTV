@@ -382,18 +382,24 @@ class SportsPage {
         if (!ev) return;
         if (ev.start - this.now() <= 60000) { this.watch(id); return; }
         if (this.waiting) clearTimeout(this.waiting.timer);
+        // #323 review: this reminder's own token; Cancel, a newer Remind me or leaving Sport replaces or clears it, and a
+        // timer (or the refresh it waits for) that finds it gone does nothing.
+        const token = { id };
+        const current = () => this.active && this.waiting === token;
         const fire = async () => {
-            if (!this.active) return;
+            if (!current()) return;
             await this.refresh();
+            if (!current()) return;
             const fresh = this.game(id), at = fresh && SportView.event(fresh);
             if (!at) { this.waiting = null; UI.toast(`${g.title} is no longer on your channels.`); return; }
-            if (at.start > this.now()) { this.waiting.timer = setTimeout(fire, Math.max(1000, at.start - this.now())); return; }
+            if (at.start > this.now()) { token.timer = setTimeout(fire, Math.max(1000, at.start - this.now())); return; }
             this.waiting = null;
             this.watch(id);
         };
-        this.waiting = { id, timer: setTimeout(fire, Math.max(0, ev.start - this.now())) };
+        token.timer = setTimeout(fire, Math.max(0, ev.start - this.now()));
+        this.waiting = token;
         UI.toast(`${g.title} plays on ${ev.channel.name} at ${UI.clock(ev.start)}. Keep Sport open.`,
-            { action: { label: 'Cancel', run: () => { if (this.waiting) clearTimeout(this.waiting.timer); this.waiting = null; } } });
+            { action: { label: 'Cancel', run: () => { if (this.waiting === token) { clearTimeout(token.timer); this.waiting = null; } } } });
     }
 
     /** Record this game: its best channel's airing, with the usual padding, stopping when the game ends (gameId). */
