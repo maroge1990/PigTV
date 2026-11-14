@@ -181,6 +181,8 @@ const LIVE_RE = words(['live']);
 
 // EPG categories that say "not an event" (used only when the title has no match-up or session).
 const CATEGORY_SHOW_RE = words(['news', 'magazines?', 'previews?', 'talk', 'highlights?', 'documentar[a-z]*']);
+/** Opus review of #296: a replay or highlights word in text spelt as normText spells it (accents optional). */
+const replayOrHighlights = (norm) => REPLAY_RE.test(norm) || HIGHLIGHTS_RE.test(norm);
 const CATEGORY_REPLAY_RE = words(['replays?', 'classics?', 'repeat']);
 
 // Tokens that carry no meaning of their own once league and channel are gone.
@@ -1026,5 +1028,6 @@ module.exports = {
     // and so tests can exercise the matching/wording directly without a live ESPN fetch.
     sessionMatch, locationMatch, fixtureVerdict, espnWhen,
     foldText, // 0491: the dashboard compares places without accents
-    samePlace // 0496 (#259): one F1 place rule for the card's join and ESPN's live check
+    samePlace, // 0496 (#259): one F1 place rule for the card's join and ESPN's live check
+    replayOrHighlights
 };

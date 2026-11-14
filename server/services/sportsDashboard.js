@@ -158,8 +158,9 @@ function guideTexts(parsed) {
     if (!parsed.texts) {
         const { event } = parsed;
         parsed.texts = [event.title, ...(Array.isArray(event.aliases) ? event.aliases.slice(0, 20) : [])]
-            .filter(t => typeof t === 'string' && t && !(p => p.replayWord || p.highlightsWord)(classify.parseTitle(t)))
-            .map(t => ` ${nameFold(t)} `);
+            .filter(t => typeof t === 'string' && t).map(t => ` ${nameFold(t)} `)
+            // Opus review of #296: the word lists on the folded title, not parseTitle on up to 21 titles an airing
+            .filter(t => !classify.replayOrHighlights(t.trim()));
     }
     return parsed.texts;
 }
