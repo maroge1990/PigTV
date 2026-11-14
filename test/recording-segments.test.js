@@ -114,6 +114,8 @@ function due({ windowMs = 60000, startedAgoMs = 1000 } = {}) {
 }
 const until = (cond, label, ms) => untilWith(engine, cond, label, ms);
 const rowsOf = (scheduleId) => recordings.listBySchedule(scheduleId);
+/** #288: the schedule's stop time is now (its programme ends here; no padding). */
+const endsNow = (scheduleId) => sqlite.getDb().prepare('UPDATE scheduled_recordings SET program_end = ? WHERE id = ?').run(Date.now(), scheduleId);
 async function get(route, { auth: withAuth = 'bearer' } = {}) {
     const headers = withAuth === 'bearer' ? { Authorization: `Bearer ${token}` } : {};
     const response = await fetch(`${base}${route}`, { headers });
@@ -782,7 +784,7 @@ test('provider dies mid-recording with a backup: the same recording continues in
 });
 
 // #284: a recording on a multi-provider route whose providers all refuse at the start started a new capture back to back,
-// with no pause, up to 20 times. Each provider now gets one immediate try (one pass round the route the run of short
+// with no pause, up to 20 times (the cap #288 has since removed). Each provider now gets one immediate try (one pass round the route the run of short
 // captures started on); after that a short capture waits for the next tick, as on a single-provider route.
 url.C = 'http://third.invalid/live/u/p/7001.ts';
 url.Bx = 'http://trex.invalid/live/u/p/5001.ts';
@@ -811,7 +813,10 @@ async function settle(cond, label, ms = 8000) {
 /** Its capture has ended and the next waits for a tick: nothing active for the schedule. */
 const waiting = (id) => !engine.listActive().some(r => r.id === id);
 
-/** Every provider fails each capture early; returns the schedule after the cap, having checked the pace on the way. */
+/**
+ * Every provider fails each capture early: one immediate try per provider, then one capture per tick, past the 20
+ * continuations that used to end it (#288), still recording; then its stop time comes and it ends. Returns the schedule.
+ */
 async function failingEverywhere(kind) {
     tuning.endGraceMs = 0;
     for (const u of [url.A, url.Bx, url.C]) setBehaviour(u, kind);
@@ -820,35 +825,39 @@ async function failingEverywhere(kind) {
     await settle(() => captures().length >= 3 && waiting(s.id), 'one capture per provider');
     await sleep(1200);
     assert.deepEqual(inputs(), [url.A, url.Bx, url.C], 'one immediate try per provider, in the route\'s order, then no more until a tick');
-    // Then one capture per tick, up to the cap (20 continuations: 21 captures in all).
-    for (let n = 4; n <= 21; n++) {
+    for (let n = 4; n <= 24; n++) {
         await engine.tick();
-        await settle(() => captures().length >= n && (waiting(s.id) || scheduled.getById(s.id).status !== 'recording'), `capture ${n}`);
-        await sleep(n === 21 ? 1200 : 300);
+        await settle(() => captures().length >= n && waiting(s.id), `capture ${n}`);
+        await sleep(300);
         assert.equal(captures().length, n, `tick ${n - 3} started one capture, not more`);
     }
+    assert.equal(scheduled.getById(s.id).status, 'recording', '#288: not ended by how often it was continued');
+    endsNow(s.id);
+    await engine.tick();
+    await settle(() => scheduled.getById(s.id).status !== 'recording', 'ended at its stop time');
     await engine.tick();
     await sleep(300);
-    assert.equal(captures().length, 21, 'none after the cap');
+    assert.equal(captures().length, 24, 'none after its stop time');
     return s;
 }
 
-test('#284: every provider of a multi-provider route refuses at the start: one immediate try each, then one per tick; failed at the cap', async () => {
+test('#284: every provider of a multi-provider route refuses at the start: one immediate try each, then one per tick; failed at its stop time', async () => {
     const done = await threeProviders();
     try {
         const s = await failingEverywhere('refuses');
         logLines.push(`#284 order: ${inputs().map(u => u.split('/')[2]).join(', ')}`);
-        assert.deepEqual(inputs().slice(3), Array(18).fill(url.A), 'with every provider quarantined the route falls back to the primary');
+        // #288: with every provider quarantined, each tick tries the one that failed longest ago: round the providers.
+        assert.deepEqual(inputs().slice(3), Array(7).fill([url.A, url.Bx, url.C]).flat(), 'the retries go round every provider');
         const rec = rowsOf(s.id)[0];
         assert.equal(rowsOf(s.id).length, 1, 'one recording');
-        await settle(() => recordings.getById(rec.id).status === 'failed', 'failed at the cap');
+        await settle(() => recordings.getById(rec.id).status === 'failed', 'failed: nothing recorded');
         assert.equal(scheduled.getById(s.id).status, 'failed');
         assert.match(scheduled.getById(s.id).error, /^Recording failed/);
-        assert.ok(logLines.some(l => l.includes(`#${rec.id} ended early`) && l.includes('has been continued 20 times; it ends here')), 'the cap is logged');
+        assert.ok(!logLines.some(l => l.includes(`#${rec.id} ended early`) && l.includes('it ends here')), 'never ended for its count');
     } finally { await done(); }
 });
 
-test('#284: the same pause when each provider drops after writing a segment; completed with its segments at the cap', async () => {
+test('#284: the same pause when each provider drops after writing a segment; completed with its segments at its stop time', async () => {
     const done = await threeProviders();
     try {
         const s = await failingEverywhere('dies');
@@ -1024,7 +1033,7 @@ test('#274: a delete or a container stop leaves no watchdog for the part', async
 
 // 0576 review (Opus M1): every stall used up one of the recording's 20 resumes, never given back, so a provider that
 // pauses now and then over a long event ended the recording for good at its 21st pause (before 0576 the pauses only
-// left gaps). A part that ran a minute (resumeAtOnceAfterMs, shortened here) and then stalled no longer counts.
+// left gaps). #288 removed the cap; this still pins that such a run is continued at once each time.
 test('#274: more than 20 stalls, each after a run of at least resumeAtOnceAfterMs, leave the recording recording', async () => {
     tuning.endGraceMs = 0;
     tuning.stallMs = 300;
@@ -1044,7 +1053,9 @@ test('#274: more than 20 stalls, each after a run of at least resumeAtOnceAfterM
     await until(() => recordings.getById(rec.id).status === 'completed', 'finished', 10000);
 });
 
-test('#274: 21 stalls soon after the start still end the recording at the cap, as any early end does', async () => {
+// #288 (Mark, 14 Nov): a recording whose captures kept ending early was ended for good at its 21st continuation
+// (MAX_SEGMENT_RESUMES), however long its window still ran. It now keeps trying, paced as before, until its stop time.
+test('#288: a recording whose parts keep failing short is continued more than 20 times and ends only at its stop time', async () => {
     tuning.endGraceMs = 0;
     tuning.stallMs = 300;
     tuning.stallCheckMs = 50; // resumeAtOnceAfterMs stays 1 min: each part is short, continued on the next tick
@@ -1052,9 +1063,12 @@ test('#274: 21 stalls soon after the start still end the recording at the cap, a
     const s = due({ windowMs: 120000 });
     await until(() => captures().length === 1 && rowsOf(s.id).length === 1, 'recording');
     const rec = rowsOf(s.id)[0];
-    await until(() => scheduled.getById(s.id).status !== 'recording', 'ended at the cap', 40000);
-    assert.equal(captures().length, 21, 'the first capture and 20 continuations');
-    assert.ok(logLines.some(l => l.includes(`#${rec.id} ended early`) && l.includes('has been continued 20 times; it ends here')), 'the cap is logged');
+    await until(() => captures().length >= 24, 'continued past 20 times', 40000);
+    assert.equal(scheduled.getById(s.id).status, 'recording', 'still recording');
+    assert.equal(recordings.getById(rec.id).segment_state, 'capturing');
+    assert.ok(!logLines.some(l => l.includes(`#${rec.id} ended early`) && l.includes('it ends here')), 'never ended for its count');
+    endsNow(s.id); // its stop time comes
+    await until(() => scheduled.getById(s.id).status !== 'recording', 'ended at its stop time', 10000);
     assert.equal(scheduled.getById(s.id).status, 'completed', 'with its segments');
 });
 

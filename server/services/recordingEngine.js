@@ -53,7 +53,7 @@ const failoverTuning = {
     // whatever the recording's length.
     stallCheckMs: 5 * 1000,
     // #260 (0499): an epoch that ran at least this long before it ended is continued at once, a shorter one on
-    // the next tick. #274: a stall after such a run does not count against MAX_SEGMENT_RESUMES (onSegmentExit).
+    // the next tick (#288: however many times, until the stop time).
     resumeAtOnceAfterMs: 60 * 1000
 };
 
@@ -163,7 +163,8 @@ async function resolveStreamUrl(sourceId, channelItemId, stableId = null) {
 // it always was (resolveStreamUrl: the schedule's channel identity first), and plan
 // is asked about the playlist row that identity names now, so both agree on the
 // channel. With no backup configured the route is the primary alone and every
-// decision below is exactly the one made before.
+// decision below is exactly the one made before. #288: one difference - with every candidate held back (quarantined
+// or down), a recording gets all of them, the longest held first, where a play gets the primary alone.
 // ---------------------------------------------------------------------------
 
 /**
@@ -192,7 +193,8 @@ async function routeFor(schedule) {
         const source = await sourcesDb.getById(schedule.source_id);
         const itemId = currentItemId(source, schedule);
         if (itemId === null) return single; // its channel has gone: resolveStreamUrl has refused it already
-        plan = await providerRouting.plan(schedule.source_id, itemId);
+        // #288: with every candidate held back, all of them in turn (the longest held first), not the primary alone.
+        plan = await providerRouting.plan(schedule.source_id, itemId, Date.now(), { keepTrying: true });
     } catch (e) {
         return single; // nothing to fail over to that plan can name: as before
     }
@@ -1220,9 +1222,9 @@ async function onPartExit(schedule, entry, exitCode) {
     return onSegmentExit(schedule, entry, exitCode);
 }
 
-// R3: how many times one segmented recording may start a new epoch after a failover (a provider
-// that keeps dropping must not restart ffmpeg for ever).
-const MAX_SEGMENT_RESUMES = 20;
+// #288 (Mark, 14 Nov): no cap on how often one recording starts a new epoch. With every provider down it keeps trying,
+// paced (at once after a minute's run or #284's one try per provider, else on the next tick), until its stop time
+// (continuePart ends it there); `resumes` only counts them for the log.
 // #260 (0499): how long an epoch must have run to be continued at once is failoverTuning.resumeAtOnceAfterMs (1 min).
 
 /** #260 (0499): why a capture ended, for the log: the feed's reason, the exit, ffmpeg's last line (redacted). */
@@ -1239,8 +1241,8 @@ function captureEndWhy(entry, exitCode) {
 /**
  * R3: an epoch's ffmpeg has exited. Not asked for and before the end (#260, 0499: for any reason, with or without a
  * backup provider), the recording goes on in a new epoch of the same folder and row - after a start failure too, since
- * nothing is deleted and the next run simply appends - up to MAX_SEGMENT_RESUMES times. Otherwise the capture is over
- * and the MP4 is made.
+ * nothing is deleted and the next run simply appends - until its stop time, however many times (#288). Otherwise the
+ * capture is over and the MP4 is made.
  */
 async function onSegmentExit(schedule, entry, exitCode) {
     segments.sealEpoch(entry.outputPath);
@@ -1257,7 +1259,7 @@ async function onSegmentExit(schedule, entry, exitCode) {
     const providerReason = entry.stalled || providerFailureIn(entry.stderrTail) || entry.feedLost?.providerReason === true;
     // #260 (0499): why this capture ended, always logged (the São Paulo GP's said nothing).
     const why = captureEndWhy(entry, exitCode);
-    if (unrequested && entry.segmented.resumes < MAX_SEGMENT_RESUMES) {
+    if (unrequested) {
         // #260 (0499): any early end continues the same recording (a new epoch, the gap noted), not only a provider's
         // failure with a backup configured: one provider is tried again. It starts again at once after a provider's failure
         // on a multi-provider route (as before) or a capture that had run a minute; one that ended sooner waits for the
@@ -1271,12 +1273,6 @@ async function onSegmentExit(schedule, entry, exitCode) {
             ? { count: (prior?.count || 0) + 1, of: prior?.of || entry.route.candidates.length }
             : null;
         const atOnce = ranLong || (shortRun && shortRun.count < shortRun.of);
-        // #274 (0576 review M1): a part that ran a minute and then stalled does not use up one of the
-        // MAX_SEGMENT_RESUMES: a provider that pauses now and then over a long event would otherwise end the recording
-        // at its 21st pause, where before 0576 it only left gaps. Such resumes are bounded by time instead (each costs
-        // at least resumeAtOnceAfterMs + stallMs). A stall sooner than that (a provider that connects and goes silent at
-        // once) and every other early end still count, so the cap still stops a capture that keeps failing.
-        const freeResume = entry.stalled && ranLong;
         const candidate = entry.route.candidates[entry.index];
         // #304 (Mark, 14 Nov): only a multi-route failure is held against its provider here. A stall on a channel's only
         // provider stays out of its breaker (no "down" on Status, no providerDown notice); its failed connections still
@@ -1284,21 +1280,20 @@ async function onSegmentExit(schedule, entry, exitCode) {
         if (failover) providerRouting.noteFailure(candidate, entry.route.primaryKey);
         console.warn(`[Recordings] #${entry.recordingId} ended early (${why})` +
             (entry.route.multi && candidate?.providerName ? ` on ${candidate.providerName}` : '') +
-            '; it continues in the same recording');
+            '; it continues in the same recording' + (entry.segmented.resumes ? ` (continued ${entry.segmented.resumes} times so far)` : ''));
         // #302: the gap runs from the part's last growth (its spawn when it never grew), not from its exit: a stall is
         // noticed stallMs after the last growth, and a shared feed may spend its reconnect before it ends the part, and
         // that silent time is inside the part. A chain of parts that never grow then adds up to the whole silent span,
         // each gap ending where the next begins (at a part's spawn).
         continuations.set(schedule.id, {
             schedule, nextPart: 1, lostAt: Math.min(now, entry.lastGrowthAt ?? entry.spawnedAt ?? now), starting: false, waitingLogged: false,
-            resume: { recordingId: entry.recordingId, workDir: entry.segmented.workDir, resumes: entry.segmented.resumes + (freeResume ? 0 : 1), shortRun,
+            resume: { recordingId: entry.recordingId, workDir: entry.segmented.workDir, resumes: entry.segmented.resumes + 1, shortRun,
                 why: failover ? 'the provider dropped out' : `the capture ended (${why})` }
         });
         if (!atOnce) return;
         return continuePart(schedule.id).catch(err =>
             console.error(`[Recordings] Could not continue schedule #${schedule.id}:`, err.message));
     }
-    if (unrequested) console.warn(`[Recordings] #${entry.recordingId} ended early (${why}) and has been continued ${entry.segmented.resumes} times; it ends here`);
     endSegmentCapture(schedule.id, entry.recordingId, { exitCode, stderrTail: entry.stderrTail });
 }
 
@@ -1414,7 +1409,7 @@ function finishSchedule(scheduleId, why = null) {
  * the connection. Every running part is watched (stallWatchdog, one per part, from its start to its exit); what follows
  * depends on the route, not whether it is noticed. It is stopped the way a stop is, but marked stalled and not asked
  * for, so onSegmentExit continues it: with a backup (route multi) on the next provider, as since 0177; with one
- * provider in a new epoch on the same one, through 0499's early-end continuation (≤ MAX_SEGMENT_RESUMES, the gap noted),
+ * provider in a new epoch on the same one, through 0499's early-end continuation (until its stop time, the gap noted),
  * without counting toward that provider's breaker (#304). The sampling is also where a part that is recording counts as
  * a success for its provider's breaker (a half-open provider is up again).
  */

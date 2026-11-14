@@ -94,12 +94,14 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   `make_non_negative` and `-output_ts_offset <seconds so far>` (make_zero would undo the offset), so the timeline runs on.
   Their input half is built in one place, `captureInput`: the provider's user agent, reconnect options and URL, or, on a
   shared feed, `-i pipe:0` alone (the ingest connects and reconnects).
-  A failover or a restart continues the **same row** in a new epoch (no part 2; ≤ 20 resumes, where a stall after a
-  minute's run does not count; gaps noted in `error`, each from the part's last growth, or its start when it never grew, to the next part's start: #302); a restart after the window finishes it. A container stop (SIGTERM) before the end leaves it to resume, not finished
+  A failover or a restart continues the **same row** in a new epoch (no part 2; as often as it takes until the stop time: #288
+  removed the cap of 20 resumes; gaps noted in `error`, each from the part's last growth, or its start when it never grew, to the next part's start: #302); a restart after the window finishes it. A container stop (SIGTERM) before the end leaves it to resume, not finished
   (0490). A capture that ends before its stop time unasked, for any reason and with one provider too, continues
   the same way (0499, #260): at once after a minute's run, else on the next tick. A provider's failure with a backup
   also continues at once, but captures that fail that way within a minute, in a row, get one immediate try per provider
-  of the route the run began on, then wait for the tick (#284); why each capture ended is logged. A capture whose
+  of the route the run began on, then wait for the tick (#284); why each capture ended is logged. With every provider of the channel held back
+  (quarantined or down), a recording's route is all of them, the one held back longest ago first (`plan(..., { keepTrying })`,
+  #288), so its retries go round the providers until one is back; a viewer's play still gets the primary alone. A capture whose
   segments stop growing for 30 s (`failoverTuning.stallMs`, sampled every 5 s by its own `stallWatchdog`, one per run)
   is ended as stalled on every route (#274): with a backup it fails over, with one provider it continues on the same one
   as above. Only the failover counts toward its provider's breaker: a stall on a channel's only provider does not (#304, Mark), so it never shows that provider down nor sends its notice. On a shared feed with one provider, a feed that has

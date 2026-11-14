@@ -423,6 +423,54 @@ test('#303: one schedule that throws while starting does not stop the others due
     assert.ok(logLines.some(l => l.includes(`Schedule #${a.id}: boom for a; tried again next tick`)));
 });
 
+// #288 (Mark, 14 Nov): with every provider of a channel down, a recording keeps trying every provider until its end.
+// Once every candidate was quarantined, plan() fell back to the primary alone, so the recording retried only the
+// primary for 10 min (QUARANTINE_MS) even if the backup came back first. A recording's plan (keepTrying) now gives
+// every held-back candidate, the one held back longest ago first; a viewer's play is unchanged.
+test('#288: with both providers quarantined, the recording\'s retries go to both in turn, not only the primary', async () => {
+    await db.sources.update(C.id, { enabled: false });
+    tuning.endGraceMs = 0;
+    setBehaviour(url.A(101), 'refuses');
+    setBehaviour(url.B(5001), 'refuses');
+    const s = due({ windowMs: 120000 });
+    await engine.tick();
+    await settle(() => captures().length === 2 && !activeFor(s.id), 'one immediate try on each');
+    assert.deepEqual(inputs(), [url.A(101), url.B(5001)]);
+    assert.ok(routing.isQuarantined(A.id, 's101') && routing.isQuarantined(B.id, '5001'), 'both held back');
+    for (let k = 3; k <= 6; k++) {
+        await engine.tick();
+        await settle(() => captures().length === k && !activeFor(s.id), `retry ${k - 2}`);
+    }
+    assert.deepEqual(inputs().slice(2), [url.A(101), url.B(5001), url.A(101), url.B(5001)], 'the retries alternate');
+    setBehaviour(url.B(5001), 'ok'); // the backup comes back first
+    await engine.tick();
+    await settle(() => captures().length === 7, 'the next retry');
+    assert.equal(inputs()[6], url.A(101), 'the primary\'s turn');
+    await engine.tick();
+    await until(() => captures().length === 8 && activeFor(s.id), 'recording on the backup', 8000);
+    assert.equal(inputs()[7], url.B(5001), 'the backup, which is back, is found within one round');
+    assert.equal(scheduled.getById(s.id).status, 'recording');
+    await engine.cancelScheduled(s.id);
+});
+
+test('#288: everything quarantined: a viewer\'s plan is still the primary alone; a recording\'s is every one, longest held first', async () => {
+    const t0 = Date.now();
+    routing.quarantine(B.id, '5001', t0 - 2000);   // held back longest ago
+    routing.quarantine(A.id, 's101', t0 - 1000);
+    routing.quarantine(C.id, '7001', t0);
+    const viewer = await routing.plan(A.id, 'pos_1');
+    assert.deepEqual(viewer.candidates.map(c => c.providerId), [A.id], 'a play: the primary alone, as always');
+    const recording = await routing.plan(A.id, 'pos_1', Date.now(), { keepTrying: true });
+    assert.deepEqual(recording.candidates.map(c => c.providerId), [B.id, A.id, C.id], 'a recording: all of them, the longest held first');
+    await db.sources.update(C.id, { enabled: false });
+    const withoutC = await routing.plan(A.id, 'pos_1', Date.now(), { keepTrying: true });
+    assert.deepEqual(withoutC.candidates.map(c => c.providerId), [B.id, A.id], 'never a disabled provider');
+    // One not held back is the only candidate, as before.
+    routing.reset();
+    routing.quarantine(A.id, 's101');
+    assert.deepEqual((await routing.plan(A.id, 'pos_1', Date.now(), { keepTrying: true })).candidates.map(c => c.providerId), [B.id]);
+});
+
 // ------------------------------------------------------------ no backup --
 // One provider refusing waits for the next tick each time (not at once): recording-segments.test.js's "#284: a
 // single-provider route that refuses at the start"; one dropping mid-recording continues (0499): its "0499" test.

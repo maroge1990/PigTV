@@ -11,7 +11,9 @@
  *      auto/approved/manual), in priority order, skipping expired and down providers and
  *      quarantined links.
  * When everything is skipped the primary is tried anyway, as it always was: with no
- * backup configured the list is the primary alone and nothing changes.
+ * backup configured the list is the primary alone and nothing changes. A recording asks
+ * for `keepTrying` instead (#288): then every skipped candidate is tried, the one held
+ * back longest ago first, so its retries go round the providers.
  *
  * The route (routes/playback.js) walks the list: admission, start, and on a failure for
  * a provider reason, note it here and try the next. P7 (recordings) uses the same list.
@@ -347,12 +349,28 @@ function backupUrl(source, streamId) {
 }
 
 /**
+ * #288: until when a candidate is held back (quarantined for its channel, or its provider down), or 0.
+ * Earliest first is the one that failed longest ago.
+ */
+function heldUntil(candidate, now) {
+    const q = quarantined.get(qKey(candidate.providerId, candidate.channelKey)) || 0;
+    const b = breakers.get(Number(candidate.providerId));
+    const down = b && b.state === 'down' && now < b.until ? b.until : 0;
+    return Math.max(q > now ? q : 0, down);
+}
+
+/**
  * Everything the route needs to play a channel with failover:
  *   { candidates: [{ providerId, providerName, role, via, url, channelKey }],
  *     primaryKey, primarySkipped, providerCount, backupsConfigured }
  * Throws streamUrlForChannel's 404/422 when the channel itself is not playable.
+ *
+ * `keepTrying` (#288, recordings only; a viewer's play never sets it): when every candidate is skipped because it is
+ * quarantined or its provider down, all of them are returned instead of the primary alone - never an expired,
+ * disabled, non-backup or address-less one - ordered by when each is held back until, earliest first, so successive
+ * retries (each failure quarantines its candidate again) go round the providers: A, B, A, B.
  */
-async function plan(sourceId, channelId, now = Date.now()) {
+async function plan(sourceId, channelId, now = Date.now(), { keepTrying = false } = {}) {
     const primaryId = Number(sourceId);
     const primaryUrl = await streamUrlForChannel(primaryId, channelId);
     const map = providerMap();
@@ -368,9 +386,13 @@ async function plan(sourceId, channelId, now = Date.now()) {
     const primaryExpired = isExpired(primarySource);
 
     const candidates = [];
+    const held = []; // #288 (keepTrying): skipped only for a quarantine or a provider down
     let primarySkipped = false;
     if (!primaryDown && !primaryExpired && !isQuarantined(primaryId, primaryKey, now)) candidates.push(primary);
-    else primarySkipped = true;
+    else {
+        primarySkipped = true;
+        if (!primaryExpired) held.push(primary);
+    }
 
     let links = [];
     try { links = identity ? channelLinks.usableLinks(primaryId, identity.key) : []; } catch { links = []; }
@@ -379,24 +401,34 @@ async function plan(sourceId, channelId, now = Date.now()) {
         const streamId = String(link.streamId);
         let candidate = null;
         try {
+            let skip = false;
             if (id === primaryId) {
                 // D5: the primary's own backup feed - not when the whole provider is down.
-                if (primaryDown || primaryExpired || isQuarantined(id, streamId, now)) continue;
+                if (primaryExpired) continue;
+                skip = primaryDown || isQuarantined(id, streamId, now);
+                if (skip && !keepTrying) continue;
                 const url = siblingUrl(primarySource, streamId);
                 if (url) candidate = { ...primary, via: 'sibling', url, channelKey: streamId };
             } else {
                 const source = map.get(id);
                 if (!source || source.enabled === false || source.role !== 'backup') continue;
-                if (isExpired(source) || providerState(id, now) === 'down' || isQuarantined(id, streamId, now)) continue;
+                if (isExpired(source)) continue;
+                skip = providerState(id, now) === 'down' || isQuarantined(id, streamId, now);
+                if (skip && !keepTrying) continue;
                 const url = backupUrl(source, streamId);
                 if (url) candidate = { providerId: id, providerName: providerName(id, map), role: 'backup', via: 'backup', url, channelKey: streamId, channelName: primary.channelName };
             }
-        } catch { candidate = null; }
-        if (candidate && isStreamUrl(candidate.url)) candidates.push(candidate);
+            if (candidate && isStreamUrl(candidate.url)) (skip ? held : candidates).push(candidate);
+        } catch { /* not a candidate */ }
     }
 
-    // Nowhere else to go: the primary, as it always was.
-    if (!candidates.length) {
+    // Nowhere else to go: the primary, as it always was - or (#288, a recording) every one held back, the one held
+    // back longest ago first (a stable sort: route order breaks a tie).
+    if (!candidates.length && keepTrying && held.length) {
+        candidates.push(...held.map((c, i) => ({ c, i, until: heldUntil(c, now) }))
+            .sort((a, b) => a.until - b.until || a.i - b.i).map(x => x.c));
+        primarySkipped = candidates[0] !== primary;
+    } else if (!candidates.length) {
         candidates.push(primary);
         primarySkipped = false;
     }
