@@ -5,7 +5,7 @@
 
 .sp { --live: var(--color-error); --raised: var(--color-bg-tertiary); --surface: var(--color-bg-secondary);
   --sel: var(--color-accent-dim); --gutter: 32px; --disc: #5A5466;
-  padding: 20px var(--gutter) 56px; max-width: 1440px; font-size: 16px; }
+  padding: 20px var(--gutter) 56px; font-size: 16px; }
 [data-theme="light"] .sp { --raised: #F2ECF0; }
 @media (max-width: 768px) { .sp { --gutter: 16px; padding-top: 16px; } }
 :where(.sp) button { font: inherit; color: inherit; cursor: pointer; }
