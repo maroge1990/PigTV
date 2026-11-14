@@ -41,12 +41,17 @@ function trap(file, extra) {
 // #289: the long calls, as generators that yield the bytes done so far after each chunk (the parent's stall timer
 // restarts on each). `sources`: files in appdata, in order.
 const CHUNK = 1024 * 1024;
+// Opus review of Server 3: a write lands in the page cache, and an SMB share flushes it at close with no progress to
+// report; a big file on a slow share then looks stalled. Flushed every `syncBytes` (progress follows each flush), so
+// the close has little left to write.
+const tuning = { syncBytes: 32 * 1024 * 1024 };
 
 /** `to` created exclusively (never over a file), then each source appended in turn: { size }. */
 function* copyInto(to, sources) {
     const out = fs.openSync(to, 'wx');
     const buf = Buffer.allocUnsafe(CHUNK);
     let size = 0;
+    let unsynced = 0;
     try {
         for (const src of sources) {
             const fd = fs.openSync(String(src), 'r');
@@ -56,10 +61,13 @@ function* copyInto(to, sources) {
                     if (n === 0) break;
                     for (let off = 0; off < n;) off += fs.writeSync(out, buf, off, n - off);
                     size += n;
+                    unsynced += n;
+                    if (unsynced >= tuning.syncBytes) { fs.fdatasyncSync(out); unsynced = 0; }
                     yield size;
                 }
             } finally { fs.closeSync(fd); }
         }
+        if (unsynced > 0) { fs.fdatasyncSync(out); yield size; }
     } finally { fs.closeSync(out); }
     return { size };
 }
@@ -164,7 +172,7 @@ function run(op, file, extra = {}) {
     }
 }
 
-module.exports = { run, runLong, identityOfStat, LONG_OPS: Object.keys(LONG) };
+module.exports = { run, runLong, identityOfStat, tuning, LONG_OPS: Object.keys(LONG) };
 if (require.main !== module || !process.send) return; // required in-process (tests), not forked
 
 process.on('message', (msg) => {
