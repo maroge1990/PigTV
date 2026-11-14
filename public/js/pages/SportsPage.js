@@ -40,6 +40,8 @@ class SportsPage {
                 else { this.prefs.known = false; this.refresh(); }
             });
         }
+        // #327: a window made wider or narrower changes which rails run on past the screen
+        if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') window.addEventListener('resize', () => this.updateRails());
         if (this.root) this.wire(this.root);
     }
 
@@ -326,6 +328,7 @@ class SportsPage {
             const k = el.getAttribute('data-rail') || el.getAttribute('data-carousel');
             if (scrolls[k]) el.scrollLeft = scrolls[k];
         }
+        this.updateRails();
         if (focusKey) [...(this.root.querySelectorAll?.('[data-key]') || [])].find(n => n.getAttribute('data-key') === focusKey)?.focus?.({ preventScroll: true });
         if (this.menu) { const a = this.anchorFor(this.menu); if (a) { this.menu.anchor = a; a.setAttribute?.('aria-expanded', 'true'); } }
     }
@@ -384,6 +387,45 @@ class SportsPage {
         }
     }
 
+    // ---------- a rail's ‹ › (#327: wide windows; a phone swipes) ----------
+
+    /** Every rail's buttons, after a redraw or a resize. */
+    updateRails() {
+        if (!this.root?.querySelectorAll) return;
+        for (const rail of this.root.querySelectorAll('.rail-wrap .rail')) this.updateRail(rail);
+    }
+    /**
+     * A button shows only while the row runs on past its end (more than a pixel: rounding), never on a phone. A focused
+     * button that goes (its end reached) hands focus to the other one, else to the row's first card.
+     */
+    updateRail(rail) {
+        const wrap = rail?.parentNode;
+        if (!wrap?.classList?.contains('rail-wrap')) return;
+        const prev = wrap.querySelector('.rail-arrow.prev'), next = wrap.querySelector('.rail-arrow.next');
+        const max = (rail.scrollWidth || 0) - (rail.clientWidth || 0), x = rail.scrollLeft || 0, over = !this.phone && max > 1;
+        const focused = typeof document !== 'undefined' ? document.activeElement : null;
+        if (prev) prev.hidden = !(over && x > 1);
+        if (next) next.hidden = !(over && x < max - 1);
+        const lost = [prev, next].find(b => b && b === focused && b.hidden);
+        if (lost) {
+            const other = lost === prev ? next : prev;
+            (other && !other.hidden ? other : rail.querySelector?.('[data-act]'))?.focus?.({ preventScroll: true });
+        }
+    }
+    /** About a page of cards: as many whole cards as the row shows (at least one), smoothly unless motion is reduced. */
+    scrollRail(button, dir) {
+        const rail = button?.parentNode?.querySelector?.('.rail');
+        if (!rail) return;
+        const card = rail.firstElementChild || rail.children?.[0];
+        const step = card && card.offsetWidth ? card.offsetWidth + 12 : 0;
+        const width = rail.clientWidth || 0;
+        const by = step ? Math.max(1, Math.floor(width / step)) * step : Math.max(1, width - 48);
+        const reduce = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)').matches : false;
+        if (typeof rail.scrollBy === 'function') rail.scrollBy({ left: dir * by, behavior: reduce ? 'auto' : 'smooth' });
+        else rail.scrollLeft = (rail.scrollLeft || 0) + dir * by;
+        this.updateRail(rail);
+    }
+
     // ---------- events (one listener each on the page; the markup carries data-act) ----------
 
     wire(root) {
@@ -412,9 +454,10 @@ class SportsPage {
             disc.textContent = img.getAttribute('data-mono') || '';
             img.replaceWith(disc);
         }, true);
-        // The carousel's dots follow the card in view.
+        // The carousel's dots follow the card in view; a rail's ‹ › follow its ends.
         root.addEventListener('scroll', (e) => {
             const c = e.target;
+            if (c?.classList?.contains?.('rail')) { this.updateRail(c); return; }
             if (!c?.getAttribute || !c.getAttribute('data-carousel')) return;
             const cards = [...c.children], width = cards[0] ? cards[0].offsetWidth + 12 : 1;
             const at = Math.max(0, Math.min(cards.length - 1, Math.round(c.scrollLeft / width)));
@@ -438,6 +481,8 @@ class SportsPage {
             case 'record-listed': return this.recordListed(id);
             case 'unlisted-cancel': return this.recordListed(id, true);
             case 'pin': return this.pin(id);
+            case 'rail-prev': return this.scrollRail(el, -1);
+            case 'rail-next': return this.scrollRail(el, 1);
             case 'watch-channel': return this.watch(id, el.getAttribute('data-channel'));
             case 'follow': return this.selectFollow(Number(el.getAttribute('data-index')));
             case 'retry': return this.refresh();

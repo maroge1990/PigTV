@@ -110,6 +110,21 @@
 .sp .rail { position: relative; display: flex; gap: 12px; overflow-x: auto; scrollbar-width: none; padding: 4px; margin: 0 calc(-1 * var(--gutter)) 0 -4px;
   padding-right: var(--gutter); scroll-snap-type: x proximity; }
 .sp .rail::-webkit-scrollbar, .sp .carousel::-webkit-scrollbar, .sp .brows::-webkit-scrollbar { display: none; }
+/* #327: ‹ › at a rail's ends on a wide window: shown on hover and focus with a mouse, always on a touch screen; each only
+   while the row runs on past that end (the page sets `hidden`) */
+.sp .rail-wrap { position: relative; }
+.sp .rail-arrow { position: absolute; top: 50%; z-index: 2; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px;
+  margin-top: -22px; padding: 0; border: 1px solid var(--color-border); border-radius: 50%; background: var(--color-bg-secondary);
+  color: var(--color-text-primary); box-shadow: 0 4px 14px rgba(0, 0, 0, .35); opacity: 0; transition: opacity .15s ease; cursor: pointer; }
+.sp .rail-arrow[hidden] { display: none; }
+.sp .rail-arrow svg { width: 22px; height: 22px; }
+.sp .rail-arrow.prev { left: -14px; }
+.sp .rail-arrow.next { right: -14px; }
+.sp .rail-arrow:hover { background: var(--color-hover-raised); }
+.sp .rail-wrap:hover .rail-arrow, .sp .rail-wrap:focus-within .rail-arrow, .sp .rail-arrow:focus-visible { opacity: 1; }
+.sp .rail-arrow:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
+@media (hover: none), (any-pointer: coarse) { .sp .rail-arrow { opacity: 1; } }
+.sp.is-phone .rail-arrow { display: none; }
 
 /* the game card (SportGameCard, the iPad's 260 x 112) */
 .sp .gitem { position: relative; flex: 0 0 260px; display: flex; scroll-snap-align: start; }
@@ -575,4 +590,5 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .sp .rail, .sp .carousel, .sp .brows { scroll-behavior: auto; }
+  .sp .rail-arrow { transition: none; }
 }

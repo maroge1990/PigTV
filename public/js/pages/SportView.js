@@ -566,13 +566,25 @@ const SportView = (() => {
         return c ? { badge: c.logo } : null;
     }
 
+    /**
+     * #327: a single row of cards; on a wide window ‹ › buttons at its ends scroll it a page of cards at a time. They are
+     * drawn hidden: the page shows each only while the row runs on past that end (SportsPage.updateRails). A phone keeps
+     * its swipe rows, with no buttons.
+     */
+    function railHtml(key, name, cards, ctx = {}) {
+        const rail = `<div class="rail" data-rail="${e(key)}">${cards}</div>`;
+        if (ctx.phone) return rail;
+        const arrow = (dir) => `<button type="button" class="rail-arrow ${dir}" data-act="rail-${dir}" data-key="rail-${dir}:${e(key)}" aria-label="${e(`${dir === 'prev' ? 'Earlier' : 'More'} games, ${name}`)}" hidden>${dir === 'prev' ? ICON.back : ICON.chev}</button>`;
+        return `<div class="rail-wrap">${arrow('prev')}${rail}${arrow('next')}</div>`;
+    }
+
     function section(sec, ctx, { link = false } = {}) {
         const { front, now, labels } = ctx;
         const note = headerLine(sec, front, now, labels);
         const head = link
             ? `<button type="button" class="sec-h" data-act="open-sport" data-sport="${e(sec.sport)}" data-key="sec:${e(sec.sport)}"><span class="s">${e(sec.sport)}</span><span class="chev" aria-hidden="true">›</span><span class="note">${e(note)}</span></button>`
             : `<div class="sec-h"><span class="s">${e(sec.sport)}</span><span class="note">${e(note)}</span></div>`;
-        const rails = sec.rails.map(r => `${sec.rails.length > 1 ? `<div class="rail-k">${e(label(r.league, labels))}</div>` : ''}<div class="rail" data-rail="${e(r.league)}">${railGames(front, r).map(g => card(g, ctx)).join('')}</div>`).join('');
+        const rails = sec.rails.map(r => `${sec.rails.length > 1 ? `<div class="rail-k">${e(label(r.league, labels))}</div>` : ''}${railHtml(r.league, label(r.league, labels), railGames(front, r).map(g => card(g, ctx)).join(''), ctx)}`).join('');
         return `<section class="sec" aria-label="${e(sec.sport)}"><h3 class="sec-title">${head}</h3>${rails}</section>`;
     }
 
@@ -1404,7 +1416,7 @@ const SportView = (() => {
         };
         const rail = (title, list, empty = null, note = null) => (list.length || empty
             ? `<section class="sec" aria-label="${e(title)}"><h3 class="sec-title"><span class="sec-h"><span class="s">${e(title)}</span>${note ? `<span class="note">${e(note)}</span>` : ''}</span></h3>`
-                + (list.length ? `<div class="rail">${list.slice(0, 20).map(matchCard).join('')}</div>` : `<p class="sp-muted rail-empty">${e(empty)}</p>`) + '</section>'
+                + (list.length ? railHtml(`tennis:${title}`, title, list.slice(0, 20).map(matchCard).join(''), ctx) : `<p class="sp-muted rail-empty">${e(empty)}</p>`) + '</section>'
             : '');
         return rail('Your players', yours) + rail('Live now', live, 'No match in play right now.') + rail('Tonight', tonight, 'Nothing more today.')
             + rail('Results today', results, 'No results yet today.', hide ? 'Hidden while Hide scores is on' : null);
@@ -1473,7 +1485,7 @@ const SportView = (() => {
         followedSide, sections, alsoInYourSports, headerLine, followTrailing, hero, NO_HERO, followKey, followsGoneLive,
         resolveHero, heroFollowIndex, fastRefresh, monogram, badge, leagueBadge, header, scoresChip, card, banner, heroButtons,
         followItems, front, frontDesktop, placeholder, frontPhone, row, rowHtml, phoneCard, dots, position, isEmpty, game, sportOf, label,
-        railGames, staleNote, scoresNote, star, dot, recordMark, kickerWord, yours, availabilityWord, onAirLine, e, gameCard,
+        railGames, railHtml, staleNote, scoresNote, star, dot, recordMark, kickerWord, yours, availabilityWord, onAirLine, e, gameCard,
         sportLeagues, sportGames, leagueGames, sportHero, openingLeague, leagueItems, leagueGroups, leagueCards, leagueContent,
         moreTitle, sportPage, embeddedLeague, leagueGamesHtml, EVENT_LEAGUES, moreButton, groupsHtml, nothingSoon, fixtureDetail, nflFixture, leagueFixture, roundOf, viewOf,
         tableGroups, fixtureCard, fixtureGame, fixtureCardHtml, standingsHtml, fixturePage, leaguePage, gamesGrid, leagueWords,
