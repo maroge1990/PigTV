@@ -38,6 +38,7 @@ class EpgGuide {
         this.epgSpacer = null;
         this.scrollContainer = null;
         this.visibleRows = new Map(); // Map<index, rowElement>
+        this.schedules = [];         // recordings scheduled or running (GET /api/recordings/scheduled)
         this._scrollHandler = null;
         this._lastVisibleStart = -1;
         this._lastVisibleEnd = -1;
@@ -218,6 +219,7 @@ class EpgGuide {
         try {
             UI.setState(this.container, 'loading', 'Loading the TV Guide…');
             await this.refreshIfChanged({ force: true });
+            await this.loadSchedules();
             this.render();
 
             // The channel list's "now" line can use the loaded window from here on
@@ -907,8 +909,34 @@ class EpgGuide {
         spacer.appendChild(indicator);
     }
 
+    /** The schedules that still matter to the guide: waiting to start, or recording now. */
+    static isActiveSchedule(row) {
+        return !!row && ['scheduled', 'waiting', 'recording'].includes(row.status);
+    }
+
+    /** The active schedule for this airing (same channel, same start), or null. `startMs` in ms. */
+    scheduleFor(sourceId, channelId, startMs) {
+        for (const row of this.schedules || []) {
+            if (String(row.source_id) !== String(sourceId) || String(row.channel_item_id) !== String(channelId)) continue;
+            if (Math.abs(Number(row.program_start) - Number(startMs)) < 60000) return row;
+        }
+        return null;
+    }
+
+    /** Read the recordings that are scheduled or running (a failure keeps what was known). */
+    async loadSchedules() {
+        try {
+            const rows = await API.recordings.getScheduledWithRecent();
+            this.schedules = (Array.isArray(rows) ? rows : []).filter(EpgGuide.isActiveSchedule);
+        } catch (err) {
+            return false;
+        }
+        return true;
+    }
+
     /**
-     * Show program details modal
+     * The programme menu (Apple's ProgrammeMenu): what is on, when and where; Watch now when it is on air; Record or
+     * Cancel recording as it already is or not; Record every episode; the buffers under Options.
      */
     async showProgramDetails(data) {
         // W2: where keyboard focus goes back to when the details close (the programme, by identity).
@@ -919,49 +947,86 @@ class EpgGuide {
 
         const start = new Date(data.start);
         const stop = new Date(data.stop);
-        const canRecord = data.recordable === 'true' && data.sourceId && data.channelId;
+        const now = Date.now();
+        const hasChannel = !!(data.sourceId && data.channelId);
+        const onAir = hasChannel && start.getTime() <= now && stop.getTime() > now;
+        const canRecord = data.recordable === 'true' && hasChannel;
+        const scheduled = hasChannel ? this.scheduleFor(data.sourceId, data.channelId, start.getTime()) : null;
 
         // #276 (C2): the dialog opens at once with the usual buffers; the saved defaults replace them when they arrive
         // (unless they have been typed over by then).
         const defaultPre = 1, defaultPost = 5;
 
+        const where = [data.channelName, UI.dateRange(start, stop)].filter(Boolean).join(' · ');
+        const status = scheduled ? (scheduled.status === 'recording' ? 'Recording now' : 'Recording scheduled') : '';
         body.innerHTML = `
-      <p><strong>Time:</strong> <span class="pig-amount">${UI.escape(UI.dateRange(start, stop))}</span></p>
-      <p><strong>Description:</strong></p>
+      <p class="programme-menu-when pig-amount">${UI.escape(where)}</p>
+      ${status ? `<p class="programme-menu-status" id="programme-menu-status" role="status">${UI.escape(status)}</p>` : ''}
       <p>${UI.escape(data.description || 'No description available')}</p>
-      ${canRecord ? `
-        <div class="record-options">
+      ${canRecord && !scheduled ? `
+        <details class="record-options" id="record-options">
+          <summary>Options</summary>
           <label>Start recording (min before): <input type="number" id="record-pre-buffer" min="0" max="60" value="${defaultPre}" style="width: 60px;"></label>
           <label style="margin-left: var(--space-md);">Stop recording (min after): <input type="number" id="record-post-buffer" min="0" max="120" value="${defaultPost}" style="width: 60px;"></label>
-        </div>
+        </details>
       ` : ''}
     `;
 
-        footer.innerHTML = `
-      ${canRecord ? '<button class="btn btn-primary" id="modal-record">Record</button>' : ''}
-      ${canRecord ? '<button class="btn btn-secondary" id="modal-record-series">Record series</button>' : ''}
-      <button class="btn btn-secondary" id="modal-close" data-dialog-close>Close</button>
-    `;
+        // One rose button: the first action that applies (Watch now when it is on air, else the record action).
+        const actions = [];
+        if (onAir) actions.push(['modal-watch', 'Watch now']);
+        if (scheduled) actions.push(['modal-cancel-recording', 'Cancel recording']);
+        else if (canRecord) actions.push(['modal-record', 'Record']);
+        if (canRecord) actions.push(['modal-record-series', 'Record every episode']);
+        footer.innerHTML = actions.map(([id, label], i) => `<button class="btn ${i === 0 ? 'btn-primary' : 'btn-secondary'}" id="${id}">${label}</button>`).join('')
+            + '<button class="btn btn-secondary" id="modal-close" data-dialog-close>Close</button>';
 
         const close = () => dialog.close();
         dialog.open(opener);
 
+        if (onAir) {
+            footer.querySelector('#modal-watch').onclick = () => {
+                close();
+                return this.playChannel(data.channelName, data.channelId, data.sourceId);
+            };
+        }
+        if (scheduled) {
+            footer.querySelector('#modal-cancel-recording').onclick = async () => {
+                try {
+                    await API.recordings.cancelScheduled(scheduled.id);
+                    UI.toast(`Recording cancelled: ${data.title}`);
+                } catch (err) {
+                    UI.toast(UI.errorText(err, 'Could not cancel the recording.'), { kind: 'error' });
+                }
+                await this.loadSchedules();
+                this.syncRecordingMarks?.();
+                close();
+            };
+        }
         if (canRecord) {
             const preInput = body.querySelector('#record-pre-buffer'), postInput = body.querySelector('#record-post-buffer');
-            for (const input of [preInput, postInput]) input.addEventListener('input', () => { input.dataset.typed = 'true'; UI.fieldError(input, ''); });
-            API.settings.get().then((settings) => {
-                if (settings.defaultPreBufferMin !== undefined && !preInput.dataset.typed) preInput.value = settings.defaultPreBufferMin;
-                if (settings.defaultPostBufferMin !== undefined && !postInput.dataset.typed) postInput.value = settings.defaultPostBufferMin;
-            }).catch(() => { /* the usual buffers stay */ });
-            // A bad number is said under its field and nothing is sent (C13).
+            const inputs = [preInput, postInput].filter(Boolean);
+            for (const input of inputs) input.addEventListener('input', () => { input.dataset.typed = 'true'; UI.fieldError(input, ''); });
+            if (preInput && postInput) {
+                API.settings.get().then((settings) => {
+                    if (settings.defaultPreBufferMin !== undefined && !preInput.dataset.typed) preInput.value = settings.defaultPreBufferMin;
+                    if (settings.defaultPostBufferMin !== undefined && !postInput.dataset.typed) postInput.value = settings.defaultPostBufferMin;
+                }).catch(() => { /* the usual buffers stay */ });
+            }
+            // A bad number is said under its field and nothing is sent (C13); the Options open to show it.
             const buffers = () => {
+                if (!preInput || !postInput) return {}; // not shown (already scheduled): the server's defaults
                 const preBufferMin = UI.readWholeNumber(preInput), postBufferMin = UI.readWholeNumber(postInput);
-                return preBufferMin === null || postBufferMin === null ? null : { preBufferMin, postBufferMin };
+                if (preBufferMin === null || postBufferMin === null) { body.querySelector('#record-options').open = true; return null; }
+                return { preBufferMin, postBufferMin };
             };
-            footer.querySelector('#modal-record').onclick = async () => {
+            const recordButton = footer.querySelector('#modal-record');
+            if (recordButton) recordButton.onclick = async () => {
                 const chosen = buffers();
                 if (!chosen) return;
                 await this.scheduleRecording({ ...data, ...chosen });
+                await this.loadSchedules();
+                this.syncRecordingMarks?.();
                 close();
             };
             // R5: every airing of this title on this channel.
@@ -976,6 +1041,8 @@ class EpgGuide {
                 } catch (err) {
                     UI.toast(UI.errorText(err, 'Could not add the series rule.'), { kind: 'error' });
                 }
+                await this.loadSchedules();
+                this.syncRecordingMarks?.();
                 close();
             };
         }
