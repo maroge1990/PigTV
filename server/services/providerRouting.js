@@ -202,7 +202,8 @@ function watchSession(session, candidate, primaryKey, label = null) {
         if (!providerReason) return;
         noteFailure(candidate, primaryKey);
         console.warn(`[Playback] ${candidate.providerName} lost ${label ? `"${label}"` : 'a channel'} mid-play ` +
-            `(${how === 'stall' ? 'stalled' : how === 'timestamps' ? 'timestamps broke after a reconnect' : 'ffmpeg exited'}); ` +
+            `(${session.feedLost && session.feedLost.reason === 'repeating' ? 'kept repeating the same clip'
+                : how === 'stall' ? 'stalled' : how === 'timestamps' ? 'timestamps broke after a reconnect' : 'ffmpeg exited'}); ` +
             `not used for it for ${QUARANTINE_MS / MINUTE} min`);
     });
     // 0191: a blank or placeholder picture. Quarantined, so the next play of the channel

@@ -228,6 +228,8 @@ rebased the step first (a reconnect showed up only as repeated content, and ever
 - **Standby**: 20 s into a play, a second copy on the first other provider with a *free* connection, owned by
   `standby:<relay id>`; a viewer or recording that needs that connection takes it without a prompt, and a standby may take a warmed channel's connection (0202).
   When the playing leg writes nothing for `PIGTV_RELAY_SWITCH_MS` (10 s) the standby is spliced in.
+- A feed the shared ingest finds **repeating the same clip** (#324, [`ingest.md`](ingest.md) › Looping feed) ends as lost:
+  the relay switches with reason `repeating` (`<provider> kept repeating the same N s clip`), to the standby when one is ready.
 - Known limits: the feeds aren't in step (a jump or repeat at a switch); a cold switch still waits for the 20 s stall
   watchdog; the provider in Stream info is the one the play started on. A switch applies to plays started after it changes.
 

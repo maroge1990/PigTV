@@ -59,6 +59,13 @@ const FLASH_MS = 60000;            // how long "promoted" / "reclaimed" / a fail
 const ENDED_KEEP_MS = 10 * 60 * 1000; // a relay that failed stays on the Status page this long
 const SEGMENT_NAME = /^(seg\d{4,}\.(ts|m4s)|init\.mp4)$/;
 
+/** #324: "36 s" when the session's shared feed ended for repeating the same clip, else null. */
+function repeatingClip(session) {
+    if (!session || !session.feedLost || session.feedLost.reason !== 'repeating') return null;
+    const sec = session.feedLost.periodSec;
+    return Number.isFinite(sec) ? `${Math.round(sec)} s` : 'short';
+}
+
 const relays = new Map();          // relay id -> Relay
 const failedRelays = [];           // { snapshot, at }: relays that ended because nothing could take over
 const aliases = new Map();         // relay id -> { legId, at }: the last playing leg, kept after the relay ends
@@ -329,6 +336,9 @@ class Relay {
         const excuse = typeof leg.session.feedExcusedUntil === 'function' ? leg.session.feedExcusedUntil(now, switchAfterMs()) : null;
         const quietMs = now - Math.max(this.lastProgressAt, excuse || 0);
         if (leg.lost) {
+            // #324: the shared ingest ended the feed for repeating the same clip (ffmpeg then exited).
+            const repeating = repeatingClip(leg.session);
+            if (repeating) return this.switchOver(`kept repeating the same ${repeating} clip`, 'repeating');
             return leg.lost.how === 'stall' ? this.switchOver('stopped sending', 'stalled')
                 : leg.lost.how === 'timestamps' ? this.switchOver('broke its timestamps after a reconnect', 'timestamps')
                     : this.switchOver('ended', 'lost');
@@ -777,7 +787,7 @@ function playingSessionId(id) {
  * For the Status page and GET /api/status: one entry per followed stream, plus (for ten
  * minutes) the ones that ended because nothing could take over. `state` is one of starting |
  * playing | switching | standby-starting | standby-ready | promoted | reclaimed | failed;
- * `lastReason` is { code, detail, at } with code lost | stalled | timestamps | blank |
+ * `lastReason` is { code, detail, at } with code lost | stalled | timestamps | repeating | blank |
  * incompatible | standby-incompatible | standby-reclaimed | promoted | no-candidate. Names only.
  */
 function list() {

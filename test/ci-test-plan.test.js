@@ -12,6 +12,8 @@ const OK = { baseImageExists: true };
 
 // Pinned: a file entering this list is a reviewed change, and a wrong one fails here.
 const EXPECTED_SKIP = [
+    'test/feed-loop-failover.test.js',
+    'test/feed-loop.test.js',
     'test/hls-copy-dts.test.js',
     'test/hls-finite-source.test.js',
     'test/hls-timestamp-skew.test.js',

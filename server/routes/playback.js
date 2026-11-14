@@ -324,7 +324,7 @@ router.post('/resolve', requireToken, async (req, res) => {
             if (played && typeof played.once === 'function') {
                 played.once('lost', ({ how, providerReason } = {}) => interruptions.noteLost({
                     owner, channel: channelLabel, provider: providerLabel, how, providerReason,
-                    reason: how === 'stall' ? 'stalled' : how === 'timestamps' ? 'timestamps' : 'lost',
+                    reason: interruptions.reasonOf(how, played),
                     playedSec: played.startTime ? (Date.now() - played.startTime) / 1000 : null
                 }));
                 // 0191: a blank or placeholder picture marks this attempt's health row

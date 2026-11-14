@@ -24,6 +24,7 @@ const { URL } = require('url');
 const { FeedPace } = require('./feedPace');
 const lagLimit = require('./feedLagLimit');
 const { keyframeJoin } = require('./tsKeyframes');
+const { LoopDetector } = require('./feedLoop');
 
 const TS_PACKET = 188;
 const SYNC = 0x47;
@@ -50,6 +51,8 @@ const tuning = {
     // #3: how far back a joiner may start, to begin on a video key frame (the longest group of
     // pictures it waits on). The buffer always holds at least this much (bytes permitting).
     joinLookbackMs: num('PIGTV_INGEST_JOIN_LOOKBACK_SEC', 6, 2) * 1000,
+    // #324: a feed sending the same clip again and again (feedLoop.js) ends as lost; 0 turns the check off.
+    loopCheck: num('PIGTV_INGEST_LOOP_CHECK', 1, 0) !== 0,
     backoffMs: [500, 1000, 2000, 4000]
 };
 
@@ -161,11 +164,11 @@ class Subscription extends Readable {
         this.backlogBytes = parts.reduce((n, p) => n + p.length, 0);
         for (const p of parts) this.deliver(p);
     }
-    /** End this subscriber's stream with a reason ({ providerReason } says whose fault). */
-    finish(reason, { providerReason = false } = {}) {
+    /** End this subscriber's stream with a reason ({ providerReason } says whose fault; #324: `periodSec` for `repeating`). */
+    finish(reason, { providerReason = false, periodSec = null } = {}) {
         if (this.endReason) return;
         clearTimeout(this.patTimer);
-        this.endReason = { reason, providerReason };
+        this.endReason = periodSec === null ? { reason, providerReason } : { reason, providerReason, periodSec };
         this.emit('ingest-end', this.endReason);
         this.push(null);
         this.ingest.drop(this);
@@ -214,6 +217,9 @@ class Ingest extends EventEmitter {
         this.startedAt = Date.now();
         this.lastByteAt = 0;
         this.pace = new FeedPace();
+        // #324: the same clip again and again with fresh timestamps, found on the payloads.
+        this.loop = tuning.loopCheck ? new LoopDetector() : null;
+        this.looping = null;
         // R7 data: the worst lag over every connection (the pace resets on a reconnect), and how
         // many reconnects were for lag rather than a lost connection.
         this.worstBehind = null;
@@ -300,6 +306,8 @@ class Ingest extends EventEmitter {
         // R7: each connection is its own baseline (a provider bursts again on a reconnect).
         this.foldWorst();
         this.pace.reset(Date.now());
+        // #324: a new connection is never compared with the last (a provider may resend old content).
+        if (this.loop) this.loop.reset();
         this.learningAt = Date.now();
         this.learningWorst = 0;
         if (this.state === 'connecting') {
@@ -336,6 +344,26 @@ class Ingest extends EventEmitter {
             this.bytes -= this.chunks.shift().buf.length;
         }
         for (const sub of [...this.subs]) sub.deliver(chunk);
+        const loop = this.loop && this.loop.push(chunk);
+        if (loop) this.onLoop(loop);
+    }
+
+    /**
+     * #324: the provider is sending the same clip again and again with fresh timestamps. Reconnecting
+     * would bring the same, so the feed ends at once as lost for the provider's sake: every subscriber
+     * ends with `repeating` and a provider reason, which drives the failover a dead feed takes
+     * (sessions: the relay's standby or next provider, else the client's re-resolve, with the channel
+     * quarantined there; recordings: their backup provider).
+     */
+    onLoop(found) {
+        if (this.closed) return;
+        this.loop = null;
+        this.looping = { periodSec: found.periodSec, runSec: found.runSec, audio: found.audio, at: Date.now() };
+        const who = this.providerName || 'the provider';
+        const period = Math.round(found.periodSec * 10) / 10;
+        this.log(`${who} is repeating the same ${period} s clip${this.channel ? ` on "${this.channel}"` : ''} ` +
+            `(identical for ${found.runSec} s, ${found.keyframes} key frames a pass, sound: ${found.audio}); ending the feed`);
+        this.close(`${who} kept repeating the same ${Math.round(found.periodSec)} s clip`, { providerReason: true, reason: 'repeating', periodSec: found.periodSec });
     }
 
     /** A connection that never delivered MPEG-TS: refuse the ingest at its start, else keep reconnecting. */
@@ -509,7 +537,7 @@ class Ingest extends EventEmitter {
     }
 
     /** Close the reader; subscribers still on it end with `reason`. */
-    close(why, { providerReason = false, reason = 'closed' } = {}) {
+    close(why, { providerReason = false, reason = 'closed', periodSec = null } = {}) {
         if (this.closed) return;
         // I1 (0230): callers still waiting for the first bytes settle now. Closed for the provider's
         // sake it is a refusal; otherwise (released, shutdown) it is a cancellation, which a caller
@@ -527,7 +555,7 @@ class Ingest extends EventEmitter {
         clearTimeout(this.lingerTimer);
         clearTimeout(this.retryTimer);
         if (this.request) { try { this.request.destroy(); } catch (e) { /* gone */ } }
-        for (const sub of [...this.subs]) sub.finish(reason, { providerReason });
+        for (const sub of [...this.subs]) sub.finish(reason, { providerReason, periodSec });
         this.subs.clear();
         this.chunks = [];
         this.bytes = 0;
@@ -560,7 +588,9 @@ class Ingest extends EventEmitter {
             limitSec: (this.lagLimit?.limitMs ?? lagLimit.baseOf(tuning.behindMs)) / 1000,
             // R7: how far behind real time the feed is now, and the most it has been (Status).
             behindSec: Math.round(this.pace.deficit() * 10) / 10,
-            maxBehindSec: Math.round(Math.max(this.worstBehind ?? 0, this.pace.measured ? this.pace.maxDeficit : 0) * 10) / 10
+            maxBehindSec: Math.round(Math.max(this.worstBehind ?? 0, this.pace.measured ? this.pace.maxDeficit : 0) * 10) / 10,
+            // #324: the clip's length when it ended for repeating one, else null.
+            repeatingSec: this.looping ? this.looping.periodSec : null
         };
     }
 }

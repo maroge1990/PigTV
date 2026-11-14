@@ -53,6 +53,15 @@ function table() {
 
 const text = (v, max) => (v === null || v === undefined ? null : String(v).replace(/\b[a-z][a-z0-9+.-]*:\/\/\S+/gi, '[url removed]').slice(0, max));
 
+/**
+ * The reason recorded for a lost session: `repeating` when its shared feed ended for sending the same
+ * clip again and again (#324, ingest.js), else from how it was lost.
+ */
+function reasonOf(how, session = null) {
+    if (session && session.feedLost && session.feedLost.reason === 'repeating') return 'repeating';
+    return how === 'stall' ? 'stalled' : how === 'timestamps' ? 'timestamps' : 'lost';
+}
+
 /** A playing session was lost. Never throws: this is observation only. */
 function noteLost({ owner = null, channel = null, provider = null, how = 'exit', providerReason = false, playedSec = null, reason = null } = {}, now = Date.now()) {
     try {
@@ -121,4 +130,4 @@ function reset() {
     try { table().prepare('DELETE FROM playback_interruptions').run(); } catch (err) { /* nothing to clear */ }
 }
 
-module.exports = { noteLost, noteResolved, summary, reset, RECOVER_WINDOW_MS };
+module.exports = { reasonOf, noteLost, noteResolved, summary, reset, RECOVER_WINDOW_MS };
