@@ -11,7 +11,10 @@
  *     kept per track, with their DTS (else PTS) in seconds, which only measures how long things last.
  *   - A RUN: consecutive units each equal to the unit exactly P units earlier. P is found from the
  *     last earlier unit with the same hash, and must span minPeriodSec..maxPeriodSec of media.
- *   - A video run of minRunSec counts when one period of it is a clip, not a still picture: at least
+ *   - A video run counts once it outlasts a whole period by max(minRunSec, a quarter period), i.e. the
+ *     content has been seen ~2.25 times: one clip aired twice in a row (an ad, a promo, a replay) never
+ *     fires; three airings back to back can (requiredRun). And only when one period of it is a clip, not
+ *     a still picture: at least
  *     minDistinct of its units distinct (a re-encoded slate repeats every group of pictures or two),
  *     at least minKeyframes key frames in it (P spans several groups of pictures), and its timestamps
  *     rise evenly across it (a provider's resend of old content with its old clock is not a loop).
@@ -20,7 +23,7 @@
  *     live (distinct, not repeating) means a looping picture over live sound (a radio channel's
  *     background video): never a loop. Audio alone never counts.
  *
- * Detected after one period plus minRunSec of media (46 s for the 36 s loop). Bounded: two tracks of
+ * Detected after two periods plus max(minRunSec, a quarter period) of media (82 s for the 36 s loop). Bounded: two tracks of
  * `capacity` units (17 bytes each in typed arrays) and a Map of their hashes: at most ~1.4 MB per feed.
  * A new connection starts it afresh (`reset`): the 7 channels' reconnect resends ~19 s of old
  * content (playback.md), which must never be compared with what came before the cut.
@@ -40,7 +43,10 @@ const VIDEO_TYPES = { 0x01: 'mpeg2', 0x02: 'mpeg2', 0x1b: 'h264', 0x24: 'hevc' }
 const { isKeyFrame } = require('./tsKeyframes');
 
 const tuning = {
-    minRunSec: 10,       // consecutive repeated media before it counts
+    minRunSec: 10,       // consecutive repeated media before a run is looked at
+    // A run must outlast one whole period by this much (at least minRunSec): the content seen ~2.25 times.
+    // One airing followed by its copy (an ad or promo twice in a row, a replay) runs one period at most.
+    beyondPeriod: 0.25,
     minPeriodSec: 5,     // shorter repeats are a still picture's group-of-pictures rhythm
     maxPeriodSec: 120,   // the longest loop looked for (memory: capacity units must cover it)
     minKeyframes: 3,     // key frames within one period
@@ -75,6 +81,11 @@ function audioFrameLength(b, at, len = b.length) {
         return 2 * (fscod === 1 ? words + (code & 1) : words);              // 44.1 kHz pads odd codes
     }
     return 0;
+}
+
+/** Seconds a run of this period must last before it is a loop: one period, and max(minRunSec, a quarter) more. */
+function requiredRun(period) {
+    return period + Math.max(tuning.minRunSec, tuning.beyondPeriod * period);
 }
 
 class Track {
@@ -296,7 +307,7 @@ class LoopDetector {
 
     /** Bytes as they arrive (any split). Returns the verdict once a loop is found, else null. */
     push(chunk) {
-        if (this.verdict) return this.verdict;
+        // Read on after a verdict: while the caller decides, the run goes on (rearm looks at it again).
         let i = 0;
         if (this.carryLen) {
             const need = TS_PACKET - this.carryLen;
@@ -346,7 +357,6 @@ class LoopDetector {
             }
             track.end();
             if (track.kind === 'video') this.judge();
-            if (this.verdict) return;
             const flags = b[p + 7];
             const es = p + 9 + b[p + 8];
             let raw = null;
@@ -389,6 +399,7 @@ class LoopDetector {
 
     /** After each video unit: has the current run become a loop? */
     judge() {
+        if (this.verdict) return;
         const v = this.video;
         const run = v.runSec();
         if (run < tuning.minRunSec) return;
@@ -407,7 +418,10 @@ class LoopDetector {
         }
         const j = v.judged;
         if (!j.ok || j.settled) return;
-        const sound = this.soundVerdict(j.period, run);
+        // A sustained loop only (Codex #324 high): the run outlasts a whole period, then (rearm) one more each time.
+        const need = j.askAt ?? requiredRun(j.period);
+        if (run < need) return;
+        const sound = this.soundVerdict(j.period, run, need);
         if (sound === null) return; // not yet: look again at the next unit
         if (sound === false) return;
         this.verdict = { periodSec: Math.round(j.period * 100) / 100, periodUnits: v.period, runSec: Math.round(run * 10) / 10,
@@ -415,7 +429,7 @@ class LoopDetector {
     }
 
     /** 'repeats' | 'silent' | 'none' to confirm, false when the sound is live, null to wait. */
-    soundVerdict(period, run) {
+    soundVerdict(period, run, need) {
         const a = this.sound;
         const v = this.video;
         const settle = (value) => { v.judged.settled = true; return value; };
@@ -424,11 +438,22 @@ class LoopDetector {
         if (Math.floor(run) === v.judged.lastLook) return null; // at most once per second of media
         v.judged.lastLook = Math.floor(run);
         if (a.distinct(a.unitsWithin(10)) < tuning.silentDistinct) return 'silent';
-        if (run >= tuning.minRunSec + tuning.confirmWithinSec) {
+        if (run >= need + tuning.confirmWithinSec) {
             this.note(`video repeats every ${period.toFixed(1)} s but the sound does not: not a loop`);
             return settle(false);
         }
         return null;
+    }
+
+    /**
+     * The verdict was not acted on (#324: no other provider for the channel): look again once the same run has
+     * gone on for one more period, without starting the run afresh.
+     */
+    rearm() {
+        if (!this.verdict) return;
+        const v = this.video;
+        if (v.judged) v.judged.askAt = v.runSec() + Math.max(v.judged.period, tuning.minRunSec);
+        this.verdict = null;
     }
 
     describe() {
@@ -436,4 +461,4 @@ class LoopDetector {
     }
 }
 
-module.exports = { LoopDetector, tuning, audioFrameLength };
+module.exports = { LoopDetector, tuning, audioFrameLength, requiredRun };

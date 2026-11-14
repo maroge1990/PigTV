@@ -111,8 +111,8 @@ before(async () => {
         }
         if (req.url === '/resend.ts') {
             // The first connection: one pass of the clip, then the provider drops it. The reconnect: the
-            // same clip again with fresh timestamps (a resend), and the connection stays open.
-            const data = fs.readFileSync(connections[req.url] === 1 ? feeds.clip : feeds.shifted);
+            // same clip twice more with fresh timestamps (a resend), and the connection stays open.
+            const data = connections[req.url] === 1 ? fs.readFileSync(feeds.clip) : Buffer.concat([feeds.shifted, feeds.shifted2].map(f => fs.readFileSync(f)));
             serve(res, data).then(() => { if (connections[req.url] === 1) res.end(); });
             return;
         }
@@ -241,7 +241,7 @@ test('a reconnect that resends the clip with fresh timestamps is not compared wi
         const feed = await ingest.subscribe({ ...ingest.sourceFor(cand, await settingsNow()), purpose: 'viewer', owner: 'device:tv' });
         feed.resume();
         await until(() => connections['/resend.ts'] === 2 && feed.ingest.state === 'live', 'the second connection');
-        const size = fs.statSync(feeds.shifted).size;
+        const size = fs.statSync(feeds.shifted).size + fs.statSync(feeds.shifted2).size;
         await until(() => feed.bytesOut >= fs.statSync(feeds.clip).size + size - 65536, 'the resend delivered');
         await sleep(200);
         assert.equal(feed.endReason, null, 'still reading');
@@ -285,7 +285,7 @@ for (const [label, setUp] of [
         viewer.resume(); recording.resume();
         const size = fs.statSync(feeds.loop).size;
         await until(() => viewer.bytesOut >= size - 65536, 'the whole loop delivered');
-        // Three passes: found after the second (34 s) and asked again after the third (68 s).
+        // Four passes: found in the third (58 s) and asked again a period later (82 s), the same run going on.
         await until(() => out.lines.filter(l => l.includes('no other provider for this channel')).length >= 1, 'said');
         await until(() => asked >= 2, 'asked again at the next detection');
         await sleep(300);

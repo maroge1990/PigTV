@@ -347,8 +347,8 @@ class Ingest extends EventEmitter {
             this.bytes -= this.chunks.shift().buf.length;
         }
         for (const sub of [...this.subs]) sub.deliver(chunk);
-        const loop = this.loop && !this.loopDeciding && this.loop.push(chunk);
-        if (loop) this.onLoop(loop);
+        const loop = this.loop && this.loop.push(chunk);
+        if (loop && !this.loopDeciding) this.onLoop(loop);
     }
 
     /**
@@ -388,7 +388,7 @@ class Ingest extends EventEmitter {
                         provider: this.providerName, reason: `repeating: ${note}` });
                 } catch (e) { /* observation only */ }
             }
-            if (this.loop) this.loop.reset(); // asked again at the next detection, one period and a run on
+            if (this.loop) this.loop.rearm(); // asked again once the same run has gone on one more period
         });
     }
 

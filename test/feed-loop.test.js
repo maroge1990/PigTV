@@ -31,12 +31,17 @@ function run(files, { between = null, detector = new LoopDetector() } = {}) {
     return { verdict: null, at: null, detector };
 }
 
-test('a clip looped with fresh timestamps is a loop, found one period plus 10 s in, with its sound repeating too', { skip }, () => {
+// A sustained loop only (Codex #324 high): the run must outlast a whole period by max(10 s, a quarter period), so it is
+// found during the third airing (2 x 24 + 10 = 58 s), never during the second.
+const due = () => 2 * feeds.clipSec + Math.max(10, feeds.clipSec / 4);
+
+test('a clip looped with fresh timestamps is a loop, found during its third airing, with its sound repeating too', { skip }, () => {
     const { verdict, at } = run([feeds.loop]);
     assert.ok(verdict, 'found');
     assert.ok(Math.abs(verdict.periodSec - feeds.clipSec) < 0.2, `period ${verdict.periodSec} s`);
     assert.equal(verdict.periodUnits, feeds.clipSec * 25, 'one unit per picture');
-    assert.ok(at <= feeds.clipSec + 12, `found ${at.toFixed(1)} s into the feed`);
+    assert.ok(at >= due() - 0.5 && at <= due() + 2, `found ${at.toFixed(1)} s into the feed (due ${due()} s)`);
+    assert.ok(at < 3 * feeds.clipSec, 'within the third airing: three airings back to back are a loop');
     assert.ok(verdict.distinct >= 0.99 && verdict.keyframes >= feeds.clipSec - 1, JSON.stringify(verdict));
     assert.equal(verdict.audio, 'repeats');
 });
@@ -58,16 +63,24 @@ test('a looping picture over live sound is not a loop; over silence it is', { sk
     const silent = run([feeds.loopSilent]);
     assert.ok(silent.verdict, 'found');
     assert.equal(silent.verdict.audio, 'silent');
-    assert.ok(silent.at <= feeds.clipSec + 12, `found ${silent.at.toFixed(1)} s in`);
+    assert.ok(silent.at <= due() + 2, `found ${silent.at.toFixed(1)} s in`);
 });
 
 test('a resend of old content is not a loop: with its old timestamps, or after a new connection (reset)', { skip }, () => {
     // The same clip twice with the same timestamps (a backward step): the "period" spans no time.
     assert.equal(run([feeds.clip, feeds.clip]).verdict, null);
-    // The clip, then the same clip with fresh timestamps: on one connection that is a loop...
-    assert.ok(run([feeds.clip, feeds.shifted]).verdict, 'one connection: the repeat is seen');
+    // The clip, then the same clip twice more with fresh timestamps: on one connection that is a loop...
+    assert.ok(run([feeds.clip, feeds.shifted, feeds.shifted2]).verdict, 'one connection: the repeat is seen');
     // ...but the ingest resets the detector on a reconnect, and a resend is then never compared with before.
-    assert.equal(run([feeds.clip, feeds.shifted], { between: (i, d) => d.reset() }).verdict, null);
+    assert.equal(run([feeds.clip, feeds.shifted, feeds.shifted2], { between: (i, d) => { if (i === 0) d.reset(); } }).verdict, null);
+});
+
+test('one clip aired twice in a row (an ad, a promo, a replay), then other programming, is never a loop', { skip }, () => {
+    const { verdict, detector } = run([feeds.twiceThenLive]);
+    assert.equal(verdict, null, JSON.stringify(verdict));
+    assert.ok(detector.video.count >= 4 * feeds.clipSec * 25 - 2, `all of it read (${detector.video.count} pictures)`);
+    // The same two airings with nothing after them yet: still not a loop.
+    assert.equal(run([feeds.clip, feeds.shifted]).verdict, null);
 });
 
 test('a lone repeat shorter than 10 s is not a loop', { skip }, () => {
