@@ -102,6 +102,7 @@ class Subscription extends Readable {
         this.bytesOut = 0;
         this.endReason = null;
         this.awaitPat = false;
+        this.backlogBytes = 0;
     }
     _read() { /* data is pushed by the ingest; pausing only grows our queue, which eviction bounds */ }
     deliver(chunk) {
@@ -115,7 +116,15 @@ class Subscription extends Readable {
         }
         this.bytesOut += chunk.length;
         this.push(chunk);
-        if (this.readableLength > tuning.slowBytes) this.finish('slow-consumer', { providerReason: false });
+        // #309: the join backlog is counted apart (it is handed over before the reader can read):
+        // only what is queued beyond its unread part is lag.
+        const unreadBacklog = Math.max(0, this.backlogBytes - (this.bytesOut - this.readableLength));
+        if (this.readableLength - unreadBacklog > tuning.slowBytes) this.finish('slow-consumer', { providerReason: false });
+    }
+    /** The join point's backlog (at most slowBytes), handed over at once and not counted as lag. */
+    deliverBacklog(parts) {
+        this.backlogBytes = parts.reduce((n, p) => n + p.length, 0);
+        for (const p of parts) this.deliver(p);
     }
     /** End this subscriber's stream with a reason ({ providerReason } says whose fault). */
     finish(reason, { providerReason = false } = {}) {
@@ -392,9 +401,10 @@ class Ingest extends EventEmitter {
      * and PMT before the newest video key frame of the last joinLookbackMs, then the stream from that
      * key frame's first packet (#3: a copy session's ffmpeg copies audio at once and video from a key
      * frame, and a play that starts out of step stays so on AVPlayer). If none can be found, or that
-     * backlog is over half the slow-consumer limit (it is handed over before the reader can read, and
-     * would end it at once), it starts at the last PAT in the buffer's final 2 s, as before; if that
-     * too is over the budget (#309: sparse PATs, a burst), at the next PAT the feed sends.
+     * backlog is over the slow-consumer limit, it starts at the last PAT in the buffer's final 2 s, as
+     * before; if that too is over the limit (#309: sparse PATs, a burst), at the next PAT the feed
+     * sends. A backlog is handed over before the reader can read, so it is not counted as lag (#309:
+     * a 25 Mb/s feed with key frames 4 s apart still joins on a key frame).
      */
     subscribe(info = {}, { fromStart = false } = {}) {
         const sub = new Subscription(this, info);
@@ -416,9 +426,8 @@ class Ingest extends EventEmitter {
             const joined = Buffer.concat(window);
             const key = keyframeJoin(joined);
             const backlog = key.at >= 0 ? key.tables.length * TS_PACKET + joined.length - key.at : 0;
-            if (key.at >= 0 && backlog <= tuning.slowBytes / 2) {
-                sub.deliver(Buffer.concat(key.tables.map(o => joined.subarray(o, o + TS_PACKET))));
-                sub.deliver(joined.subarray(key.at));
+            if (key.at >= 0 && backlog <= tuning.slowBytes) {
+                sub.deliverBacklog([Buffer.concat(key.tables.map(o => joined.subarray(o, o + TS_PACKET))), joined.subarray(key.at)]);
                 return sub;
             }
             // Once per feed for each kind of fallback: the stream gave no key frame, or it was too far back.
@@ -427,7 +436,7 @@ class Ingest extends EventEmitter {
             if (!this.joinFallbacksLogged.has(big)) {
                 this.joinFallbacksLogged.add(big);
                 this.log(big
-                    ? `a reader joined at the newest PAT: the backlog from the newest key frame (${(backlog / 1048576).toFixed(1)} MB) is over half the slow-reader limit`
+                    ? `a reader joined at the newest PAT: the backlog from the newest key frame (${(backlog / 1048576).toFixed(1)} MB) is over the slow-reader limit`
                     : `a reader joined at the newest PAT: ${key.reason} in the last ${Math.round(tuning.joinLookbackMs / 1000)}s`);
             }
         }
@@ -436,7 +445,7 @@ class Ingest extends EventEmitter {
         if (tail.length) {
             const joined = Buffer.concat(tail);
             const at = lastPatOffset(joined);
-            if (at >= 0 && joined.length - at <= tuning.slowBytes / 2) sub.deliver(joined.subarray(at));
+            if (at >= 0 && joined.length - at <= tuning.slowBytes) sub.deliverBacklog([joined.subarray(at)]);
             else if (at >= 0) {
                 // #309: over the same budget (sparse PATs, a burst), handing it over would end the
                 // reader here, before its consumer listens. It waits for the feed's next PAT instead.
@@ -444,7 +453,7 @@ class Ingest extends EventEmitter {
                 this.joinFallbacksLogged = this.joinFallbacksLogged || new Set();
                 if (!this.joinFallbacksLogged.has('wait')) {
                     this.joinFallbacksLogged.add('wait');
-                    this.log(`a reader waits for the next PAT: the backlog from the newest PAT (${((joined.length - at) / 1048576).toFixed(1)} MB) is over half the slow-reader limit`);
+                    this.log(`a reader waits for the next PAT: the backlog from the newest PAT (${((joined.length - at) / 1048576).toFixed(1)} MB) is over the slow-reader limit`);
                 }
             }
         }

@@ -32,15 +32,16 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 /**
  * Join an 8 s H.264 + AAC feed (a key frame every 2 s exactly, no scene cuts) 3.0 s in - one second
  * after the key frame at 2 s - and run the joiner through a copy session: the first segment's first
- * audio and video PTS. `mux` is extra mpegts muxer arguments.
+ * audio and video PTS. `mux` is extra mpegts muxer arguments; `seconds`, `gop` (frames at 25 a
+ * second) and `joinMs` change the feed and when the joiner comes.
  */
-async function joinedStarts(mux, port) {
-    const SECONDS = 8;
+async function joinedStarts(mux, port, { seconds = 8, gop = 50, joinMs = 3000 } = {}) {
+    const SECONDS = seconds;
     const work = fs.mkdtempSync(path.join(sandbox, 'work-'));
     const source = path.join(work, 'feed.ts');
     const made = spawnSync('ffmpeg', ['-v', 'error', '-y',
         '-f', 'lavfi', '-i', 'testsrc2=size=320x180:rate=25', '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000',
-        '-t', String(SECONDS), '-c:v', 'libx264', '-preset', 'veryfast', '-g', '50', '-keyint_min', '50', '-sc_threshold', '0',
+        '-t', String(SECONDS), '-c:v', 'libx264', '-preset', 'veryfast', '-g', String(gop), '-keyint_min', String(gop), '-sc_threshold', '0',
         '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '96k', ...mux, '-f', 'mpegts', source], { encoding: 'utf8' });
     assert.equal(made.status, 0, made.stderr);
 
@@ -50,7 +51,7 @@ async function joinedStarts(mux, port) {
         const url = `${base}/feed.ts`;
         const opener = await ingest.subscribe({ pool: port, url, userAgent: 'test', purpose: 'viewer' });
         opener.resume();
-        while (!started.get('/feed.ts') || Date.now() - started.get('/feed.ts') < 3000) await sleep(20);
+        while (!started.get('/feed.ts') || Date.now() - started.get('/feed.ts') < joinMs) await sleep(20);
         const viewer = await ingest.subscribe({ pool: port, url, userAgent: 'test', purpose: 'viewer' });
         const outDir = fs.mkdtempSync(path.join(work, 'joined-'));
         const stderr = await runFed(viewer, await copySessionArgs(transcodeSession, outDir), outDir);
@@ -83,4 +84,16 @@ test('the same with ffmpeg\'s default muxing (several AAC frames per PES): sound
         const { audio, video, stderr } = await joinedStarts([], 'sync-default');
         assert.ok(Math.abs(video - audio) <= 0.25, `audio ${audio.toFixed(3)} s and video ${video.toFixed(3)} s: no more apart than the muxer's PES`);
         assert.doesNotMatch(stderr, /error|corrupt|continuity/i, 'the copy session reports nothing about the join');
+    });
+
+test('#309: a 25 Mb/s feed with a key frame every 4 s, joined 3.5 s after one, still starts on the key frame (T2)',
+    { skip: !haveFfmpeg && 'ffmpeg is not installed here' }, async () => {
+        // About 11 MB from the key frame: over half the default 16 MiB slow-reader limit, so 0579 took
+        // the old join at the newest PAT and the first segment started with about 0.5 s of sound and no
+        // picture. The backlog is now not counted as lag, and the key-frame join is used up to the limit.
+        // The muxer pads the feed to 25 Mb/s with null packets (the bitrate is what the backlog measures).
+        assert.equal(ingest.tuning.slowBytes, 16 * 1024 * 1024, 'the default limit');
+        const { audio, video } = await joinedStarts(['-pes_payload_size', '0', '-muxrate', '25000000'], 'sync-25mbit',
+            { seconds: 12, gop: 100, joinMs: 7500 });
+        assert.ok(Math.abs(video - audio) <= 0.1, `audio ${audio.toFixed(3)} s and video ${video.toFixed(3)} s start together`);
     });
