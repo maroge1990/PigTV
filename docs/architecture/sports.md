@@ -22,8 +22,11 @@ numbered round (round, rd or r with its number; 0338, 0339), or when a side is a
 nickname football codes share such as Panthers or Lions, 0336; no stored roster, no added recognition), or (c) a C-H sport
 category's channel + a live-looking title
 ("live", "vs", " v "). A keyword that names a league follows its canonical league in every spelling (`sportsClassify.LEAGUES`:
-F1 = Formula 1 = Formula One = FIA F1; AFLW = "Women's AFL" = "AFL Women's", apart from AFL; NFL, NBA, NRL(W), …); other
-keywords match as whole words. Cricket format prefixes (`Test`, `ODI`, `T20`, `T20I`, optionally `W`, `Mini` or
+F1 = Formula 1 = Formula One = FIA F1; AFLW = "Women's AFL" = "AFL Women's", apart from AFL; NFL, NBA, NRL(W), …). The
+followed keywords are the leagues accounts follow (D-42), each a canonical league, so the event list's reading
+(`classify`) follows leagues only (#291); a team ("NFL: Arizona Cardinals": its full name, or a shorter one inside its
+league) or any other keyword (whole words) is a sport recording rule's match (`compileFollow` + `followedKeyword` over
+C-I's events, `recordingRules.sportCandidates`). Cricket format prefixes (`Test`, `ODI`, `T20`, `T20I`, optionally `W`, `Mini` or
 `Classic`) followed by a colon and a match-up also name Cricket; so does a match-up on a channel containing "Cricket".
 The Cricket follow still applies; bare "test" is not a keyword. Test day/session and G1–G5 suffixes are stripped before
 reading the teams. **Kinds (0150, `sportsClassify.js`, pure):** each programme is `placeholder` ("no event", "coming

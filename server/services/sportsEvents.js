@@ -232,10 +232,12 @@ function leagueFromCategories(categories) {
 /**
  * Is this programme sport, and by which rule?
  *   -> null | { rule: 'keyword'|'category'|'sportChannel', match, league }
- * `follow` is compileFollow()'s result; `sportChannel` is C-H's mark on the
- * programme's channel. A followed keyword's league is the canonical league the title
- * (else a category) names, else the keyword's own. Whether it is an event, a replay,
- * a show or a placeholder is sportsClassify.classifyKind's question (0150; before,
+ * `follow` is compileFollow()'s result for the leagues accounts follow (getFollow: catalogue leagues, every one a
+ * canonical league); `sportChannel` is C-H's mark on the programme's channel. A followed league's programme is one whose
+ * title or a category names it, or (a stored roster) whose two teams are its; its league is the canonical league the
+ * title (else a category) names. #291: since following became per account (D-42) no team or free keyword reaches here;
+ * those stay compileFollow's and followedKeyword's for the sport recording rules (recordingRules.sportCandidates).
+ * Whether it is an event, a replay, a show or a placeholder is sportsClassify.classifyKind's question (0150; before,
  * news/highlights/preview/replay/classic/magazine were dropped here).
  */
 function classify({ title, categories = [], sportChannel = false, channelName = '' }, follow) {
@@ -246,10 +248,9 @@ function classify({ title, categories = [], sportChannel = false, channelName = 
     // A stored roster recognises team-only titles; two different teams of a followed league
     // must resolve uniquely by a full name, nickname or stored abbreviation, across all followed
     // rosters. Location-only or subset matches cannot infer a league. No roster, no new rule.
-    // #24: and only where the title names no competition itself (a followed keyword such as "EFL Cup", or another one),
+    // #24: and only where the title names no competition itself (another one than the league's),
     // checked against every stored roster, followed or not; the one league it infers must be followed.
-    const namesCompetition = OTHER_COMPETITION_RE.test(text) || follow.list.some(k => k.re && k.re.test(text));
-    if (!titleLeague && !namesCompetition && follow.rosters?.size) {
+    if (!titleLeague && !OTHER_COMPETITION_RE.test(text) && follow.rosters?.size) {
         const pair = sportsClassify.parseMatchup(text);
         if (pair && !pair.some(sharedNickname) && !(ROUND_RE.test(text) && pair.every(bareCode))) {
             const matches = [];
@@ -269,8 +270,9 @@ function classify({ title, categories = [], sportChannel = false, channelName = 
             if (matches.length === 1 && possible.size === 1 && !otherCode && follow.leagues.has(matches[0])) leagues.unshift(matches[0]);
         }
     }
-    const keyword = followedKeyword(follow, text, categories, leagues);
-    if (keyword) return { rule: 'keyword', match: keyword.keyword, league: leagues[0] || keyword.league || (keyword.team && keyword.team.league) || keyword.keyword };
+    // The first followed league (in list order) the title, a category or the rosters name
+    const keyword = follow.list.find(k => k.league && leagues.includes(k.league));
+    if (keyword) return { rule: 'keyword', match: keyword.keyword, league: leagues[0] };
     const category = categories.find(c => VOCABULARY_RE.test(String(c).replace(/[\-_/]+/g, ' ')));
     if (category) return { rule: 'category', match: category, league: leagueFromCategories(categories) };
     if (sportChannel && LIVE_TITLE_RE.test(text)) {

@@ -512,3 +512,16 @@ test('#222 (0448 Codex round 2): a title or slot that names another code is neve
     assert.equal(sportsEvents.classify({ title: 'Ligue 1 | 04 - Toulouse v Lyon 8:00pm' }, alone)?.league, 'Ligue 1');
     assert.equal(sportsEvents.classify({ title: 'Soccer 04: Toulouse v Lyon 8:00pm' }, alone)?.league, 'Ligue 1');
 });
+
+// #291 item 2: the event list's reading (sportsEvents.classify) takes only the leagues accounts follow (getFollow: the
+// catalogue's leagues, sportPagePrefs keeps no other), so its team and free-keyword branches had no caller and went. This
+// holds only while every catalogue league compiles to a league follow: never a team ("League: Team") or a free keyword,
+// which stay compileFollow's and followedKeyword's for the sport recording rules.
+test('#291: every catalogue league compiles to a league follow, so the event list never meets a team or free keyword', () => {
+    const sportsEvents = load('services/sportsEvents');
+    const leagues = load('services/sportCatalog').publicCatalog().flatMap(s => s.leagues.map(l => l.league));
+    assert.ok(leagues.length > 50);
+    const { list } = sportsEvents.compileFollow(leagues);
+    assert.deepEqual(list.filter(k => !k.league || k.team || k.re).map(k => k.keyword), []);
+    assert.deepEqual(list.filter(k => k.league !== k.keyword).map(k => k.keyword), [], 'each the canonical league itself');
+});

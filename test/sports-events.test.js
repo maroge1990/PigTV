@@ -511,7 +511,10 @@ test('hours defaults to 6 and is clamped to 1-72 (0153: a whole weekend; was 24)
     assert.equal(find(await events('?hours=abc'), 'NBA').length, 2, 'not a number: the default 6 (the second NBA starts in 5 h)');
 });
 
-test('0185: a followed team ("NFL: Arizona Cardinals") follows its games by full name, or by a short name inside its league', async () => {
+// #291: since D-42 the event list follows leagues only (classify); a team written "League: Team" is a sport recording
+// rule's match (recordingRules.sportCandidates: compileFollow + followedKeyword over C-I's events), as the Apple and web
+// clients' "Record every ..." send it.
+test('0185: a sport rule\'s team ("NFL: Arizona Cardinals") follows its games by full name, or by a short name inside its league', async () => {
     const ev = load('services/sportsEvents');
     const roster = [
         { displayName: 'Arizona Cardinals', shortDisplayName: 'Cardinals', name: 'Cardinals', location: 'Arizona', abbreviation: 'ARI' },
@@ -521,8 +524,11 @@ test('0185: a followed team ("NFL: Arizona Cardinals") follows its games by full
     ];
     sqlite.getDb().prepare('INSERT OR REPLACE INTO sport_fixture_teams (league, data, updated_at) VALUES (?, ?, ?)').run('NFL', JSON.stringify(roster), Date.now());
     const compiled = ev.compileFollow(['NFL: Arizona Cardinals', 'nfl: New York Jets']);
-    const hit = (title, categories = []) => ev.classify({ title, categories }, compiled);
-    assert.deepEqual(hit('Arizona Cardinals at Seattle Seahawks'), { rule: 'keyword', match: 'NFL: Arizona Cardinals', league: 'NFL' }, 'the full name needs no league');
+    // the leagues the rule is given: C-I's event league, as its title or a category names it
+    const { detectLeague } = load('services/sportsClassify');
+    const keywordOf = (follow, title, categories = []) => ev.followedKeyword(follow, title, categories, [title, ...categories].map(detectLeague).filter(Boolean))?.keyword ?? null;
+    const hit = (title, categories = []) => { const k = keywordOf(compiled, title, categories); return k && { match: k }; };
+    assert.deepEqual(hit('Arizona Cardinals at Seattle Seahawks'), { match: 'NFL: Arizona Cardinals' }, 'the full name needs no league');
     assert.equal(hit('NFL: Cardinals @ Seahawks').match, 'NFL: Arizona Cardinals', 'the nickname, in an NFL programme');
     assert.equal(hit('Arizona at Seattle', ['NFL']).match, 'NFL: Arizona Cardinals', 'the place, when one team has it');
     assert.equal(hit('MLB: St. Louis Cardinals at Chicago Cubs'), null, 'another league\'s Cardinals');
@@ -532,7 +538,12 @@ test('0185: a followed team ("NFL: Arizona Cardinals") follows its games by full
     assert.equal(hit('NFL: Jets @ Bills').match, 'nfl: New York Jets');
     // With no roster yet, the name as written still works.
     const bare = ev.compileFollow(['EPL: Arsenal']);
-    assert.equal(ev.classify({ title: 'Premier League: Arsenal v Leeds United', categories: [] }, bare).league, 'EPL');
+    assert.equal(keywordOf(bare, 'Premier League: Arsenal v Leeds United'), 'EPL: Arsenal');
+    // A free keyword ("Chiefs"), as a rule's match, by whole words
+    assert.equal(keywordOf(ev.compileFollow(['Chiefs']), 'NFL: Chiefs v Bills'), 'Chiefs');
+    assert.equal(keywordOf(ev.compileFollow(['Chiefs']), 'NFL: Chiefsville v Bills'), null);
+    // the event list's own reading (classify) follows leagues alone: a team or free keyword there finds nothing more
+    assert.equal(ev.classify({ title: 'Arizona Cardinals at Seattle Seahawks', categories: [] }, compiled), null);
     // The followed team's league gets its fixtures fetched.
     await follow(['NFL']);
     assert.deepEqual([...load('services/sportsFixtures').neededLeagues()], ['NFL']);
