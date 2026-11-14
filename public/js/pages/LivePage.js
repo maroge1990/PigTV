@@ -97,6 +97,7 @@ class LivePage {
     hide() {
         document.removeEventListener('keydown', this.handleKeydown);
         this.app.channelList.setEpgRefreshActive(false);
+        if (this.app.player && this.app.player.abandonPrompt) this.app.player.abandonPrompt();
     }
 }
 

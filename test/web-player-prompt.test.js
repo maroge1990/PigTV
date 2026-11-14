@@ -45,7 +45,7 @@ function harness({ page = 'live', responses = [] } = {}) {
     });
     const banner = () => container.querySelector('.player-prompt');
     const press = (el, key) => el.dispatchEvent(new FakeEvent('keydown', { key, stopPropagation() {} }));
-    return { VideoPlayer, player, container, document, fetched, confirms, banner, press, opener };
+    return { context, VideoPlayer, player, container, document, fetched, confirms, banner, press, opener };
 }
 
 const CLASH = { status: 409, body: { conflict: { type: 'recording-in-progress', message: 'A recording is using the only stream.' } } };
@@ -152,4 +152,29 @@ test('on a page where the player is hidden the browser still asks (the person mu
     assert.equal(answer, true);
     assert.deepEqual(h.confirms, ['m']);
     assert.equal(h.banner(), null);
+});
+
+test('leaving Live TV takes the recording-due banner away without declining, and the next check asks again', async () => {
+    const due = { status: 200, body: { scheduleId: 3, message: 'Football is about to record.', startsInSec: 300 } };
+    const h = harness({ responses: [due, due] });
+    const done = h.player.checkConflict();
+    await tick();
+    assert.ok(h.banner());
+    h.player.abandonPrompt();
+    await done;
+    assert.equal(h.banner(), null);
+    assert.ok(!h.fetched.some(([url]) => url === '/api/playback/conflict/decline'), 'not a decline');
+    assert.equal(h.player._promptedFor, null, 'asked again at the next check');
+    h.context.app.currentPage = 'guide';
+    await h.player.checkConflict();
+    assert.equal(h.confirms.length, 1, 'the player is hidden: the browser asks');
+});
+
+test('leaving Live TV cancels a pending clash banner (resolves no)', async () => {
+    const { player, banner } = harness({ responses: [CLASH] });
+    const pending = player.resolvePlayback(SEVEN, null);
+    await tick();
+    player.abandonPrompt();
+    assert.equal(await pending, player.constructor.CANCELLED);
+    assert.equal(banner(), null);
 });

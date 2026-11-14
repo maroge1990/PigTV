@@ -897,14 +897,17 @@ class VideoPlayer {
                 message: `${prompt.message}\n\nIt is due in about ${mins} minute${mins === 1 ? '' : 's'}.\n\n` +
                     `Stop watching so it can record?`,
                 confirmLabel: 'Stop watching',
-                label: 'A recording is about to start'
+                label: 'A recording is about to start',
+                kind: 'recording'
             });
+            const abandoned = this._promptAbandoned === true;
+            this._promptAbandoned = false;
 
             if (stopNow) {
                 await this.stop();
-            } else if (generation !== this._playGeneration) {
-                // The question went away because playback changed (another channel, or stopped), not because it was
-                // declined: ask again at the next check.
+            } else if (abandoned || generation !== this._playGeneration) {
+                // The question went away because playback changed (another channel, or stopped) or the person left
+                // Live TV, not because it was declined: ask again at the next check.
                 this._promptedFor = null;
             } else {
                 await fetch('/api/playback/conflict/decline', {
@@ -1597,7 +1600,7 @@ class VideoPlayer {
      * its place. On a page where the player is not showing there is nothing to put a banner in, so the browser's own
      * confirm() asks (the person must still be able to answer a recording that is about to start).
      */
-    askInPlayer({ message, confirmLabel, cancelLabel = 'Cancel', label }) {
+    askInPlayer({ message, confirmLabel, cancelLabel = 'Cancel', label, kind = 'question' }) {
         this.cancelPrompt();
         const app = window.app;
         if (!this.container || (app && app.currentPage && app.currentPage !== 'live')) {
@@ -1629,7 +1632,7 @@ class VideoPlayer {
             banner.appendChild(actions);
 
             const previousFocus = document.activeElement;
-            const prompt = { resolve: null, banner };
+            const prompt = { resolve: null, banner, kind };
             prompt.resolve = (answer) => {
                 if (this._prompt !== prompt) return;
                 this._prompt = null;
@@ -1647,6 +1650,17 @@ class VideoPlayer {
             this.container.appendChild(banner);
             primary.focus();
         });
+    }
+
+    /**
+     * The person left Live TV: the banner would be left behind in a hidden player. A clash question is simply
+     * cancelled. The recording-due question is cancelled without counting as a decline, and asked again at the next
+     * check (which uses confirm() while the player is hidden): a recording must never be silently declined.
+     */
+    abandonPrompt() {
+        if (!this._prompt) return;
+        if (this._prompt.kind === 'recording') this._promptAbandoned = true;
+        this._prompt.resolve(false);
     }
 
     /** A pending question is answered "no" when something else takes its place (a newer play, a stop, a newer question). */
