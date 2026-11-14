@@ -548,7 +548,10 @@ function overlay(value, state, now) {
             ? at.map(i => (Array.isArray(snap.situation.innings[i]) ? snap.situation.innings[i] : []).map(r => ({ runs: r?.runs ?? null,
                 wickets: r?.wickets ?? null, overs: r?.overs === '' || r?.overs === undefined || r?.overs === null ? null : String(r.overs),
                 declared: false, current: r?.current === true }))) : null;
-        return { ...word, moved: theirs !== ours, scores, innings };
+        // the read made after the account's delayed view (beyond the collector's 30 s pace): nothing of its score may stand
+        // in for the collector's
+        const ahead = Number.isFinite(value.updatedAt) && value.updatedAt > seen.observedAt + 30000;
+        return { ...word, moved: theirs !== ours, scores, innings, ahead };
     };
     const views = new Map();
     for (const m of [meta.lead?.m, ...meta.all, ...meta.others]) if (m && !views.has(m.id)) views.set(m.id, viewOf(m));
@@ -565,13 +568,14 @@ function overlay(value, state, now) {
             // collector's (this account's delayed) score only when the two are the same point of the match, else held back
             const same = (a, b) => Boolean(a && b) && a.runs === b.runs && a.wickets === b.wickets && (a.overs ?? null) === (b.overs ?? null);
             const declared = (i, k, r) => lead.innings?.[i]?.[k]?.declared === true && same(lead.innings[i][k], r);
-            const aligned = !v.moved && (!v.innings || (v.innings.length === (lead.innings || []).length
+            const aligned = !v.moved && (!v.innings ? !v.ahead : (v.innings.length === (lead.innings || []).length
                 && v.innings.every((list, i) => list.length === lead.innings[i].length && list.every((r, k) => same(r, lead.innings[i][k])))));
             lead = { ...lead, status: v.status, breakLabel: v.breakLabel, days: daysOf(shown, n, now), nextStart: nextStartOf(shown, n, now),
                 session: aligned && v.status === 'live' && lead.status === 'live' ? lead.session : null,
                 crease: aligned && ['live', 'break'].includes(v.status) ? lead.crease : null,
                 summary: aligned ? lead.summary : null,
-                innings: v.innings ? v.innings.map((list, i) => list.map((r, k) => ({ ...r, declared: declared(i, k, r) }))) : lead.innings,
+                // Opus review (low): no collector innings to place, and the read newer than the view: none, never the read's
+                innings: v.innings ? v.innings.map((list, i) => list.map((r, k) => ({ ...r, declared: declared(i, k, r) }))) : v.ahead ? lead.innings.map(() => []) : lead.innings,
                 seriesLine: seriesLineOf(shown, meta.all.map(as)) };
         }
         const air = airingOf(shown, n, now);
@@ -591,8 +595,9 @@ function overlay(value, state, now) {
         const v = views.get(m.id);
         if (!v) return o;
         // #297 (Codex, high): the read's line goes with its own scores: shown only beside the same scores
-        const aligned = !v.moved && (!v.scores || JSON.stringify(v.scores) === JSON.stringify((o.scores || []).map(x => (typeof x === 'string' && x.trim() ? x.trim() : null))));
-        return { ...o, status: v.status, nextStart: nextStartOf(as(m), n, now), line: aligned ? o.line : null, scores: v.scores || o.scores };
+        const aligned = !v.moved && (!v.scores ? !v.ahead : JSON.stringify(v.scores) === JSON.stringify((o.scores || []).map(x => (typeof x === 'string' && x.trim() ? x.trim() : null))));
+        return { ...o, status: v.status, nextStart: nextStartOf(as(m), n, now), line: aligned ? o.line : null,
+            scores: v.scores || (v.ahead ? o.scores.map(() => null) : o.scores) };
     });
     const out = { ...value, lead, series, others };
     AIRINGS.set(out, airings);

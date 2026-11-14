@@ -280,6 +280,36 @@ test('Cricket: a finish the page\'s read still lacks after renewing keeps the pa
     assert.equal(panels, 4, 'one read (two day lists), then one renewal (two) in the 30 s however many requests');
 });
 
+// Opus review (low): with no innings or score in the collector's snapshot to place, the lead fell back to the read's
+// newer innings and the others to its newer scores.
+test('Cricket: a snapshot with no score to place and a read newer than the account\'s view: no score from the read', async () => {
+    const cricket = load('services/sportPageCricket');
+    const espn = load('services/sportsScoresEspn');
+    cricket.reset();
+    const at = K + 9 * 24 * 60 * MIN;
+    const lead = { ...scriptedGame({ at, guideMin: 10, finalMin: 25 }), id: '9917007' };
+    const other = { ...scriptedGame({ at, guideMin: 10, finalMin: 25 }), id: '9917008' };
+    const otherBoard = (t) => { const b = cricketBoard(other, t); return { ...b, leagues: [{ ...b.leagues[0], id: '1601' }],
+        events: b.events.map(e => ({ ...e, competitions: e.competitions.map(c => ({ ...c,
+            competitors: c.competitors.map(x => (x.team.displayName === 'India' ? { ...x, team: { ...x.team, id: '7', displayName: 'Pakistan', name: 'Pakistan', abbreviation: 'PAK' } } : x)) })) })) }; };
+    const readAt = at + 24 * MIN;
+    cricket.fetcher.get = async url => (url.includes('scorepanel') ? { ok: true, json: { scores: [cricketBoard(lead, readAt), otherBoard(readAt)] } }
+        : url.includes('cricket/1500/scoreboard') ? { ok: true, json: cricketBoard(lead, readAt) } : url.includes('cricket/1601/scoreboard') ? { ok: true, json: otherBoard(readAt) } : { ok: false, error: 'HTTP 404' });
+    const store = dashboard.store();
+    const unplaced = (cards) => cards.map(c => ({ ...c, snapshot: { ...c.snapshot, scores: null, situation: null } }));
+    for (let t = at + 18 * MIN; t <= at + 24 * MIN; t += 30000) {
+        store.ingest(unplaced(espn.normalize(cricketBoard(lead, t), 'Cricket', 'cricket/1500')), t);
+        store.ingest(unplaced(espn.normalize(otherBoard(t), 'Cricket', 'cricket/1601')), t);
+    }
+    const now = at + 24 * MIN;
+    const page = await cricket.page(now, { ...pageDeps(1, now), followed: ['India'], leagues: ['Cricket'] });
+    assert.equal(page.lead.status, 'live');
+    assert.deepEqual(page.lead.innings, [[], []], 'not the read\'s 150/7 and 150/6');
+    assert.equal(page.lead.summary, null);
+    const o = page.others.find(x => x.id === '9917008');
+    assert.deepEqual([o.scores, o.line], [[null, null], null]);
+});
+
 // Opus review (medium): an event over in the page's read but still on for the account kept the read's winners.
 test('Events: a UFC night over in the page\'s read, still on for a delayed account: no winner or result from the read', async () => {
     const ev = load('services/sportPageEvents');

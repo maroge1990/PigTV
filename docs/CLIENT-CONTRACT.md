@@ -889,7 +889,9 @@ on demand (kept 2 min while the lead is in play, 10 min on a match day, 1 h othe
   the collector holds a fresh snapshot; elsewhere the page's own read as before. A match the collector has seen finish
   keeps its previous status and score until the page's own read has the result (renewed at once). The read's `summary`,
   `crease`, `session`, `line` and an innings' `declared` are shown only when the read's score is the collector's (the same
-  point of the match: never a line or a batter ahead of the account's delayed score), else null (`declared` false).
+  point of the match: never a line or a batter ahead of the account's delayed score), else null (`declared` false). When
+  the card has no score to place and the read is newer than the account's view, the lead's `innings` are empty lists and
+  `others[]`' `scores` null, never the read's.
   While the account's delayed view is behind the page's read, or ahead of it before the renewed read lands, the series
   match's `result` is null too and `seriesLine` does not count it; `days`, `nextStart` and `channels` follow the status.
 - Since 0436 (#210): `lead` and each `others[]` entry carry `league`: the C-U catalogue league the match is on the page
