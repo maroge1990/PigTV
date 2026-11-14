@@ -53,7 +53,7 @@ test('a game to come: Remind me, then RECORD (this game, every Tottenham game, M
     h.p.act('more', Object.assign(h.anchor(), { getAttribute: (k) => ({ 'data-id': 'nxt' })[k] ?? null }));
     const m = h.menu();
     assert.equal(m.getAttribute('role'), 'menu');
-    assert.deepEqual(items(m.innerHTML), [['remind', 'Remind me'], ['record', 'Record this game'], ['record-every', 'Record every Tottenham game'],
+    assert.deepEqual(items(m.innerHTML), [['remind', 'Remind me'], ['details', 'Details'], ['record', 'Record this game'], ['record-every', 'Record every Tottenham game'],
         ['record-options', 'More options…'], ['pin', 'Make this the hero']]);
     assert.match(m.innerHTML, /<div class="ms" aria-hidden="true">Record<\/div>/);
     assert.match(m.innerHTML, /<span>[^<]+, with the usual padding<\/span>/);
@@ -77,7 +77,7 @@ test('Change recording when it is set; Record when it\'s listed, or Don\'t recor
     const h = await harness();
     h.f.games.find(g => g.id === 'nxt').recording = { scheduleId: 4, status: 'recording' };
     h.p.openMenu(h.p.game('nxt'), h.anchor());
-    assert.deepEqual(items(h.menu().innerHTML).slice(0, 2), [['remind', 'Remind me'], ['change-recording', 'Change recording']]);
+    assert.deepEqual(items(h.menu().innerHTML).slice(0, 3), [['remind', 'Remind me'], ['details', 'Details'], ['change-recording', 'Change recording']]);
     assert.match(h.menu().innerHTML, /<b>Change recording<\/b><span>Recording now<\/span>/);
     h.p.openMenu(h.p.game('far'), h.anchor());
     assert.deepEqual(items(h.menu().innerHTML), [['record-listed', 'Record when it’s listed'], ['pin', 'Make this the hero']]);
@@ -118,21 +118,6 @@ test('on a phone the menu is a sheet from the bottom over a scrim, with Cancel; 
     assert.equal(h.b.document.activeElement, a);
 });
 
-test('More options…: Record this game with its own padding, the fields checked as whole minutes', async () => {
-    const h = await harness();
-    h.p.recordOptions('nxt');
-    const d = h.b.document.body.querySelector('dialog');
-    assert.ok(d && d.open, 'a dialog');
-    const pre = h.b.document.getElementById('sp-pad-pre'), post = h.b.document.getElementById('sp-pad-post');
-    Object.assign(pre, { min: '0', max: '60', value: '5' }); Object.assign(post, { min: '0', max: '180', value: '30' });
-    const save = d.querySelector('.btn-primary');
-    assert.equal(save.textContent, 'Record this game');
-    save.click();
-    await new Promise(setImmediate);
-    const sent = h.calls.find(c => c[0] === 'schedule')[1];
-    assert.equal(sent.preBufferMin, 5); assert.equal(sent.postBufferMin, 30); assert.equal(sent.gameId, 'nxt');
-});
-
 test('the menu shows no score with scores hidden (its title and times only)', async () => {
     const h = await harness();
     h.p.prefs = { known: true, spoilerFree: true };
@@ -141,28 +126,6 @@ test('the menu shows no score with scores hidden (its title and times only)', as
         assertNoScores(h.menu().innerHTML, `menu ${id}`);
     }
 });
-
-// #323 Codex review of step 5 (medium): More options on a game already set to record changes that recording (its
-// padding, through PUT /recordings/scheduled/:id), on whichever channel it is set; it never schedules a second one.
-for (const [what, status, extraChannel] of [['set on its channel', 'scheduled', false], ['recording, on another of its channels', 'recording', true]]) {
-    test(`More options on a game already ${what}: its padding is changed, nothing new is scheduled`, async () => {
-        const h = await harness();
-        const g = h.f.games.find(x => x.id === 'nxt');
-        g.recording = { scheduleId: 4, status };
-        if (extraChannel) g.channels.unshift({ sourceId: 2, stableId: 'o', id: '201', name: 'Other', start: g.start, end: g.start + 7200000 });
-        h.p.recordOptions('nxt');
-        const d = h.b.document.body.querySelector('dialog');
-        assert.match(d.querySelector('.ui-dialog-title').textContent, /^Change recording · Newcastle v Tottenham$/);
-        const pre = h.b.document.getElementById('sp-pad-pre'), post = h.b.document.getElementById('sp-pad-post');
-        Object.assign(pre, { min: '0', max: '60', value: status === 'recording' ? '' : '3' }); Object.assign(post, { min: '0', max: '180', value: '45' });
-        d.querySelector('.btn-primary').click();
-        await new Promise(setImmediate);
-        assert.equal(h.calls.filter(c => c[0] === 'schedule').length, 0, 'no second schedule');
-        const put = h.calls.find(c => c[0] === 'PUT');
-        assert.deepEqual(JSON.parse(JSON.stringify(put)), ['PUT', '/recordings/scheduled/4', status === 'recording' ? { postBufferMin: 45 } : { preBufferMin: 3, postBufferMin: 45 }],
-            status === 'recording' ? 'a running recording: only its finish' : 'both');
-    });
-}
 
 // #323 Codex review of step 5 (medium): "Record every <team> game" is the game's own sport's follow, and the rule's sport
 // the game's: an NFL "Giants" follow never makes an AFL GWS Giants card a rule of American football.

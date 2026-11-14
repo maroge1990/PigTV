@@ -76,6 +76,7 @@ class SportsPage {
         clearTimeout(this.timer); this.timer = null;
         if (this.waiting) { clearTimeout(this.waiting.timer); this.waiting = null; this.watchCancelled = true; }
         this.closeMenu();
+        this.closeWindow();
         this.serial++;
     }
     openPath(sub, history = 'none') {
@@ -331,6 +332,8 @@ class SportsPage {
         this.updateRails();
         if (focusKey) [...(this.root.querySelectorAll?.('[data-key]') || [])].find(n => n.getAttribute('data-key') === focusKey)?.focus?.({ preventScroll: true });
         if (this.menu) { const a = this.anchorFor(this.menu); if (a) { this.menu.anchor = a; a.setAttribute?.('aria-expanded', 'true'); } }
+        // the details follow a new answer (its channels and recording); the record page keeps the person's choices
+        if (this.window && this.window.kind === 'details') this.window.redraw();
     }
 
     /** The markup for what is shown now: the header, then the state block or the page. */
@@ -444,16 +447,7 @@ class SportsPage {
             this.openMenu(g, el, { point: Number.isFinite(e.clientX) && e.clientX > 0 ? { x: e.clientX, y: e.clientY } : null });
         });
         // A logo that does not load becomes its monogram disc.
-        root.addEventListener('error', (e) => {
-            const img = e.target;
-            if (!img || img.tagName !== 'IMG' || !img.classList?.contains('badge')) return;
-            const disc = document.createElement('span');
-            disc.className = `disc ${img.getAttribute('data-tone') || ''}`.trim(); disc.setAttribute('aria-hidden', 'true');
-            disc.style.cssText = img.style.cssText;
-            if (img.getAttribute('data-fill')) disc.style.background = img.getAttribute('data-fill');
-            disc.textContent = img.getAttribute('data-mono') || '';
-            img.replaceWith(disc);
-        }, true);
+        root.addEventListener('error', (e) => this.badgeFallback(e), true);
         // The carousel's dots follow the card in view; a rail's ‹ › follow its ends.
         root.addEventListener('scroll', (e) => {
             const c = e.target;
@@ -467,6 +461,18 @@ class SportsPage {
         }, true);
     }
 
+    /** A badge whose logo does not load becomes its monogram disc. */
+    badgeFallback(e) {
+        const img = e.target;
+        if (!img || img.tagName !== 'IMG' || !img.classList?.contains('badge')) return;
+        const disc = document.createElement('span');
+        disc.className = `disc ${img.getAttribute('data-tone') || ''}`.trim(); disc.setAttribute('aria-hidden', 'true');
+        disc.style.cssText = img.style.cssText;
+        if (img.getAttribute('data-fill')) disc.style.background = img.getAttribute('data-fill');
+        disc.textContent = img.getAttribute('data-mono') || '';
+        img.replaceWith(disc);
+    }
+
     act(name, el, ev) {
         const id = el.getAttribute('data-id');
         switch (name) {
@@ -476,8 +482,9 @@ class SportsPage {
             case 'record': return this.record(id);
             case 'more': case 'record-menu': { const g = this.game(id); return g ? this.openMenu(g, el) : undefined; }
             case 'record-every': return this.recordEvery(id);
-            case 'record-options': return this.recordOptions(id);
-            case 'change-recording': return this.changeRecording(id);
+            // #327: iOS's record page (More options…, Change recording) and the game's details
+            case 'record-options': case 'change-recording': return this.openRecord(id, { opener: this.openerFor(el) });
+            case 'details': return this.openDetails(id, this.openerFor(el));
             case 'record-listed': return this.recordListed(id);
             case 'unlisted-cancel': return this.recordListed(id, true);
             case 'pin': return this.pin(id);
@@ -544,20 +551,26 @@ class SportsPage {
         this.loadLeague();
     }
 
-    /** A card pressed: Watch while its channel airs it (checked now, not when drawn), else its menu. */
+    /**
+     * A card pressed (iOS SportGamePress): Watch while its channel airs it (checked now, not when drawn); before or after
+     * its airing the game's details; a game with no channel yet its menu (Record when it's listed); a result nothing.
+     */
     select(id, anchor) {
         const g = this.game(id);
-        if (!g) return;
-        if (SportView.action(g, this.now()) === 'watch') return this.watch(id);
-        if (SportView.terminal(g)) return;
-        this.openMenu(g, anchor);
+        if (!g) return undefined;
+        const act = SportView.action(g, this.now());
+        if (act === 'watch') return this.watch(id);
+        if (act === 'remind' || act === 'details') return this.openDetails(id, anchor);
+        if (SportView.terminal(g)) return undefined;
+        return this.openMenu(g, anchor);
     }
 
     /** Play the game's best channel, found again in the channel list by its identity (never a stored position). */
     async watch(id, channelKey = null) {
         this.closeMenu();
         const g = this.game(id), ev = g && SportView.event(g);
-        if (!ev || SportView.action(g, this.now()) !== 'watch') { UI.toast('This game isn’t on your channels right now.'); return; }
+        // a chosen channel is judged on its own airing (#327: a details row), the best channel on the game's action
+        if (!ev || (!channelKey && SportView.action(g, this.now()) !== 'watch')) { UI.toast('This game isn’t on your channels right now.'); return; }
         const key = (c) => `${c.sourceId}:${c.stableId || c.id}`;
         // "Watch on…": the chosen channel, while it still shows the game now
         const chosen = channelKey ? this.channelsOnAir(g).find(c => key(c) === channelKey) : ev.channel;
@@ -655,6 +668,8 @@ class SportsPage {
             if (on.length > 1) items.push({ act: 'watch-on', icon: V.ICON.channels, title: `Watch on… (${on.length} channels)`, detail: on.map(c => c.name).join(', '), expands: true });
             else items.push({ act: 'watch', icon: V.ICON.play, title: 'Watch', detail: ev.channel.name });
         }
+        // #327: iOS's details: every channel airing it, each with Watch and Record
+        if (ev && !V.terminal(g)) items.push({ act: 'details', icon: V.ICON.info, title: 'Details', detail: 'Every channel showing it, to watch or record' });
         if (ev && !V.terminal(g) && ev.end > now) {
             const r = g.recording;
             if (r && r.scheduleId != null && r.status) items.push({ act: 'change-recording', icon: red, title: 'Change recording', detail: r.status === 'recording' ? 'Recording now' : 'Recording scheduled', section: 'Record' });
@@ -798,70 +813,366 @@ class SportsPage {
         this.selectedFollowKey = null; this.pinned = id; this.heroId = id;
         this.loadMap(); this.render();
     }
-    /** Two whole-minute fields (start early, finish late) in a dialog; `done(values)` is its rose button's. */
-    paddingDialog({ title, action, pre = '', post = '', preLocked = false, extra = null, done }) {
-        const d = UI.dialog.create({ title, className: 'sp-dialog' });
-        d.body.innerHTML = `<label class="sp-field">Start early, minutes<input type="number" id="sp-pad-pre" name="pre" min="0" max="60" step="1" inputmode="numeric" value="${SportView.e(pre)}"${preLocked ? ' disabled' : ''} placeholder="Usual"></label>`
-            + `<label class="sp-field">Finish late, minutes<input type="number" id="sp-pad-post" name="post" min="0" max="180" step="1" inputmode="numeric" value="${SportView.e(post)}" placeholder="Usual"></label>`
-            + '<p class="setting-hint">Leave a field empty for the usual padding.</p>';
-        const read = (input) => (String(input.value).trim() === '' ? undefined : UI.readWholeNumber(input));
-        const save = document.createElement('button'); save.type = 'button'; save.className = 'btn btn-primary'; save.textContent = action;
-        save.addEventListener('click', async () => {
-            const preIn = d.body.querySelector('#sp-pad-pre'), postIn = d.body.querySelector('#sp-pad-post');
-            const values = { pre: preLocked ? undefined : read(preIn), post: read(postIn) };
-            if (values.pre === null || values.post === null) return;
-            save.disabled = true;
-            if (await done(values) !== false) d.close(); else save.disabled = false;
+    // ---------- iOS's windows (#327): the game's details (SportEventDetails) and the record page (RecordPage) ----------
+
+    /** A channel's identity in the channel list (never a stored position). */
+    static channelKey(c) { return `${c.sourceId}:${c.stableId || c.id}`; }
+    /** A channel's own airing of the game (C-R #20), else the game's on its best channel. */
+    airing(g, c) {
+        const ev = SportView.event(g);
+        return { start: Number.isFinite(c.start) ? c.start : ev.start, end: Number.isFinite(c.end) ? c.end : ev.end };
+    }
+    /** "Today", "Tomorrow", "Yesterday", else "Saturday 21 November" (DetailText.day). */
+    static day(ms, now) {
+        const at = new Date(ms).toDateString(), d = (n) => { const x = new Date(now); x.setDate(x.getDate() + n); return x.toDateString(); };
+        if (at === d(0)) return 'Today';
+        if (at === d(1)) return 'Tomorrow';
+        if (at === d(-1)) return 'Yesterday';
+        return SportView.headerDate(ms);
+    }
+    /** "12 min", "1 h 5 min", "2 h", rounded up (SportRows.span). */
+    static span(ms) {
+        const minutes = Math.max(1, Math.ceil(ms / 60000));
+        if (minutes < 60) return `${minutes} min`;
+        return minutes % 60 ? `${Math.floor(minutes / 60)} h ${minutes % 60} min` : `${minutes / 60} h`;
+    }
+    static range(a) { return `${UI.clock(a.start)} – ${UI.clock(a.end)}`; }
+    /** The status word of a schedule's status (ScheduledRecording.statusWord). */
+    static statusWord(status) { return status === 'recording' ? 'Recording now' : status === 'waiting' ? 'Waiting to record' : 'Recording scheduled'; }
+    /** The game's recording as C-R tells it: its schedule id and status, or null. */
+    static recordingOf(g) {
+        const r = g && g.recording;
+        if (!r || r.scheduleId == null || !r.status) return null;
+        return { id: r.scheduleId, status: r.status, word: SportsPage.statusWord(r.status) };
+    }
+
+    /** The element a window gives focus back to: the menu's card when it came from the menu, else the pressed control. */
+    openerFor(el) {
+        const a = this.menu ? this.anchorFor(this.menu) : null;
+        return a || (el && el.isConnected !== false ? el : null);
+    }
+    /** One window at a time (iOS: one page at a time); the open one is closed first. */
+    closeWindow() {
+        const w = this.window;
+        this.window = null;
+        if (w) { clearTimeout(w.timer); w.d.close(); }
+    }
+    /** A window: a dialog (a sheet from the bottom on a phone), its content redrawn from `draw`, focus kept by data-key. */
+    makeWindow({ kind, id, title, label, draw, opener, act }) {
+        this.closeWindow();
+        const d = UI.dialog.create({ title, className: 'sp-dialog sp-window',
+            onClose: () => { if (this.window && this.window.d === d) { clearTimeout(this.window.timer); this.window = null; } } });
+        if (label) { d.el.removeAttribute('aria-labelledby'); d.el.setAttribute('aria-label', label); }
+        const w = { kind, id, d, timer: null };
+        w.redraw = () => {
+            const key = typeof document !== 'undefined' && d.el.contains?.(document.activeElement) ? document.activeElement?.getAttribute?.('data-key') : null;
+            const { body, footer } = draw();
+            d.body.innerHTML = `<div class="sp sp-win">${body}</div>`;
+            d.footer.replaceChildren(...(footer || []));
+            if (key) [...(d.el.querySelectorAll?.('[data-key]') || [])].find(n => n.getAttribute('data-key') === key)?.focus?.({ preventScroll: true });
+        };
+        d.el.addEventListener('click', (e) => {
+            const el = e.target?.closest?.('[data-act]');
+            if (!el || !d.el.contains(el) || el.disabled) return;
+            act(el.getAttribute('data-act'), el, e);
         });
-        const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'btn btn-secondary'; cancel.setAttribute('data-dialog-close', ''); cancel.textContent = 'Cancel';
-        d.footer.append(...(extra ? [extra(d)] : []), cancel, save);
-        d.open();
-        return d;
+        // a logo that does not load becomes its monogram disc, as on the page
+        d.el.addEventListener('error', (e) => this.badgeFallback(e), true);
+        this.window = w;
+        w.redraw();
+        d.open(opener || undefined);
+        return w;
     }
-    /** More options…: Record this game with its own padding. */
-    recordOptions(id) {
+
+    // ----- the details (iOS SportEventDetails: a press on a game to come, or Details in its menu) -----
+
+    /** The game's details: its kicker, times and state, Watch and Record, then every channel airing it, each with Watch and Record. */
+    openDetails(id, opener = null) {
+        const first = this.game(id);
+        if (!first || !SportView.event(first)) return undefined;
+        opener = opener || this.openerFor(null);
         this.closeMenu();
+        let last = first;
+        const current = () => (last = this.game(id) || last);
+        const w = this.makeWindow({ kind: 'details', id, title: first.title, opener,
+            draw: () => ({ body: this.detailsMarkup(current()) }),
+            act: (name, el) => this.detailsAct(name, el, current()) });
+        // the clock moves while it is open (TimelineView every 30 s): Watch, the times and the channels follow it
+        const tick = () => { if (this.window !== w) return; w.redraw(); w.timer = setTimeout(tick, 30000); };
+        w.timer = setTimeout(tick, 30000);
+        return w;
+    }
+    detailsAct(name, el, g) {
+        const key = el.getAttribute('data-channel');
+        switch (name) {
+            // Watch is decided again at the press (watch() checks the channel airs it now)
+            case 'd-watch': this.closeWindow(); return this.watch(g.id);
+            case 'd-watch-on': this.closeWindow(); return this.watch(g.id, key);
+            case 'd-remind': this.closeWindow(); return this.remind(g.id);
+            case 'd-unwait': if (this.waiting) { clearTimeout(this.waiting.timer); this.waiting = null; } return this.window?.redraw();
+            case 'd-record': this.closeWindow(); return this.openRecord(g.id);
+            case 'd-record-on': this.closeWindow(); return this.openRecord(g.id, { channel: key });
+            default: return undefined;
+        }
+    }
+    /**
+     * The details' content. Never a score, a result or a winner, whatever Hide scores says: only the game's title, league,
+     * times and channels (#327: the hidden-scores rule holds for this window by construction).
+     */
+    detailsMarkup(g) {
+        const V = SportView, e = V.e, ev = V.event(g), now = this.now(), P = SportsPage;
+        if (!ev) return '<p class="sp-muted">Not on your channels yet.</p>';
+        const best = ev.channel, live = ev.start <= now && now < ev.end, ended = ev.end <= now;
+        const league = V.label(g.league, this.labels).toUpperCase(), rec = P.recordingOf(g);
+        const kicker = live ? `LIVE · ${league}` : `${league} · ${P.day(ev.start, now).toUpperCase()}`;
+        const when = live ? `ends in ${P.span(ev.end - now)}` : ended ? 'ended' : `starts in ${P.span(ev.start - now)}`;
+        let html = `<div class="dk${live ? ' live' : ''}">${live ? V.dot() : ''}<span>${e(kicker)}</span></div>`
+            + `<p class="dline pig-amount">${e(`${P.range(ev)} · ${when}${rec && !live ? ` · ${rec.word}` : ''}`)}</p>`;
+        if (live) html += `<div class="dprog" aria-hidden="true"><i style="width:${Math.round(100 * Math.min(1, Math.max(0, (now - ev.start) / (ev.end - ev.start))))}%"></i></div>`;
+        // Watch (or Watch when it starts, or Don't watch at …) and Record (Change recording when it is set)
+        const pending = !!(this.waiting && this.waiting.id === g.id);
+        let actions = '';
+        if (pending) actions += `<button type="button" class="pill" data-act="d-unwait" data-key="d:watch">Don’t watch at ${e(UI.clock(ev.start))}</button>`;
+        else if (ended) actions += '<button type="button" class="pill" disabled data-key="d:watch">Not on now</button>';
+        else if (live) actions += `<button type="button" class="pill primary" data-act="d-watch" data-key="d:watch">${V.ICON.play}Watch ${e(best.name)}</button>`;
+        else actions += `<button type="button" class="pill primary" data-act="d-remind" data-key="d:watch">${V.ICON.bell}Watch ${e(best.name)} when it starts</button>`;
+        if (!V.terminal(g) && ev.end > now) actions += `<button type="button" class="pill" data-act="d-record" data-key="d:record">${V.ICON.rec}${rec ? 'Change recording' : 'Record'}</button>`;
+        html += `<div class="dacts">${actions}</div>`;
+        if (pending) html += `<p class="dnote">PigTV will start ${e(best.name)} at ${e(UI.clock(ev.start))} while Sport stays open.</p>`;
+        const channels = g.channels || [];
+        html += `<h3 class="dsec">${channels.length === 1 ? 'Channel' : 'Channels'}</h3><ul class="dchs">`;
+        channels.forEach((c, i) => {
+            const a = this.airing(g, c), on = a.start <= now && now < a.end, gone = a.end <= now, k = P.channelKey(c);
+            const sub = [i === 0 && channels.length > 1 ? 'Recommended' : '', gone ? 'Not on now' : on || (a.start === ev.start && a.end === ev.end) ? '' : `${P.day(a.start, now)} ${P.range(a)}`].filter(Boolean);
+            let btns = '';
+            if (on) btns += `<button type="button" class="pill primary" data-act="d-watch-on" data-channel="${e(k)}" data-key="d:w:${e(k)}" aria-label="${e(`Watch on ${c.name}`)}">${V.ICON.play}Watch</button>`;
+            if (!gone && !V.terminal(g)) btns += `<button type="button" class="pill" data-act="d-record-on" data-channel="${e(k)}" data-key="d:r:${e(k)}" aria-label="${e(`Record on ${c.name}`)}">${V.ICON.rec}Record</button>`;
+            html += `<li class="dch"><span class="dct"><b>${e(c.name)}</b>${c.number != null ? ` <span class="num pig-amount">${e(c.number)}</span>` : ''}${c.quality ? ` <span class="qual">${e(c.quality)}</span>` : ''}${sub.length ? `<span class="dsub">${e(sub.join(' · '))}</span>` : ''}</span><span class="dca">${btns}</span></li>`;
+        });
+        return `${html}</ul>`;
+    }
+
+    // ----- the record page (iOS RecordPage: More options…, Record in the details, Change recording) -----
+
+    static chipTitle(m) { return m == null ? 'Usual' : m === 0 ? 'On time' : `${m} min`; }
+    /** Change recording's choices: the schedule's own value added when it is not one of them, and never Usual. */
+    static chips(base, current, changing) {
+        if (!changing) return base;
+        const minutes = base.filter(m => m != null);
+        if (Number.isFinite(current) && !minutes.includes(current)) { minutes.push(current); minutes.sort((a, b) => a - b); }
+        return minutes;
+    }
+
+    /** The What choices (RecordPlan.whats): this game; every game of the followed team, else of each side; every game of its league. */
+    recordWhats(g) {
+        const out = [{ kind: 'this' }];
+        const sport = ((this.front && this.front.sports) || []).find(s => s.league === g.league)?.sport || null;
+        const team = this.teamFor(g);
+        const names = team ? [team.name] : Array.isArray(g.competitors) && g.competitors.length === 2 ? g.competitors.map(c => c && c.name).filter(Boolean) : [];
+        for (const name of names) out.push({ kind: 'team', name, sport: team ? team.sport : sport });
+        const league = String(g.league || '').trim();
+        if (league && league.toLowerCase() !== 'sport') out.push({ kind: 'league', league });
+        return out;
+    }
+    whatLabel(w, st) {
+        const a = st.airings[0];
+        if (w.kind === 'this') return { title: 'This game', detail: a ? `${SportsPage.day(a.start, this.now())} ${UI.clock(a.start)}` : '' };
+        if (w.kind === 'team') return { title: `Every ${w.name} game`, detail: 'Never replays' };
+        const name = SportView.label(w.league, this.labels);
+        return { title: (st.g.competitors || []).length === 2 ? `Every ${name} game` : `Everything in ${name}`, detail: 'On your channels, never replays' };
+    }
+
+    /**
+     * The record page for a game, on `channel` (a details row's Record) or its best channel. A game already set to record
+     * (C-R `recording`) opens as Change recording on that schedule (0662: its padding is changed with PUT, never a second
+     * schedule), whichever channel was asked for.
+     */
+    openRecord(id, { channel = null, opener = null } = {}) {
         const g = this.game(id), ev = g && SportView.event(g);
-        if (!ev) return;
-        // #323 review: already set to record (on this channel or another): its padding is changed on that recording
-        // (PUT /recordings/scheduled/:id), never a second schedule the server would answer with the first unchanged.
-        if (g.recording && g.recording.scheduleId != null && g.recording.status) { this.changeRecording(id); return; }
-        this.paddingDialog({ title: `Record ${g.title}`, action: 'Record this game', done: async ({ pre, post }) => {
-            try {
-                const c = ev.channel;
-                await API.recordings.schedule({ sourceId: Number(c.sourceId), channelItemId: c.id, channelName: c.name, title: g.title,
-                    programStart: ev.start, programEnd: ev.end, ...(pre != null ? { preBufferMin: pre } : {}), ...(post != null ? { postBufferMin: post } : {}),
-                    ...(g.synthetic ? {} : { gameId: g.id }) });
-                UI.toast(`Set to record: ${g.title}.`);
-                this.refresh();
-                return true;
-            } catch (err) { UI.toast(UI.errorText(err, 'The recording could not be scheduled.'), { kind: 'error' }); return false; }
-        } });
-    }
-    /** Change recording: its padding (only finishing later once it records), or Cancel recording with Undo. */
-    changeRecording(id) {
+        if (!ev || SportView.terminal(g)) return undefined;
+        opener = opener || this.openerFor(null);
         this.closeMenu();
-        const g = this.game(id), r = g && g.recording;
-        if (!r || r.scheduleId == null) return;
-        const recording = r.status === 'recording';
-        this.paddingDialog({ title: `Change recording · ${g.title}`, action: 'Save recording', preLocked: recording,
-            extra: (d) => {
-                const b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-secondary'; b.textContent = 'Cancel recording';
-                b.addEventListener('click', () => {
-                    d.close();
-                    UI.undoable(`Recording of ${g.title} cancelled.`, { undo: () => {}, failText: 'The recording could not be cancelled.',
-                        commit: ({ keepalive } = {}) => API.request('DELETE', `/recordings/scheduled/${r.scheduleId}`, null, { keepalive }).then(() => this.refresh()) });
-                });
-                return b;
-            },
-            done: async ({ pre, post }) => {
-                const body = { ...(pre != null ? { preBufferMin: pre } : {}), ...(post != null ? { postBufferMin: post } : {}) };
-                if (!Object.keys(body).length) return true;
-                try { await API.request('PUT', `/recordings/scheduled/${r.scheduleId}`, body); UI.toast('Recording changed.'); this.refresh(); return true; }
-                catch (err) { UI.toast(UI.errorText(err, 'The recording could not be changed.'), { kind: 'error' }); return false; }
-            } });
+        const now = this.now();
+        let airings = (g.channels || []).map(c => ({ c, key: SportsPage.channelKey(c), ...this.airing(g, c) })).filter(a => a.end > now);
+        if (!airings.length) airings = [{ c: ev.channel, key: SportsPage.channelKey(ev.channel), start: ev.start, end: ev.end }];
+        const rec = SportsPage.recordingOf(g);
+        const st = { g, airings, index: Math.max(0, channel ? airings.findIndex(a => a.key === channel) : 0), what: 0, whats: rec ? [] : this.recordWhats(g),
+            pre: null, post: null, schedule: null, rec, loaded: !rec, gone: false, busy: false, error: null };
+        const w = this.makeWindow({ kind: 'record', id, title: g.title, opener, label: `${rec ? 'Change recording of' : 'Record'} ${g.title}`,
+            draw: () => this.recordMarkup(st), act: (name, el) => this.recordAct(name, el, st) });
+        w.st = st;
+        w.d.el.addEventListener('change', (e) => {
+            const t = e.target, v = t ? String(t.value) : '';
+            const n = v === '' ? null : Number(v);
+            if (t?.id === 'sp-rec-pre') st.pre = n; else if (t?.id === 'sp-rec-post') st.post = n; else return;
+            w.redraw();
+        });
+        if (rec) this.loadSchedule(st, w);
+        return w;
+    }
+    /** Change recording's schedule as `GET /recordings/scheduled` lists it: its padding and status (C-M since 0444). */
+    async loadSchedule(st, w) {
+        try {
+            const rows = await API.request('GET', '/recordings/scheduled');
+            const row = (Array.isArray(rows) ? rows : []).find(r => r && r.id === st.rec.id);
+            if (!row || !['scheduled', 'waiting', 'recording'].includes(row.status)) st.gone = true;
+            else {
+                st.schedule = row;
+                // the page shows the channel the schedule records, never another one (RecordPlan.bind)
+                const at = st.airings.findIndex(x => x.key === `${row.source_id}:${row.channel_stable_id || row.channel_item_id}`);
+                if (at >= 0) st.index = at;
+                else if (row.channel_name && Number.isFinite(row.program_start) && Number.isFinite(row.program_end)) {
+                    st.airings = [...st.airings, { c: { name: row.channel_name }, key: null, start: row.program_start, end: row.program_end }];
+                    st.index = st.airings.length - 1;
+                }
+                st.pre = Number.isFinite(row.pre_buffer_min) ? row.pre_buffer_min : null;
+                st.post = Number.isFinite(row.post_buffer_min) ? row.post_buffer_min : null;
+            }
+            st.loaded = true;
+        } catch (err) {
+            st.error = UI.errorText(err, 'The recording could not be read. Close this and try again.');
+        }
+        if (this.window === w) w.redraw();
+    }
+    /** What Save changes sends (RecordPlan.change): only what changed, Start early not once it records; null when nothing has. */
+    static change(st) {
+        const row = st.schedule;
+        if (!row) return null;
+        const body = {};
+        if (row.status !== 'recording' && st.pre != null && st.pre !== row.pre_buffer_min) body.preBufferMin = st.pre;
+        if (st.post != null && st.post !== row.post_buffer_min) body.postBufferMin = st.post;
+        return Object.keys(body).length ? body : null;
+    }
+    /** The record page's content (no score: title, league, times and channels only) and its buttons. */
+    recordMarkup(st) {
+        const V = SportView, e = V.e, P = SportsPage, now = this.now(), g = st.g, changing = !!st.rec;
+        const a = st.airings[st.index] || st.airings[0], leagueName = V.label(g.league, this.labels);
+        const status = changing ? (st.gone ? 'ENDED' : P.statusWord(st.schedule ? st.schedule.status : st.rec.status).toUpperCase()) : null;
+        const kicker = [changing ? 'CHANGE RECORDING' : 'RECORD', status, leagueName ? String(leagueName).toUpperCase() : null].filter(Boolean).join(' · ');
+        const two = Array.isArray(g.competitors) && g.competitors.length === 2;
+        let html = `<div class="rhead">${two ? `<span class="rbadges" aria-hidden="true">${g.competitors.map(c => V.badge(c.name, c.logo, 40, g.league)).join('')}</span>` : ''}`
+            + `<span class="rht"><span class="rk">${e(kicker)}</span><span class="rmeta pig-amount">${e(`${P.day(a.start, now)} · ${P.range(a)} · ${a.c.name}`)}</span></span></div>`;
+        // What: this game, or a rule (not on Change recording: it is one schedule)
+        if (st.whats.length) {
+            html += '<h3 class="rsec" id="sp-rec-what">What</h3><div class="rwhat" role="radiogroup" aria-labelledby="sp-rec-what">';
+            st.whats.forEach((w, i) => {
+                const l = this.whatLabel(w, st), on = i === st.what;
+                html += `<button type="button" class="rchoice${on ? ' on' : ''}" role="radio" aria-checked="${on}" data-act="r-what" data-index="${i}" data-key="r:what:${i}"><b>${e(l.title)}</b><span class="pig-amount">${e(l.detail)}</span></button>`;
+            });
+            html += '</div>';
+        }
+        // When it stops: with the game (ESPN) for a card's game or a schedule linked to one, else the guide's end
+        const withGame = changing && st.schedule ? st.schedule.endsWith === 'event' : !g.synthetic;
+        const end = UI.clock(a.end);
+        const stop = withGame ? ['When the game ends (ESPN)', `Else the guide end, ${end}, + Finish late`] : ['When the guide says it ends', `${end} + Finish late`];
+        html += `<h3 class="rsec">When it stops</h3><div class="rstop"><span class="rradio on" aria-hidden="true"></span><span class="rcht"><b>${e(stop[0])}</b><span class="pig-amount">${e(stop[1])}</span></span></div>`;
+        const startLocked = changing && (!st.schedule || st.schedule.status === 'recording' || st.gone);
+        const endLocked = changing && (!st.schedule || st.gone);
+        const select = (id, title, options, value, locked) => `<label class="rrow" for="${id}"><span>${e(title)}</span><select id="${id}" data-key="r:${id}"${locked ? ' disabled' : ''}>`
+            + options.map(m => `<option value="${m == null ? '' : m}"${m === value ? ' selected' : ''}>${e(P.chipTitle(m))}</option>`).join('') + '</select></label>';
+        html += select('sp-rec-pre', 'Start early', P.chips(P.START_EARLY, st.schedule && st.schedule.pre_buffer_min, changing), st.pre, startLocked);
+        html += select('sp-rec-post', 'Finish late', P.chips(P.FINISH_LATE, st.schedule && st.schedule.post_buffer_min, changing), st.post, endLocked);
+        // Record on: when several channels carry it, each on its own airing
+        if (!changing && st.airings.length > 1) {
+            html += `<div class="rsech"><h3 class="rsec" id="sp-rec-on">Record on</h3><span>${st.airings.length} channels in your guide carry it</span></div><div class="ron" role="radiogroup" aria-labelledby="sp-rec-on">`;
+            const first = st.airings[0];
+            st.airings.forEach((x, i) => {
+                const on = i === st.index, times = `${P.day(x.start, now)} ${P.range(x)}`;
+                const detail = i === 0 ? `Best channel · ${times}` : x.start === first.start && x.end === first.end ? 'Same times' : times;
+                html += `<button type="button" class="rchoice rch${on ? ' on' : ''}" role="radio" aria-checked="${on}" data-act="r-on" data-index="${i}" data-key="r:on:${i}"><span class="rradio${on ? ' on' : ''}" aria-hidden="true"></span><span class="rcht"><b>${e(x.c.name)}</b><span class="pig-amount">${e(detail)}</span></span>${x.c.quality ? `<span class="qual">${e(x.c.quality)}</span>` : ''}</button>`;
+            });
+            html += '</div>';
+        }
+        // the note, then any error
+        let note;
+        if (changing) note = st.gone ? P.GONE : !st.schedule ? '' : st.schedule.status === 'recording' ? 'It is recording: only Finish late can change.' : 'Changes apply to this recording only.';
+        else if (a.start <= now) note = 'It has started: only the rest of it is recorded.';
+        else note = `If every provider connection is in use ${st.pre == null ? 'when it starts' : `at ${UI.clock(a.start - st.pre * 60000)}`}, the recording waits for one to free up.`;
+        if (note) html += `<p class="rnote">${e(note)}</p>`;
+        if (st.error) html += `<p class="rerr" role="alert">${e(st.error)}</p>`;
+        // the buttons: Cancel (Close); Cancel recording (Stop recording); Record game / Record every game / Save changes
+        const button = (text, cls, name, disabled = false) => {
+            const b = document.createElement('button');
+            b.type = 'button'; b.className = cls; b.textContent = text; b.setAttribute('data-act', name); b.setAttribute('data-key', `r:${name}`);
+            if (disabled) b.disabled = true;
+            return b;
+        };
+        const what = st.whats[st.what];
+        const primary = changing ? 'Save changes' : what && what.kind !== 'this' ? 'Record every game' : 'Record game';
+        const off = st.busy || (changing && (!st.loaded || st.gone || !P.change(st)));
+        const footer = [button(changing ? 'Close' : 'Cancel', 'btn btn-secondary', 'r-close', st.busy)];
+        if (changing) footer.push(button((st.schedule ? st.schedule.status : st.rec.status) === 'recording' ? 'Stop recording' : 'Cancel recording', 'btn btn-danger', 'r-cancel', st.busy || st.gone));
+        footer.push(button(primary, 'btn btn-primary', 'r-save', off));
+        return { body: html, footer };
+    }
+    recordAct(name, el, st) {
+        const w = this.window;
+        switch (name) {
+            case 'r-what': st.what = Number(el.getAttribute('data-index')) || 0; return w?.redraw();
+            case 'r-on': st.index = Number(el.getAttribute('data-index')) || 0; return w?.redraw();
+            case 'r-close': return this.closeWindow();
+            case 'r-cancel': return this.cancelRecording(st);
+            case 'r-save': return this.saveRecord(st, w);
+            default: return undefined;
+        }
+    }
+    /** Cancel recording (Stop recording): at once, with the 10 s Undo; the window closes first. */
+    cancelRecording(st) {
+        if (!st.rec || st.gone) return;
+        const g = st.g, id = st.rec.id;
+        this.closeWindow();
+        UI.undoable(`Recording of ${g.title} cancelled.`, { undo: () => {}, failText: 'The recording could not be cancelled.',
+            commit: ({ keepalive } = {}) => API.request('DELETE', `/recordings/scheduled/${id}`, null, { keepalive }).then(() => this.refresh()) });
+    }
+    /** The primary button: Save changes (PUT), a rule (C-M `team`, or `sport` for a league), or this game on the chosen channel. */
+    async saveRecord(st, w) {
+        if (st.busy) return;
+        const g = st.g, pad = { ...(st.pre != null ? { preBufferMin: st.pre } : {}), ...(st.post != null ? { postBufferMin: st.post } : {}) };
+        let toast = null, failText = 'The recording could not be scheduled.';
+        if (st.rec) {
+            failText = 'The recording could not be changed.';
+            if (st.gone || !st.schedule) { st.error = SportsPage.GONE; w?.redraw(); return; }
+            if (!SportsPage.change(st)) return;
+        }
+        st.busy = true; st.error = null; w?.redraw();
+        try {
+            if (st.rec) {
+                await API.request('PUT', `/recordings/scheduled/${st.rec.id}`, SportsPage.change(st));
+                toast = 'Recording changed.';
+            } else {
+                const what = st.whats[st.what] || { kind: 'this' };
+                if (what.kind === 'team') {
+                    failText = 'The rule could not be added.';
+                    await API.recordings.addRule(what.sport ? { kind: 'team', match: what.name, sport: what.sport, ...pad } : { kind: 'sport', match: what.name, ...pad });
+                    toast = `Recording every ${what.name} game.`;
+                } else if (what.kind === 'league') {
+                    failText = 'The rule could not be added.';
+                    await API.recordings.addRule({ kind: 'sport', match: what.league, ...pad });
+                    toast = `Recording every ${SportView.label(what.league, this.labels)} game.`;
+                } else {
+                    const a = st.airings[st.index] || st.airings[0], c = a.c;
+                    const made = await API.recordings.schedule({ sourceId: Number(c.sourceId), channelItemId: c.id, channelName: c.name, title: g.title,
+                        programStart: a.start, programEnd: a.end, ...pad, ...(g.synthetic ? {} : { gameId: g.id }) });
+                    const clash = Array.isArray(made?.conflictsWith) && made.conflictsWith.length;
+                    toast = clash ? `Set to record on ${c.name}. It clashes with ${made.conflictsWith.map(x => x.title || x).join(', ')}.` : `Set to record on ${c.name}: ${g.title}.`;
+                }
+            }
+        } catch (err) {
+            st.error = UI.errorText(err, failText);
+        }
+        st.busy = false;
+        if (toast) {
+            if (this.window === w) this.closeWindow();
+            UI.toast(toast);
+            this.refresh();
+        } else if (this.window === w) w.redraw();
     }
 }
+
+/** RecordPlan's Start early and Finish late, in minutes; null is the server's usual padding. */
+SportsPage.START_EARLY = [null, 0, 1, 2, 5, 10];
+SportsPage.FINISH_LATE = [null, 0, 2, 5, 10, 15, 30];
+SportsPage.GONE = 'This recording has finished or no longer exists, so it cannot be changed.';
 
 /** The league pages built so far (#323 steps 3-5); a league whose page is not here shows no "Rounds and standings ›". */
 SportsPage.PAGES = ['league', 'nfl', 'f1', 'cricket', 'events'];

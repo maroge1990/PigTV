@@ -592,3 +592,56 @@
   .sp .rail, .sp .carousel, .sp .brows { scroll-behavior: auto; }
   .sp .rail-arrow { transition: none; }
 }
+
+/* ---------- #327: iOS's windows in a dialog: the game's details (SportEventDetails) and the record page (RecordPage);
+   a sheet from the bottom on a phone. The dialog sits outside the page, so its content is its own .sp (tokens). ---------- */
+.ui-dialog.sp-window { width: min(40rem, calc(100vw - 32px)); }
+.sp.sp-win { padding: 0; font-size: 16px; }
+.sp-win .pill svg { width: 18px; height: 18px; }
+.sp-win .pill:focus-visible, .sp-win .rchoice:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
+.sp-win .dk { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--color-accent-text); }
+.sp-win .dk.live { color: var(--live); }
+.sp-win .dline { margin: 4px 0 0; font-size: 14px; color: var(--color-text-secondary); }
+.sp-win .dprog { height: 6px; margin-top: 10px; border-radius: 3px; background: var(--raised); overflow: hidden; }
+.sp-win .dprog i { display: block; height: 100%; background: var(--color-text-secondary); }
+.sp-win .dacts { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.sp-win .dnote, .sp-win .rnote { margin: 12px 0 0; font-size: 14px; color: var(--color-text-secondary); }
+.sp-win .dsec, .sp-win .rsec { margin: 20px 0 8px; font-size: 14px; font-weight: 700; color: var(--color-text-secondary); }
+.sp-win .dchs { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.sp-win .dch { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 14px; background: var(--raised); }
+.sp-win .dct { flex: 1; min-width: 0; }
+.sp-win .dct b { font-weight: 700; }
+.sp-win .dsub { display: block; font-size: 13px; color: var(--color-text-secondary); }
+.sp-win .num { font-size: 14px; color: var(--color-text-secondary); }
+.sp-win .qual { display: inline-block; padding: 1px 6px; border-radius: 6px; font-size: 12px; font-weight: 800; letter-spacing: 1px; background: var(--surface); color: var(--color-text-secondary); }
+.sp-win .dca { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.sp-win .rhead { display: flex; align-items: center; gap: 14px; }
+.sp-win .rbadges { display: flex; gap: 8px; }
+.sp-win .rk { display: block; font-size: 12px; font-weight: 700; letter-spacing: 2px; color: var(--color-text-secondary); }
+.sp-win .rmeta { display: block; margin-top: 2px; font-size: 14px; color: var(--color-text-secondary); }
+.sp-win .rwhat { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.sp-win .rchoice { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 54px; padding: 10px 14px;
+  border: 0; border-radius: 14px; background: var(--raised); text-align: left; }
+.sp-win .rchoice:hover { background: var(--color-hover-raised); }
+.sp-win .rchoice > span, .sp-win .rcht > span { font-size: 13px; color: var(--color-text-secondary); }
+/* the selection (D-44 brand): a pink fill and a short bar on the leading edge, never a tick */
+.sp-win .rchoice.on { background: var(--sel); }
+.sp-win .rchoice.on::before { content: ''; position: absolute; left: 0; top: 10px; bottom: 10px; width: 4px; border-radius: 2px; background: var(--color-accent); }
+.sp-win .rch { flex-direction: row; align-items: center; gap: 12px; width: 100%; margin-bottom: 8px; }
+.sp-win .rcht { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.sp-win .rradio { flex: 0 0 20px; width: 20px; height: 20px; border: 3px solid var(--color-text-secondary); border-radius: 50%; }
+.sp-win .rradio.on { border-color: var(--color-accent); background: radial-gradient(circle, var(--color-accent) 40%, transparent 45%); }
+.sp-win .rstop { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: 14px; background: var(--raised); box-shadow: inset 0 0 0 2px var(--color-accent); }
+.sp-win .rrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; margin-top: 6px;
+  font-size: 14px; font-weight: 600; color: var(--color-text-secondary); }
+.sp-win .rrow select { min-height: 44px; font-size: 16px; }
+.sp-win .rrow select:disabled { opacity: .5; }
+.sp-win .rsech { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.sp-win .rsech > span { font-size: 13px; color: var(--color-text-secondary); }
+.sp-win .rerr { margin: 10px 0 0; font-size: 14px; font-weight: 600; color: var(--color-warning); }
+@media (max-width: 768px) {
+  .ui-dialog.sp-window { width: 100vw; max-width: 100vw; max-height: 90dvh; margin: auto 0 0; border-bottom: 0; border-radius: 20px 20px 0 0; }
+  .ui-dialog.sp-window .ui-dialog-footer { flex-direction: column-reverse; }
+  .ui-dialog.sp-window .ui-dialog-footer .btn { width: 100%; min-height: 44px; }
+  .sp-win .dch { flex-wrap: wrap; }
+}

@@ -176,7 +176,7 @@ test('a failed refresh keeps the page under the slim notice; no scores feed is s
     assert.match(page.root.innerHTML, /Arsenal v Chelsea/, 'what was shown stays');
 });
 
-test('pressing a card: Watch while its channel airs it, else its menu; the hero\'s Watch plays the channel found by identity', async () => {
+test('pressing a card: Watch while its channel airs it; the hero\'s Watch plays the channel found by identity; a game\'s menu', async () => {
     const front = answer();
     const b = browser({ request: async (m, url) => (url === '/sports/front' ? front : { spoilerFree: false }) });
     const played = [];
@@ -190,7 +190,7 @@ test('pressing a card: Watch while its channel airs it, else its menu; the hero\
     await page.act('game', { getAttribute: () => 'ars' });
     assert.deepEqual(played, [['nav', 'live'], ['play', 1, 'pos_9']], 'by its stable identity, never a stored position');
     const anchor = b.document.createElement('button'); b.document.body.appendChild(anchor);
-    page.select('nxt', anchor);
+    page.openMenu(page.game('nxt'), anchor);
     const menu = b.document.body.querySelector('.sp-menu');
     assert.ok(menu, 'a game to come opens its menu');
     assert.equal(menu.getAttribute('role'), 'menu');
@@ -200,7 +200,7 @@ test('pressing a card: Watch while its channel airs it, else its menu; the hero\
     menu.dispatchEvent(new FakeEvent('keydown', { key: 'Escape' }));
     assert.equal(b.document.body.querySelector('.sp-menu'), null, 'Escape closes it');
     assert.equal(b.document.activeElement, anchor, 'focus goes back to the card');
-    page.select('nxt', anchor);
+    page.openMenu(page.game('nxt'), anchor);
     const outside = b.document.createElement('div'); b.document.body.appendChild(outside);
     outside.dispatchEvent(new FakeEvent('pointerdown'));
     assert.equal(b.document.body.querySelector('.sp-menu'), null, 'a click outside closes it (the old Sport dialog\'s test, #323)');

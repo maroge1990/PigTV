@@ -19,7 +19,7 @@ for (const k of ['Escape', 'Tab']) {
     test(`${k} after a redraw: focus goes to the card as the page now draws it`, async () => {
         const h = await harness();
         const old = h.card();
-        h.p.select('nxt', old);
+        h.p.openMenu(h.p.game('nxt'), old);
         assert.ok(h.menu());
         old.remove();                // a poll redrew the page: the card is a new element with the same data-key
         const fresh = h.card();
@@ -33,7 +33,7 @@ for (const k of ['Escape', 'Tab']) {
 test('Tab without a redraw also gives focus back to the card', async () => {
     const h = await harness();
     const el = h.card();
-    h.p.select('nxt', el);
+    h.p.openMenu(h.p.game('nxt'), el);
     key(h.menu(), 'Tab');
     assert.equal(h.b.document.activeElement, el);
 });
