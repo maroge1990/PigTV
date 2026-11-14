@@ -639,3 +639,26 @@ reviews.
   but production no longer waits for them.
 - **Consequence:** every green push to `main` reaches production at Mark's next Force Update, so a server push is
   treated as a deploy: its T1–T3 checks and reviews pass first, and Mark is told what a Force Update would bring in.
+
+### D-59. A recording with every provider down keeps trying until its end (14 Nov 2026; Mark)
+
+- **Context:** #288: a recording gave up after 20 resumes (about 5 minutes with every provider down), and once every
+  provider was held back only the primary was retried, so a backup that came back first was not used.
+- **Choice:** Mark: keep trying every provider, in turn, until the scheduled end; never end early because the feeds
+  dropped. Pace: one try per provider at once, then one per 15 s tick; after 10 minutes of outage at most once a minute
+  (Mark, the same day, so a long outage does not hammer a provider's account).
+- **Consequence:** no resume cap; a recording's route (`plan(…, { keepTrying })`) lists every held-back provider, the one
+  that failed longest ago first. A viewer's play is unchanged. [`architecture/recording.md`](architecture/recording.md).
+
+### D-60. A stall on a channel's only provider stays out of its breaker (14 Nov 2026; Mark)
+
+- **Context:** #304: since 0576 a silent recording on a channel with one provider counted toward that provider's
+  breaker, so Status could show it down and the provider-down notice could fire for one quiet channel.
+- **Choice:** Mark: such a stall is not held against the provider. Real failed connections (refused, errors) still count.
+- **Consequence:** applies to a channel with no backup link even when backups exist (`route.oneProvider`).
+
+### D-61. A recording stopped for low disk space says so and sends a notice (14 Nov 2026; Mark)
+
+- **Context:** #286: a recording stopped because appdata ran low ended "completed" with no reason.
+- **Choice:** Mark: the schedule says "Stopped early: free space in appdata ran low", and a `disk-low` notice is sent.
+- **Consequence:** a new webhook event, listed in [`PRODUCT.md`](PRODUCT.md) and the Settings hint.
