@@ -193,7 +193,7 @@ class Subscription extends Readable {
 }
 
 class Ingest extends EventEmitter {
-    constructor({ key, pool, url, userAgent, providerId, channel = null, providerName = null, channelKey = null }) {
+    constructor({ key, pool, url, userAgent, providerId, channel = null, providerName = null, channelKey = null, channelRef = null }) {
         super();
         this.id = nextId++;
         this.key = key;
@@ -220,6 +220,9 @@ class Ingest extends EventEmitter {
         // #324: the same clip again and again with fresh timestamps, found on the payloads.
         this.loop = tuning.loopCheck ? new LoopDetector() : null;
         this.looping = null;
+        this.loopDeciding = false;
+        // #324: the channel this feed plays ({ sourceId, channelId }), to look for another provider of it.
+        this.channelRef = channelRef;
         // R7 data: the worst lag over every connection (the pace resets on a reconnect), and how
         // many reconnects were for lag rather than a lost connection.
         this.worstBehind = null;
@@ -344,26 +347,61 @@ class Ingest extends EventEmitter {
             this.bytes -= this.chunks.shift().buf.length;
         }
         for (const sub of [...this.subs]) sub.deliver(chunk);
-        const loop = this.loop && this.loop.push(chunk);
+        const loop = this.loop && !this.loopDeciding && this.loop.push(chunk);
         if (loop) this.onLoop(loop);
     }
 
     /**
-     * #324: the provider is sending the same clip again and again with fresh timestamps. Reconnecting
-     * would bring the same, so the feed ends at once as lost for the provider's sake: every subscriber
-     * ends with `repeating` and a provider reason, which drives the failover a dead feed takes
-     * (sessions: the relay's standby or next provider, else the client's re-resolve, with the channel
-     * quarantined there; recordings: their backup provider).
+     * #324: the provider is sending the same clip again and again with fresh timestamps. Only when the
+     * channel has somewhere else to go (another provider's feed that is not quarantined and can be
+     * admitted without disturbing anybody, or the relay's standby): reconnecting would bring the same,
+     * so the feed ends at once as lost for the provider's sake. Every subscriber ends with `repeating`
+     * and a provider reason, which drives the failover a dead feed takes (sessions: the relay's standby
+     * or next provider, else the client's re-resolve, with the channel quarantined there; recordings:
+     * their backup provider). With nowhere to go the looping feed plays on (D-60's spirit): said once in
+     * the log and on Status, nothing ended or quarantined, and asked again at the next detection.
      */
     onLoop(found) {
-        if (this.closed) return;
-        this.loop = null;
-        this.looping = { periodSec: found.periodSec, runSec: found.runSec, audio: found.audio, at: Date.now() };
-        const who = this.providerName || 'the provider';
-        const period = Math.round(found.periodSec * 10) / 10;
-        this.log(`${who} is repeating the same ${period} s clip${this.channel ? ` on "${this.channel}"` : ''} ` +
-            `(identical for ${found.runSec} s, ${found.keyframes} key frames a pass, sound: ${found.audio}); ending the feed`);
-        this.close(`${who} kept repeating the same ${Math.round(found.periodSec)} s clip`, { providerReason: true, reason: 'repeating', periodSec: found.periodSec });
+        if (this.closed || this.loopDeciding) return;
+        this.loopDeciding = true;
+        const viewer = [...this.subs].find(s => s.info.purpose === 'viewer' && s.info.owner);
+        this.otherFeed(viewer ? viewer.info.owner : null).then((other) => {
+            this.loopDeciding = false;
+            if (this.closed) return;
+            const who = this.providerName || 'the provider';
+            const period = Math.round(found.periodSec * 10) / 10;
+            const what = `${who} is repeating the same ${period} s clip${this.channel ? ` on "${this.channel}"` : ''} ` +
+                `(identical for ${found.runSec} s, ${found.keyframes} key frames a pass, sound: ${found.audio})`;
+            const note = other ? null : `${who} is repeating the same ${Math.round(found.periodSec)} s clip; no other provider for this channel`;
+            this.looping = { periodSec: found.periodSec, runSec: found.runSec, audio: found.audio, at: Date.now(), note };
+            if (other) {
+                this.loop = null;
+                this.log(`${what}; ending the feed (${other.providerName || 'another provider'} can take over)`);
+                this.close(`${who} kept repeating the same ${Math.round(found.periodSec)} s clip`, { providerReason: true, reason: 'repeating', periodSec: found.periodSec });
+                return;
+            }
+            if (!this.loopKeptNoted) {
+                this.loopKeptNoted = true;
+                this.log(`${what}; no other provider for this channel: it plays on`);
+                try {
+                    require('./playbackEvents').record({ type: 'relay', owner: viewer ? viewer.info.owner : null, channel: this.channel,
+                        provider: this.providerName, reason: `repeating: ${note}` });
+                } catch (e) { /* observation only */ }
+            }
+            if (this.loop) this.loop.reset(); // asked again at the next detection, one period and a run on
+        });
+    }
+
+    /** #324: another feed of this channel that could take over now, or null (none, or the channel is not known). */
+    async otherFeed(owner) {
+        if (!this.channelRef) return null;
+        try {
+            const settings = await require('../db').settings.get();
+            return await require('./providerRouting').otherFeedFor({ channelRef: this.channelRef, ingestKey: this.key, owner }, settings);
+        } catch (err) {
+            this.log(`could not look for another provider (${err && err.code ? err.code : 'an error'})`);
+            return null;
+        }
     }
 
     /** A connection that never delivered MPEG-TS: refuse the ingest at its start, else keep reconnecting. */
@@ -590,7 +628,9 @@ class Ingest extends EventEmitter {
             behindSec: Math.round(this.pace.deficit() * 10) / 10,
             maxBehindSec: Math.round(Math.max(this.worstBehind ?? 0, this.pace.measured ? this.pace.maxDeficit : 0) * 10) / 10,
             // #324: the clip's length when it ended for repeating one, else null.
-            repeatingSec: this.looping ? this.looping.periodSec : null
+            repeatingSec: this.looping ? this.looping.periodSec : null,
+            // #324: why a looping feed plays on ("... no other provider for this channel"), else null.
+            repeatingNote: this.looping ? this.looping.note : null
         };
     }
 }
@@ -600,13 +640,13 @@ class Ingest extends EventEmitter {
  * once the stream is confirmed MPEG-TS; rejects (`ingestRefused`) when it is not, or the provider
  * refuses the first connection - the caller then uses its usual path.
  */
-async function subscribe({ pool, url, userAgent, providerId = null, purpose = null, owner = null, channel = null, providerName = null, channelKey = null }) {
+async function subscribe({ pool, url, userAgent, providerId = null, purpose = null, owner = null, channel = null, providerName = null, channelKey = null, channelRef = null }) {
     const key = keyOf(pool, url);
     let ingest = registry.get(key);
     let opened = false;
     if (!ingest || ingest.closed) {
         closeIdleInPool(pool, key); // a lingering connection in this pool would make this one a second
-        ingest = new Ingest({ key, pool, url, userAgent, providerId, channel, providerName, channelKey });
+        ingest = new Ingest({ key, pool, url, userAgent, providerId, channel, providerName, channelKey, channelRef });
         registry.set(key, ingest);
         ingest.start();
         opened = true;
@@ -615,6 +655,7 @@ async function subscribe({ pool, url, userAgent, providerId = null, purpose = nu
     try { await ingest.ready; } finally { ingest.waiters--; }
     if (ingest.closed) throw Object.assign(new Error('Shared ingest not used: it closed'), { ingestRefused: true, providerReason: true });
     ingest.channel ??= channel;
+    ingest.channelRef ??= channelRef;
     ingest.providerName ??= providerName;
     return ingest.subscribe({ purpose, owner }, { fromStart: opened });
 }
@@ -622,12 +663,14 @@ async function subscribe({ pool, url, userAgent, providerId = null, purpose = nu
 /**
  * The `ingestSource` a live channel's candidate is read through, or null: the switch is off, or it
  * is not an http(s) stream. One rule for a play's first start and a relay's later legs (R7).
+ * `channelRef` ({ sourceId, channelId }, #324): the channel played, to look for another provider of it.
  */
-function sourceFor(candidate, settings) {
+function sourceFor(candidate, settings, channelRef = null) {
     if (!enabled(settings) || !candidate || !/^https?:/i.test(String(candidate.url || ''))) return null;
     const pool = require('./streamCoordinator').poolOf(candidate.providerId);
     return { pool, url: candidate.url, userAgent: require('../db').getUserAgent(settings), providerId: candidate.providerId ?? null,
-        key: keyOf(pool, candidate.url), channelKey: candidate.channelKey ?? null, channel: candidate.channelName ?? null, providerName: candidate.providerName ?? null };
+        key: keyOf(pool, candidate.url), channelKey: candidate.channelKey ?? null, channel: candidate.channelName ?? null, providerName: candidate.providerName ?? null,
+        channelRef: channelRef || candidate.channelRef || null };
 }
 
 /** A live ingest for (pool, url), or null - joining one needs no new provider connection. */

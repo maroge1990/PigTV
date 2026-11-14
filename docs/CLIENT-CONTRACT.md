@@ -271,8 +271,9 @@ A channel resolve (`sourceId` + `channelId`) carries
 - 409 shapes are unchanged; when every provider that carries the channel is full, the 409 is for the first one (`force` acts
   on it) and its `conflict.message` starts "Every provider that carries this channel is in use."
 - A stream that dies mid-play for a provider reason is quarantined there, so the client's single re-resolve lands on the
-  next provider. Since #324 a feed the server finds repeating the same clip with fresh timestamps is such a stream: it ends
-  (or, with in-stream recovery, switches provider behind an `EXT-X-DISCONTINUITY`) as a stalled one does; no shape changes. The whole resolve stays under 30 s (the client's request timeout is 35 s).
+  next provider. Since #324 a feed the server finds repeating the same clip with fresh timestamps is such a stream when
+  another provider can take over: it ends (or, with in-stream recovery, switches provider behind an
+  `EXT-X-DISCONTINUITY`) as a stalled one does; with none it plays on. No shape changes. The whole resolve stays under 30 s (the client's request timeout is 35 s).
 - The 409 for a recording that holds the connection has `conflict: { type: "recording-in-progress", scheduleId, title,
   channelName, endsAt, message }` (`endsAt`: a number, ms since the epoch). `endsAt` is when that recording will actually
   stop: its guide end plus finish-late, or, while a sport event runs over, its event stop (capped at 4 h past the

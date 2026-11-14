@@ -193,9 +193,10 @@ async function routeFor(schedule) {
         multi: false
     };
     let plan;
+    let itemId = null;
     try {
         const source = await sourcesDb.getById(schedule.source_id);
-        const itemId = currentItemId(source, schedule);
+        itemId = currentItemId(source, schedule);
         if (itemId === null) return single; // its channel has gone: resolveStreamUrl has refused it already
         // #288: with every candidate held back, all of them in turn (the one that failed longest ago first), not the primary alone.
         plan = await providerRouting.plan(schedule.source_id, itemId, Date.now(), { keepTrying: true });
@@ -204,7 +205,8 @@ async function routeFor(schedule) {
     }
     if (!plan || !plan.backupsConfigured) return single;
     return {
-        candidates: plan.candidates.map(c => (c.via === 'primary' ? { ...c, url: primaryUrl } : c)),
+        // #324: the channel each candidate plays, so a looping shared feed can look for another provider of it.
+        candidates: plan.candidates.map(c => ({ ...c, ...(c.via === 'primary' ? { url: primaryUrl } : {}), channelRef: { sourceId: schedule.source_id, channelId: itemId } })),
         primaryKey: plan.primaryKey,
         multi: true,
         // #304 (Opus M1): backups exist, but this channel has none of its own (no link to another provider).
@@ -240,7 +242,7 @@ async function feedFor(settings, candidate) {
     try {
         return await ingest.subscribe({ pool: coordinator.poolOf(candidate.providerId), url: candidate.url, channelKey: candidate.channelKey ?? null,
             userAgent: getUserAgent(settings), providerId: candidate.providerId ?? null, purpose: 'recording',
-            channel: candidate.channelName ?? null, providerName: candidate.providerName ?? null });
+            channel: candidate.channelName ?? null, providerName: candidate.providerName ?? null, channelRef: candidate.channelRef ?? null });
     } catch (err) {
         console.warn(`[Recordings] Shared ingest not used for this recording: ${redact(err.message)}`);
         return null;

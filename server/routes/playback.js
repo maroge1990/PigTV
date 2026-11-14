@@ -128,7 +128,7 @@ router.post('/resolve', requireToken, async (req, res) => {
         // Wave 5 (phase 5b, `sharedIngestEnabled`): a live channel's candidate is read through the
         // shared ingest of its stream; joining one that is already open takes no connection.
         const ingest = require('../services/ingest');
-        const ingestFor = (candidate) => (live ? ingest.sourceFor(candidate, settings) : null);
+        const ingestFor = (candidate) => (live ? ingest.sourceFor(candidate, settings, { sourceId: parseInt(sourceId), channelId }) : null);
 
         // Start one candidate: probe, session, first segment. Throws what resolve throws.
         const start = (candidate, index, lease) => {

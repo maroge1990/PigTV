@@ -561,7 +561,7 @@ class Relay {
                 lease, // R11: bound to the leg's session when it exists
                 // R7: with the shared connection on, a later leg and the standby read through it too, so
                 // their feeds are judged by how far behind real time they are, as the first leg's is.
-                ingestSource: ingest().sourceFor(candidate, ctx.settings),
+                ingestSource: ingest().sourceFor(candidate, ctx.settings, { sourceId: ctx.sourceId, channelId: ctx.channelId }),
                 refusedRetryDelaysMs: [1000],
                 deadlineAt: Math.min(deadlineAt ?? Infinity, Date.now() + START_DEADLINE_MS),
                 timingNote: `, relay ${this.id} ${standby ? 'standby' : 'takeover'} on ${candidate.providerName}`,

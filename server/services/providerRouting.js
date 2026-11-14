@@ -192,6 +192,29 @@ function isProviderFailure(err) {
 }
 
 /**
+ * #324: another feed of the channel `channelRef` ({ sourceId, channelId }) that could take over from the shared
+ * feed `ingestKey` now, or null: a candidate of the channel's plan (so not quarantined, not on a provider that is
+ * down) that is a different feed and that the coordinator would admit for `owner` without disturbing anybody (a
+ * free connection, a standby or other abandoned stream, the viewer's own stream, or a live ingest to join). The
+ * plan is read through the module so a test's stand-in is used.
+ */
+async function otherFeedFor({ channelRef, ingestKey, owner = null }, settings = {}) {
+    if (!channelRef || channelRef.sourceId === undefined || channelRef.channelId === undefined) return null;
+    const { candidates } = await module.exports.plan(channelRef.sourceId, channelRef.channelId);
+    const coordinator = require('./streamCoordinator');
+    const ingest = require('./ingest');
+    for (const c of candidates || []) {
+        if (!c || !isStreamUrl(c.url) || isQuarantined(c.providerId, c.channelKey)) continue;
+        let key = null;
+        try { key = ingest.keyOf(coordinator.poolOf(c.providerId), c.url); } catch { continue; }
+        if (key === ingestKey) continue; // the looping feed itself
+        const joinIngest = ingest.liveFor(coordinator.poolOf(c.providerId), c.url) ? key : null;
+        if (coordinator.canAdmitWithoutDisturbing({ providerId: c.providerId, owner, settings, joinIngest })) return c;
+    }
+    return null;
+}
+
+/**
  * Watch a started session: if it ends unrequested after playing, for a provider reason,
  * quarantine the channel there and count it toward the breaker, so the player's
  * re-resolve goes to the next candidate. `label` is the channel's name for the log.
@@ -508,6 +531,7 @@ module.exports = {
     isQuarantined,
     isProviderFailure,
     watchSession,
+    otherFeedFor,
     snapshot,
     reset,
     DEADLINE_MS,

@@ -35,6 +35,7 @@ const playbackEvents = load('services/playbackEvents');
 const { probeCache } = load('services/streamProbe');
 const originalTuning = { ...ingest.tuning };
 const realPlan = routing.plan;
+const { takeLease } = coordinator;
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 async function until(cond, label, ms = 15000) {
@@ -124,6 +125,7 @@ before(async () => {
     B = await db.sources.create({ type: 'm3u', name: 'Dream 4K', url: 'http://b.invalid/list.m3u', role: 'backup', priority: 1 });
     await db.settings.update({ maxProviderStreams: 1, sharedIngestEnabled: true, relayEnabled: true, standbyEnabled: true });
     candA = { providerId: A.id, providerName: 'Strong8K', role: 'primary', via: 'primary', url: `${base}/loop.ts`, channelKey: 'fox-footy', channelName: 'FOX Footy' };
+    channelRef.sourceId = A.id;
     candB = { providerId: B.id, providerName: 'Dream 4K', role: 'backup', via: 'backup', url: `${base}/live.ts`, channelKey: '504', channelName: 'FOX Footy' };
     routing.plan = async () => ({ candidates: [candA, candB].filter(c => !routing.isQuarantined(c.providerId, c.channelKey)), primaryKey: 'fox-footy', channelName: 'FOX Footy' });
 });
@@ -151,11 +153,12 @@ after(() => {
 });
 
 const settingsNow = async () => ({ ...(await db.settings.get()), ffmpegPath: FFMPEG });
+const channelRef = { sourceId: null, channelId: 'pos_504' }; // the source id is set once the sources exist
 /** Start a play of `cand` the way the route does: through the shared ingest, watched for a provider loss. */
 async function startPlay(cand, owner = 'device:tv') {
     const settings = await settingsNow();
     const decision = await strategy.resolve({ url: cand.url, capabilities: { segmentedDelivery: true }, settings, ffprobePath: FFPROBE, owner, live: true,
-        providerId: cand.providerId, ingestSource: ingest.sourceFor(cand, settings), sessionOptions: { channelName: 'FOX Footy' } });
+        providerId: cand.providerId, ingestSource: ingest.sourceFor(cand, settings, channelRef), sessionOptions: { channelName: 'FOX Footy' } });
     const session = transcodeSession.getSession(decision.sessionId);
     routing.watchSession(session, cand, 'fox-footy', 'FOX Footy');
     return { session, settings };
@@ -260,4 +263,44 @@ test('PIGTV_INGEST_LOOP_CHECK=0: the check is off, the looping feed reads on', {
         assert.equal(feed.endReason, null);
         feed.leave();
     } finally { out.restore(); }
+});
+
+// #324 (Mark's rule, D-60's spirit): only act when the channel has somewhere to go. With no other provider for it,
+// or every other one quarantined or full, the looping feed plays on: the viewer and a recording on it carry on, it
+// is said once in the log and on Status, and nothing is ended, quarantined or counted.
+for (const [label, setUp] of [
+    ['the backup is quarantined for this channel', () => routing.quarantine(B.id, '504')],
+    ['the backup has no free connection', () => takeLease(B.id, 'viewer', { owner: 'device:kitchen' })]
+]) test(`no other provider to go to (${label}): the looping feed plays on, said once, nothing quarantined`, { skip }, async () => {
+    gate = Promise.resolve();
+    setUp();
+    const out = captureLog();
+    const realOther = routing.otherFeedFor;
+    let asked = 0;
+    routing.otherFeedFor = (...a) => { asked++; return realOther(...a); };
+    try {
+        const source = ingest.sourceFor(candA, await settingsNow(), channelRef);
+        const viewer = await ingest.subscribe({ ...source, purpose: 'viewer', owner: 'device:tv' });
+        const recording = await ingest.subscribe({ ...source, purpose: 'recording' });
+        viewer.resume(); recording.resume();
+        const size = fs.statSync(feeds.loop).size;
+        await until(() => viewer.bytesOut >= size - 65536, 'the whole loop delivered');
+        // Three passes: found after the second (34 s) and asked again after the third (68 s).
+        await until(() => out.lines.filter(l => l.includes('no other provider for this channel')).length >= 1, 'said');
+        await until(() => asked >= 2, 'asked again at the next detection');
+        await sleep(300);
+        assert.equal(viewer.endReason, null, 'the viewer reads on');
+        assert.equal(recording.endReason, null, 'the recording records on');
+        assert.equal(viewer.ingest.state, 'live', 'the feed is still read');
+        const said = out.lines.filter(l => l.includes('no other provider for this channel'));
+        assert.equal(said.length, 1, `said once: ${said.join(' | ')}`);
+        assert.match(said[0], /Strong8K is repeating the same 24(\.\d)? s clip on "FOX Footy" .*; no other provider for this channel: it plays on/);
+        const shown = ingest.list().find(i => i.id === viewer.ingest.id);
+        assert.equal(shown.repeatingNote, `Strong8K is repeating the same ${feeds.clipSec} s clip; no other provider for this channel`);
+        assert.ok(playbackEvents.recent().some(e => e.type === 'relay' && e.reason === `repeating: ${shown.repeatingNote}`), 'on Status\'s recent plays');
+        assert.equal(routing.isQuarantined(candA.providerId, candA.channelKey), false, 'not quarantined');
+        assert.equal(routing._breakers.get(A.id)?.failures.length ?? 0, 0, 'nothing counted');
+        assert.ok(!out.lines.join('\n').includes(base), 'no provider URL in the log');
+        viewer.leave(); recording.leave();
+    } finally { out.restore(); routing.otherFeedFor = realOther; }
 });
