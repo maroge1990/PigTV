@@ -74,9 +74,11 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   in its state for the next try and does not count as a failed attempt (once the remux has failed its last attempt, only
   the .ts is retried). The bytes themselves (the MP4 moved from appdata, the segments joined into a .ts or kept
   original) are copied by a helper process of its own (`shareFs.copyInto`, #289), never by the server process: it reports
-  after each 1 MiB chunk, and no progress for 30 s (`copyStallMs`) kills it and is a stall as above; a deletion kills it
-  too, and the partial goes once it has exited. The byte-for-byte check that adopts a file found on the share as a kept
-  original (`shareFs.sameBytes`) runs the same way. One finish or move per recording at a time. That remux's stall watchdog reads the file's size
+  after each 1 MiB chunk (flushed to the share every 32 MiB), and no progress for 30 s (`copyStallMs`) kills it and is a
+  stall as above; a deletion kills it too, and either way its partial goes once it has exited. The byte-for-byte check
+  that adopts a file found on the share as a kept original (`shareFs.sameBytes`) runs the same way. Playing or
+  downloading a recording still reads its bytes on the server's thread pool, so a share that hangs mid-stream can hold
+  those threads; only the first check is bounded (503 when the share does not answer). One finish or move per recording at a time. That remux's stall watchdog reads the file's size
   through it too, one check at a time; compression and preparation still read it in-process. `getRecordingsRoot()` only creates the final folder
   when its parent already exists. Settings → Recording → Storage refuses an unusable `recordingsPath` with 400 instead of
   saving it silently (`services/recordingsFolder.js` `validateRecordingsPathSetting()`).

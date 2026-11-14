@@ -77,7 +77,8 @@ build 27), and `audioEncode: true` on the one fallback after a `'fmt?'` decode f
   additive `stableId`, `number`, `health`, and `nextCursor` on the page.
 - `recordings/{id}/markers`: `startMs`/`endMs`.
 - `recordings/{id}/playback` (bearer): `{url: "/api/recordings/{id}/media.mp4", container: "mp4", durationSec}`; `media.mp4`
-  takes `?token=`, supports byte ranges (suffix and past-the-end too) and `+faststart`, and answers 503 while the recordings folder is not responding; `?async=1` is additive.
+  takes `?token=`, supports byte ranges (suffix and past-the-end too) and `+faststart`; `?async=1` is additive. `media.mp4`,
+  `/stream` and `/download` answer 503 while the recordings folder is not responding, and 404 for a file it does not have.
 - Favourites: `POST/DELETE /api/favorites` with the **bare** id; listed via `library/favourites`.
 - `POST /api/playback/resolve` → `strategy` `"direct"` | `"transcode"`. `playbackURL` is under exactly one of
   `/api/proxy/stream` (`?h=<opaque handle>`, never a provider URL), `/api/transcode/…` or `/api/recordings/…`; the token is

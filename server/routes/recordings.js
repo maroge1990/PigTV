@@ -131,6 +131,8 @@ router.get('/:id/media.mp4', async (req, res) => {
         await serveWithRangeSupport(req, res, filePath, 'video/mp4');
     } catch (err) {
         if (isUnresponsive(err)) return res.status(503).json({ error: NOT_RESPONDING });
+        // A file the share does not have is a 404, as for /stream and /download (not a server error).
+        if (err.message === 'Recording file is missing' && !res.headersSent) return res.status(404).json({ error: err.message });
         console.error('[Recordings] Native media error:', err.message);
         if (!res.headersSent) res.status(500).json({ error: err.message });
     }

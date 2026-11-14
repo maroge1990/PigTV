@@ -1838,6 +1838,8 @@ test('#289: playing or downloading a recording on a hung share answers 503 withi
         const hung = completedRecording(path.join(recordingsPath, 'Route-Hung.mp4'), 'Route hung');
         const missing = completedRecording(path.join(healthy, 'Route-Missing.mp4'), 'Route missing');
         real(() => fs.rmSync(missing.file_path));
+        const missingTs = completedRecording(path.join(healthy, 'Route-Missing.ts'), 'Route missing ts');
+        real(() => fs.rmSync(missingTs.file_path));
         const fine = completedRecording(path.join(healthy, 'Route-Fine.mp4'), 'Route fine');
         shareFs.reset();
         blocked.length = 0;
@@ -1852,6 +1854,10 @@ test('#289: playing or downloading a recording on a hung share answers 503 withi
         assert.deepEqual(blocked, [], 'no synchronous call on the share');
         assert.equal((await fetch(`${url}/${missing.id}/stream`)).status, 404);
         assert.equal((await fetch(`${url}/${missing.id}/download`)).status, 404);
+        for (const rec of [missing, missingTs]) { // an MP4 is served as it is; a .ts is remuxed first
+            const media = await fetch(`${url}/${rec.id}/media.mp4`);
+            assert.equal(media.status, 404, `media.mp4 of a missing ${path.extname(rec.file_path)} is 404, not a server error`);
+        }
         const ok = await fetch(`${url}/${fine.id}/stream`, { headers: { Range: 'bytes=0-9' } });
         assert.equal(ok.status, 206);
         assert.equal((await ok.arrayBuffer()).byteLength, 10);
