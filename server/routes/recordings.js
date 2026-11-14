@@ -20,6 +20,13 @@ const { withStreamToken } = require('./transcode');
 // (see server/index.js), which accepts the token as ?token= instead and is
 // always enforced (R01), so these are never open.
 
+// #289: a file on the recordings share is checked through shareFs (a helper with a deadline), never on the event loop or
+// libuv's pool: a share that does not answer is a 503, not a request that hangs.
+const NOT_RESPONDING = 'The recordings folder is not responding';
+const isUnresponsive = (err) => Boolean(err && err.code === 'SHARE_UNRESPONSIVE');
+/** Is there a file at `p`? Rejects with SHARE_UNRESPONSIVE when the share does not answer. */
+async function fileThere(p) { return Boolean(await segments.ioFor(p).stat(p)); }
+
 // Pipe a file to the response, closing the file whatever happens. A player that
 // seeks abandons its range request part-way, which is ordinary and not logged;
 // anything else (a read error on the share) goes to the caller's error path.
@@ -38,7 +45,8 @@ async function sendFileRange(stream, res) {
 // and which file differ. Async to avoid blocking the event loop on slow
 // network shares (SMB); callers must await it.
 async function serveWithRangeSupport(req, res, filePath, contentType) {
-    const stat = await fsp.stat(filePath);
+    const stat = await segments.ioFor(filePath).stat(filePath); // #289: bounded for a file on the share
+    if (!stat) return res.status(404).json({ error: 'Recording file not found' });
     const fileSize = stat.size;
     const range = req.headers.range;
 
@@ -93,16 +101,13 @@ router.get('/:id/stream', async (req, res) => {
         if (rec.status === 'recording' && rec.work_dir) {
             return res.status(409).json({ error: 'Recording is not finished yet' });
         }
-        try {
-            await fsp.access(rec.file_path, fs.constants.F_OK);
-        } catch (e) {
-            return res.status(404).json({ error: 'Recording file not found' });
-        }
+        if (!(await fileThere(rec.file_path))) return res.status(404).json({ error: 'Recording file not found' });
         // 0192: once prepared (audit R06) the recording itself is an MP4.
         const isMp4 = path.extname(rec.file_path).toLowerCase() === '.mp4';
         const ext = path.extname(rec.file_path).toLowerCase();
         await serveWithRangeSupport(req, res, rec.file_path, isMp4 ? 'video/mp4' : ext === '.ts' ? 'video/mp2t' : 'video/x-matroska');
     } catch (err) {
+        if (isUnresponsive(err)) return res.status(503).json({ error: NOT_RESPONDING });
         console.error('[Recordings] Stream error:', err);
         if (!res.headersSent) res.status(500).json({ error: err.message });
     }
@@ -125,6 +130,7 @@ router.get('/:id/media.mp4', async (req, res) => {
         const filePath = await recordingEngine.ensureNativePlayback(rec);
         await serveWithRangeSupport(req, res, filePath, 'video/mp4');
     } catch (err) {
+        if (isUnresponsive(err)) return res.status(503).json({ error: NOT_RESPONDING });
         console.error('[Recordings] Native media error:', err.message);
         if (!res.headersSent) res.status(500).json({ error: err.message });
     }
@@ -182,14 +188,11 @@ router.get('/:id/download', async (req, res) => {
         if (!rec || !rec.file_path) {
             return res.status(404).json({ error: 'Recording file not found' });
         }
-        try {
-            await fsp.access(rec.file_path, fs.constants.F_OK);
-        } catch (e) {
-            return res.status(404).json({ error: 'Recording file not found' });
-        }
+        if (!(await fileThere(rec.file_path))) return res.status(404).json({ error: 'Recording file not found' });
         const downloadName = `${rec.title || 'recording'}${path.extname(rec.file_path)}`;
         res.download(rec.file_path, downloadName, { dotfiles: 'allow' });
     } catch (err) {
+        if (isUnresponsive(err)) return res.status(503).json({ error: NOT_RESPONDING });
         res.status(500).json({ error: err.message });
     }
 });

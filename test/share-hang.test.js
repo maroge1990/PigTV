@@ -1807,3 +1807,36 @@ test('#289: the sweep through the helper still removes what is still ours and fo
     assert.deepEqual([cleanupRow(mine), cleanupRow(other), cleanupRow(gone)], [undefined, undefined, undefined], 'and no row is left for any');
     fs.rmSync(other);
 });
+
+test('#289: playing or downloading a recording on a hung share answers 503 within the deadline; a missing file stays 404; a healthy one plays', async () => {
+    const app = express();
+    app.use('/api/recordings', load('routes/recordings'));
+    const srv = app.listen(0, '127.0.0.1');
+    await once(srv, 'listening');
+    const url = `http://127.0.0.1:${srv.address().port}/api/recordings`;
+    try {
+        const hung = completedRecording(path.join(recordingsPath, 'Route-Hung.mp4'), 'Route hung');
+        const missing = completedRecording(path.join(healthy, 'Route-Missing.mp4'), 'Route missing');
+        real(() => fs.rmSync(missing.file_path));
+        const fine = completedRecording(path.join(healthy, 'Route-Fine.mp4'), 'Route fine');
+        shareFs.reset();
+        blocked.length = 0;
+        for (const route of ['stream', 'download']) {
+            const began = Date.now();
+            const r = await fetch(`${url}/${hung.id}/${route}`, { signal: AbortSignal.timeout(8000) });
+            assert.equal(r.status, 503, `${route} on a hung share`);
+            assert.equal((await r.json()).error, 'The recordings folder is not responding');
+            assert.ok(Date.now() - began < 4000, `${route} answered within the deadline`);
+            shareFs.reset();
+        }
+        assert.deepEqual(blocked, [], 'no synchronous call on the share');
+        assert.equal((await fetch(`${url}/${missing.id}/stream`)).status, 404);
+        assert.equal((await fetch(`${url}/${missing.id}/download`)).status, 404);
+        const ok = await fetch(`${url}/${fine.id}/stream`, { headers: { Range: 'bytes=0-9' } });
+        assert.equal(ok.status, 206);
+        assert.equal((await ok.arrayBuffer()).byteLength, 10);
+    } finally {
+        srv.close();
+        shareFs.reset();
+    }
+});
