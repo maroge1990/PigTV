@@ -108,7 +108,8 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   as above. Only the failover counts toward its provider's breaker: a stall on a channel's only provider does not (#304, Mark), so it never shows that provider down nor sends its notice; that includes a channel with no backup link on a server that has backups (`route.oneProvider`, from `plan()`'s `channelProviders`: it is only quarantined). On a shared feed with one provider, a feed that has
   handed the capture nothing since it last grew is left to the ingest's own rule (one silence, one resume). Not `append_list`: each run's playlist is ffmpeg's own and the server joins them.
   The Apple TV's watch copy (fMP4, `hvc1`) is made by a **local follower ffmpeg** per epoch, only when someone asks
-  (`GET /:id/watch`); it never touches the provider. At the end the joined playlist is remuxed with preparation's own
+  (`GET /:id/watch`); it never touches the provider. The watch playlist skips an epoch that recorded nothing, also one refused before its first
+  segment (no `archive.m3u8`) once a later epoch exists (#288). At the end the joined playlist is remuxed with preparation's own
   arguments straight onto the share under `.partial`, checked (`checkPrepared`), renamed, `native_status` ready; then the
   work folder goes. Share down: the MP4 waits in the work folder (`segment_state` `moving`, playable) and moves every
   15 min; three failed remuxes deliver the joined `.ts` instead. Appdata gets the health and free-space checks; the share is

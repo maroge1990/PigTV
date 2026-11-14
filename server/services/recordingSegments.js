@@ -419,9 +419,13 @@ function stopFollowers(recordingId) {
 function viewPlaylist(workDir, { captureOver = false } = {}) {
     const segments = [];
     let complete = true;
-    for (const e of epochs(workDir)) {
+    const list = epochs(workDir);
+    for (const [i, e] of list.entries()) {
         const archive = archiveOf(e.dir);
-        if (archive.segments.length === 0 && archive.ended) continue; // an epoch that recorded nothing
+        // An epoch that recorded nothing. #288 (Opus M3): one whose ffmpeg was refused before its first segment has no
+        // archive.m3u8 at all (never ended); it is over once a later epoch exists or the capture is, so it is skipped
+        // too, instead of holding the watch copy at the outage until the MP4 is made.
+        if (archive.segments.length === 0 && (archive.ended || i < list.length - 1 || captureOver)) continue;
         const view = viewOf(e.dir);
         // #34: each part has its own init; a discontinuity before each epoch and each part after the first
         view.segments.forEach((s, i) => segments.push({

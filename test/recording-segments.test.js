@@ -1465,6 +1465,31 @@ test('#34: a copy that died after the last piece ends without ffmpeg once the ar
     assert.equal(view.segments, 4, 'and the next epoch shows');
 });
 
+// #288 (Opus M3): an epoch whose ffmpeg was refused before its first segment writes no archive.m3u8, so it read as not
+// ended and the watch playlist stopped at it: a capturing recording could not be watched past an outage.
+test('#288: watching a capturing recording goes on past an epoch that was refused before it wrote anything', async () => {
+    tuning.endGraceMs = 0;
+    setBehaviour(url.A, 'ends-once');
+    const s = due({ windowMs: 60000 });
+    await engine.tick();
+    await settle(() => captures().length === 1 && waiting(s.id), 'the first capture ended by itself');
+    const [rec] = rowsOf(s.id);
+    setBehaviour(url.A, 'refuses');
+    await engine.tick();
+    await settle(() => captures().length === 2 && waiting(s.id), 'refused');
+    assert.ok(!fs.existsSync(path.join(rec.work_dir, 'e2', 'archive.m3u8')), 'the refused epoch wrote nothing');
+    setBehaviour(url.A, 'ok');
+    await engine.tick();
+    await settle(() => captures().length === 3 && !waiting(s.id), 'recording again');
+    await until(async () => /e3\/v000000\.m4s/.test((await get(`/api/recordings/${rec.id}/live/stream.m3u8?token=${token}`, { auth: 'none' })).body),
+        'the watch playlist reaches the epoch after the outage', 8000);
+    const body = (await get(`/api/recordings/${rec.id}/live/stream.m3u8?token=${token}`, { auth: 'none' })).body;
+    assert.match(body, /e1\/v000000\.m4s/);
+    assert.doesNotMatch(body, /e2\//, 'nothing from the empty epoch');
+    assert.doesNotMatch(body, /#EXT-X-ENDLIST/, 'still recording');
+    await engine.cancelScheduled(s.id);
+});
+
 // --------------------------------------------------------------------------- routes --
 
 test('watch from the start: auth, the master and media playlists (token on every URI), the pieces, and the allow-list', async () => {
