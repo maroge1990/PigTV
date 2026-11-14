@@ -921,6 +921,49 @@ video::cue {
   }
 }
 
+/* #320: a question inside the player (a clash with a recording or another viewer), in place of confirm(). */
+.player-prompt {
+  position: absolute;
+  top: var(--space-lg);
+  left: var(--space-lg);
+  right: var(--space-lg);
+  max-width: 36rem;
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  background: var(--media-panel-strong);
+  color: var(--media-text);
+  border: 1px solid var(--media-boundary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  z-index: 60;
+}
+
+.player-prompt-message {
+  margin: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.player-prompt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.player-prompt .btn {
+  min-height: 44px;
+  justify-content: center;
+}
+
+.player-prompt .btn-secondary {
+  background: transparent;
+  color: var(--media-text);
+  border: 1px solid var(--media-boundary);
+}
+
 /* Fullscreen mode for video container */
 .video-container:fullscreen {
   width: 100%;

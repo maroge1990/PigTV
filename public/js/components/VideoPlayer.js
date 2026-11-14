@@ -808,7 +808,11 @@ class VideoPlayer {
                 // they would rather have.
                 const conflict = (await res.json()).conflict;
                 const otherViewer = conflict.type === 'viewer-in-progress';
-                const proceed = confirm(`${conflict.message}\n\n${otherViewer ? 'Stop the other stream and watch here?' : 'Stop the recording and watch now?'}`);
+                const proceed = await this.askInPlayer({
+                    message: `${conflict.message}\n\n${otherViewer ? 'Stop the other stream and watch here?' : 'Stop the recording and watch now?'}`,
+                    confirmLabel: otherViewer ? 'Stop it and watch here' : 'Stop recording and watch',
+                    label: otherViewer ? 'Another device is watching' : 'A recording needs this stream'
+                });
                 // Stopped, or another channel picked, while the question was up: the answer
                 // is about a play that no longer exists, so nothing is taken over.
                 if (stale()) return VideoPlayer.SUPERSEDED;
@@ -895,13 +899,20 @@ class VideoPlayer {
 
             this._promptedFor = prompt.scheduleId;
             const mins = Math.max(1, Math.round(prompt.startsInSec / 60));
-            const stopNow = confirm(
-                `${prompt.message}\n\nIt is due in about ${mins} minute${mins === 1 ? '' : 's'}.\n\n` +
-                `Stop watching so it can record?`
-            );
+            const generation = this._playGeneration;
+            const stopNow = await this.askInPlayer({
+                message: `${prompt.message}\n\nIt is due in about ${mins} minute${mins === 1 ? '' : 's'}.\n\n` +
+                    `Stop watching so it can record?`,
+                confirmLabel: 'Stop watching',
+                label: 'A recording is about to start'
+            });
 
             if (stopNow) {
                 await this.stop();
+            } else if (generation !== this._playGeneration) {
+                // The question went away because playback changed (another channel, or stopped), not because it was
+                // declined: ask again at the next check.
+                this._promptedFor = null;
             } else {
                 await fetch('/api/playback/conflict/decline', {
                     method: 'POST',
@@ -1535,6 +1546,7 @@ class VideoPlayer {
 
         // Reset UI to idle state
         this._playing = false;
+        this.cancelPrompt();
         this.updateTabTitle();
         this.updateMediaSession(null);
         this.renderIdleOverlay(); // "Select a channel", or the one-click Resume
@@ -1582,6 +1594,71 @@ class VideoPlayer {
             });
         }
         this.updateMediaSession(channel, epgData);
+    }
+
+    // ---- #320: a question inside the player, in place of confirm() ----
+
+    /**
+     * Ask a yes/no question in a banner inside the player (so it works in fullscreen and does not block the page).
+     * Resolves true for the action, false for Cancel, Escape, or when a newer play, a stop or another question takes
+     * its place. On a page where the player is not showing there is nothing to put a banner in, so the browser's own
+     * confirm() asks (the person must still be able to answer a recording that is about to start).
+     */
+    askInPlayer({ message, confirmLabel, cancelLabel = 'Cancel', label }) {
+        this.cancelPrompt();
+        const app = window.app;
+        if (!this.container || (app && app.currentPage && app.currentPage !== 'live')) {
+            return Promise.resolve(confirm(message));
+        }
+        return new Promise((resolve) => {
+            const banner = document.createElement('div');
+            banner.className = 'player-prompt';
+            banner.setAttribute('role', 'alertdialog');
+            banner.setAttribute('aria-label', label || 'Question');
+            const text = document.createElement('p');
+            text.className = 'player-prompt-message';
+            text.id = 'player-prompt-message';
+            text.textContent = message;
+            banner.setAttribute('aria-describedby', text.id);
+            const actions = document.createElement('div');
+            actions.className = 'player-prompt-actions';
+            const primary = document.createElement('button');
+            primary.type = 'button';
+            primary.className = 'btn btn-primary';
+            primary.textContent = confirmLabel;
+            const cancel = document.createElement('button');
+            cancel.type = 'button';
+            cancel.className = 'btn btn-secondary';
+            cancel.textContent = cancelLabel;
+            actions.appendChild(primary);
+            actions.appendChild(cancel);
+            banner.appendChild(text);
+            banner.appendChild(actions);
+
+            const previousFocus = document.activeElement;
+            const prompt = { resolve: null, banner };
+            prompt.resolve = (answer) => {
+                if (this._prompt !== prompt) return;
+                this._prompt = null;
+                banner.remove();
+                // Focus goes back to where it was, unless that is gone from the page.
+                try { if (previousFocus && previousFocus !== document.body && previousFocus.isConnected !== false && previousFocus.focus) previousFocus.focus(); } catch (err) { /* nothing to restore */ }
+                resolve(answer);
+            };
+            primary.addEventListener('click', () => prompt.resolve(true));
+            cancel.addEventListener('click', () => prompt.resolve(false));
+            banner.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); prompt.resolve(false); }
+            });
+            this._prompt = prompt;
+            this.container.appendChild(banner);
+            primary.focus();
+        });
+    }
+
+    /** A pending question is answered "no" when something else takes its place (a newer play, a stop, a newer question). */
+    cancelPrompt() {
+        if (this._prompt) this._prompt.resolve(false);
     }
 
     // ---- #320: remember the last channel, the tab title, Media Session ----
