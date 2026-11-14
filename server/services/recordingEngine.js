@@ -66,7 +66,7 @@ const active = new Map();
 jobs.capturing = () => active.size; // capture outranks every recording job
 // 0177: schedules whose provider died mid-recording and whose next part is waiting
 // for a free connection. Still `recording`; retried every tick until the stop time.
-// scheduledId -> { schedule, nextPart, lostAt, starting, waitingLogged }
+// scheduledId -> { schedule, nextPart, lostAt, starting, waitingLogged } (lostAt: when the recording last grew, #302)
 const continuations = new Map();
 // #274 (D-10): the live stall watchdogs, one per running part (a count for tests: _stallWatchCount).
 const stallWatchdogs = new Set();
@@ -1285,8 +1285,12 @@ async function onSegmentExit(schedule, entry, exitCode) {
         console.warn(`[Recordings] #${entry.recordingId} ended early (${why})` +
             (entry.route.multi && candidate?.providerName ? ` on ${candidate.providerName}` : '') +
             '; it continues in the same recording');
+        // #302: the gap runs from the part's last growth (its spawn when it never grew), not from its exit: a stall is
+        // noticed stallMs after the last growth, and a shared feed may spend its reconnect before it ends the part, and
+        // that silent time is inside the part. A chain of parts that never grow then adds up to the whole silent span,
+        // each gap ending where the next begins (at a part's spawn).
         continuations.set(schedule.id, {
-            schedule, nextPart: 1, lostAt: now, starting: false, waitingLogged: false,
+            schedule, nextPart: 1, lostAt: Math.min(now, entry.lastGrowthAt ?? entry.spawnedAt ?? now), starting: false, waitingLogged: false,
             resume: { recordingId: entry.recordingId, workDir: entry.segmented.workDir, resumes: entry.segmented.resumes + (freeResume ? 0 : 1), shortRun,
                 why: failover ? 'the provider dropped out' : `the capture ended (${why})` }
         });

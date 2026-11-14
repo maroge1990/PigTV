@@ -25,6 +25,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
  *                    | 'refuses' (#284: exits 1 at once with an HTTP 502, writing nothing)
  *                    | 'stall' (one segment, then nothing until "q")
  *                    | 'stall-deaf' (#274: one segment, then nothing, and "q" is ignored: only a kill ends it)
+ *                    | 'silent' (#302: connects and writes nothing at all until "q")
  *   behaviour        the url -> kind map (written through to the script; edit via setBehaviour)
  *   starts           () every argument array ffmpeg was started with, oldest first
  *   captures         () the starts that are captures (not watch-copy followers)
@@ -94,9 +95,10 @@ if (args.includes('hls')) {
     pl += '#EXTINF:4.000000,\\n' + name + '\\n';
     putPlaylist(pl);
   };
-  segment();
+  // 'silent' (#302): not even a first segment.
+  if (kind !== 'silent') segment();
   // 'stall': one segment, then nothing (the provider went silent without closing); it still answers "q".
-  if (kind === 'stall' || kind === 'stall-deaf') setInterval(() => {}, 1000);
+  if (kind === 'stall' || kind === 'stall-deaf' || kind === 'silent') setInterval(() => {}, 1000);
   else setInterval(segment, 60);
   process.stdin.on('data', (d) => {
     if (!String(d).includes('q') || kind === 'stall-deaf') return;

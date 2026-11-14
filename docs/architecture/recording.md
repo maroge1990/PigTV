@@ -95,7 +95,7 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   Their input half is built in one place, `captureInput`: the provider's user agent, reconnect options and URL, or, on a
   shared feed, `-i pipe:0` alone (the ingest connects and reconnects).
   A failover or a restart continues the **same row** in a new epoch (no part 2; ≤ 20 resumes, where a stall after a
-  minute's run does not count; gaps noted in `error`); a restart after the window finishes it. A container stop (SIGTERM) before the end leaves it to resume, not finished
+  minute's run does not count; gaps noted in `error`, each from the part's last growth, or its start when it never grew, to the next part's start: #302); a restart after the window finishes it. A container stop (SIGTERM) before the end leaves it to resume, not finished
   (0490). A capture that ends before its stop time unasked, for any reason and with one provider too, continues
   the same way (0499, #260): at once after a minute's run, else on the next tick. A provider's failure with a backup
   also continues at once, but captures that fail that way within a minute, in a row, get one immediate try per provider

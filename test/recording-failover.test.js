@@ -253,6 +253,46 @@ test('a stalled recording (no new segments) continues in the same recording on t
     assert.equal(routing.snapshot().providers.find(p => p.id === A.id).recentFailures, 1, 'the failover counts toward its breaker');
 });
 
+// #302: the gap note counted from the stalled part's exit, but a stall is noticed stallMs after the last growth (and a
+// shared feed may spend its reconnect first): that silent time was inside the part and never counted (rig: "Gaps: 3,
+// 19 s" where ~98 s was missing). The gap now runs from the part's last growth, or its start when it never grew.
+const gapTotal = (rec) => { const m = /^Gaps: (\d+), (\d+) s in all/.exec(rec.error || ''); return m ? { count: Number(m[1]), total: Number(m[2]) } : null; };
+const firstSegmentAt = (rec, n) => fs.statSync(path.join(rec.work_dir, `e${n}`, 'a000000.ts')).mtimeMs;
+
+test('#302: a stalled part\'s gap is counted from its last growth, not from when the stall ended it', async () => {
+    tuning.endGraceMs = 0;
+    tuning.stallMs = 2500;
+    tuning.stallCheckMs = 100;
+    setBehaviour(url.A(101), 'stall');
+    const s = due();
+    await until(() => captures().length === 2 && activeFor(s.id), 'continued on Trex', 15000);
+    const [rec] = rowsOf(s.id);
+    await until(() => fs.existsSync(path.join(rec.work_dir, 'e2', 'a000000.ts')), 'the backup writes');
+    const missingS = (firstSegmentAt(rec, 2) - firstSegmentAt(rec, 1)) / 1000; // e1 wrote one segment, then nothing
+    const gap = gapTotal(recordings.getById(rec.id));
+    assert.equal(gap.count, 1);
+    assert.ok(missingS >= 2.5, `the stall took its time (${missingS} s)`);
+    assert.ok(Math.abs(gap.total - missingS) <= 1.5, `the note says ${gap.total} s; ${missingS.toFixed(1)} s were missing`);
+});
+
+test('#302: a chain of parts, one that never grew among them, adds up to the time really missing (nothing twice, nothing dropped)', async () => {
+    tuning.endGraceMs = 0;
+    tuning.stallMs = 1500;
+    tuning.stallCheckMs = 100;
+    setBehaviour(url.A(101), 'stall');   // one segment, then silence
+    setBehaviour(url.B(5001), 'silent'); // nothing at all: its gap runs from its start
+    const s = due();
+    await until(() => captures().length === 3 && activeFor(s.id), 'continued on Dream4K', 20000);
+    assert.deepEqual(inputs(), [url.A(101), url.B(5001), url.C(7001)]);
+    const [rec] = rowsOf(s.id);
+    await until(() => fs.existsSync(path.join(rec.work_dir, 'e3', 'a000000.ts')), 'Dream4K writes');
+    const missingS = (firstSegmentAt(rec, 3) - firstSegmentAt(rec, 1)) / 1000;
+    const gap = gapTotal(recordings.getById(rec.id));
+    assert.equal(gap.count, 2, 'one gap per continuation');
+    assert.ok(missingS >= 3, `two stalls took their time (${missingS} s)`);
+    assert.ok(Math.abs(gap.total - missingS) <= 1.5, `the note says ${gap.total} s; ${missingS.toFixed(1)} s were missing`);
+});
+
 test('#274: a failover leaves one watchdog, the new part\'s; a stop leaves none', async () => {
     tuning.endGraceMs = 0;
     setBehaviour(url.A(101), 'dies');

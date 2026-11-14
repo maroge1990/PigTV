@@ -30,7 +30,8 @@ const pkg = require('../package.json');
 // build can stamp it without editing source; the committed value is the
 // normal path.
 
-const BUILD = '0584';
+
+const BUILD = '0585';
 
 const version = pkg.version;
 const build = process.env.PIGTV_BUILD || BUILD;
