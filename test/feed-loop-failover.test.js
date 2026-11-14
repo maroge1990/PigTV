@@ -304,3 +304,52 @@ for (const [label, setUp] of [
         viewer.leave(); recording.leave();
     } finally { out.restore(); routing.otherFeedFor = realOther; }
 });
+
+// Codex #324 high: "somewhere to go" must be where the readers would really go. The relay skips a provider whose feed
+// could not join this stream (`unusable`, e.g. a standby refused as incompatible); a recording goes only to its own
+// route's candidates with a connection for it. With the only backup ruled out so, the looping feed plays on.
+test('a looping primary whose only backup the relay found unusable (a rejected standby) plays on', { skip }, async () => {
+    gate = new Promise(r => { releaseGate = r; });
+    const out = captureLog();
+    try {
+        const { session: front, settings } = await startPlay(candA);
+        const followed = relay.adopt(front, { sourceId: A.id, channelId: 'pos_504', capabilities: { segmentedDelivery: true }, settings, ffprobePath: FFPROBE,
+            owner: 'device:tv', channelName: 'FOX Footy', primaryKey: 'fox-footy', candidate: candA });
+        followed.unusable.add(B.id); // as when its standby was refused: "standby-incompatible"
+        releaseGate();
+        await until(() => out.lines.some(l => l.includes('no other provider for this channel: it plays on')), 'kept', 20000);
+        await sleep(1500); // a relay tick or more
+        assert.equal(front.feedLost, null, 'the feed was not ended');
+        assert.equal(followed.closed, false, 'the play goes on');
+        assert.equal(followed.active.session, front);
+        assert.equal(routing.isQuarantined(candA.providerId, candA.channelKey), false);
+    } finally { out.restore(); releaseGate(); }
+});
+
+test('a reader that would not use the other provider keeps the looping feed for everyone on it', { skip }, async () => {
+    gate = Promise.resolve();
+    const out = captureLog();
+    try {
+        const source = ingest.sourceFor(candA, await settingsNow(), channelRef);
+        const viewer = await ingest.subscribe({ ...source, purpose: 'viewer', owner: 'device:tv' });
+        const recording = await ingest.subscribe({ ...source, purpose: 'recording' });
+        recording.loopFilter = () => false; // e.g. Dream 4K is not on its route, or has no connection for a recording
+        viewer.resume(); recording.resume();
+        await until(() => out.lines.some(l => l.includes('no other provider for this channel: it plays on')), 'kept', 20000);
+        assert.equal(viewer.endReason, null);
+        assert.equal(recording.endReason, null);
+        viewer.leave(); recording.leave();
+    } finally { out.restore(); }
+});
+
+test('a recording would move only to a candidate of its own multi-provider route with a connection for it', { skip }, () => {
+    const engine = load('services/recordingEngine');
+    const settings = { maxProviderStreams: 1, sharedIngestEnabled: true };
+    const route = { multi: true, candidates: [{ ...candA }, { ...candB }] };
+    assert.equal(engine._recordingWouldUse(route, candB, settings), true, 'its backup, free');
+    assert.equal(engine._recordingWouldUse({ multi: false, candidates: [candA] }, candB, settings), false, 'a single-provider route');
+    assert.equal(engine._recordingWouldUse({ multi: true, candidates: [candA] }, candB, settings), false, 'not on its route');
+    const lease = takeLease(B.id, 'viewer', { owner: 'device:kitchen' });
+    assert.equal(engine._recordingWouldUse(route, candB, settings), false, 'no connection for it');
+    coordinator.releaseLease(lease);
+});

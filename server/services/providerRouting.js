@@ -195,10 +195,11 @@ function isProviderFailure(err) {
  * #324: another feed of the channel `channelRef` ({ sourceId, channelId }) that could take over from the shared
  * feed `ingestKey` now, or null: a candidate of the channel's plan (so not quarantined, not on a provider that is
  * down) that is a different feed and that the coordinator would admit for `owner` without disturbing anybody (a
- * free connection, a standby or other abandoned stream, the viewer's own stream, or a live ingest to join). The
- * plan is read through the module so a test's stand-in is used.
+ * free connection, a standby or other abandoned stream, the viewer's own stream, or a live ingest to join), and
+ * that `usable(candidate)` accepts (what the readers of the looping feed would really switch to). The plan is read
+ * through the module so a test's stand-in is used.
  */
-async function otherFeedFor({ channelRef, ingestKey, owner = null }, settings = {}) {
+async function otherFeedFor({ channelRef, ingestKey, owner = null, usable = null }, settings = {}) {
     if (!channelRef || channelRef.sourceId === undefined || channelRef.channelId === undefined) return null;
     const { candidates } = await module.exports.plan(channelRef.sourceId, channelRef.channelId);
     const coordinator = require('./streamCoordinator');
@@ -208,6 +209,7 @@ async function otherFeedFor({ channelRef, ingestKey, owner = null }, settings = 
         let key = null;
         try { key = ingest.keyOf(coordinator.poolOf(c.providerId), c.url); } catch { continue; }
         if (key === ingestKey) continue; // the looping feed itself
+        if (usable && !usable(c)) continue; // a reader there would not use it (the relay's unusable, a recording's route)
         const joinIngest = ingest.liveFor(coordinator.poolOf(c.providerId), c.url) ? key : null;
         if (coordinator.canAdmitWithoutDisturbing({ providerId: c.providerId, owner, settings, joinIngest })) return c;
     }

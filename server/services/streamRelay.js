@@ -187,6 +187,9 @@ class Relay {
                 .catch(err => { this.log(`timeline restart failed: ${redact(err.message)}`); this.close('timeline restart failed', true); });
         });
         session.once('lost', (info) => { leg.lost = info || { how: 'exit', providerReason: false }; });
+        // #324 (Codex high): a looping feed is ended only for a provider this relay would switch to (startCold and the
+        // standby skip the ones whose feed could not join this stream).
+        if (session.feed) session.feed.loopFilter = (candidate) => !this.closed && !this.unusable.has(candidate.providerId);
         // A blank picture is the provider's problem the stall watchdog does not see: say so (it is
         // quarantined by providerRouting.watchSession), without acting on it here.
         session.once('blank', () => { if (leg === this.active) this.note('blank', 'the picture went blank', { provider: this.providerOf(leg) }); });

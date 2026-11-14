@@ -233,16 +233,32 @@ function liveIngestFor(candidate) {
 }
 
 /**
+ * #324: would this recording, on `route`, move to `c` if its feed ended now? Only a candidate of its own multi-provider
+ * route (the same provider and channel), with a free connection for a recording or a live shared feed to join
+ * (freeCandidate's rule).
+ */
+function recordingWouldUse(route, c, settings) {
+    if (!route || !route.multi || !c) return false;
+    const mine = route.candidates.find(x => x.providerId === c.providerId && String(x.channelKey) === String(c.channelKey));
+    if (!mine) return false;
+    if (ingest.enabled(settings) && liveIngestFor(mine)) return true;
+    return coordinator.canRecordFreely(mine.providerId, settings);
+}
+
+/**
  * Wave 5 (phase 5a, behind `sharedIngestEnabled`): a subscription to the shared ingest of this
  * candidate's stream, or null for today's path (the switch is off, or the ingest was refused:
  * not MPEG-TS, or the first connection failed - the usual path then meets the same answer).
  */
-async function feedFor(settings, candidate) {
+async function feedFor(settings, candidate, route = null) {
     if (!ingest.enabled(settings) || !candidate || !/^https?:/i.test(String(candidate.url || ''))) return null;
     try {
-        return await ingest.subscribe({ pool: coordinator.poolOf(candidate.providerId), url: candidate.url, channelKey: candidate.channelKey ?? null,
+        const feed = await ingest.subscribe({ pool: coordinator.poolOf(candidate.providerId), url: candidate.url, channelKey: candidate.channelKey ?? null,
             userAgent: getUserAgent(settings), providerId: candidate.providerId ?? null, purpose: 'recording',
             channel: candidate.channelName ?? null, providerName: candidate.providerName ?? null, channelRef: candidate.channelRef ?? null });
+        // #324 (Codex high): a looping feed is ended for this recording only when it would move to that candidate.
+        feed.loopFilter = (c) => recordingWouldUse(route, c, settings);
+        return feed;
     } catch (err) {
         console.warn(`[Recordings] Shared ingest not used for this recording: ${redact(err.message)}`);
         return null;
@@ -1085,7 +1101,7 @@ async function startSegmented(schedule, settings, route, index, { refuse, lease,
 
     const candidate = route.candidates[index];
     if (!startStillWanted(schedule, owner)) return false;
-    const feed = await feedFor(settings, candidate); // Wave 5
+    const feed = await feedFor(settings, candidate, route); // Wave 5
     if (!startStillWanted(schedule, owner)) return abandonStart(schedule, feed);
     if (!joinedAsPromised(schedule, owner, feed, candidate)) return false;
     const recording = recordingsDb.create({
@@ -1425,7 +1441,7 @@ async function continuePart(scheduleId, now = Date.now()) {
             // R3: the same recording, a new epoch.
             const rec = recordingsDb.getById(cont.resume.recordingId);
             if (!rec || rec.segment_state !== 'capturing') { continuations.delete(scheduleId); finishSchedule(scheduleId); return; }
-            const feed = await feedFor(settings, route.candidates[index]); // Wave 5
+            const feed = await feedFor(settings, route.candidates[index], route); // Wave 5
             if (!ours()) return abandonStart(schedule, feed);
             // #302 (Codex round 1): the gap ends when the next part is spawned, after the feed is awaited (a shared
             // ingest's subscribe can spend ~10 s timing out): that wait is missing too, and the next part's gap counts
@@ -2137,6 +2153,7 @@ module.exports = {
     _reconcileOnStartup: reconcileOnStartup, // R3: what a restart does to a recording in progress
     _failoverTuning: failoverTuning,
     _heldAgainst: heldAgainst,
+    _recordingWouldUse: recordingWouldUse,
     _activeEntry: (id) => active.get(Number(id)), // tests: the running capture of a schedule
     _askToStop: askToStop,
     _stallWatchCount: () => stallWatchdogs.size, // #274: no part's watchdog outlives it

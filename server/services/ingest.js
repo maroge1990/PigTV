@@ -395,9 +395,14 @@ class Ingest extends EventEmitter {
     /** #324: another feed of this channel that could take over now, or null (none, or the channel is not known). */
     async otherFeed(owner) {
         if (!this.channelRef) return null;
+        // Codex #324 high: a candidate counts only if every reader here would really use it - each subscription may
+        // carry `loopFilter(candidate)`: the relay's (not a provider it found unusable), a recording's (its route, a
+        // connection it may take). One reader with nowhere to go keeps the feed for all.
+        const filters = [...this.subs].map(s => s.loopFilter).filter(f => typeof f === 'function');
+        const usable = (c) => filters.every(f => { try { return f(c) === true; } catch (e) { return false; } });
         try {
             const settings = await require('../db').settings.get();
-            return await require('./providerRouting').otherFeedFor({ channelRef: this.channelRef, ingestKey: this.key, owner }, settings);
+            return await require('./providerRouting').otherFeedFor({ channelRef: this.channelRef, ingestKey: this.key, owner, usable }, settings);
         } catch (err) {
             this.log(`could not look for another provider (${err && err.code ? err.code : 'an error'})`);
             return null;
