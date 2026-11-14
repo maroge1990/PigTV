@@ -1752,3 +1752,58 @@ test('Settings: a hung typed path forks one helper however often it is saved; hu
         shareFs.tuning.timeoutMs = 1500;
     }
 });
+
+// ---- #289: no file call on the share from this process, sync or async ----
+
+/** Async fs.promises calls on the share, from this process, while `work` runs (they would sit in libuv's pool on a hung mount). */
+async function asyncCallsOnShare(work) {
+    const touched = [];
+    const originals = {};
+    for (const name of ['stat', 'lstat', 'access', 'readdir', 'unlink', 'open', 'readFile', 'rename', 'link', 'copyFile', 'writeFile', 'mkdir']) {
+        originals[name] = fs.promises[name];
+        fs.promises[name] = function (p, ...rest) {
+            if (onShare(p) || (typeof rest[0] === 'string' && onShare(rest[0]))) touched.push(`${name} ${p}`);
+            return originals[name].call(this, p, ...rest);
+        };
+    }
+    try { return { result: await work(), touched }; } finally { Object.assign(fs.promises, originals); }
+}
+const journal = (p, id, kind, identity) => load('db/sqlite').getDb()
+    .prepare('INSERT OR REPLACE INTO recording_cleanup (path, recording_id, created_at, kind, identity) VALUES (?, ?, ?, ?, ?)').run(p, id, Date.now(), kind, identity);
+
+test('#289: the start-up sweep makes no call on the share from this process, and a share that does not answer keeps the row', async () => {
+    const owners = load('services/recordingOwners');
+    const hung = path.join(recordingsPath, 'Sweep', 'Hung.mp4');
+    journal(hung, 900101, 'published', '1:2:3:4:5');
+    shareFs.reset();
+    blocked.length = 0;
+    const { result, touched } = await asyncCallsOnShare(async () => {
+        const { worst, result: n } = await loopFreeze(() => owners.sweepCleanup());
+        assert.ok(worst() < 300, `the event loop stalled for ${worst()} ms`);
+        return n;
+    });
+    assert.equal(typeof result, 'number');
+    assert.deepEqual(blocked, [], 'no synchronous call on the share');
+    assert.deepEqual(touched, [], 'no asynchronous call on the share from this process');
+    assert.ok(cleanupRow(hung), 'the share did not answer: the row waits for the next sweep');
+    load('db/sqlite').getDb().prepare('DELETE FROM recording_cleanup WHERE path = ?').run(hung);
+    shareFs.reset();
+});
+
+test('#289: the sweep through the helper still removes what is still ours and forgets a name that is gone', async () => {
+    const owners = load('services/recordingOwners');
+    const { identityOfStat } = load('services/shareFsWorker');
+    const mine = path.join(healthy, 'Sweep-Mine.mp4');
+    const other = path.join(healthy, 'Sweep-Other.mp4');
+    const gone = path.join(healthy, 'Sweep-Gone.mp4');
+    fs.writeFileSync(mine, 'ours');
+    fs.writeFileSync(other, 'replaced');
+    journal(mine, 900102, 'published', identityOfStat(fs.statSync(mine, { bigint: true })));
+    journal(other, 900102, 'published', '1:2:3:4:5');
+    journal(gone, 900102, 'published', '1:2:3:4:5');
+    assert.equal(await owners.sweepCleanup(), 1);
+    assert.equal(fs.existsSync(mine), false, 'the file this code made is removed');
+    assert.equal(fs.existsSync(other), true, 'another file at the name is kept');
+    assert.deepEqual([cleanupRow(mine), cleanupRow(other), cleanupRow(gone)], [undefined, undefined, undefined], 'and no row is left for any');
+    fs.rmSync(other);
+});

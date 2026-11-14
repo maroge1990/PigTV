@@ -63,6 +63,8 @@ const fs = require('fs');
 const crypto = require('crypto');
 const shareFs = require('./shareFs');
 const { identityOfStat } = require('./shareFsWorker');
+// #289: file calls on a path go to shareFs (bounded, off the event loop) on the share, in-process for appdata.
+const ioFor = (p) => require('./recordingSegments').ioFor(p);
 const { recordings: recordingsDb, initSchema } = require('../db/recordingsDb');
 const { getDb } = require('../db/sqlite');
 
@@ -114,15 +116,6 @@ const cleanupDb = () => { initSchema(); return getDb(); };
 const path = require('path');
 /** Does a recording point at `p` (its file, or its kept original)? Then it is the recording's, not debris. */
 const recorded = (p) => Boolean(cleanupDb().prepare('SELECT 1 FROM recordings WHERE file_path = ? OR segment_original = ? LIMIT 1').get(p, p));
-/**
- * Which file is at `p`: device, inode, size, modification and creation time (bigint, ns). A filesystem
- * may give a freed inode number straight to the next new file (Linux does: CI, 26 Oct), so the inode
- * alone does not tell a replacement from the file journalled; its times and size do. None of these
- * change when the file's partial name is linked or removed (only ctime does), so publication keeps it.
- */
-async function identityNow(p) {
-    try { return identityOfStat(await fs.promises.stat(p, { bigint: true })); } catch (e) { return e.code === 'ENOENT' ? 'gone' : null; }
-}
 /**
  * #287: `p` is about to become a name of the finished file whose identity is `identity` (journalled before the link, so
  * a link that lands late is still this code's to take back). Journalled as 'published' for recording `id` until
@@ -183,10 +176,11 @@ function committed(p) { if (p) forget(p); }
 function forget(p) {
     try { cleanupDb().prepare('DELETE FROM recording_cleanup WHERE path = ?').run(p); } catch (e) { /* database closed */ }
 }
-/** Remove `p` and its row; a removal that fails (not "already gone") keeps the row for the next start. */
+/** Remove `p` and its row, through bounded calls; a removal that fails (not "already gone", nor a share that does not answer) keeps the row for the next start. */
 async function removeListed(p) {
-    try { await fs.promises.unlink(p); } catch (e) {
-        if (e.code !== 'ENOENT') { console.warn(`[Recordings] Could not remove ${p} yet (${e.code || e.message}); it stays listed`); return false; }
+    try { await ioFor(p).unlink(p); } catch (e) {
+        console.warn(`[Recordings] Could not remove ${p} yet (${e.code || e.message}); it stays listed`);
+        return false;
     }
     forget(p);
     return true;
@@ -232,7 +226,7 @@ function write(id, work) {
         // go once they are gone; one still there stays listed for the sweep.
         setImmediate(() => {
             // Only "not there" lets a row go; any other error (EIO, EACCES) keeps it for the sweep.
-            for (const p of entry.paths) fs.promises.access(p).then(() => {}, (e) => { if (e.code === 'ENOENT') forget(p); });
+            for (const p of entry.paths) ioFor(p).identity(p).then((now) => { if (now === null) forget(p); }, () => {});
         });
     });
     return run;
@@ -394,40 +388,51 @@ async function sweepOnce() {
     let rows = [];
     try { rows = cleanupDb().prepare('SELECT path, kind, identity FROM recording_cleanup').all(); } catch (e) { return 0; }
     let removed = 0;
-    const io = {
-        identity: identityNow,
-        async otherNamesCleared(p) {
-            let st = null;
-            try { st = await fs.promises.stat(p, { bigint: true }); } catch (e) {
-                return e.code === 'ENOENT'; // cannot see whether it has another name: it stays listed
+    const unresponsive = (e) => e && e.code === 'SHARE_UNRESPONSIVE';
+    const forPath = (p) => {
+        const io = ioFor(p);
+        return {
+            ...bounded(io),
+            // #289: a partial whose publication stopped after its link has a second name, which is this very file.
+            async otherNamesCleared(p) {
+                let links;
+                try { links = await io.nlink(p); } catch (e) { if (unresponsive(e)) throw e; return false; }
+                if (links === null) return true; // not there: nothing to clear
+                if (links <= 1) return true;
+                let own;
+                let names;
+                try { own = await io.identity(p); names = await io.readdir(path.dirname(p)); } catch (e) { if (unresponsive(e)) throw e; return false; }
+                if (own === null) return true;
+                if (names === null) return false;
+                let cleared = true;
+                for (const name of names) {
+                    const other = path.join(path.dirname(p), name);
+                    if (other === p) continue;
+                    let oid;
+                    // Only "not there" is not this file; a name that cannot be inspected keeps the partial listed.
+                    try { oid = await io.identity(other); } catch (e) { if (unresponsive(e)) throw e; cleared = false; continue; }
+                    if (oid === null || oid !== own || recorded(other)) continue;
+                    const mark = claimRemoval(other); // #287
+                    if (!mark) { cleared = false; continue; }
+                    let outstanding = null;
+                    try {
+                        // Looked at again under the mark: still this very file, and still nobody's.
+                        const again = await io.identity(other).catch(() => null);
+                        if (again !== own || recorded(other)) continue;
+                        try { await io.unlink(other); } catch (e) { if (unresponsive(e)) e.fromUnlink = true; throw e; }
+                        removed++;
+                    } catch (e) { outstanding = e; if (unresponsive(e)) throw e; cleared = false; } finally { endRemoval(other, mark, outstanding); }
+                }
+                return cleared;
             }
-            if (!(st.nlink > 1n)) return true;
-            // A publication stopped right after its link: its other name is this very file.
-            let cleared = true;
-            const names = await fs.promises.readdir(path.dirname(p)).catch(() => null);
-            if (names === null) cleared = false;
-            for (const name of names || []) {
-                const other = path.join(path.dirname(p), name);
-                if (other === p) continue;
-                // Only "not there" is not this file; a name that cannot be inspected keeps the partial listed.
-                const o = await fs.promises.stat(other, { bigint: true }).catch((e) => { if (e.code !== 'ENOENT') cleared = false; return null; });
-                if (!o || o.ino !== st.ino || o.dev !== st.dev || recorded(other)) continue;
-                const mark = claimRemoval(other); // #287
-                if (!mark) { cleared = false; continue; }
-                try {
-                    // Looked at again under the mark: still this very file, and still nobody's.
-                    const again = await fs.promises.stat(other, { bigint: true }).catch(() => null);
-                    if (!again || again.ino !== st.ino || again.dev !== st.dev || recorded(other)) continue;
-                    await fs.promises.unlink(other);
-                    removed++;
-                } catch (e) { cleared = false; } finally { endRemoval(other, mark, null); }
-            }
-            return cleared;
-        },
-        remove: removeListed
+        };
     };
     for (const row of rows) {
-        if (await clearListed(row, io)) removed++;
+        try {
+            if (await clearListed(row, forPath(row.path))) removed++;
+        } catch (e) {
+            if (!unresponsive(e)) throw e; // a share that does not answer keeps the row for the next sweep
+        }
     }
     if (removed) console.log(`[Recordings] Cleared ${removed} file(s) left by writers that did not finish`);
     return removed;
@@ -475,6 +480,29 @@ function endRemoval(p, mark, outstanding) {
 const removalPending = (p) => removing.has(p);
 
 /**
+ * The clean-up calls of clearListed made through bounded `io` (shareFs, or shareFs.local): a share that does not answer
+ * throws SHARE_UNRESPONSIVE (the row stays listed for the next sweep); it is never taken for "gone".
+ */
+function bounded(io) {
+    const answer = (e, fallback) => { if (e.code === 'SHARE_UNRESPONSIVE') throw e; return fallback; };
+    return {
+        async identity(p) { try { return (await io.identity(p)) ?? 'gone'; } catch (e) { return answer(e, null); } },
+        async otherNamesCleared(p) { try { const n = await io.nlink(p); return n === null || n === 1; } catch (e) { return answer(e, false); } },
+        async remove(p) {
+            if (busy(p)) return false; // in use since this began: left alone
+            try { await io.unlink(p); } catch (e) {
+                if (e.code === 'SHARE_UNRESPONSIVE') e.fromUnlink = true; // the unlink's own error (shareFs says whether it was sent)
+                answer(e);
+                console.warn(`[Recordings] Could not remove ${p} yet (${e.code || e.message}); it stays listed`);
+                return false;
+            }
+            forget(p);
+            return true;
+        }
+    };
+}
+
+/**
  * #287: before a new attempt to finish or move recording `id`, what an earlier one journalled and never committed is
  * taken back - its partials, and the names it published (a link that missed its deadline may have landed late) while
  * each is still that very file - through bounded calls (`ioFor(path)`: shareFs, or shareFs.local for appdata), so the
@@ -486,24 +514,6 @@ const removalPending = (p) => removing.has(p);
 async function takeBack(id, ioFor = () => shareFs) {
     const rows = cleanupDb().prepare(`SELECT path, kind, identity FROM recording_cleanup WHERE recording_id = ? AND kind IN ('partial', 'published')`).all(id);
     const stillListed = (p) => Boolean(cleanupDb().prepare('SELECT 1 FROM recording_cleanup WHERE path = ?').get(p));
-    const bounded = (io) => {
-        const answer = (e, fallback) => { if (e.code === 'SHARE_UNRESPONSIVE') throw e; return fallback; };
-        return {
-            async identity(p) { try { return (await io.identity(p)) ?? 'gone'; } catch (e) { return answer(e, null); } },
-            async otherNamesCleared(p) { try { const n = await io.nlink(p); return n === null || n === 1; } catch (e) { return answer(e, false); } },
-            async remove(p) {
-                if (busy(p)) return false; // in use since this began: left alone
-                try { await io.unlink(p); } catch (e) {
-                    if (e.code === 'SHARE_UNRESPONSIVE') e.fromUnlink = true; // the unlink's own error (shareFs says whether it was sent)
-                    answer(e);
-                    console.warn(`[Recordings] Could not remove ${p} yet (${e.code || e.message}); it stays listed`);
-                    return false;
-                }
-                forget(p);
-                return true;
-            }
-        };
-    };
     // Partials first (once gone, a link of one that lands late finds nothing), then the published names, then the
     // partials kept because a late link had given them a second name, which is gone by then.
     const partials = rows.filter(r => r.kind === 'partial');

@@ -139,6 +139,8 @@ const unlink = (file, opts) => call('unlink', file, opts);
 const link = (file, to, opts) => call('link', file, opts, { to: String(to) });
 const nlink = (file, opts) => call('nlink', file, opts);
 const rename = (file, to, opts) => call('rename', file, opts, { to: String(to) });
+/** #289: the names in a folder, or null when it is not there. */
+const readdir = (file, opts) => call('readdir', file, opts);
 /**
  * The size of `file`: 0 when it is missing, null when the share does not say (#143: unknown, not 0, for a caller that
  * reports it). The stall watch of an ffmpeg job (recordingMedia.runFfmpegCollectingTail) counts null as no growth, so a
@@ -155,7 +157,7 @@ function runHere(op, file, extra) {
 const local = {
     exists: (f) => runHere('exists', f), stat: (f) => runHere('stat', f), statfs: (f) => runHere('statfs', f), identity: (f) => runHere('identity', f),
     unlink: (f) => runHere('unlink', f), link: (f, to) => runHere('link', f, { to: String(to) }), nlink: (f) => runHere('nlink', f),
-    rename: (f, to) => runHere('rename', f, { to: String(to) }),
+    rename: (f, to) => runHere('rename', f, { to: String(to) }), readdir: (f) => runHere('readdir', f),
     async sizeOf(f) { try { const s = await runHere('stat', f); return s ? s.size : 0; } catch (e) { return null; } }
 };
 
@@ -285,4 +287,4 @@ function reset() {
 /** Tests: run calls in this process (true) or in the helper (false). */
 function _inProcess(on) { inProcess = !!on; }
 
-module.exports = { _inProcess, _spawner: spawner, _stuck: stuck, _ownHelpers: ownHelpers, call, exists, stat, statfs, mkdir, writeProbe, identity, unlink, link, nlink, rename, sizeOf, local, withOwnHelper, diskInfo, unresponsive, reset, tuning };
+module.exports = { _inProcess, _spawner: spawner, _stuck: stuck, _ownHelpers: ownHelpers, call, exists, stat, statfs, mkdir, writeProbe, identity, unlink, link, nlink, rename, readdir, sizeOf, local, withOwnHelper, diskInfo, unresponsive, reset, tuning };

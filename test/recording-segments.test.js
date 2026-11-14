@@ -1892,6 +1892,18 @@ test('P3: a finished recording\'s MP4 is never removed by the sweep, and leaves 
     assert.ok(fs.existsSync(mp4));
 });
 
+/**
+ * #289: the sweep makes its file calls through shareFs (shareFs.local in appdata), not fs.promises. A test that wants one held or
+ * failed replaces that call on both; the result restores them.
+ */
+const shareFsModule = load('services/shareFs');
+function patchIo(name, wrap) {
+    const saved = [shareFsModule, shareFsModule.local].map((io) => [io, io[name]]);
+    for (const [io, real] of saved) io[name] = wrap(real);
+    return () => { for (const [io, real] of saved) io[name] = real; };
+}
+const eio = () => Object.assign(new Error('EIO'), { code: 'EIO' });
+
 // ---- Codex review of 0276 (26 Oct): the sweep removes only the very file it journalled, and keeps its
 // record until every name of that file is gone.
 
@@ -1924,9 +1936,12 @@ test('Q2: a final name the sweep cannot remove keeps its partial listed, and the
         fs.writeFileSync(partial, 'finished MP4');
         fs.linkSync(partial, mp4); // stopped right after the link
     });
-    const realUnlink = fs.promises.unlink;
-    fs.promises.unlink = async (p, ...a) => { if (p === mp4) throw Object.assign(new Error('EIO'), { code: 'EIO' }); return realUnlink(p, ...a); };
-    try { await engine._owners.sweepCleanup(); } finally { fs.promises.unlink = realUnlink; }
+    // #289: the sweep's calls run in the share helper's worker; made in this process here so the failure can be injected.
+    const shareFs = load('services/shareFs');
+    shareFs._inProcess(true);
+    const realUnlink = fs.unlinkSync;
+    fs.unlinkSync = (p, ...a) => { if (p === mp4) throw Object.assign(new Error('EIO'), { code: 'EIO' }); return realUnlink(p, ...a); };
+    try { await engine._owners.sweepCleanup(); } finally { fs.unlinkSync = realUnlink; shareFs._inProcess(false); }
     assert.ok(fs.existsSync(mp4), 'its removal failed');
     assert.ok(fs.existsSync(partial) && cleanupRows().includes(partial), 'so the partial stays listed - the way back to it');
     await engine._owners.sweepCleanup(); // the next start
@@ -1947,9 +1962,12 @@ test('Q3: a second name the sweep cannot even inspect keeps the partial listed, 
         fs.writeFileSync(partial, 'finished MP4');
         fs.linkSync(partial, mp4); // stopped right after the link
     });
-    const realStat = fs.promises.stat;
-    fs.promises.stat = async (p, ...a) => { if (p === mp4) throw Object.assign(new Error('EIO'), { code: 'EIO' }); return realStat(p, ...a); };
-    try { await engine._owners.sweepCleanup(); } finally { fs.promises.stat = realStat; }
+    // #289: the sweep's calls run in the share helper's worker; made in this process here so the failure can be injected.
+    const shareFs = load('services/shareFs');
+    shareFs._inProcess(true);
+    const realStat = fs.statSync;
+    fs.statSync = (p, ...a) => { if (p === mp4) throw Object.assign(new Error('EIO'), { code: 'EIO' }); return realStat(p, ...a); };
+    try { await engine._owners.sweepCleanup(); } finally { fs.statSync = realStat; shareFs._inProcess(false); }
     assert.ok(fs.existsSync(partial) && cleanupRows().includes(partial), 'the partial stays listed');
     await engine._owners.sweepCleanup(); // the next start
     assert.equal(fs.existsSync(mp4), false);
@@ -1974,18 +1992,17 @@ test('R1: recovery never adopts a kept original the start-up sweep is about to r
         fs.writeFileSync(ts, joined);
         engine._owners.published(ts, rec.id, load('services/shareFsWorker').identityOfStat(fs.statSync(ts, { bigint: true }))); // #287: with its identity
         // The sweep is held while it inspects that file (a slow share at start-up).
-        const realStat = fs.promises.stat;
         let reached, release;
         const inspecting = new Promise(r => { reached = r; });
         const gate = new Promise(r => { release = r; });
-        fs.promises.stat = async (p, ...a) => { if (p === ts) { reached(); await gate; } return realStat(p, ...a); };
+        const restore = patchIo('identity', (real) => async (p, ...a) => { if (p === ts) { reached(); await gate; } return real(p, ...a); });
         let sweeping, moving;
         try {
             sweeping = engine._owners.sweepCleanup();
             await inspecting;
             moving = segments.moveOne(recordings.getById(rec.id)); // the queue, started at once by init()
             await new Promise(r => setTimeout(r, 100));
-        } finally { release(); fs.promises.stat = realStat; }
+        } finally { release(); restore(); }
         await sweeping;
         await moving;
         const done = recordings.getById(rec.id);
@@ -2007,9 +2024,8 @@ test('R2: a partial the sweep cannot inspect stays listed with its other name, a
         fs.writeFileSync(partial, 'finished MP4');
         fs.linkSync(partial, mp4); // stopped right after the link
     });
-    const realStat = fs.promises.stat;
-    fs.promises.stat = async (p, ...a) => { if (p === partial) throw Object.assign(new Error('EIO'), { code: 'EIO' }); return realStat(p, ...a); };
-    try { await engine._owners.sweepCleanup(); } finally { fs.promises.stat = realStat; }
+    const restore = patchIo('nlink', (real) => async (p, ...a) => { if (p === partial) throw eio(); return real(p, ...a); });
+    try { await engine._owners.sweepCleanup(); } finally { restore(); }
     assert.ok(fs.existsSync(partial) && cleanupRows().includes(partial), 'the partial stays listed');
     assert.ok(fs.existsSync(mp4));
     await engine._owners.sweepCleanup();
@@ -2121,11 +2137,10 @@ test('#287: a sweep still removing an old name never removes the recording publi
     fs.mkdirSync(path.dirname(mp4), { recursive: true });
     fs.writeFileSync(mp4, 'an earlier attempt, never recorded');
     engine._owners.published(mp4, rec.id, load('services/shareFsWorker').identityOfStat(fs.statSync(mp4, { bigint: true })));
-    const realUnlink = fs.promises.unlink;
     let reached, resume;
     const atUnlink = new Promise(r => { reached = r; });
     const gate = new Promise(r => { resume = r; });
-    fs.promises.unlink = async (p, ...a) => { if (p === mp4) { reached(); await gate; } return realUnlink(p, ...a); };
+    const restore = patchIo('unlink', (real) => async (p, ...a) => { if (p === mp4) { reached(); await gate; } return real(p, ...a); });
     engine._owners._setSweepWaitMs(1000);
     let sweeping;
     try {
@@ -2135,7 +2150,7 @@ test('#287: a sweep still removing an old name never removes the recording publi
     } finally {
         resume();
         await sweeping;
-        fs.promises.unlink = realUnlink;
+        restore();
         engine._owners._setSweepWaitMs();
     }
     const row = recordings.getById(rec.id);
@@ -2161,14 +2176,10 @@ test('S1: two files whose inode numbers differ only beyond 2^53 are never taken 
     });
     const unrelated = path.join(folder, 'Unrelated.mp4');
     fs.writeFileSync(unrelated, 'not ours');
-    const realStat = fs.promises.stat;
     const fake = { [partial]: 9007199254740992n, [unrelated]: 9007199254740993n }; // equal as doubles
-    fs.promises.stat = async (p, opts) => {
-        if (!(p in fake)) return realStat(p, opts);
-        const big = { dev: 1n, ino: fake[p], nlink: 2n };
-        return opts && opts.bigint ? big : { dev: 1, ino: Number(big.ino), nlink: 2 };
-    };
-    try { await engine._owners.sweepCleanup(); } finally { fs.promises.stat = realStat; }
+    const restoreIdentity = patchIo('identity', (real) => async (p, ...a) => (p in fake ? `1:${fake[p]}:5:6:7` : real(p, ...a)));
+    const restoreLinks = patchIo('nlink', (real) => async (p, ...a) => (p === partial ? 2 : real(p, ...a)));
+    try { await engine._owners.sweepCleanup(); } finally { restoreIdentity(); restoreLinks(); }
     assert.equal(fs.existsSync(unrelated), true, 'a different file is never removed');
     fs.unlinkSync(unrelated);
     await engine._owners.sweepCleanup();
@@ -2186,10 +2197,9 @@ test('S2: a sweep stuck on the share holds the queues for a bounded time only, a
         fs.writeFileSync(ts, joined); // published by a run that stopped before recording it
         const journalled = load('services/shareFsWorker').identityOfStat(fs.statSync(ts, { bigint: true }));
         engine._owners.published(ts, rec.id, journalled); // #287: with its identity
-        const realStat = fs.promises.stat;
         let unstick;
         const stuck = new Promise(r => { unstick = r; });
-        fs.promises.stat = async (p, ...a) => { if (p === ts) await stuck; return realStat(p, ...a); };
+        const restore = patchIo('identity', (real) => async (p, ...a) => { if (p === ts) await stuck; return real(p, ...a); });
         engine._owners._setSweepWaitMs?.(200);
         let sweeping, moving;
         try {
@@ -2203,7 +2213,7 @@ test('S2: a sweep stuck on the share holds the queues for a bounded time only, a
             const at = load('services/shareFsWorker').identityOfStat(fs.statSync(done.segment_original, { bigint: true }));
             assert.notEqual(at, journalled, 'the file the sweep may still remove is not adopted');
             assert.ok(done.segment_original && fs.existsSync(done.segment_original));
-        } finally { unstick(); fs.promises.stat = realStat; engine._owners._setSweepWaitMs?.(); }
+        } finally { unstick(); restore(); engine._owners._setSweepWaitMs?.(); }
         await sweeping;
         const done = recordings.getById(rec.id);
         assert.ok(fs.existsSync(done.segment_original), 'its own original survives the late sweep');
@@ -2223,14 +2233,13 @@ test('Q1b: a replacement that reuses the journalled file\'s inode number (as Lin
     const ours = fs.statSync(mp4, { bigint: true });
     fs.unlinkSync(mp4);
     fs.writeFileSync(mp4, 'a new file that the filesystem gave the same inode number');
-    const realStat = fs.promises.stat;
     // The filesystem reuses the freed inode: same device and inode, but a different file.
-    fs.promises.stat = async (p, opts) => {
-        const st = await realStat(p, opts);
-        if (p !== mp4 || !(opts && opts.bigint)) return st;
-        return Object.assign(Object.create(Object.getPrototypeOf(st)), st, { dev: ours.dev, ino: ours.ino });
-    };
-    try { await engine._owners.sweepCleanup(); } finally { fs.promises.stat = realStat; }
+    const restore = patchIo('identity', (real) => async (p, ...a) => {
+        const id = await real(p, ...a);
+        if (p !== mp4 || typeof id !== 'string') return id;
+        return `${ours.dev}:${ours.ino}:${id.split(':').slice(2).join(':')}`;
+    });
+    try { await engine._owners.sweepCleanup(); } finally { restore(); }
     assert.equal(fs.readFileSync(mp4, 'utf8'), 'a new file that the filesystem gave the same inode number', 'kept');
     assert.deepEqual(cleanupRows(), []);
     fs.unlinkSync(mp4);

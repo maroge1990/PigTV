@@ -494,13 +494,15 @@ test('J1: a file whose existence cannot be checked (I/O error) stays listed for 
     const r = makeRecording();
     const p = `${r.file}.j1.partial`;
     const listed = () => getDb().prepare('SELECT path FROM recording_cleanup WHERE path = ?').all(p).length;
-    const realAccess = fs.promises.access;
-    fs.promises.access = async (f, ...a) => { if (f === p) throw Object.assign(new Error('EIO'), { code: 'EIO' }); return realAccess(f, ...a); };
+    // #289: the writer's end-of-job check goes through shareFs (shareFs.local in appdata), not fs.promises.
+    const shareFs = load('services/shareFs');
+    const real = [shareFs, shareFs.local].map((io) => [io, io.identity]);
+    for (const [io, identity] of real) io.identity = async (f, ...a) => { if (f === p) throw Object.assign(new Error('EIO'), { code: 'EIO' }); return identity(f, ...a); };
     try {
         await engine._owners.write(r.id, async (signal, made) => { made(p); fs.writeFileSync(p, 'x'); });
         await new Promise(res => setTimeout(res, 50)); // its rows are checked just after it ends
         assert.equal(listed(), 1, 'still listed: whether it is gone could not be told');
-    } finally { fs.promises.access = realAccess; }
+    } finally { for (const [io, identity] of real) io.identity = identity; }
     await engine._owners.sweepCleanup();
     assert.equal(fs.existsSync(p), false, 'removed at the next start');
     assert.equal(listed(), 0);

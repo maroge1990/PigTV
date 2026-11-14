@@ -46,6 +46,10 @@ function run(op, file, extra = {}) {
         case 'link': fs.linkSync(file, String(extra.to)); return true;
         // A file moved to a new name beside it, replacing a file already there (renameSync's own rule); an errno answer keeps its code.
         case 'rename': fs.renameSync(file, String(extra.to)); return true;
+        case 'readdir': {
+            // #289: the names in a folder, or null when it is not there.
+            try { return fs.readdirSync(file); } catch (e) { if (e.code === 'ENOENT') return null; throw e; }
+        }
         case 'mkdir': fs.mkdirSync(file); return true;
         case 'writeProbe': {
             const probe = path.join(file, `.pigtv-write-test-${process.pid}-${Date.now()}`);
