@@ -7,13 +7,13 @@ const vm = require('node:vm');
 // #9 (0358): changing a web player preference no longer writes a page-load copy of every setting back. The real
 // VideoPlayer script with the API stubbed. On 0357 saveSettings() PUT the whole object it loaded with the page, so a
 // switch changed elsewhere since (in-stream recovery, segmented recordings, the webhook) was silently put back.
-function harness(serverSettings, { refuse = null, fetch = null } = {}) {
+function harness(serverSettings, { refuse = null, fetch = null, setTimeout = null } = {}) {
     const puts = [];
     const store = new Map();
     const context = vm.createContext({
         window: {}, console: { ...console, log() {}, warn() {}, error() {} },
-        document: { getElementById: () => null, addEventListener() {} },
-        fetch,
+        document: { getElementById: () => null, querySelector: () => null, addEventListener() {} },
+        fetch, setTimeout, clearTimeout() {},
         localStorage: { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)), removeItem: (k) => store.delete(k) },
         API: { settings: {
             get: async () => ({ ...serverSettings }),
@@ -28,7 +28,7 @@ function harness(serverSettings, { refuse = null, fetch = null } = {}) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../public/js/components/VideoPlayer.js'), 'utf8'), context);
     const player = Object.create(context.window.VideoPlayer.prototype);
     player.getDefaultSettings = context.window.VideoPlayer.prototype.getDefaultSettings;
-    return { player, puts, store, serverSettings };
+    return { player, puts, store, serverSettings, context };
 }
 
 test('a preference saves only its own key, so a switch changed since the page loaded is not put back', async () => {
@@ -45,13 +45,11 @@ test('a preference saves only its own key, so a switch changed since the page lo
 test("this browser's own preferences stay in this browser and come back on the next load", async () => {
     const { player, puts, store } = harness({ quality: 'high' });
     await player.loadSettingsFromServer();
-    player.settings.defaultVolume = 35;
     player.settings.arrowKeysChangeChannel = false;
-    await player.saveSettings(['defaultVolume', 'arrowKeysChangeChannel']);
+    await player.saveSettings(['arrowKeysChangeChannel']);
     assert.deepEqual(puts, [], 'nothing sent to the server');
-    assert.deepEqual(JSON.parse(store.get('pigtv_player_prefs')), { defaultVolume: 35, arrowKeysChangeChannel: false });
+    assert.deepEqual(JSON.parse(store.get('pigtv_player_prefs')), { arrowKeysChangeChannel: false });
     await player.loadSettingsFromServer();
-    assert.equal(player.settings.defaultVolume, 35);
     assert.equal(player.settings.arrowKeysChangeChannel, false);
 });
 
@@ -78,4 +76,37 @@ test('a stored upscaling switch is not sent with a play', async () => {
     assert.equal(sent.length, 1, 'one resolve request');
     assert.equal('upscale' in sent[0], false);
     assert.equal(sent[0].channelId, 'pos_1');
+});
+
+// #322: the now-playing overlay shows for 5 s and the last volume is always remembered in this browser
+// (overlayDuration, defaultVolume and rememberVolume are retired, from the server and from browser storage alike).
+test('a stored "do not remember the volume" and default volume no longer count: the last volume comes back', async () => {
+    const { context, store } = harness({ rememberVolume: false, defaultVolume: 20 });
+    store.set('pigtv_player_prefs', JSON.stringify({ rememberVolume: false, defaultVolume: 20 }));
+    store.set('pigtv_last_volume', '55');
+    const VideoPlayer = context.window.VideoPlayer;
+    const realInit = VideoPlayer.prototype.init;
+    let ready;
+    const started = new Promise(r => { ready = r; });
+    VideoPlayer.prototype.init = function () { ready(this); };
+    const player = await (new VideoPlayer(), started);
+    const listeners = {};
+    player.video = { volume: 1, addEventListener: (type, fn) => { listeners[type] = fn; } };
+    player.initCustomControls = () => {};
+    realInit.call(player);
+    assert.equal(player.video.volume, 0.55, 'the last volume, not the stored default');
+    player.video.volume = 0.3;
+    listeners.volumechange();
+    assert.equal(store.get('pigtv_last_volume'), '30', 'and a change is remembered');
+});
+
+test('a stored overlay duration no longer counts: the now-playing overlay shows for 5 s', async () => {
+    const delays = [];
+    const { player, store } = harness({ overlayDuration: 30 }, { setTimeout: (fn, ms) => { delays.push(ms); return 1; } });
+    store.set('pigtv_player_prefs', JSON.stringify({ overlayDuration: 30 }));
+    await player.loadSettingsFromServer();
+    Object.assign(player, { currentChannel: { name: 'One' }, overlayTimer: null, overlayDuration: 5000,
+        nowPlaying: { classList: { add() {}, remove() {} } } });
+    player.showNowPlayingOverlay();
+    assert.deepEqual(delays, [5000]);
 });

@@ -934,45 +934,16 @@ class SettingsPage {
 
     initPlayerSettings() {
         const arrowKeysToggle = document.getElementById('setting-arrow-keys');
-        const overlayDurationInput = document.getElementById('setting-overlay-duration');
-        const defaultVolumeSlider = document.getElementById('setting-default-volume');
-        const volumeValueDisplay = document.getElementById('volume-value');
-        const rememberVolumeToggle = document.getElementById('setting-remember-volume');
 
         // Load current settings
         if (this.app.player?.settings) {
             arrowKeysToggle.checked = this.app.player.settings.arrowKeysChangeChannel;
-            overlayDurationInput.value = this.app.player.settings.overlayDuration;
-            defaultVolumeSlider.value = this.app.player.settings.defaultVolume;
-            volumeValueDisplay.textContent = this.app.player.settings.defaultVolume + '%';
-            rememberVolumeToggle.checked = this.app.player.settings.rememberVolume;
         }
 
         // Arrow keys toggle
         arrowKeysToggle.addEventListener('change', () => {
             this.app.player.settings.arrowKeysChangeChannel = arrowKeysToggle.checked;
             this.savePlayerSetting('arrowKeysChangeChannel');
-        });
-
-        // Overlay duration
-        overlayDurationInput.addEventListener('change', () => {
-            this.app.player.settings.overlayDuration = parseInt(overlayDurationInput.value) || 5;
-            this.savePlayerSetting('overlayDuration');
-        });
-
-        // Default volume slider
-        defaultVolumeSlider.addEventListener('input', () => {
-            volumeValueDisplay.textContent = defaultVolumeSlider.value + '%';
-        });
-        defaultVolumeSlider.addEventListener('change', () => {
-            this.app.player.settings.defaultVolume = parseInt(defaultVolumeSlider.value);
-            this.savePlayerSetting('defaultVolume');
-        });
-
-        // Remember volume toggle
-        rememberVolumeToggle.addEventListener('change', () => {
-            this.app.player.settings.rememberVolume = rememberVolumeToggle.checked;
-            this.savePlayerSetting('rememberVolume');
         });
 
         // EPG refresh interval
@@ -1426,17 +1397,9 @@ class SettingsPage {
 
             // Player settings
             const arrowKeysToggle = document.getElementById('setting-arrow-keys');
-            const overlayDurationInput = document.getElementById('setting-overlay-duration');
-            const defaultVolumeSlider = document.getElementById('setting-default-volume');
-            const volumeValueDisplay = document.getElementById('volume-value');
-            const rememberVolumeToggle = document.getElementById('setting-remember-volume');
             const epgRefreshSelect = document.getElementById('epg-refresh-interval');
 
             if (arrowKeysToggle) arrowKeysToggle.checked = s.arrowKeysChangeChannel;
-            if (overlayDurationInput) overlayDurationInput.value = s.overlayDuration;
-            if (defaultVolumeSlider) defaultVolumeSlider.value = s.defaultVolume;
-            if (volumeValueDisplay) volumeValueDisplay.textContent = s.defaultVolume + '%';
-            if (rememberVolumeToggle) rememberVolumeToggle.checked = s.rememberVolume;
             if (epgRefreshSelect) epgRefreshSelect.value = s.epgRefreshInterval || '24';
         }
 

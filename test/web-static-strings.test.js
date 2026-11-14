@@ -81,6 +81,9 @@ const ROWS = [
     { file: 'index.html', text: 'id="setting-quality"', absent: true, why: '#322: re-encodes are fixed at 1080p, medium quality, audio mix auto: no Quality preset control' },
     { file: 'index.html', text: 'id="setting-audio-mix"', absent: true, why: '#322: re-encodes are fixed at 1080p, medium quality, audio mix auto: no Audio mix preset control' },
     { file: 'index.html', text: 'setting-upscale', absent: true, why: '#322: web upscaling removed (it re-encoded every web play): no Upscaling controls' },
+    { file: 'index.html', text: 'setting-overlay-duration', absent: true, why: '#322: the now-playing overlay shows for 5 s: no duration control' },
+    { file: 'index.html', text: 'setting-default-volume', absent: true, why: '#322: the last volume is always remembered: no default volume control' },
+    { file: 'index.html', text: 'setting-remember-volume', absent: true, why: '#322: the last volume is always remembered: no Remember last volume switch' },
 
     // public/js/api.js
     { file: 'js/api.js', text: 'killAllSessions', why: '0017: settings reorganisation: transcode api group' },

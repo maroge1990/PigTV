@@ -32,7 +32,7 @@ class VideoPlayer {
             try {
                 const saved = localStorage.getItem('pigtv_last_volume');
                 const volume = Number(saved);
-                if (this.settings.rememberVolume && saved !== null && Number.isFinite(volume) && volume >= 0 && volume <= 100) {
+                if (saved !== null && Number.isFinite(volume) && volume >= 0 && volume <= 100) {
                     this.settings.lastVolume = volume;
                 }
             } catch (err) { /* storage may be unavailable */ }
@@ -46,9 +46,6 @@ class VideoPlayer {
     getDefaultSettings() {
         return {
             arrowKeysChangeChannel: true,
-            overlayDuration: 5,
-            defaultVolume: 80,
-            rememberVolume: true,
             lastVolume: 80,
             epgRefreshInterval: '24'
         };
@@ -61,7 +58,7 @@ class VideoPlayer {
      * #9 (0358): this browser's own player preferences. They never go to the server: they are not the household's,
      * and saving them used to write a whole page-load copy of every setting back.
      */
-    static get LOCAL_KEYS() { return ['arrowKeysChangeChannel', 'overlayDuration', 'defaultVolume', 'rememberVolume']; }
+    static get LOCAL_KEYS() { return ['arrowKeysChangeChannel']; }
 
     localPrefs() {
         try {
@@ -644,16 +641,13 @@ class VideoPlayer {
     }
 
     init() {
-        // Apply default/remembered volume
-        const volume = this.settings.rememberVolume ? this.settings.lastVolume : this.settings.defaultVolume;
-        this.video.volume = volume / 100;
+        // #322: the last volume is always remembered (in this browser)
+        this.video.volume = this.settings.lastVolume / 100;
 
         // Save volume changes
         this.video.addEventListener('volumechange', () => {
-            if (this.settings.rememberVolume) {
-                this.settings.lastVolume = Math.round(this.video.volume * 100);
-                this.saveVolume();
-            }
+            this.settings.lastVolume = Math.round(this.video.volume * 100);
+            this.saveVolume();
         });
 
         // Setup custom video controls
@@ -697,7 +691,7 @@ class VideoPlayer {
         // Hide after duration
         this.overlayTimer = setTimeout(() => {
             this.nowPlaying.classList.add('hidden');
-        }, this.settings.overlayDuration * 1000);
+        }, this.overlayDuration);
     }
 
     /**

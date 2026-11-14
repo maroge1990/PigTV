@@ -40,9 +40,6 @@ if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 function getDefaultSettings() {
   return {
     arrowKeysChangeChannel: true,
-    overlayDuration: 5,
-    defaultVolume: 80,
-    rememberVolume: true,
     lastVolume: 80,
     epgRefreshInterval: '24',
     // User-Agent settings
