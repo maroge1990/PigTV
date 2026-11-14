@@ -121,6 +121,35 @@ test('keys are separate, and maxEntries drops the oldest stored', async () => {
     assert.equal(rebuilt, true, 'a was dropped');
 });
 
+// #297: the score collector has seen a session or event move on from what a page's entry says; the page renews its read.
+test('renew(): rebuilds a fresh entry at once and waits for it; at most one build per gap per key, whatever the requests', async () => {
+    const c = cacheOf({ ttlOf: () => 600000 });
+    let builds = 0;
+    const build = () => { builds++; return Promise.resolve({ n: builds }); };
+    await c.get('k', 0, build);
+    assert.equal((await c.get('k', 1000, build)).value.n, 1, 'fresh for 10 minutes');
+    assert.equal((await c.renew('k', 1000, build)).value.n, 2, 'renewed although fresh, and the caller gets the new read');
+    for (let t = 1000; t < 31000; t += 1000) await c.renew('k', t, build);
+    assert.equal(builds, 2, 'a feed still disagreeing costs no build per request: one per 30 s gap');
+    assert.equal((await c.renew('k', 31000, build)).value.n, 3, 'the next gap');
+    assert.equal((await c.renew('j', 31000, build)).value.n, 4, 'keys are separate');
+});
+
+test('renew(): a slow build is waited for at most waitMs, the old entry returned meanwhile; a failed one keeps it', async () => {
+    const c = cacheOf({ ttlOf: () => 600000 });
+    await c.get('k', 0, () => Promise.resolve({ v: 'old' }));
+    const gate = deferred();
+    const r = await c.renew('k', 1000, () => gate.promise, { waitMs: 5 });
+    assert.equal(r.value.v, 'old', 'not waited for past waitMs');
+    assert.equal((await c.renew('k', 2000, () => assert.fail('one build in flight'))).value.v, 'old', 'a renew joins the build in flight');
+    gate.resolve({ v: 'new' });
+    await tick();
+    assert.equal((await c.get('k', 3000, () => assert.fail('fresh'))).value.v, 'new');
+    const warn = console.warn; console.warn = () => {};
+    try { assert.equal((await c.renew('k', 40000, () => Promise.reject(new Error('down')))).value.v, 'new', 'a failed renew keeps the entry'); }
+    finally { console.warn = warn; }
+});
+
 // ---- each page: a build that fails clears its marker, and a refresh outliving reset() leaves the newer one alone ----
 
 const nfl = require('../server/services/sportPageNFL');

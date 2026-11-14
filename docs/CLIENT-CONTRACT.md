@@ -684,6 +684,13 @@ on a race weekend, 1 h otherwise; nothing is fetched unless the page is asked fo
 - Since 0548 (#272, the one ESPN status reading; the words are unchanged): a postponed or cancelled session is `done` (it
   was `scheduled` when ESPN's state said pre). A suspended session is `live` while ESPN's state says in play, and `done`
   when ESPN's state says post (to be resumed another day: not being played; 0554, as before 0548).
+- Since #297 (no field or word changes): a session's `status` is the score collector's for the asking account, with
+  its score delay (C-O `scoreDelaySeconds`), so it changes when the front page's (C-R) card for the session does, wherever
+  the collector holds a fresh snapshot; elsewhere it is the page's own read as before. A session is `done` only with its
+  `top` and results: one the collector has seen finish keeps its previous status until the page's own read has the
+  result (renewed at once). While the account's delayed view is behind the page's read, the session shows the delayed
+  status without `top`, `results` is null when it is that session's (the race's, or the grid from qualifying), and
+  `phase` follows the statuses shown.
 - Since 0424 (#201): `info.map` is the whole path to fetch as given, `/api/logo/<key>?size=3840`: ESPN's circuit SVG
   drawn by the server to a PNG 3840 px wide on a transparent background (ESPN's own JPEG is 320 px; without an SVG,
   that raster, never upscaled). Additive `info.mapDark`: the same for ESPN's dark-theme map, or null. A map the server

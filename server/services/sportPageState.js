@@ -57,4 +57,14 @@ function competitionOf(snapshot) {
     return { status: { type: { shortDetail: e.detail || undefined }, displayClock: e.clock ?? undefined, period: e.period ?? undefined } };
 }
 
-module.exports = { deps, scoreOf, competitionOf, FRESH_ALLOWANCE_MS, COVERED_MS };
+/**
+ * #297: how far on a status word is: 0 before (scheduled), 1 on (live, a break, suspended in play), 2 over (done,
+ * finished, postponed, cancelled); null for a word with no place (unknown). The F1, Cricket and Events pages compare the
+ * collector's word for the account with their own read's: further on means their read is older than the collector's,
+ * so they renew it (sportPageCache.renew) before showing the collector's word; behind means their read is newer than
+ * the account's delayed view, so they show the collector's word without what belongs to the later state (a result).
+ */
+const RANK = { scheduled: 0, live: 1, break: 1, suspended: 1, done: 2, finished: 2, postponed: 2, cancelled: 2 };
+const rank = (word) => (Object.hasOwn(RANK, word) ? RANK[word] : null);
+
+module.exports = { deps, scoreOf, competitionOf, rank, FRESH_ALLOWANCE_MS, COVERED_MS };

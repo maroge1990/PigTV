@@ -131,7 +131,7 @@ scoreboards and `sports_dashboard_catalog` the only store of a game's identity, 
 
 | Store | Written by | Read by |
 |---|---|---|
-| `sports_dashboard_catalog` (+ `sports_score_history`) | the collector | the front page, dashboard, the League and NFL pages' games' state (0557, 0558, `sportPageState`), follows, suggestions, recording rules, recording ends, and (through `sportsFixtures.snapshot`) the guide's live/replay classifier |
+| `sports_dashboard_catalog` (+ `sports_score_history`) | the collector | the front page, dashboard, the League and NFL pages' games' state (0557, 0558, `sportPageState`) and the F1 page's sessions' (#297), follows, suggestions, recording rules, recording ends, and (through `sportsFixtures.snapshot`) the guide's live/replay classifier |
 | `sports_dashboard_coverage` | the collector (0550; since 0552 also the teams its window's answers name) | `sportsFixtures.snapshot`, the Status page's fixtures panel, the roster pass |
 | `sport_fixture_teams` | the 30-minute pass: ESPN `/teams` once a day per league, else (cricket, or `/teams` not answering) the teams of the collector's last window; International cricket's every pass | rosters: classifier, follows, Settings, front-page logos |
 | `sport_fixture_status` | the leagues' own feeds (`recordFeed`); the fixture refresh with the collector off | the Status page |
@@ -491,6 +491,18 @@ the page's entry to 2 min (10 min on a game day): the page still asks ESPN for w
 the League page (0557: still asks the scoreboard for rounds, calendar, season, venues and teams, the rounds or days around
 it, standings hourly) and the NFL page (0558: with the down-and-distance situation; still asks the scoreboard for the week,
 records, broadcasts, byes and teams, the previous week and the standings).
+
+**F1, Cricket and Events (#297).** These pages' own read brings what the collector does not hold (F1 results, driver
+order and team colours, fetched only for sessions that read finished; cricket innings, batting cards and notes; event
+leaderboards, draws and bouts), so their games' state is laid over per request with one more rule, by how far on each
+word is (`sportPageState.rank`: before, on, over). The collector further on than the page's read: the read is renewed at
+once (`sportPageCache.renew`: one build whatever the entry's age, at most every 30 s per entry, waited for at most the
+page's cold wait), and a finish the read still lacks after that keeps the page's own status, never a finished session
+without its result; a start is shown at once. The page's read further on than the account's delayed view: the
+collector's word, without what belongs to the later state. Their cache lifetimes are unchanged (no 2-minute floor is
+lifted), so the renewals are the only added reads: one per session start and finish. F1: a session's status; without its
+`top`, and without the results block when it is that session's (the race's result, the grid from qualifying), the
+weekend's phase following the statuses shown.
 
 **Any other team league (0388, C-T).** `services/sportPageLeague.js` answers `GET /api/sports/pages/league/:league` for
 every `ESPN_LEAGUE_PATHS` league but F1, NFL, IPL and BBL (one cache entry per league, so leagues never evict each

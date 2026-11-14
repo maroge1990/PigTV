@@ -164,6 +164,8 @@ router.get('/pages/f1', pageRoute({ name: 'F1', error: 'Could not build the Form
     const f1 = require('../services/sportPageF1');
     const now = Date.now();
     return f1.page(now, {
+        // #297: each session's status from the score collector's store, with this account's score delay
+        ...require('../services/sportPageState').deps(req.user.id, now),
         registerImage: require('../services/logoCache').registerLogo,
         // #160: only F1's events around the sessions are ordered and built, not the whole 72 h answer.
         // #191: with the airings ended within the overrun window, which a live session's channels keep (sportOverrun.js).

@@ -14,38 +14,64 @@
  *   a reset() cannot clear a newer build's marker), and the next call tries again.
  * - reset() forgets everything, and a build started before it does not store its result.
  * - `maxEntries` bounds a keyed cache: storing past it drops the oldest entry.
+ *
+ *   renew(key, now, build, { gapMs, waitMs }) -> { value, at, ttl } | null
+ *
+ * #297: the score collector has seen a game, session or event move on from what the entry says (its detail read is
+ * older). Starts ONE build whatever the entry's age, at most once per `gapMs` (default 30 s) per key, so a feed that keeps
+ * disagreeing with the collector costs one build per gap, never one per request; then waits for it at most `waitMs`
+ * (default the cold wait). Returns the entry as it then stands (the old one if the build has not landed or failed).
  */
+const RENEW_GAP_MS = 30000;
+
 function createPageCache({ label, ttlOf, coldWaitMs, maxEntries = Infinity }) {
     const entries = new Map(); // key -> { value, at, ttl }
     const refreshing = new Map(); // key -> the build in flight
     let generation = 0;
     const waitMs = () => (typeof coldWaitMs === 'function' ? coldWaitMs() : coldWaitMs);
 
+    function start(key, now, build, cached) {
+        const mine = generation;
+        const p = new Promise((resolve) => resolve(build(cached || null))).then((value) => {
+            if (!value || mine !== generation) return;
+            entries.delete(key);
+            entries.set(key, { value, at: now, ttl: ttlOf(value, now) });
+            while (entries.size > maxEntries) entries.delete(entries.keys().next().value);
+        }).catch((err) => console.warn(`[Sport] ${label} page refresh failed:`, err.message))
+            .finally(() => { if (refreshing.get(key) === p) refreshing.delete(key); });
+        refreshing.set(key, p);
+    }
+
+    async function wait(key, ms) {
+        let timer;
+        await Promise.race([refreshing.get(key), new Promise(resolve => { timer = setTimeout(resolve, ms); })]);
+        clearTimeout(timer);
+    }
+
     async function get(key, now, build) {
         const cached = entries.get(key);
         const fresh = cached && now - cached.at < cached.ttl;
-        if (!fresh && !refreshing.has(key)) {
-            const mine = generation;
-            const p = new Promise((resolve) => resolve(build(cached || null))).then((value) => {
-                if (!value || mine !== generation) return;
-                entries.delete(key);
-                entries.set(key, { value, at: now, ttl: ttlOf(value, now) });
-                while (entries.size > maxEntries) entries.delete(entries.keys().next().value);
-            }).catch((err) => console.warn(`[Sport] ${label} page refresh failed:`, err.message))
-                .finally(() => { if (refreshing.get(key) === p) refreshing.delete(key); });
-            refreshing.set(key, p);
-        }
-        if (!entries.has(key) && refreshing.has(key)) {
-            let timer;
-            await Promise.race([refreshing.get(key), new Promise(resolve => { timer = setTimeout(resolve, waitMs()); })]);
-            clearTimeout(timer);
-        }
+        if (!fresh && !refreshing.has(key)) start(key, now, build, cached);
+        if (!entries.has(key) && refreshing.has(key)) await wait(key, waitMs());
         return entries.get(key) || null;
     }
 
-    function reset() { entries.clear(); refreshing.clear(); generation++; }
+    const renewedAt = new Map(); // key -> when renew() last started a build
+    async function renew(key, now, build, { gapMs = RENEW_GAP_MS, waitMs: renewWait = waitMs() } = {}) {
+        if (!refreshing.has(key)) {
+            const last = renewedAt.get(key);
+            if (last !== undefined && now - last < gapMs && now >= last) return entries.get(key) || null;
+            renewedAt.set(key, now);
+            while (renewedAt.size > 64) renewedAt.delete(renewedAt.keys().next().value);
+            start(key, now, build, entries.get(key) || null);
+        }
+        if (refreshing.has(key)) await wait(key, renewWait);
+        return entries.get(key) || null;
+    }
 
-    return { get, reset, inFlight: () => refreshing.size, size: () => entries.size };
+    function reset() { entries.clear(); refreshing.clear(); renewedAt.clear(); generation++; }
+
+    return { get, renew, reset, inFlight: () => refreshing.size, size: () => entries.size };
 }
 
-module.exports = { createPageCache };
+module.exports = { createPageCache, RENEW_GAP_MS };

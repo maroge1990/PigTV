@@ -25,6 +25,7 @@ const overrun = require('./sportOverrun');
 const onAir = require('./sportOnAir');
 const { espnState, edgeKey } = require('./espnState');
 
+const SOURCE = 'racing/f1'; // the score collector's source for F1 (sportsFixtures.ESPN_LEAGUE_PATHS), its card ids'
 const SITE = 'https://site.api.espn.com/apis/site/v2/sports/racing/f1';
 const STANDINGS = 'https://site.api.espn.com/apis/v2/sports/racing/f1/standings';
 const CORE = 'https://sports.core.api.espn.com/v2/sports/racing/leagues/f1';
@@ -52,6 +53,9 @@ const fetcher = { get: (url) => espn.getJson(url, TIMEOUT_MS) };
 const cache = createPageCache({ label: 'F1', coldWaitMs: () => tuning.coldWaitMs, ttlOf: (value, now) =>
     (value.weekend.sessions.some(s => s.start - DAY_MS < now && s.end + DAY_MS > now) ? WEEKEND_TTL_MS : QUIET_TTL_MS) });
 const teamsByCompetition = new Map(); // finished session's competition id -> Map(driver id -> { team, teamColor })
+// #297: what page() lays the collector's state over, per built value: each session's collector card id, and which of this
+// weekend's sessions the results block is (the race once it is over, qualifying for the grid), never sent.
+const META = new WeakMap();
 
 const str = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null);
 const num = (v) => (Number.isFinite(Number(v)) && v !== null && v !== '' ? Number(v) : null);
@@ -285,7 +289,7 @@ async function build(now, { registerImage = (u) => u } = {}) {
         if (s.status !== 'done' || !s.order.length) return null;
         return { kind: TOP_KIND[s.id] || 'fastest', driver: str(s.order[0]?.athlete?.displayName) };
     };
-    return {
+    const value = {
         available: true,
         updatedAt: now,
         weekend: {
@@ -301,6 +305,11 @@ async function build(now, { registerImage = (u) => u } = {}) {
         standings,
         drivers: teamSource ? gridOf(teamSource.session, teams) : null
     };
+    META.set(value, {
+        cards: new Map(sessions.map(s => [s.id, s.competitionId ? `espn:${SOURCE}:${s.competitionId}` : null])),
+        resultsFrom: results?.kind === 'grid' ? 'qualifying' : results && phase === 'after' ? 'race' : null
+    });
+    return value;
 }
 
 /**
@@ -309,7 +318,8 @@ async function build(now, { registerImage = (u) => u } = {}) {
  * (`deps.channelsFor`: the current guide, this user's order), never kept with the page.
  */
 async function page(now = Date.now(), deps = {}) {
-    const value = await espnPart(now, deps);
+    let value = await espnPart(now, deps);
+    if (value.available && deps.state) value = await withState(value, now, deps);
     if (!value.available || !deps.channelsFor) return value;
     let channels = new Map();
     try { channels = await deps.channelsFor(value.weekend.sessions, value.updatedAt); } catch (err) { console.warn('[Sport] F1 page channels:', err.message); }
@@ -318,6 +328,47 @@ async function page(now = Date.now(), deps = {}) {
         const list = channels.get(s.id) || [];
         return { ...s, channels: list, ...(onAir.onAir({ status: s.status, start: s.start, now, airings: list }) ? { onAir: true } : {}) };
     }) } };
+}
+
+/**
+ * #297: each session's status from the score collector's store for this account (`deps.state`, sportPageState: its delay;
+ * only a fresh or final snapshot), as the front page shows the same session. The collector further on than the page's
+ * read (a session it has seen start or finish): the read is renewed at once (sportPageCache.renew: one build, at most
+ * every 30 s, waited for at most the cold wait), as a finished session's order, teams and results come only from it; a
+ * finish the read still lacks after that keeps the page's own status (never a finished session without its result). The
+ * page's read newer than the account's delayed view: the collector's status, without the session's top line, and without
+ * the results block when it is that session's (the race's result, the grid from qualifying). The weekend's phase
+ * follows the statuses shown. A session the collector holds nothing usable for keeps the page's own.
+ */
+async function withState(value, now, deps) {
+    let view = overlay(value, deps.state);
+    if (view.renew) {
+        const entry = await cache.renew('page', now, () => build(now, deps));
+        if (entry?.value?.available && entry.value !== value) view = overlay(entry.value, deps.state);
+    }
+    return view.value;
+}
+
+function overlay(value, state) {
+    const { rank } = require('./sportPageState');
+    const meta = META.get(value);
+    if (!meta) return { value, renew: false };
+    let renew = false, changed = false, dropResults = false;
+    const sessions = value.weekend.sessions.map(s => {
+        let seen = null;
+        try { seen = state(meta.cards.get(s.id)); } catch { seen = null; }
+        const word = seen ? STATUS[seen.snapshot.espn?.key] : null;
+        const theirs = rank(word), ours = rank(s.status);
+        if (theirs === null || theirs === ours) return s;
+        if (theirs > ours) { renew = true; if (word === 'done') return s; }
+        changed = true;
+        if (theirs < ours && meta.resultsFrom === s.id) dropResults = true;
+        return { ...s, status: word, top: null };
+    });
+    if (!changed) return { value, renew };
+    const race = sessions.find(s => s.id === 'race');
+    const phase = race?.status === 'done' ? 'after' : sessions.some(s => s.status !== 'scheduled') ? 'during' : 'before';
+    return { value: { ...value, weekend: { ...value.weekend, phase, sessions }, results: dropResults ? null : value.results }, renew };
 }
 
 async function espnPart(now, deps) {
