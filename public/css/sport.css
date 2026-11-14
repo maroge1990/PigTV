@@ -206,6 +206,58 @@
 .sp .sp-league-empty .state-block-title { font-size: 20px; font-weight: 800; }
 @media (max-width: 1100px) { .sp .groups2 { grid-template-columns: 1fr; } }
 
+/* ---------- a league's page: rounds, fixtures, standings (SportFixtureView) ---------- */
+.sp .rounds { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+.sp .fchip { display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 999px; font-size: 14px; font-weight: 700;
+  background: var(--raised); color: var(--color-text-secondary); border: 1px solid var(--color-border); white-space: nowrap; }
+.sp .fchip:hover { background: var(--color-hover-raised); }
+.sp .fchip.on { background: var(--color-accent); color: var(--color-on-accent); border-color: transparent; }
+.sp .rounds .rnote { margin-left: 6px; font-size: 14px; color: var(--color-text-secondary); }
+.sp .league { display: grid; grid-template-columns: minmax(0, 1fr) 460px; gap: 28px; align-items: start; }
+.sp .league.solo { grid-template-columns: minmax(0, 1fr); }
+.sp .fxgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.sp .fxitem { flex: none; }
+.sp .fx { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; min-height: 124px; padding: 12px 16px;
+  border-radius: 16px; background: var(--surface); border: 1px solid var(--color-border); text-align: left; }
+.sp .fx:hover { background: var(--raised); }
+.sp .fx.fol { border-color: transparent; box-shadow: inset 0 0 0 3px var(--color-accent); }
+.sp .fx.live { border-color: transparent; box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--live) 80%, transparent); }
+.sp .fx .rec { font-size: 13px; color: var(--color-text-secondary); white-space: nowrap; }
+.sp .fx .sline { font-size: 13px; color: var(--color-text-secondary); }
+.sp .subhead { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.sp .subhead h3 { margin: 0; font-size: 21px; font-weight: 800; }
+.sp .subhead .views { display: flex; gap: 6px; margin-left: auto; flex-wrap: wrap; }
+.sp .standings .lcard + .lcard { margin-top: 14px; }
+.sp .lcard { background: var(--raised); border-radius: 16px; padding: 14px 14px 10px; }
+.sp .lcard .lh { display: flex; align-items: baseline; gap: 8px; padding: 0 4px 8px; }
+.sp .lcard .lh b { font-size: 17px; font-weight: 800; }
+.sp .lcard .lh span { margin-left: auto; font-size: 12px; color: var(--color-text-secondary); }
+.sp table.st { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 14px; }
+.sp table.st th { font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--color-text-secondary); text-align: right; padding: 2px 6px 6px; white-space: nowrap; }
+.sp table.st th.tl { text-align: left; }
+.sp table.st td { padding: 0 6px; height: 32px; text-align: right; white-space: nowrap; }
+.sp table.st td.pos { color: var(--color-text-secondary); width: 24px; }
+.sp table.st td.nm { text-align: left; font-weight: 600; width: 100%; max-width: 0; }
+.sp table.st td.nm > div { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.sp table.st td.nm span { overflow: hidden; text-overflow: ellipsis; }
+.sp table.st tr.me td { background: color-mix(in srgb, var(--color-accent) 16%, transparent); }
+.sp table.st tr.me td:first-child { border-radius: 10px 0 0 10px; }
+.sp table.st tr.me td:last-child { border-radius: 0 10px 10px 0; }
+.sp table.st td.pts { font-weight: 800; }
+.sp .hidden-note { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 150px; margin: 0;
+  text-align: center; color: var(--color-text-secondary); font-size: 14px; padding: 12px; }
+.sp .hidden-note svg { width: 26px; height: 26px; }
+.sp .sp-muted { color: var(--color-text-secondary); }
+.sp .cardgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+@media (max-width: 1100px) { .sp .league { grid-template-columns: minmax(0, 1fr); gap: 24px; } }
+@media (max-width: 768px) {
+  .sp .fxgrid { grid-template-columns: 1fr; gap: 10px; }
+  .sp .fx { min-height: 0; }
+  .sp table.st td { padding: 0 4px; height: 32px; font-size: 13px; }
+  .sp table.st th { padding: 2px 4px 6px; }
+  .sp .rounds { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-right: calc(-1 * var(--gutter)); padding-right: var(--gutter); }
+}
+
 /* ---------- states: nothing followed (the pig), loading, the error ---------- */
 .sp .state-block.sp-empty { padding: 72px 24px 56px; background: none; border: 0; gap: 12px; }
 .sp .state-block.sp-empty .state-block-title { font-size: 26px; font-weight: 800; }

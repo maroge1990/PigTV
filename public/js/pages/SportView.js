@@ -784,6 +784,200 @@ const SportView = (() => {
     }
 
 
+    // ---------- a league's page: rounds, fixtures, standings (C-T, C-Q; SportFixtureModels, SportFixtureView) ----------
+
+    /** A followed name matches a team by its name, full name or abbreviation, any case. */
+    const followsTeam = (names, ...keys) => { const want = names.map(lower); return keys.filter(Boolean).map(lower).some(k => want.includes(k)); };
+    /** The detail as it may be drawn: none before the start; with scores hidden only neutral words ("Live", "Played"). */
+    function fixtureDetail(detail, status, hide) {
+        if (status === 'scheduled') return null;
+        if (status === 'postponed') return 'Postponed';
+        if (status === 'cancelled') return 'Cancelled';
+        if (status === 'live' || status === 'break') return hide ? 'Live' : (detail || 'Live');
+        if (detail === 'Suspended') return 'Suspended';
+        return hide ? 'Played' : (detail || 'Final');
+    }
+    const pct = (value, key) => {
+        if (key !== 'percentage' || value == null || !Number.isFinite(Number(String(value).trim()))) return value;
+        return Number(value).toFixed(1);
+    };
+    /** "Bills" for "BUF": an NFL team's short name, else its abbreviation. */
+    const nflName = (abbr, page) => (page.teams && page.teams[abbr] && page.teams[abbr].name) || abbr;
+    const winShare = (r) => { const w = r.wins || 0, l = r.losses || 0, t = r.ties || 0; return w + l + t > 0 ? (w + t / 2) / (w + l + t) : 0; };
+
+    /** The NFL page (C-Q) as a fixture league; with scores hidden no score, record, situation or result word. */
+    function nflFixture(page, following, hide) {
+        const followed = (abbr) => { const t = page.teams && page.teams[abbr]; return followsTeam(following, t && t.name, t && t.full, abbr); };
+        const side = (s, g) => ({ id: s.abbr, abbr: s.abbr, name: nflName(s.abbr, page), logo: logo(page.teams && page.teams[s.abbr] && page.teams[s.abbr].logo),
+            record: hide ? null : s.record || null, score: g.status !== 'scheduled' && !hide && s.score != null ? String(s.score) : null, followed: followed(s.abbr) });
+        const rounds = (page.weeks || []).map(w => ({ key: String(w.number), label: w.label || `Week ${w.number}`, current: !!w.current,
+            note: (w.byes || []).length ? `Bye: ${w.byes.map(a => nflName(a, page)).join(', ')}` : null,
+            games: (w.games || []).map(g => ({ id: g.id, start: g.start, status: g.status, detail: fixtureDetail(g.detail, g.status, hide),
+                situation: hide || g.status !== 'live' || !g.situation ? null : g.situation.downDistance || null,
+                home: side(g.home, g), away: side(g.away, g), channels: g.channels || [] })) }));
+        const divisions = (page.standings && page.standings.divisions) || [];
+        const mine = divisions.flatMap(d => d.teams || []).find(r => followed(r.abbr));
+        const row = (rank, r) => ({ id: r.abbr, rank, abbr: r.abbr, name: nflName(r.abbr, page), logo: logo(page.teams && page.teams[r.abbr] && page.teams[r.abbr].logo),
+            values: [r.record || null, r.streak || null], followed: !!mine && r.abbr === mine.abbr });
+        const hasMine = (d) => !!mine && (d.teams || []).some(r => r.abbr === mine.abbr);
+        const views = !divisions.length ? [] : [
+            { name: 'Division', tables: [...divisions.filter(hasMine), ...divisions.filter(d => !hasMine(d))]
+                .map(d => ({ title: d.name, columns: ['W-L', 'Streak'], rows: (d.teams || []).map((r, i) => row(i + 1, r)) })) },
+            { name: 'Conference', tables: (() => {
+                let confs = [...new Set(divisions.map(d => d.conference).filter(Boolean))].sort();
+                const my = divisions.find(hasMine);
+                if (my && my.conference) confs = [my.conference, ...confs.filter(c => c !== my.conference)];
+                return confs.map(c => ({ title: c, columns: ['W-L', 'Streak'], rows: divisions.filter(d => d.conference === c).flatMap(d => d.teams || [])
+                    .sort((a, b) => (a.seed ?? 99) - (b.seed ?? 99) || String(a.abbr).localeCompare(String(b.abbr))).map((r, i) => row(r.seed ?? i + 1, r)) }));
+            })() },
+            { name: 'Overall', tables: [{ title: 'League', columns: ['W-L', 'Streak'], rows: divisions.flatMap(d => d.teams || []).sort((a, b) => {
+                const d = winShare(b) - winShare(a); if (d) return d;
+                const pd = ((b.pointsFor || 0) - (b.pointsAgainst || 0)) - ((a.pointsFor || 0) - (a.pointsAgainst || 0));
+                return pd || String(a.abbr).localeCompare(String(b.abbr));
+            }).map((r, i) => row(i + 1, r)) }] }];
+        return { league: 'NFL', rounds, views, awayFirst: true };
+    }
+
+    /** A C-T league page as a fixture league; with scores hidden no score and no result word (the standings are not drawn). */
+    function leagueFixture(page, league, following, hide) {
+        const teams = page.teams || {};
+        const followed = (id, abbr) => (id != null && id === page.following) || followsTeam(following, teams[id] && teams[id].name, teams[id] && teams[id].full, abbr);
+        const side = (s, g) => {
+            const t = teams[s.id] || {};
+            const played = !['scheduled', 'postponed', 'cancelled'].includes(g.status);
+            return { id: s.id || s.abbr, abbr: s.abbr, name: t.name || t.full || s.abbr, logo: logo(t.logo), record: null,
+                score: hide || !played || s.score == null ? null : String(s.score), followed: followed(s.id, s.abbr) };
+        };
+        const rounds = (page.rounds || []).map(r => ({ key: r.key, label: r.label, current: !!r.current, note: null,
+            games: (r.games || []).map(g => ({ id: g.id, start: g.start, status: g.status, detail: fixtureDetail(g.detail, g.status, hide), situation: null,
+                home: side(g.home, g), away: side(g.away, g), channels: g.channels || [] })) }));
+        const tables = ((page.standings && page.standings.groups) || []).map(gr => ({ title: gr.name || null, columns: (gr.columns || []).map(c => c.label),
+            rows: (gr.rows || []).map(r => { const t = teams[r.id] || {};
+                return { id: r.id || r.abbr, rank: r.rank, abbr: r.abbr, name: t.name || t.full || r.abbr, logo: logo(t.logo),
+                    values: (gr.columns || []).map(c => pct(r.values ? r.values[c.key] : null, c.key)), followed: followed(r.id, r.abbr) }; }) }));
+        return { league, rounds, views: tables.length ? [{ name: '', tables }] : [] };
+    }
+
+    const roundOf = (fx, chosen) => fx.rounds.find(r => r.key === chosen) || fx.rounds.find(r => r.current) || fx.rounds[fx.rounds.length - 1] || null;
+    const viewOf = (fx, chosen) => fx.views.find(v => v.name === chosen) || fx.views[0] || null;
+    /** The followed team's table first. */
+    const orderTables = (view) => [...view.tables.filter(t => t.rows.some(r => r.followed)), ...view.tables.filter(t => !t.rows.some(r => r.followed))];
+    /** The view's tables in groups of at most four (by their title's first word, else runs of four). */
+    function tableGroups(view, size = 4) {
+        const all = orderTables(view);
+        if (all.length <= size) return [{ name: '', tables: all }];
+        const named = [];
+        for (const t of all) {
+            const word = (t.title || '').split(' ')[0] || '';
+            const g = named.find(x => x.name === word);
+            if (g) g.tables.push(t); else named.push({ name: word, tables: [t] });
+        }
+        if (named.length > 1 && named.every(g => g.name && g.tables.length <= size)) return named;
+        const out = [];
+        for (let i = 0; i < all.length; i += size) out.push({ name: `Tables ${i + 1}–${Math.min(i + size, all.length)}`, tables: all.slice(i, i + size) });
+        return out;
+    }
+
+    /** A fixture's C-R card (same league, both teams named, starting within 90 minutes): its channels and actions. */
+    function fixtureCard(g, league, front) {
+        return ((front && front.games) || []).find(c => {
+            if (c.league !== league || Math.abs(c.start - g.start) > 90 * 60000 || !twoSided(c)) return false;
+            const names = c.competitors.map(x => lower(x.name));
+            const named = (s) => { const mine = [s.name, s.abbr].map(lower); return names.some(n => mine.some(m => m === n || m.endsWith(' ' + n) || n.endsWith(' ' + m))); };
+            return named(g.home) && named(g.away);
+        }) || null;
+    }
+    /** A fixture without a C-R card as a game on its own channels (Watch, Remind me, Record). */
+    function fixtureGame(g, fx) {
+        const starts = g.channels.map(c => c.start).filter(Number.isFinite), ends = g.channels.map(c => c.end).filter(Number.isFinite);
+        const start = starts.length ? Math.min(...starts) : g.start, end = ends.length ? Math.max(...ends) : g.start + 3 * 3600000;
+        const sides = fx.awayFirst ? [g.away, g.home] : [g.home, g.away];
+        return { id: `fx:${fx.league}:${g.id}`, synthetic: true, league: fx.league, title: sides.map(s => s.name).join(fx.awayFirst ? ' at ' : ' v '),
+            start, end: Math.max(end, start + 60000), status: g.status === 'done' ? 'finished' : g.status === 'live' || g.status === 'break' ? 'live' : g.status,
+            competitors: sides.map(s => ({ name: s.name, logo: s.logo })), channels: g.channels, events: [], freshness: 'unavailable', progress: {} };
+    }
+
+    /** One fixture card: the two sides (badge, star, name, record, score), the situation, then its state and channel. */
+    function fixtureCardHtml(g, fx, ctx) {
+        const { now } = ctx;
+        const card = fixtureCard(g, fx.league, ctx.front);
+        const id = card ? card.id : `fx:${fx.league}:${g.id}`;
+        const sides = fx.awayFirst ? [g.away, g.home] : [g.home, g.away];
+        const followed = g.home.followed || g.away.followed, ongoing = g.status === 'live' || g.status === 'break';
+        const rows = sides.map(s => `<span class="trow">${badge(s.name, s.logo, 26)}${s.followed ? star() : ''}<span class="n">${e(s.name)}</span>${s.record ? `<span class="rec">${e(s.record)}</span>` : ''}${s.score != null ? `<span class="sc pig-amount">${e(s.score)}</span>` : ''}</span>`).join('');
+        let bot;
+        if (ongoing) bot = `${dot()}<span class="clk pig-amount">${e(g.detail || 'Live')}</span>`;
+        else if (g.detail) bot = `<span class="res">${e(g.detail)} · ${e(UI.date(g.start))}</span>`;
+        else bot = `<span class="when pig-amount">${e(when(g.start, now))}</span>`;
+        const channel = (card && card.channels && card.channels[0] && card.channels[0].name) || (g.channels[0] && g.channels[0].name);
+        if (g.status !== 'done') bot += `<span class="ch">${e(channel || 'Not in guide yet')}</span>`;
+        return `<div class="gitem fxitem"><button type="button" class="fx${followed ? ' fol' : ongoing ? ' live' : ''}" data-act="game" data-id="${e(id)}" data-key="fx:${e(g.id)}">${rows}${g.situation ? `<span class="sline">${e(g.situation)}</span>` : ''}<span class="cbot">${bot}</span></button></div>`;
+    }
+
+    function standingsHtml(fx, ctx, label_) {
+        const { hide } = ctx;
+        const view = viewOf(fx, ctx.standingsView);
+        if (!view && !hide) return '';
+        const viewChips = fx.views.length > 1 ? fx.views.map(v => `<button type="button" class="fchip${v === view ? ' on' : ''}" data-act="standings-view" data-view="${e(v.name)}" aria-pressed="${v === view}" data-key="view:${e(v.name)}">${e(v.name)}</button>`).join('') : '';
+        let body;
+        if (hide) {
+            body = `<div class="lcard"><div class="lh"><b>Standings hidden</b></div><p class="hidden-note">${ICON.eyeOff}<span>Records, positions and points reveal results while Hide scores is on.</span></p></div>`;
+        } else {
+            const groups = tableGroups(view), group = groups.find(g => g.name === ctx.tableGroup) || groups[0];
+            const groupChips = groups.length > 1 ? `<div class="rounds">${groups.map(g => `<button type="button" class="fchip${g === group ? ' on' : ''}" data-act="table-group" data-group="${e(g.name)}" aria-pressed="${g === group}" data-key="tg:${e(g.name)}">${e(g.name)}</button>`).join('')}</div>` : '';
+            body = groupChips + group.tables.map(t => `<div class="lcard"><div class="lh"><b>${e(t.title || label_)}</b>${ctx.season ? `<span>${e(ctx.season)}</span>` : ''}</div>`
+                + `<table class="st"><thead><tr><th scope="col"><span class="visually-hidden">Position</span></th><th scope="col" class="tl">Team</th>${t.columns.map(c => `<th scope="col">${e(c)}</th>`).join('')}</tr></thead><tbody>`
+                + t.rows.map((r, i) => `<tr${r.followed ? ' class="me"' : ''}><td class="pos pig-amount">${e(r.rank ?? i + 1)}</td><td class="nm"><div>${badge(r.name, r.logo, ctx.phone ? 20 : 24)}${r.followed ? star() : ''}<span>${e(r.name)}</span></div></td>${r.values.map((v, j) => `<td class="pig-amount${j === r.values.length - 1 ? ' pts' : ''}">${e(v ?? '–')}</td>`).join('')}</tr>`).join('')
+                + '</tbody></table></div>').join('');
+        }
+        return `<section class="standings" aria-label="Standings"><div class="subhead"><h3>Standings</h3>${viewChips ? `<div class="views">${viewChips}</div>` : ''}</div>${body}</section>`;
+    }
+
+    /** A fixture league's page below its header: the round switcher, the round's games, the standings beside or under. */
+    function fixturePage(fx, ctx, label_) {
+        const round = roundOf(fx, ctx.round);
+        const chips = fx.rounds.map(r => `<button type="button" class="fchip${r === round ? ' on' : ''}" data-act="round" data-round="${e(r.key)}" aria-pressed="${r === round}" data-key="round:${e(r.key)}">${e(r.label)}</button>`).join('');
+        const note = round ? round.note || `${round.games.length} ${round.games.length === 1 ? 'game' : 'games'}` : '';
+        const games = round && round.games.length ? `<div class="fxgrid">${round.games.map(g => fixtureCardHtml(g, fx, ctx)).join('')}</div>` : '<p class="sp-muted">No games in this round.</p>';
+        const standings = fx.views.length || ctx.hide ? standingsHtml(fx, ctx, label_) : '';
+        return `<div class="league${standings ? '' : ' solo'}"><div><div class="rounds" role="group" aria-label="Rounds">${chips}<span class="rnote">${e(note)}</span></div>${games}</div>${standings ? `<div>${standings}</div>` : ''}</div>`;
+    }
+
+    /** The words of a league page's states (#280). */
+    const leagueWords = (label_) => ({
+        failed: { title: `${label_} didn’t load`, detail: `PigTV couldn’t get ${label_} from your server. Your other sports, the TV Guide and your recordings still work.` },
+        unavailable: { title: `${label_} isn’t available right now`, detail: `Your server hasn’t had ${label_} from the scores feed yet, or can’t reach it at the moment. Your other sports, the TV Guide and your recordings still work.` },
+        empty: { title: `No ${label_} games listed`, detail: `The scores feed has no rounds for ${label_} at the moment.` }
+    });
+    /** A league without a page of its own: its C-R games as cards. */
+    function gamesGrid(league, ctx) {
+        const games = leagueGames(league, ctx.front);
+        if (!games.length) return nothingSoon(label(league, ctx.labels));
+        return `<div class="cardgrid">${games.map(g => card(g, ctx)).join('')}</div>`;
+    }
+
+    /**
+     * A league's own page below its header. `lp`: the league page's state from the controller ({ answer, failed,
+     * loaded, stale, updatedAt }); `kind`: leagueContent(). Fixture leagues (C-T, C-Q) draw their rounds and standings;
+     * the others their C-R games until their own page is built.
+     */
+    function leaguePage(sport, league, kind, lp, ctx) {
+        const word = label(league, ctx.labels), words = leagueWords(word);
+        if (kind !== 'league' && kind !== 'nfl') return gamesGrid(league, ctx);
+        const a = lp && lp.answer;
+        if (!a) {
+            if (lp && lp.failed) return `<div class="sp-state" id="sp-state" data-state="league-error" data-title="${e(words.failed.title)}" data-detail="${e(words.failed.detail)}"></div>`;
+            return '<div class="sp-state" id="sp-state" data-state="loading"></div>';
+        }
+        if (a.available === false) return `<div class="sp-state" id="sp-state" data-state="league-error" data-title="${e(words.unavailable.title)}" data-detail="${e(words.unavailable.detail)}"></div>`;
+        const following = ctx.following || [];
+        const fx = kind === 'nfl' ? nflFixture(a, following, ctx.hide) : leagueFixture(a, league, following, ctx.hide);
+        const note = lp.stale ? staleNote(lp.updatedAt) : '';
+        if (!fx.rounds.length) return note + `<div class="sp-league-empty">${UI.stateBlock('empty', words.empty, { label: 'Open the TV Guide', href: '#guide' })}</div>`;
+        const season = a.season && (a.season.label || a.season.year) ? String(a.season.label || a.season.year) : '';
+        return note + fixturePage(fx, { ...ctx, season }, word);
+    }
+
     return {
         ICON, hidden, family, terminal, underWay, isOnAir, showsLive, isNextRound, logo, statusWord, progressLabel, situationLabel,
         scores, situation, when, headerDate, startLine, channelLine, cardClock, event, action, actionLabel, followedSides,
@@ -792,7 +986,8 @@ const SportView = (() => {
         followItems, front, frontDesktop, frontPhone, row, rowHtml, phoneCard, dots, position, isEmpty, game, sportOf, label,
         railGames, staleNote, scoresNote, star, dot, recordMark, kickerWord, yours, availabilityWord, onAirLine, e, gameCard,
         sportLeagues, sportGames, leagueGames, sportHero, openingLeague, leagueItems, leagueGroups, leagueCards, leagueContent,
-        moreTitle, sportPage, EVENT_LEAGUES, groupsHtml, nothingSoon
+        moreTitle, sportPage, EVENT_LEAGUES, groupsHtml, nothingSoon, fixtureDetail, nflFixture, leagueFixture, roundOf, viewOf,
+        tableGroups, fixtureCard, fixtureGame, fixtureCardHtml, standingsHtml, fixturePage, leaguePage, gamesGrid, leagueWords
     };
 })();
 
