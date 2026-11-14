@@ -1165,62 +1165,72 @@ class SportsPage {
     /** The primary button: Save changes (PUT), a rule (C-M `team`, or `sport` for a league), or this game on the chosen channel. */
     async saveRecord(st, w) {
         if (st.busy) return;
-        const g = st.g, pad = { ...(st.pre != null ? { preBufferMin: st.pre } : {}), ...(st.post != null ? { postBufferMin: st.post } : {}) };
-        let toast = null, failText = 'The recording could not be scheduled.';
-        if (st.rec) {
-            failText = 'The recording could not be changed.';
-            if (st.gone || !st.schedule) { st.error = SportsPage.GONE; w?.redraw(); return; }
-            if (!SportsPage.change(st)) return;
+        if (st.rec && (st.gone || !st.schedule || !SportsPage.change(st))) {
+            if (st.gone || !st.schedule) { st.error = SportsPage.GONE; w?.redraw(); }
+            return;
         }
         st.busy = true; st.error = null; w?.redraw();
-        try {
-            if (st.rec) {
-                await API.request('PUT', `/recordings/scheduled/${st.rec.id}`, SportsPage.change(st));
-                toast = 'Recording changed.';
-            } else {
-                const what = st.whats[st.what] || { kind: 'this' };
-                if (what.kind === 'team') {
-                    // always a `team` rule (the team's games from the fixture), never a guide keyword
-                    failText = 'The rule could not be added.';
-                    const sport = this.teamSport(what, g);
-                    if (!sport) { failText = 'PigTV doesn’t know this league’s sport, so every game of the team can’t be recorded.'; throw new Error('no sport'); }
-                    await API.recordings.addRule({ kind: 'team', match: what.name, sport, ...pad });
-                    toast = `Recording every ${what.name} game.`;
-                } else if (what.kind === 'league') {
-                    failText = 'The rule could not be added.';
-                    await API.recordings.addRule({ kind: 'sport', match: what.league, ...pad });
-                    toast = `Recording every ${SportView.label(what.league, this.labels)} game.`;
-                } else {
-                    // Codex #327 (high): set to record meanwhile (another tab, person or rule)? Then the person's padding goes
-                    // to that recording (0662: never a second schedule); a list that cannot be read records nothing.
-                    failText = SportsPage.UNCHECKED;
-                    const rows = await API.request('GET', '/recordings/scheduled');
-                    const row = this.scheduleOf(st.g, Array.isArray(rows) ? rows : []);
-                    if (row) {
-                        failText = 'The recording could not be changed.';
-                        const body = SportsPage.change({ schedule: row, pre: st.pre, post: st.post });
-                        if (body) await API.request('PUT', `/recordings/scheduled/${row.id}`, body);
-                        toast = body ? 'This game was already set to record, so your changes went to that recording.' : 'This game is already set to record.';
-                    } else {
-                        failText = 'The recording could not be scheduled.';
-                        const a = st.airings[st.index] || st.airings[0], c = a.c;
-                        const made = await API.recordings.schedule({ sourceId: Number(c.sourceId), channelItemId: c.id, channelName: c.name, title: g.title,
-                            programStart: a.start, programEnd: a.end, ...pad, ...(g.synthetic ? {} : { gameId: g.id }) });
-                        const clash = Array.isArray(made?.conflictsWith) && made.conflictsWith.length;
-                        toast = clash ? `Set to record on ${c.name}. It clashes with ${made.conflictsWith.map(x => x.title || x).join(', ')}.` : `Set to record on ${c.name}: ${g.title}.`;
-                    }
-                }
-            }
-        } catch (err) {
-            // a list that could not be read says so in plain words (the server's own error text is for the others)
-            st.error = failText === SportsPage.UNCHECKED ? failText : UI.errorText(err, failText);
-        }
+        let toast = null;
+        try { toast = await this.recordNow(st); }
+        catch (err) { st.error = err && err.plain ? err.message : UI.errorText(err, (err && err.failText) || 'The recording could not be scheduled.'); }
         st.busy = false;
         if (toast) {
             if (this.window === w) this.closeWindow();
             UI.toast(toast);
             this.refresh();
         } else if (this.window === w) w.redraw();
+        // Opus review of #327: the window was closed while it saved: its failure is still told
+        else if (st.error) UI.toast(st.error, { kind: 'error' });
+    }
+    /** What the primary button does; answers the notice to show, or null (the page says why); throws a failure. */
+    async recordNow(st) {
+        const g = st.g, pad = { ...(st.pre != null ? { preBufferMin: st.pre } : {}), ...(st.post != null ? { postBufferMin: st.post } : {}) };
+        const plain = (message) => Object.assign(new Error(message), { plain: true });
+        const failing = (failText, run) => Promise.resolve().then(run).catch((err) => { if (err && !err.plain && !err.failText) err.failText = failText; throw err; });
+        const rows = async (unreadText) => {
+            try { const r = await API.request('GET', '/recordings/scheduled'); return Array.isArray(r) ? r : []; }
+            catch { throw plain(unreadText); }
+        };
+        if (st.rec) {
+            // Opus review of #327: read again at the press: it may have started recording (Start early then cannot
+            // change: the server would answer 409) or gone since the page opened
+            const row = (await rows('PigTV couldn’t read this recording again, so nothing was changed. Try again.'))
+                .find(r => r && r.id === st.rec.id && ['scheduled', 'waiting', 'recording'].includes(r.status));
+            if (!row) { st.gone = true; throw plain(SportsPage.GONE); }
+            const wanted = SportsPage.change(st);
+            st.schedule = row;
+            if (row.status === 'recording') st.pre = Number.isFinite(row.pre_buffer_min) ? row.pre_buffer_min : null;
+            const body = SportsPage.change(st);
+            if (wanted && wanted.preBufferMin != null && row.status === 'recording') throw plain('It has started recording, so only Finish late can change now. Nothing was changed.');
+            if (!body) return null;
+            await failing('The recording could not be changed.', () => API.request('PUT', `/recordings/scheduled/${st.rec.id}`, body));
+            return 'Recording changed.';
+        }
+        const what = st.whats[st.what] || { kind: 'this' };
+        if (what.kind === 'team') {
+            // always a `team` rule (the team's games from the fixture), never a guide keyword
+            const sport = this.teamSport(what, g);
+            if (!sport) throw plain('PigTV doesn’t know this league’s sport, so every game of the team can’t be recorded.');
+            await failing('The rule could not be added.', () => API.recordings.addRule({ kind: 'team', match: what.name, sport, ...pad }));
+            return `Recording every ${what.name} game.`;
+        }
+        if (what.kind === 'league') {
+            await failing('The rule could not be added.', () => API.recordings.addRule({ kind: 'sport', match: what.league, ...pad }));
+            return `Recording every ${SportView.label(what.league, this.labels)} game.`;
+        }
+        // Codex #327 (high): set to record meanwhile (another tab, person or rule)? Then the person's padding goes to that
+        // recording (0662: never a second schedule); a list that cannot be read records nothing.
+        const row = this.scheduleOf(g, await rows(SportsPage.UNCHECKED));
+        if (row) {
+            const body = SportsPage.change({ schedule: row, pre: st.pre, post: st.post });
+            if (body) await failing('The recording could not be changed.', () => API.request('PUT', `/recordings/scheduled/${row.id}`, body));
+            return body ? 'This game was already set to record, so your changes went to that recording.' : 'This game is already set to record.';
+        }
+        const a = st.airings[st.index] || st.airings[0], c = a.c;
+        const made = await failing('The recording could not be scheduled.', () => API.recordings.schedule({ sourceId: Number(c.sourceId), channelItemId: c.id,
+            channelName: c.name, title: g.title, programStart: a.start, programEnd: a.end, ...pad, ...(g.synthetic ? {} : { gameId: g.id }) }));
+        const clash = Array.isArray(made?.conflictsWith) && made.conflictsWith.length;
+        return clash ? `Set to record on ${c.name}. It clashes with ${made.conflictsWith.map(x => x.title || x).join(', ')}.` : `Set to record on ${c.name}: ${g.title}.`;
     }
 }
 
