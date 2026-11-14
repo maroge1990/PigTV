@@ -93,6 +93,15 @@ function lastPatOffset(buf) {
     return -1;
 }
 
+/** Offset of the first PAT packet start in `buf` that the next packet's sync byte confirms, or -1. */
+function alignedPatOffset(buf) {
+    for (let i = 0; i + TS_PACKET < buf.length; i++) {
+        if (buf[i] !== SYNC || buf[i + TS_PACKET] !== SYNC) continue;
+        if ((((buf[i + 1] & 0x1f) << 8) | buf[i + 2]) === 0 && (buf[i + 1] & 0x40)) return i;
+    }
+    return -1;
+}
+
 class Subscription extends Readable {
     constructor(ingest, info) {
         super({ highWaterMark: 1024 * 1024 });
@@ -102,17 +111,24 @@ class Subscription extends Readable {
         this.bytesOut = 0;
         this.endReason = null;
         this.awaitPat = false;
+        this.patCarry = null;
         this.backlogBytes = 0;
     }
     _read() { /* data is pushed by the ingest; pausing only grows our queue, which eviction bounds */ }
     deliver(chunk) {
         if (this.destroyed || this.endReason) return;
         if (this.awaitPat) {
-            // #309: a joiner whose backlog was too big starts at the next PAT the feed sends.
-            const at = firstPatOffset(chunk);
-            if (at < 0) return;
+            // #309: a joiner whose backlog was too big starts at the next PAT the feed sends. A PAT
+            // may be split across chunks: the last packet's worth is kept and read with the next.
+            const data = this.patCarry ? Buffer.concat([this.patCarry, chunk]) : chunk;
+            const at = alignedPatOffset(data);
+            if (at < 0) {
+                this.patCarry = Buffer.from(data.subarray(Math.max(0, data.length - TS_PACKET)));
+                return;
+            }
             this.awaitPat = false;
-            chunk = chunk.subarray(at);
+            this.patCarry = null;
+            chunk = data.subarray(at);
         }
         this.bytesOut += chunk.length;
         this.push(chunk);

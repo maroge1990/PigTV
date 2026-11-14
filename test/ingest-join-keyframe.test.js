@@ -200,6 +200,39 @@ test('#309: a fallback backlog over the budget is not handed over (it would end 
     assert.doesNotMatch(said[0], /127\.0\.0\.1|http/);
 });
 
+/** A reader of a live feed that only this test delivers to (the feed's own data does not reach it). */
+async function detachedReader(path) {
+    await openAndWait(path);
+    const feed = [...ingest._registry.values()].find(i => !i.closed);
+    const sub = feed.subscribe({ purpose: 'viewer' });
+    feed.subs.delete(sub);
+    sub.read();
+    return sub;
+}
+
+test('#309 review: a reader waiting for a PAT finds one split across chunks, and is not fooled by a stray sync byte at a chunk\'s end', async () => {
+    // 0579 + #309 item 1 scanned each chunk alone: a PAT split across two chunks was never found, and
+    // with every PAT split the reader was handed nothing at all on a healthy feed (Codex review).
+    const sub = await detachedReader('/rai');
+    sub.awaitPat = true;
+    // First a video packet whose payload holds what looks like a PAT header, cut 188 bytes after it.
+    const fake = ts.videoFrame(900, { more: 0 });
+    fake.set([0x47, 0x40, 0x00, 0x10], 100);
+    const parts = [ts.audio(), fake, ts.audio()];
+    for (let n = 0; n < 20; n++) parts.push(ts.pat(), ts.pmt(), ts.videoFrame(1000 + n, { key: n % 5 === 0, rai: true }), ts.audio());
+    const stream = Buffer.concat(parts);
+    // Then every PAT cut in two: chunk boundaries 100 bytes into each.
+    const cuts = [188 + 100 + 188, ...ts.readPackets(stream).filter(p => p.pid === 0).map(p => p.offset + 100)];
+    let from = 0;
+    for (const cut of [...cuts, stream.length]) { sub.deliver(stream.subarray(from, cut)); from = cut; }
+    assert.ok(sub.bytesOut > 0, 'it was handed the feed');
+    const got = sub.read();
+    const packets = ts.readPackets(got);
+    assert.deepEqual([packets[0].pid, packets[0].pusi, packets[1].pid], [0, true, ts.PMT_PID], 'it starts at a whole PAT, then the PMT');
+    assert.equal(got.length % 188, 0, 'whole packets from there');
+    sub.leave();
+});
+
 test('the buffer keeps the look-back window even when bufferMs is shorter, and no more than that', async () => {
     T.bufferMs = 500;
     T.joinLookbackMs = 3000;
