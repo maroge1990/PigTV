@@ -671,3 +671,15 @@ reviews.
   Mark chose not to download an iOS 17 simulator: 17 is checked by compiling and on his iPad, not in a simulator.
 - **Consequence:** `PigBackDeploy.swift` in the Apple app holds every fallback; a new API newer than iOS 17 goes through
   it (the compiler refuses one that does not). Apple 240 and 241.
+
+### D-63. Re-encodes run at fixed values; hardware and User-Agent settings are admin-only Advanced; no web upscaling (14 Nov 2026; Mark)
+
+- **Context:** #322: the Apple apps read no server setting, yet the web offered transcode choices (resolution, quality,
+  audio mix), upscaling that forced a re-encode on every web play, and player comforts stored on the server.
+- **Choice:** Mark: a re-encode is always 1080p, medium quality, audio mix auto; the hardware encoder, GPU decode, CPU
+  scale and User-Agent stay, in an Advanced block only admins see; web upscaling is removed; the overlay shows 5 s and
+  the last volume is always remembered. The other playback switches (in-stream recovery, standby, warming) stay.
+- **Consequence:** the retired keys are in `server/retiredSettings.js` and `settings.get()` never hands one out, so an
+  old stored value changes nothing; default installs keep byte-identical ffmpeg arguments (the golden test). Server 0639
+  to 0643. `sharedIngestEnabled`, `maxProviderStreams`, `viewerIdleTimeoutSec` and `recordingPromptLeadMin` were read
+  and kept: code paths in admission, ingest and recording still use them.
