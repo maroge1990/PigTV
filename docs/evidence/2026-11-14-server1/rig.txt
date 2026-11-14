@@ -1,0 +1,476 @@
+# Server 1 batch (builds 0580-0595): T3 on the Unraid rig, fake providers only. 14 Nov 2026, times UTC.
+# Code: clean detached checkout at 796bf9c, staging answered build 0595 (rig-796bf9c). Fakes: Fake A (source 2, primary),
+# Fake B (source 3, backup), 4 connections each. Staging settings: maxConcurrentRecordings 1, segmentedRecordings on.
+# Faults injected only on the fakes: POST /fake/fail?stream=<id>&mode=404|stall|ok. Hosts, ports and logins masked.
+# Driver poll lines: <time> schedule row (status, error column) | recording row | fake A/B open connections (/fake/status).
+
+############ 1. #288 + #302: every provider down mid-recording (BBC ONE: A 1016, backup B 5016)
+01:34:25Z POST /api/recordings/schedule -> 201 #24 "T3 S1 c1 all-down" 01:34:30Z..01:46:30Z (12 min) endsWith=guide
+01:34:43.562Z driver: schedule #24 seen recording
+01:35:43.568Z POST fake A /fake/fail stream=1016 mode=404 -> {"stream":1016,"mode":"404","overrides":{"1016":"404"}}
+01:36:03.710Z POST fake B /fake/fail stream=5016 mode=404 -> {"stream":5016,"mode":"404","overrides":{"5016":"404"}}
+01:38:03.859Z POST fake B /fake/fail stream=5016 mode=ok -> {"stream":5016,"mode":"ok","overrides":{}}
+01:39:04.279Z POST fake A /fake/fail stream=1016 mode=ok -> {"stream":1016,"mode":"ok","overrides":{}}
+## driver polls (every ~11 s; excerpt)
+01:34:28Z sched#24 status=scheduled reason=null | no rec | fakeA conns=0 fakeB conns=0
+01:34:40Z sched#24 status=recording reason=null | rec#22 status=recording seg=capturing prov=2 dur=null MB=0.0 note=null | fakeA conns=1 fakeB conns=0
+01:34:51Z sched#24 status=recording reason=null | rec#22 status=recording seg=capturing prov=2 dur=null MB=0.0 note=null | fakeA conns=1 fakeB conns=0
+  ...
+01:35:47Z sched#24 status=recording reason=null | rec#22 status=recording seg=capturing prov=2 dur=null MB=0.0 note=null | fakeA conns=0 fakeB conns=0
+01:35:58Z sched#24 status=recording reason=null | rec#22 status=recording seg=capturing prov=3 dur=null MB=0.0 note="Gaps: 1, 8 s in all (the last: the provider dropped out)." | fakeA conns=0 fakeB conns=1
+01:36:09Z sched#24 status=recording reason=null | rec#22 status=recording seg=capturing prov=3 dur=null MB=0.0 note="Gaps: 1, 8 s in all (the last: the provider dropped out)." | fakeA conns=0 fakeB conns=0
+01:38:24Z sched#24 status=recording reason=null | rec#22 status=recording seg=capturing prov=2 dur=null MB=0.0 note="Gaps: 2, 140 s in all (the last: the provider dropped out)." | fakeA conns=0 fakeB conns=0
+01:38:35Z sched#24 status=recording reason=null | rec#22 status=recording seg=capturing prov=3 dur=null MB=0.0 note="Gaps: 2, 155 s in all (the last: the provider dropped out)." | fakeA conns=0 fakeB conns=1
+01:38:46Z sched#24 status=recording reason=null | rec#22 status=recording seg=capturing prov=3 dur=null MB=0.0 note="Gaps: 2, 155 s in all (the last: the provider dropped out)." | fakeA conns=0 fakeB conns=1
+  ...
+01:46:15Z sched#24 status=recording reason=null | rec#22 status=recording seg=capturing prov=3 dur=null MB=0.0 note="Gaps: 2, 155 s in all (the last: the provider dropped out)." | fakeA conns=0 fakeB conns=1
+01:46:26Z sched#24 status=recording reason=null | rec#22 status=recording seg=capturing prov=3 dur=null MB=0.0 note="Gaps: 2, 155 s in all (the last: the provider dropped out)." | fakeA conns=0 fakeB conns=1
+01:46:37Z sched#24 not listed | rec#22 status=recording seg=finishing prov=3 dur=564 MB=0.0 note="Gaps: 2, 155 s in all (the last: the provider dropped out)." | fakeA conns=0 fakeB conns=1
+01:46:48Z sched#24 not listed | rec#22 status=recording seg=finishing prov=3 dur=564 MB=0.0 note="Gaps: 2, 155 s in all (the last: the provider dropped out)." | fakeA conns=0 fakeB conns=0
+01:47:00Z sched#24 not listed | rec#22 status=completed seg=done prov=3 dur=564 MB=41.0 note="Gaps: 2, 155 s in all (the last: the provider dropped out)."
+## recording row + ffprobe of the MP4
+{"id":22,"status":"completed","started":"2026-11-14T01:34:30.770Z","ended":"2026-11-14T01:46:30.016Z","window_s":719.246,"duration_sec":564,"MB":41,"file":"/app/recordings/UK_ BBC ONE HD/T3 S1 c1 all-down - 2026-11-14 12-34.mp4","note":"Gaps: 2, 155 s in all (the last: the provider dropped out).","part":1,"missed_start_ms":0,"is_partial":1,"work_dir":"/app/data/recordings-work/rec-22"}
+stream|codec_type=video|duration=563.533333
+stream|codec_type=audio|duration=563.394667
+format|duration=563.554666
+## staging log
+2026-11-14T01:34:30.769765002Z [Ingest 2] reading e8def516b34b for pool primary
+2026-11-14T01:34:30.774425029Z [Recordings] Schedule #24 "T3 S1 c1 all-down" (UK| BBC ONE HD): scheduled -> recording
+2026-11-14T01:34:30.777687782Z [Recordings] Starting recording #22 for schedule #24: "T3 S1 c1 all-down" on Fake A (shared ingest) -> segments in appdata (part 1)
+2026-11-14T01:35:43.455038548Z [Ingest 2] lost the stream (ECONNRESET); reconnecting
+2026-11-14T01:35:53.456072811Z [Ingest 2] gave up: HTTP 404
+2026-11-14T01:35:53.456463612Z [Ingest 2] closed (HTTP 404); most behind real time 9.9s
+2026-11-14T01:35:53.466490096Z [Recordings] #22 ended early (the shared feed ended: upstream-lost; ffmpeg exit 0; "frame= 1098 fps= 14 q=-1.0 Lsize=N/A time=00:01:13.22 bitrate=N/A speed=0.94x elapsed=0:01:17.88") on Fake A; it continues in the same recording
+2026-11-14T01:35:53.509168872Z [Ingest 3] reading 00dcac057683 for pool 3
+2026-11-14T01:35:53.512445206Z [Recordings] #22 continues after 8s on Fake B
+2026-11-14T01:35:53.515729571Z [Recordings] Starting recording #22 for schedule #24: "T3 S1 c1 all-down" on Fake B (shared ingest) -> segments in appdata (part 2)
+2026-11-14T01:36:03.605523967Z [Ingest 3] lost the stream (ECONNRESET); reconnecting
+2026-11-14T01:36:13.605302919Z [Ingest 3] gave up: HTTP 404
+2026-11-14T01:36:13.605612488Z [Ingest 3] closed (HTTP 404); most behind real time 9.9s
+2026-11-14T01:36:13.613270049Z [Recordings] #22 ended early (the shared feed ended: upstream-lost; ffmpeg exit 0; "frame=  159 fps= 10 q=-1.0 Lsize=N/A time=00:00:10.62 bitrate=N/A speed=0.694x elapsed=0:00:15.29") on Fake B; it continues in the same recording (continued 1 times so far)
+2026-11-14T01:36:15.737463142Z [Ingest 4] not used: HTTP 404
+2026-11-14T01:36:15.737687987Z [Ingest 4] closed (HTTP 404); most behind real time not measured
+2026-11-14T01:36:15.737724504Z [Recordings] Shared ingest not used for this recording: Shared ingest not used: HTTP 404
+2026-11-14T01:36:15.738672801Z [Recordings] #22 continues after 12s on Fake A
+2026-11-14T01:36:15.741603243Z [Recordings] Starting recording #22 for schedule #24: "T3 S1 c1 all-down" on Fake A -> segments in appdata (part 3)
+2026-11-14T01:36:15.758125062Z [Recordings] #22 ended early (ffmpeg exit 8; "Error opening input files: Server returned 404 Not Found") on Fake A; it continues in the same recording (continued 2 times so far)
+2026-11-14T01:36:30.737500322Z [Recordings] Shared ingest not used for this recording: Shared ingest not used: HTTP 404
+2026-11-14T01:36:30.737566572Z [Ingest 5] not used: HTTP 404
+2026-11-14T01:36:30.737580826Z [Ingest 5] closed (HTTP 404); most behind real time not measured
+2026-11-14T01:36:30.738153341Z [Recordings] #22 continues after 15s on Fake B
+2026-11-14T01:36:30.740626160Z [Recordings] Starting recording #22 for schedule #24: "T3 S1 c1 all-down" on Fake B -> segments in appdata (part 4)
+2026-11-14T01:36:30.758336558Z [Recordings] #22 ended early (ffmpeg exit 8; "Error opening input files: Server returned 404 Not Found") on Fake B; it continues in the same recording (continued 3 times so far)
+2026-11-14T01:36:45.735490538Z [Ingest 6] not used: HTTP 404
+2026-11-14T01:36:45.735655956Z [Ingest 6] closed (HTTP 404); most behind real time not measured
+2026-11-14T01:36:45.735735244Z [Recordings] Shared ingest not used for this recording: Shared ingest not used: HTTP 404
+2026-11-14T01:36:45.736726805Z [Recordings] #22 continues after 15s on Fake A
+2026-11-14T01:36:45.740095275Z [Recordings] Starting recording #22 for schedule #24: "T3 S1 c1 all-down" on Fake A -> segments in appdata (part 5)
+2026-11-14T01:36:45.762527035Z [Recordings] #22 ended early (ffmpeg exit 8; "Error opening input files: Server returned 404 Not Found") on Fake A; it continues in the same recording (continued 4 times so far)
+2026-11-14T01:37:00.737134812Z [Ingest 7] not used: HTTP 404
+2026-11-14T01:37:00.737389965Z [Ingest 7] closed (HTTP 404); most behind real time not measured
+2026-11-14T01:37:00.737504178Z [Recordings] Shared ingest not used for this recording: Shared ingest not used: HTTP 404
+2026-11-14T01:37:00.738203122Z [Recordings] #22 continues after 15s on Fake B
+2026-11-14T01:37:00.742004438Z [Recordings] Starting recording #22 for schedule #24: "T3 S1 c1 all-down" on Fake B -> segments in appdata (part 6)
+2026-11-14T01:37:00.757743564Z [Recordings] #22 ended early (ffmpeg exit 8; "Error opening input files: Server returned 404 Not Found") on Fake B; it continues in the same recording (continued 5 times so far)
+2026-11-14T01:37:15.737087528Z [Ingest 8] not used: HTTP 404
+2026-11-14T01:37:15.737245285Z [Ingest 8] closed (HTTP 404); most behind real time not measured
+2026-11-14T01:37:15.737368273Z [Recordings] Shared ingest not used for this recording: Shared ingest not used: HTTP 404
+2026-11-14T01:37:15.738462134Z [Recordings] #22 continues after 15s on Fake A
+2026-11-14T01:37:15.743131225Z [Recordings] Starting recording #22 for schedule #24: "T3 S1 c1 all-down" on Fake A -> segments in appdata (part 7)
+2026-11-14T01:37:15.759680537Z [Recordings] #22 ended early (ffmpeg exit 8; "Error opening input files: Server returned 404 Not Found") on Fake A; it continues in the same recording (continued 6 times so far)
+2026-11-14T01:37:30.736791664Z [Ingest 9] not used: HTTP 404
+2026-11-14T01:37:30.737063239Z [Ingest 9] closed (HTTP 404); most behind real time not measured
+2026-11-14T01:37:30.737145467Z [Recordings] Shared ingest not used for this recording: Shared ingest not used: HTTP 404
+2026-11-14T01:37:30.738042631Z [Recordings] #22 continues after 15s on Fake B
+2026-11-14T01:37:30.742105514Z [Recordings] Starting recording #22 for schedule #24: "T3 S1 c1 all-down" on Fake B -> segments in appdata (part 8)
+2026-11-14T01:37:30.758266352Z [Recordings] #22 ended early (ffmpeg exit 8; "Error opening input files: Server returned 404 Not Found") on Fake B; it continues in the same recording (continued 7 times so far)
+2026-11-14T01:37:45.737039538Z [Ingest 10] not used: HTTP 404
+2026-11-14T01:37:45.737133986Z [Ingest 10] closed (HTTP 404); most behind real time not measured
+2026-11-14T01:37:45.737318768Z [Recordings] Shared ingest not used for this recording: Shared ingest not used: HTTP 404
+2026-11-14T01:37:45.738188846Z [Recordings] #22 continues after 15s on Fake A
+2026-11-14T01:37:45.742768264Z [Recordings] Starting recording #22 for schedule #24: "T3 S1 c1 all-down" on Fake A -> segments in appdata (part 9)
+2026-11-14T01:37:45.759719503Z [Recordings] #22 ended early (ffmpeg exit 8; "Error opening input files: Server returned 404 Not Found") on Fake A; it continues in the same recording (continued 8 times so far)
+2026-11-14T01:38:00.737885987Z [Ingest 11] not used: HTTP 404
+2026-11-14T01:38:00.738121305Z [Ingest 11] closed (HTTP 404); most behind real time not measured
+2026-11-14T01:38:00.738254882Z [Recordings] Shared ingest not used for this recording: Shared ingest not used: HTTP 404
+2026-11-14T01:38:00.739120652Z [Recordings] #22 continues after 15s on Fake B
+2026-11-14T01:38:00.744550204Z [Recordings] Starting recording #22 for schedule #24: "T3 S1 c1 all-down" on Fake B -> segments in appdata (part 10)
+2026-11-14T01:38:00.760108989Z [Recordings] #22 ended early (ffmpeg exit 8; "Error opening input files: Server returned 404 Not Found") on Fake B; it continues in the same recording (continued 9 times so far)
+2026-11-14T01:38:15.735990528Z [Ingest 12] not used: HTTP 404
+2026-11-14T01:38:15.736245639Z [Ingest 12] closed (HTTP 404); most behind real time not measured
+2026-11-14T01:38:15.736267459Z [Recordings] Shared ingest not used for this recording: Shared ingest not used: HTTP 404
+2026-11-14T01:38:15.737212601Z [Recordings] #22 continues after 15s on Fake A
+2026-11-14T01:38:15.742522713Z [Recordings] Starting recording #22 for schedule #24: "T3 S1 c1 all-down" on Fake A -> segments in appdata (part 11)
+2026-11-14T01:38:15.758863449Z [Recordings] #22 ended early (ffmpeg exit 8; "Error opening input files: Server returned 404 Not Found") on Fake A; it continues in the same recording (continued 10 times so far)
+2026-11-14T01:38:30.768292216Z [Ingest 13] reading 00dcac057683 for pool 3
+2026-11-14T01:38:30.772411793Z [Recordings] #22 continues after 15s on Fake B
+2026-11-14T01:38:30.777415477Z [Recordings] Starting recording #22 for schedule #24: "T3 S1 c1 all-down" on Fake B (shared ingest) -> segments in appdata (part 12)
+2026-11-14T01:46:30.003494658Z [Recordings] Scheduled stop time reached for schedule 24
+2026-11-14T01:46:30.021740505Z [Recordings] Schedule #24 "T3 S1 c1 all-down" (UK| BBC ONE HD): recording -> completed
+2026-11-14T01:46:30.021765110Z [Recordings] Recording #22 captured 142 segments in 719s; making its MP4
+2026-11-14T01:46:30.059002668Z [Recordings] Making the MP4 of #22 from 142 segments -> /app/recordings/UK_ BBC ONE HD/T3 S1 c1 all-down - 2026-11-14 12-34.mp4
+2026-11-14T01:46:40.004662764Z [Ingest 13] closed (nobody is watching); most behind real time 0.2s
+2026-11-14T01:46:52.117701481Z [Recordings] #22 is finished: /app/recordings/UK_ BBC ONE HD/T3 S1 c1 all-down - 2026-11-14 12-34.mp4
+## reading
+# Retries alternate A, B, A, B on the 15 s tick (parts 3-11, 01:36:15..01:38:15); no "ends here" line; the recording ran to
+# its scheduled end (01:46:30). B restored 01:38:03.9 -> A tried 01:38:15 (still 404) -> B 01:38:30.8 recording again: one round.
+# A restored 01:39:04; the recording stayed on B to the end (no switch back).
+# Gap note "Gaps: 2, 155 s in all"; window 719.2 s - MP4 563.6 s = 155.7 s missing. Gap 1 = the A->B failover
+# (A dropped 01:35:43.5, B part from 01:35:53.5, ~10 s); gap 2 = the all-down outage 01:36:03.6..01:38:30.8 (~147 s)
+# with 10 failed parts in it, counted as ONE gap (batch C on 0509 read 6 gaps for one outage). Connections 0/0 after (01:47:00Z).
+
+############ 2a. #304 first attempt: stall on EXTRA| FILLER 001 HD (1501). NOT a one-provider channel: B carries
+# "EXTRA: FILLER 001 HD", so the stall failed over to B. Kept for the gap figure; the one-provider run is 2b.
+01:47:47.375Z schedule X -> 201 {"id":25,"title":"T3 S1 c2 stall","description":null,"source_id":2,"channel_item_id":"1501","channel_name":"
+01:48:14.899Z driver: X seen recording
+01:49:14.905Z POST fake A /fake/fail stream=1501 mode=stall -> {"stream":1501,"mode":"stall","overrides":{"1501":"stall"}}
+01:50:25.262Z POST fake A /fake/fail stream=1501 mode=ok -> {"stream":1501,"mode":"ok","overrides":{}}
+## provider state (/api/status providers, every ~5 s, 01:47:47Z..; counts of distinct answers)
+     37  providers: Fake A state=up downUntil=null used=0; Fake B state=up downUntil=null used=0
+     44  providers: Fake A state=up downUntil=null used=0; Fake B state=up downUntil=null used=1
+     19  providers: Fake A state=up downUntil=null used=1; Fake B state=up downUntil=null used=0
+## recording row + ffprobe
+{"id":23,"status":"completed","started":"2026-11-14T01:48:00.793Z","ended":"2026-11-14T01:53:49.129Z","window_s":348.336,"duration_sec":318,"MB":22.4,"file":"/app/recordings/EXTRA_ FILLER 001 HD/T3 S1 c2 stall - 2026-11-14 12-47.mp4","note":"Gaps: 1, 30 s in all (the last: the provider dropped out).","part":1,"missed_start_ms":0,"is_partial":1,"work_dir":"/app/data/recordings-work/rec-23"}
+stream|codec_type=video|duration=318.333000
+stream|codec_type=audio|duration=318.125000
+format|duration=318.354333
+## staging log
+2026-11-14T01:48:00.793212790Z [Ingest 14] reading 37c36a920d43 for pool primary
+2026-11-14T01:48:00.799085397Z [Recordings] Schedule #25 "T3 S1 c2 stall" (EXTRA| FILLER 001 HD): scheduled -> recording
+2026-11-14T01:48:00.801673688Z [Recordings] Starting recording #23 for schedule #25: "T3 S1 c2 stall" on Fake A (shared ingest) -> segments in appdata (part 1)
+2026-11-14T01:49:39.973871117Z [Ingest 14] lost the stream (25s behind real time); reconnecting
+2026-11-14T01:49:45.811638448Z [Recordings #23] No output for 30s since the last data; treating ffmpeg as stalled
+2026-11-14T01:49:45.811727896Z [Recordings] #23 has had no data for 30s from Fake A; ending this part
+2026-11-14T01:49:45.819837483Z [Recordings] #23 ended early (no data; ffmpeg exit 0; "frame= 1121 fps= 11 q=-1.0 Lsize=N/A time=00:01:14.75 bitrate=N/A speed=0.746x elapsed=0:01:40.22") on Fake A; it continues in the same recording
+2026-11-14T01:49:45.854670855Z [Ingest 15] reading 949df0030a0b for pool 3
+2026-11-14T01:49:45.855966213Z [Recordings] #23 continues after 30s on Fake B
+2026-11-14T01:49:45.859375725Z [Recordings] Starting recording #23 for schedule #25: "T3 S1 c2 stall" on Fake B (shared ingest) -> segments in appdata (part 2)
+2026-11-14T01:49:49.977824338Z [Ingest 14] gave up: no MPEG-TS again within 10s
+2026-11-14T01:49:49.978078869Z [Ingest 14] closed (no MPEG-TS again within 10s); most behind real time 34.4s
+2026-11-14T01:53:49.037429599Z [Recordings] Scheduled stop time reached for schedule 25
+2026-11-14T01:53:49.132767754Z [Recordings] Schedule #25 "T3 S1 c2 stall" (EXTRA| FILLER 001 HD): recording -> completed
+2026-11-14T01:53:49.132798336Z [Recordings] Recording #23 captured 80 segments in 348s; making its MP4
+2026-11-14T01:53:49.178905179Z [Recordings] Making the MP4 of #23 from 80 segments -> /app/recordings/EXTRA_ FILLER 001 HD/T3 S1 c2 stall - 2026-11-14 12-47.mp4
+2026-11-14T01:53:59.039046274Z [Ingest 15] closed (nobody is watching); most behind real time 0.2s
+2026-11-14T01:54:03.814515135Z [Recordings] #23 is finished: /app/recordings/EXTRA_ FILLER 001 HD/T3 S1 c2 stall - 2026-11-14 12-47.mp4
+# Gap note "Gaps: 1, 30 s"; window 348.3 s - MP4 318.4 s = 30.0 s missing.
+
+############ 2b. #304: stall on UK| CHANNEL 4 SD (1018), carried by Fake A only
+01:57:06.929Z schedule -> 201 {"id":27,"title":"T3 S1 c2b stall one-provider","description":null,"source_id":2,"channel_item_id":"1018","channel_name"
+01:57:21.959Z driver: seen recording
+01:58:21.965Z POST fake A /fake/fail stream=1018 mode=stall -> {"stream":1018,"mode":"stall","overrides":{"1018":"stall"}}
+01:59:32.106Z POST fake A /fake/fail stream=1018 mode=ok -> {"stream":1018,"mode":"ok","overrides":{}}
+## provider state (/api/status every ~4 s, 01:57:06Z..02:02:38Z; counts of distinct answers)
+     13  providers: Fake A state=up downUntil=null used=0; Fake B state=up downUntil=null used=0
+     62  providers: Fake A state=up downUntil=null used=1; Fake B state=up downUntil=null used=0
+## driver polls (excerpt)
+01:58:03Z sched#27 status=recording reason=null | rec#24 status=recording seg=capturing prov=2 dur=null MB=0.0 note=null | fakeA conns=1 fakeB conns=0
+01:58:14Z sched#27 status=recording reason=null | rec#24 status=recording seg=capturing prov=2 dur=null MB=0.0 note=null | fakeA conns=1 fakeB conns=0
+01:58:25Z sched#27 status=recording reason=null | rec#24 status=recording seg=capturing prov=2 dur=null MB=0.0 note=null | fakeA conns=1 fakeB conns=0
+01:58:36Z sched#27 status=recording reason=null | rec#24 status=recording seg=capturing prov=2 dur=null MB=0.0 note=null | fakeA conns=1 fakeB conns=0
+01:58:48Z sched#27 status=recording reason=null | rec#24 status=recording seg=capturing prov=2 dur=null MB=0.0 note=null | fakeA conns=0 fakeB conns=0
+01:58:59Z sched#27 status=recording reason=null | rec#24 status=recording seg=capturing prov=2 dur=null MB=0.0 note="Gaps: 1, 30 s in all (the last: the provider dropped out)." | fakeA conns=0 fakeB conns=0
+01:59:10Z sched#27 status=recording reason=null | rec#24 status=recording seg=capturing prov=2 dur=null MB=0.0 note="Gaps: 1, 50 s in all (the last: the provider dropped out)." | fakeA conns=1 fakeB conns=0
+01:59:21Z sched#27 status=recording reason=null | rec#24 status=recording seg=capturing prov=2 dur=null MB=0.0 note="Gaps: 1, 50 s in all (the last: the provider dropped out)." | fakeA conns=1 fakeB conns=0
+01:59:33Z sched#27 status=recording reason=null | rec#24 status=recording seg=capturing prov=2 dur=null MB=0.0 note="Gaps: 1, 50 s in all (the last: the provider dropped out)." | fakeA conns=1 fakeB conns=0
+01:59:44Z sched#27 status=recording reason=null | rec#24 status=recording seg=capturing prov=2 dur=null MB=0.0 note="Gaps: 1, 50 s in all (the last: the provider dropped out)." | fakeA conns=1 fakeB conns=0
+01:59:55Z sched#27 status=recording reason=null | rec#24 status=recording seg=capturing prov=2 dur=null MB=0.0 note="Gaps: 1, 50 s in all (the last: the provider dropped out)." | fakeA conns=0 fakeB conns=0
+02:00:06Z sched#27 status=recording reason=null | rec#24 status=recording seg=capturing prov=2 dur=null MB=0.0 note="Gaps: 1, 100 s in all (the last: the provider dropped out)." | fakeA conns=1 fakeB conns=0
+02:02:09Z sched#27 not listed | rec#24 status=recording seg=finishing prov=2 dur=195 MB=0.0 note="Gaps: 1, 100 s in all (the last: the provider dropped out)." | fakeA conns=1 fakeB conns=0
+02:02:21Z sched#27 not listed | rec#24 status=completed seg=done prov=2 dur=195 MB=13.6 note="Gaps: 1, 100 s in all (the last: the provider dropped out)."
+## recording row + ffprobe
+{"id":24,"status":"completed","started":"2026-11-14T01:57:15.913Z","ended":"2026-11-14T02:02:09.011Z","window_s":293.098,"duration_sec":195,"MB":13.6,"file":"/app/recordings/UK_ CHANNEL 4 SD/T3 S1 c2b stall one-provider - 2026-11-14 12-57.mp4","note":"Gaps: 1, 100 s in all (the last: the provider dropped out).","part":1,"missed_start_ms":0,"is_partial":1,"work_dir":"/app/data/recordings-work/rec-24"}
+stream|codec_type=video|duration=195.133000
+stream|codec_type=audio|duration=194.895667
+format|duration=195.154333
+## staging log
+2026-11-14T01:57:15.913154951Z [Ingest 16] reading 5551e5c1441b for pool primary
+2026-11-14T01:57:15.918089215Z [Recordings] Schedule #27 "T3 S1 c2b stall one-provider" (UK| CHANNEL 4 SD): scheduled -> recording
+2026-11-14T01:57:15.919887434Z [Recordings] Starting recording #24 for schedule #27: "T3 S1 c2b stall one-provider" on Fake A (shared ingest) -> segments in appdata (part 1)
+2026-11-14T01:58:49.093015430Z [Ingest 16] lost the stream (27s behind real time); reconnecting
+2026-11-14T01:58:50.974166826Z [Recordings #24] No output for 30s since the last data; treating ffmpeg as stalled
+2026-11-14T01:58:50.974189351Z [Recordings] #24 has had no data for 30s from Fake A; ending this part
+2026-11-14T01:58:50.979844832Z [Recordings] #24 ended early (no data; ffmpeg exit 0; "frame=  998 fps= 11 q=-1.0 Lsize=N/A time=00:01:06.55 bitrate=N/A speed=0.737x elapsed=0:01:30.26") on Fake A; it continues in the same recording
+2026-11-14T01:58:50.981305521Z [Recordings] #24 continues after 30s on Fake A
+2026-11-14T01:58:50.982497664Z [Recordings] Starting recording #24 for schedule #27: "T3 S1 c2b stall one-provider" on Fake A (shared ingest) -> segments in appdata (part 2)
+2026-11-14T01:58:59.094917672Z [Ingest 16] gave up: no MPEG-TS again within 10s
+2026-11-14T01:58:59.095512187Z [Ingest 16] closed (no MPEG-TS again within 10s); most behind real time 36.6s
+2026-11-14T01:58:59.099471569Z [Recordings] #24 ended early (the shared feed ended: upstream-lost; ffmpeg exit 183; "Error opening input files: Invalid data found when processing input") on Fake A; it continues in the same recording (continued 1 times so far)
+2026-11-14T01:59:10.899124861Z [Ingest 17] not used: no answer in time
+2026-11-14T01:59:10.899346838Z [Ingest 17] closed (no answer in time); most behind real time not measured
+2026-11-14T01:59:10.899423198Z [Recordings] Shared ingest not used for this recording: Shared ingest not used: no answer in time
+2026-11-14T01:59:10.900002786Z [Recordings] #24 continues after 20s on Fake A
+2026-11-14T01:59:10.902564781Z [Recordings] Starting recording #24 for schedule #27: "T3 S1 c2b stall one-provider" on Fake A -> segments in appdata (part 3)
+2026-11-14T01:59:40.909838832Z [Recordings #24] No output for 30s since starting; treating ffmpeg as stalled
+2026-11-14T01:59:40.909875153Z [Recordings] #24 has had no data for 30s from Fake A; ending this part
+2026-11-14T01:59:45.911984427Z [Recordings] #24 ended early (no data; ffmpeg was stopped; "libswresample   7.  1.102 /  7.  1.102") on Fake A; it continues in the same recording (continued 2 times so far)
+2026-11-14T02:00:00.914900655Z [Ingest 18] reading 5551e5c1441b for pool primary
+2026-11-14T02:00:00.915352028Z [Recordings] #24 continues after 50s on Fake A
+2026-11-14T02:00:00.917503606Z [Recordings] Starting recording #24 for schedule #27: "T3 S1 c2b stall one-provider" on Fake A (shared ingest) -> segments in appdata (part 4)
+2026-11-14T02:02:09.001621903Z [Recordings] Scheduled stop time reached for schedule 27
+2026-11-14T02:02:09.013548886Z [Recordings] Schedule #27 "T3 S1 c2b stall one-provider" (UK| CHANNEL 4 SD): recording -> completed
+2026-11-14T02:02:09.013567739Z [Recordings] Recording #24 captured 50 segments in 293s; making its MP4
+2026-11-14T02:02:09.039844575Z [Recordings] Making the MP4 of #24 from 50 segments -> /app/recordings/UK_ CHANNEL 4 SD/T3 S1 c2b stall one-provider - 2026-11-14 12-57.mp4
+2026-11-14T02:02:19.001917295Z [Ingest 18] closed (nobody is watching); most behind real time 0.1s
+2026-11-14T02:02:19.023680414Z [Recordings] #24 is finished: /app/recordings/UK_ CHANNEL 4 SD/T3 S1 c2b stall one-provider - 2026-11-14 12-57.mp4
+# Provider A "up" in every one of 71 samples, downUntil null; no [Providers] line and no "is down" line anywhere in the log
+# 01:34..02:36. The recording resumed on A (02:00:00.9) and completed. Silence ~99 s (stall 01:58:22 .. data again
+# 02:00:00.9; longer than the 70 s stall because part 3, opened 01:59:10 during the stall, kept its stalled fake connection
+# past the 01:59:32 restore until its 30 s no-data timer). Gap note "Gaps: 1, 100 s"; window 293.1 s - MP4 195.2 s = 97.9 s.
+
+############ 3. #305: waiting reason after the move to recording
+## 3a: B (#26) due while A (#25, check 2a) records. D-42: a clash loser is never started after its winner ends;
+##     it stayed waiting and was missed. Not the issue's path, kept for the record.
+01:47:47.847Z schedule Y -> 201 {"id":26,"title":"T3 S1 c3 queued","description":null,"source_id":2,"channel_item_id":"1502","channel_name":
+01:48:56Z sched#26 status=scheduled reason=null | no rec | fakeA conns=1 fakeB conns=0
+01:49:52Z sched#26 status=scheduled reason=null | no rec | fakeA conns=0 fakeB conns=1
+01:50:03Z sched#26 status=waiting reason="Clashes with “T3 S1 c2 stall”, which is recording." | no rec | fakeA conns=0 fakeB conns=1
+01:53:47Z sched#26 status=waiting reason="Clashes with “T3 S1 c2 stall”, which is recording." | no rec | fakeA conns=0 fakeB conns=1
+01:54:10Z sched#26 status=waiting reason="Clashes with “T3 S1 c2 stall”, which recorded instead." | no rec | fakeA conns=0 fakeB conns=0
+01:57:09Z sched#26 status=missed reason="Not recorded. Clashes with “T3 S1 c2 stall”, which recorded instead." | no rec | fakeA conns=0 fakeB conns=0
+01:57:21Z sched#26 status=missed reason="Not recorded. Clashes with “T3 S1 c2 stall”, which recorded instead." | no rec | fakeA conns=1 fakeB conns=0
+2026-11-14T01:50:00.757369159Z [Recordings] Schedule #26 "T3 S1 c3 queued" (EXTRA| FILLER 002 HD): scheduled -> waiting: Clashes with “T3 S1 c2 stall”, which is recording.
+2026-11-14T01:57:00.877422546Z [Recordings] Schedule #26 "T3 S1 c3 queued" (EXTRA| FILLER 002 HD): waiting -> missed: Not recorded. Clashes with “T3 S1 c2 stall”, which recorded instead.
+## 3b: X (#28) records; Y (#29) clashes and waits; Y chosen while X records (still waits); chosen again after X ended
+02:02:24.867Z schedule X -> 201 {"id":28,"title":"T3 S1 c3b first","description":null,"source_id":2,"channel_item_id":"1504","channel_name":"EXTRA| FILLER 004 HD","channe
+02:02:25.300Z schedule Y -> 201 {"id":29,"title":"T3 S1 c3b second","description":null,"source_id":2,"channel_item_id":"1503","channel_name":"EXTRA| FILLER 003 HD","chann
+02:04:30.311Z POST /api/recordings/scheduled/29/choose -> {"id":29,"title":"T3 S1 c3b second","description":null,"source_id":2,"channel_item_id":"1503","channel_name":"EX
+02:07:00.911Z POST /api/recordings/scheduled/29/choose (again, first is completed) -> {"id":29,"title":"T3 S1 c3b second","description":null,"source_id":2,"channel_item_i
+02:02:25Z sched#29 status=scheduled reason=null | no rec | fakeA conns=0 fakeB conns=0
+02:02:35Z sched#29 status=scheduled reason=null | no rec | fakeA conns=1 fakeB conns=0
+02:04:26Z sched#29 status=waiting reason="Clashes with “T3 S1 c3b first”, which is recording." | no rec | fakeA conns=1 fakeB conns=0
+02:04:35Z sched#29 status=waiting reason="Clashes with “T3 S1 c3b first”, which is recording." | no rec | fakeA conns=1 fakeB conns=0
+02:06:26Z sched#29 status=waiting reason="Clashes with “T3 S1 c3b first”, which is recording." | no rec | fakeA conns=1 fakeB conns=0
+02:06:35Z sched#29 status=waiting reason="Clashes with “T3 S1 c3b first”, which recorded instead." | no rec | fakeA conns=1 fakeB conns=0
+02:07:03Z sched#29 status=scheduled reason=null | no rec | fakeA conns=0 fakeB conns=0
+02:07:12Z sched#29 status=scheduled reason=null | no rec | fakeA conns=0 fakeB conns=0
+02:07:21Z sched#29 status=recording reason=null | rec#26 status=recording seg=capturing prov=2 dur=null MB=0.0 note=null | fakeA conns=1 fakeB conns=0
+02:07:30Z sched#29 status=recording reason=null | rec#26 status=recording seg=capturing prov=2 dur=null MB=0.0 note=null | fakeA conns=1 fakeB conns=0
+02:07:39Z sched#29 status=recording reason=null | rec#26 status=recording seg=capturing prov=2 dur=null MB=0.0 note=null | fakeA conns=1 fakeB conns=0
+02:07:49Z sched#29 status=recording reason=null | rec#26 status=recording seg=capturing prov=2 dur=null MB=0.0 note=null | fakeA conns=1 fakeB conns=0
+02:07:58Z sched#29 status=recording reason=null | rec#26 status=recording seg=capturing prov=2 dur=null MB=0.0 note=null | fakeA conns=1 fakeB conns=0
+02:08:35Z sched#29 not listed | rec#26 status=completed seg=done prov=2 dur=72 MB=4.2 note=null
+2026-11-14T02:02:30.928996916Z [Recordings] Schedule #28 "T3 S1 c3b first" (EXTRA| FILLER 004 HD): scheduled -> recording
+2026-11-14T02:02:30.930864246Z [Recordings] Starting recording #25 for schedule #28: "T3 S1 c3b first" on Fake A (shared ingest) -> segments in appdata (part 1)
+2026-11-14T02:03:30.881515784Z [Recordings] Schedule #29 "T3 S1 c3b second" (EXTRA| FILLER 003 HD): scheduled -> waiting: Clashes with “T3 S1 c3b first”, which is recording.
+2026-11-14T02:04:30.555293163Z [Recordings] Schedule #29 "T3 S1 c3b second" (EXTRA| FILLER 003 HD): waiting -> scheduled
+2026-11-14T02:04:30.555316297Z [Recordings] Schedule #29 "T3 S1 c3b second": chosen over its clashes
+2026-11-14T02:04:30.881630584Z [Recordings] Schedule #29 "T3 S1 c3b second" (EXTRA| FILLER 003 HD): scheduled -> waiting: Clashes with “T3 S1 c3b first”, which is recording.
+2026-11-14T02:06:27.001429180Z [Recordings] Scheduled stop time reached for schedule 28
+2026-11-14T02:06:27.011440367Z [Recordings] Schedule #28 "T3 S1 c3b first" (EXTRA| FILLER 004 HD): recording -> completed
+2026-11-14T02:07:01.150731508Z [Recordings] Schedule #29 "T3 S1 c3b second" (EXTRA| FILLER 003 HD): waiting -> scheduled
+2026-11-14T02:07:01.150756274Z [Recordings] Schedule #29 "T3 S1 c3b second": chosen over its clashes
+2026-11-14T02:07:15.920025167Z [Recordings] #26 starts 4 min into the programme
+2026-11-14T02:07:15.920836779Z [Recordings] Schedule #29 "T3 S1 c3b second" (EXTRA| FILLER 003 HD): scheduled -> recording
+2026-11-14T02:07:15.923327890Z [Recordings] Starting recording #26 for schedule #29: "T3 S1 c3b second" on Fake A (shared ingest) -> segments in appdata (part 1)
+2026-11-14T02:08:27.002804532Z [Recordings] Scheduled stop time reached for schedule 29
+2026-11-14T02:08:27.014018457Z [Recordings] Schedule #29 "T3 S1 c3b second" (EXTRA| FILLER 003 HD): recording -> completed
+## 3c (the issue's own path): the recording in check 4b waited ("Viewer declined; waiting for playback to stop") and
+##     then started: its row read error=null from the first poll after waiting -> recording (see 4b).
+# Pass: every row read status=recording with error null. 3c is the discriminating case (a coordinator wait, cleared only by the
+# move to recording); 3b is not (choose itself clears a clash reason). In 3b the first choose (02:04:30, while X
+# recorded) put Y back to waiting with the clash reason; only a choose after X ended let it start (D-42 hold).
+
+############ 4. #306: a recording reclaims idle shared feeds
+## 4a (did not trigger): the recording channel (FILLER 003) has a backup on B, so with A full it went to B
+02:08:43.270Z made 4 throwaway staging viewers, ids 4,5,6,7
+02:08:48.130Z viewer 1 plays channel 1016: session 2ad9b429b3cf1b87 strategy=transcode
+02:08:56.992Z viewer 2 plays channel 1017: session 6e13abc722757dab strategy=transcode
+02:09:01.844Z viewer 3 plays channel 1018: session 733195bcf1c8df08 strategy=transcode
+02:09:10.711Z viewer 4 plays channel 1019: session 7fdf7ed9656d7355 strategy=transcode
+02:09:10.732Z status providers: Fake A used=4/4; Fake B used=0/4
+02:09:10.738Z scheduled #30 on EXTRA| FILLER 003 HD (Fake A, no backup), due now, 4 min
+02:09:18.738Z schedule #30: status=recording error=null
+02:09:26.747Z schedule #30: status=recording error=null
+02:09:34.754Z schedule #30: status=recording error=null
+02:09:42.761Z schedule #30: status=recording error=null
+02:09:51.792Z stopping all 4 plays (DELETE /api/playback/<session>)
+02:09:56.184Z schedule #30: status=recording error=null | Fake A used=0
+02:10:00.203Z schedule #30: status=recording error=null | Fake A used=0
+02:10:04.223Z schedule #30: status=recording error=null | Fake A used=0
+02:10:08.239Z schedule #30: status=recording error=null | Fake A used=0
+02:10:12.257Z schedule #30: status=recording error=null | Fake A used=0
+02:10:16.274Z schedule #30: status=recording error=null | Fake A used=0
+02:10:20.290Z schedule #30: status=recording error=null | Fake A used=0
+02:10:24.307Z schedule #30: status=recording error=null | Fake A used=0
+02:10:24.320Z deleted the 4 throwaway viewers; schedule id 30
+2026-11-14T02:09:15.921282855Z [Recordings] Schedule #30 records on Fake B: Fake A has no free connection
+2026-11-14T02:09:15.961282137Z [Recordings] Schedule #30 "T3 S1 c4 reclaim" (EXTRA| FILLER 003 HD): scheduled -> recording
+2026-11-14T02:09:15.965020510Z [Recordings] Starting recording #27 for schedule #30: "T3 S1 c4 reclaim" on Fake B (shared ingest) -> segments in appdata (part 1)
+## 4b: four throwaway staging viewers play four Fake A channels (4/4 used), a recording due on CHANNEL 4 SD (A only),
+##     then all four plays stopped 6 s after a scheduler tick so their 10 s ingest lingers span the next tick
+02:13:36.233Z made 4 throwaway staging viewers, ids 8,9,10,11
+02:13:41.094Z viewer 1 plays channel 1016: session 42744b9d2a57e17b strategy=transcode
+02:13:45.946Z viewer 2 plays channel 1017: session 778054906fb92cd2 strategy=transcode
+02:13:50.798Z viewer 3 plays channel 1019: session 294f88e7aabc7464 strategy=transcode
+02:13:59.659Z viewer 4 plays channel 1020: session ccf8c95aa1669d71 strategy=transcode
+02:13:59.675Z status providers: Fake A used=4/4; Fake B used=0/4
+02:13:59.681Z scheduled #31 on UK| CHANNEL 4 SD (Fake A only), due now, 4 min
+02:14:07.681Z schedule #31: status=scheduled error=null
+02:14:15.688Z schedule #31: status=scheduled error=null
+02:14:23.696Z schedule #31: status=waiting error="Viewer declined; waiting for playback to stop"
+02:14:31.706Z schedule #31: status=waiting error="Viewer declined; waiting for playback to stop"
+02:14:36.824Z stopping all 4 plays (DELETE /api/playback/<session>)
+02:14:41.358Z schedule #31: status=waiting error="Viewer declined; waiting for playback to stop" | Fake A used=0
+02:14:45.376Z schedule #31: status=waiting error="Viewer declined; waiting for playback to stop" | Fake A used=0
+02:14:49.394Z schedule #31: status=recording error=null | Fake A used=1
+02:14:53.413Z schedule #31: status=recording error=null | Fake A used=1
+02:14:57.428Z schedule #31: status=recording error=null | Fake A used=1
+02:15:01.465Z schedule #31: status=recording error=null | Fake A used=1
+02:15:05.494Z schedule #31: status=recording error=null | Fake A used=1
+02:15:09.509Z schedule #31: status=recording error=null | Fake A used=1
+02:15:09.521Z deleted the 4 throwaway viewers; schedule id 31
+## staging log
+2026-11-14T02:13:32.033655583Z [Recordings] #27 is finished: /app/recordings/EXTRA_ FILLER 003 HD/T3 S1 c4 reclaim - 2026-11-14 13-09.mp4
+2026-11-14T02:13:36.272948829Z [Ingest 26] reading e8def516b34b for pool primary
+2026-11-14T02:13:41.132508400Z [Ingest 27] reading 86c67c48d2be for pool primary
+2026-11-14T02:13:45.982822783Z [Ingest 28] reading c566485d61f6 for pool primary
+2026-11-14T02:13:50.833888117Z [Ingest 29] reading 7de7aed11c5b for pool primary
+2026-11-14T02:14:15.924297173Z [Recordings] Schedule #31 "T3 S1 c4b reclaim" (UK| CHANNEL 4 SD): scheduled -> waiting: Viewer declined; waiting for playback to stop
+2026-11-14T02:14:45.925520846Z [Coordinator] Reclaiming idle stream ingest-26 (a shared feed with no viewer) for recording #31
+2026-11-14T02:14:45.926046161Z [Ingest 26] closed (its connection was needed); most behind real time 0.1s
+2026-11-14T02:14:45.927208691Z [Coordinator] Reclaiming idle stream ingest-27 (a shared feed with no viewer) for recording #31
+2026-11-14T02:14:45.927460383Z [Ingest 27] closed (its connection was needed); most behind real time 0.1s
+2026-11-14T02:14:45.928220735Z [Coordinator] Reclaiming idle stream ingest-28 (a shared feed with no viewer) for recording #31
+2026-11-14T02:14:45.928368688Z [Ingest 28] closed (its connection was needed); most behind real time 0.1s
+2026-11-14T02:14:45.928970338Z [Coordinator] Reclaiming idle stream ingest-29 (a shared feed with no viewer) for recording #31
+2026-11-14T02:14:45.929099077Z [Ingest 29] closed (its connection was needed); most behind real time 0.1s
+2026-11-14T02:14:45.965094290Z [Ingest 30] reading 5551e5c1441b for pool primary
+2026-11-14T02:14:45.970083114Z [Recordings] #28 starts 1 min into the programme
+2026-11-14T02:14:45.970795173Z [Recordings] Schedule #31 "T3 S1 c4b reclaim" (UK| CHANNEL 4 SD): waiting -> recording
+2026-11-14T02:14:45.972834799Z [Recordings] Starting recording #28 for schedule #31: "T3 S1 c4b reclaim" on Fake A (shared ingest) -> segments in appdata (part 1)
+## recording row (+ ffprobe)
+{"id":28,"status":"completed","started":"2026-11-14T02:14:45.965Z","ended":"2026-11-14T02:18:01.688Z","window_s":195.723,"duration_sec":196,"MB":11.8,"file":"/app/recordings/UK_ CHANNEL 4 SD/T3 S1 c4b reclaim - 2026-11-14 13-14.mp4","note":null,"part":1,"missed_start_ms":44293,"is_partial":1,"work_dir":"/app/data/recordings-work/rec-28"}
+stream|codec_type=video|duration=196.200000
+stream|codec_type=audio|duration=195.946667
+format|duration=196.221333
+# Pass: "Reclaiming idle stream ingest-26 (a shared feed with no viewer) for recording #31" (x4), no "Infinitys silent".
+# Seen on the way: the waiting reason read "Viewer declined; waiting for playback to stop" though no viewer was asked or
+# answered (the throwaway viewers have no app to prompt). The 4 viewer users were deleted after.
+
+############ 5. #288 back-off: every provider down 12.5 min of a 17 min recording (BBC ONE: A 1016, backup B 5016)
+02:18:21.733Z schedule -> 201 {"id":32,"title":"T3 S1 c5 back-off","description":null,"source_id":2,"channel_item_id":"1016","channel_name":"UK| BBC O
+02:18:39.771Z driver: seen recording
+02:19:39.776Z POST fake A /fake/fail stream=1016 mode=404 -> {"stream":1016,"mode":"404","overrides":{"1016":"404"}}
+02:19:39.917Z POST fake B /fake/fail stream=5016 mode=404 -> {"stream":5016,"mode":"404","overrides":{"5016":"404"}}
+02:32:10.652Z POST fake B /fake/fail stream=5016 mode=ok -> {"stream":5016,"mode":"ok","overrides":{}}
+02:32:40.209Z POST fake A /fake/fail stream=1016 mode=ok -> {"stream":1016,"mode":"ok","overrides":{}}
+## capture starts per minute of the outage (from 02:19:39.8; "Starting recording #29" lines)
+before the outage: 1 (part 1)
+outage minute  1 (+  0..+ 60 s): 4 starts
+outage minute  2 (+ 60..+120 s): 4 starts
+outage minute  3 (+120..+180 s): 4 starts
+outage minute  4 (+180..+240 s): 4 starts
+outage minute  5 (+240..+300 s): 4 starts
+outage minute  6 (+300..+360 s): 4 starts
+outage minute  7 (+360..+420 s): 4 starts
+outage minute  8 (+420..+480 s): 4 starts
+outage minute  9 (+480..+540 s): 4 starts
+outage minute 10 (+540..+600 s): 4 starts
+outage minute 11 (+600..+660 s): 0 starts
+outage minute 12 (+660..+720 s): 1 starts
+outage minute 13 (+720..+780 s): 1 starts
+outage minute 14 (+780..+840 s): 1 starts
+## driver polls (excerpt)
+02:18:21Z sched#32 status=scheduled reason=null | no rec | fakeA conns=0 fakeB conns=0
+02:18:37Z sched#32 status=recording reason=null | rec#29 status=recording seg=capturing prov=2 dur=null MB=0.0 note=null | fakeA conns=1 fakeB conns=0
+02:18:54Z sched#32 status=recording reason=null | rec#29 status=recording seg=capturing prov=2 dur=null MB=0.0 note=null | fakeA conns=1 fakeB conns=0
+02:19:10Z sched#32 status=recording reason=null | rec#29 status=recording seg=capturing prov=2 dur=null MB=0.0 note=null | fakeA conns=1 fakeB conns=0
+  ...
+02:35:06Z sched#32 status=recording reason=null | rec#29 status=recording seg=capturing prov=3 dur=null MB=0.0 note="Gaps: 1, 815 s in all (the last: the provider dropped out)." | fakeA conns=0 fakeB conns=1
+02:35:22Z sched#32 status=recording reason=null | rec#29 status=recording seg=capturing prov=3 dur=null MB=0.0 note="Gaps: 1, 815 s in all (the last: the provider dropped out)." | fakeA conns=0 fakeB conns=1
+02:35:38Z sched#32 not listed | rec#29 status=recording seg=finishing prov=3 dur=198 MB=0.0 note="Gaps: 1, 815 s in all (the last: the provider dropped out)." | fakeA conns=0 fakeB conns=0
+02:35:54Z sched#32 not listed | rec#29 status=completed seg=done prov=3 dur=198 MB=11.9 note="Gaps: 1, 815 s in all (the last: the provider dropped out)."
+## recording row + ffprobe
+{"id":29,"status":"completed","started":"2026-11-14T02:18:30.971Z","ended":"2026-11-14T02:35:24.030Z","window_s":1013.059,"duration_sec":198,"MB":11.9,"file":"/app/recordings/UK_ BBC ONE HD/T3 S1 c5 back-off - 2026-11-14 13-18.mp4","note":"Gaps: 1, 815 s in all (the last: the provider dropped out).","part":1,"missed_start_ms":0,"is_partial":1,"work_dir":"/app/data/recordings-work/rec-29"}
+stream|codec_type=video|duration=197.866333
+stream|codec_type=audio|duration=197.674667
+format|duration=197.887666
+## staging log (parts 1-4, then from part 39 to the end; parts 5-38 alternate A, B every 15 s the same way)
+2026-11-14T02:18:30.971110181Z [Ingest 31] reading e8def516b34b for pool primary
+2026-11-14T02:18:30.978938443Z [Recordings] Schedule #32 "T3 S1 c5 back-off" (UK| BBC ONE HD): scheduled -> recording
+2026-11-14T02:18:30.981862158Z [Recordings] Starting recording #29 for schedule #32: "T3 S1 c5 back-off" on Fake A (shared ingest) -> segments in appdata (part 1)
+2026-11-14T02:19:39.827038847Z [Ingest 31] lost the stream (ECONNRESET); reconnecting
+2026-11-14T02:19:49.826510967Z [Ingest 31] gave up: HTTP 404
+2026-11-14T02:19:49.826861872Z [Ingest 31] closed (HTTP 404); most behind real time 9.9s
+2026-11-14T02:19:49.834985150Z [Recordings] #29 ended early (the shared feed ended: upstream-lost; ffmpeg exit 0; "frame= 1040 fps= 14 q=-1.0 Lsize=N/A time=00:01:09.35 bitrate=N/A speed=0.936x elapsed=0:01:14.06") on Fake A; it continues in the same recording
+2026-11-14T02:19:49.837487257Z [Ingest 32] not used: HTTP 404
+2026-11-14T02:19:49.837697299Z [Ingest 32] closed (HTTP 404); most behind real time not measured
+2026-11-14T02:19:49.837975755Z [Recordings] Shared ingest not used for this recording: Shared ingest not used: HTTP 404
+2026-11-14T02:19:49.838680284Z [Recordings] #29 continues after 9s on Fake B
+2026-11-14T02:19:49.840424264Z [Recordings] Starting recording #29 for schedule #32: "T3 S1 c5 back-off" on Fake B -> segments in appdata (part 2)
+2026-11-14T02:19:49.858132960Z [Recordings] #29 ended early (ffmpeg exit 8; "Error opening input files: Server returned 404 Not Found") on Fake B; it continues in the same recording (continued 1 times so far)
+2026-11-14T02:20:00.930405685Z [Ingest 33] not used: HTTP 404
+2026-11-14T02:20:00.930599936Z [Ingest 33] closed (HTTP 404); most behind real time not measured
+2026-11-14T02:20:00.930646739Z [Recordings] Shared ingest not used for this recording: Shared ingest not used: HTTP 404
+2026-11-14T02:20:00.931517090Z [Recordings] #29 continues after 11s on Fake A
+2026-11-14T02:20:00.934098794Z [Recordings] Starting recording #29 for schedule #32: "T3 S1 c5 back-off" on Fake A -> segments in appdata (part 3)
+2026-11-14T02:20:00.956549422Z [Recordings] #29 ended early (ffmpeg exit 8; "Error opening input files: Server returned 404 Not Found") on Fake A; it continues in the same recording (continued 2 times so far)
+2026-11-14T02:20:15.930525669Z [Ingest 34] not used: HTTP 404
+2026-11-14T02:20:15.930656773Z [Ingest 34] closed (HTTP 404); most behind real time not measured
+2026-11-14T02:20:15.930727590Z [Recordings] Shared ingest not used for this recording: Shared ingest not used: HTTP 404
+2026-11-14T02:20:15.931215377Z [Recordings] #29 continues after 15s on Fake B
+2026-11-14T02:20:15.932649875Z [Recordings] Starting recording #29 for schedule #32: "T3 S1 c5 back-off" on Fake B -> segments in appdata (part 4)
+2026-11-14T02:20:15.948606464Z [Recordings] #29 ended early (ffmpeg exit 8; "Error opening input files: Server returned 404 Not Found") on Fake B; it continues in the same recording (continued 3 times so far)
+2026-11-14T02:20:30.931011964Z [Ingest 35] not used: HTTP 404
+2026-11-14T02:20:30.931234674Z [Ingest 35] closed (HTTP 404); most behind real time not measured
+2026-11-14T02:20:30.931236358Z [Recordings] Shared ingest not used for this recording: Shared ingest not used: HTTP 404
+2026-11-14T02:20:30.931976969Z [Recordings] #29 continues after 15s on Fake A
+  ...
+2026-11-14T02:29:00.937727358Z [Ingest 69] not used: HTTP 404
+2026-11-14T02:29:00.937983531Z [Ingest 69] closed (HTTP 404); most behind real time not measured
+2026-11-14T02:29:00.938131851Z [Recordings] Shared ingest not used for this recording: Shared ingest not used: HTTP 404
+2026-11-14T02:29:00.939194093Z [Recordings] #29 continues after 15s on Fake A
+2026-11-14T02:29:00.951358611Z [Recordings] Starting recording #29 for schedule #32: "T3 S1 c5 back-off" on Fake A -> segments in appdata (part 39)
+2026-11-14T02:29:00.976623985Z [Recordings] #29 ended early (ffmpeg exit 8; "Error opening input files: Server returned 404 Not Found") on Fake A; it continues in the same recording (continued 38 times so far)
+2026-11-14T02:29:15.938130039Z [Ingest 70] not used: HTTP 404
+2026-11-14T02:29:15.938257124Z [Ingest 70] closed (HTTP 404); most behind real time not measured
+2026-11-14T02:29:15.938344478Z [Recordings] Shared ingest not used for this recording: Shared ingest not used: HTTP 404
+2026-11-14T02:29:15.939016203Z [Recordings] #29 continues after 15s on Fake B
+2026-11-14T02:29:15.948067926Z [Recordings] Starting recording #29 for schedule #32: "T3 S1 c5 back-off" on Fake B -> segments in appdata (part 40)
+2026-11-14T02:29:15.974223784Z [Recordings] #29 ended early (ffmpeg exit 8; "Error opening input files: Server returned 404 Not Found") on Fake B; it continues in the same recording (continued 39 times so far)
+2026-11-14T02:29:30.937989616Z [Ingest 71] not used: HTTP 404
+2026-11-14T02:29:30.938190297Z [Ingest 71] closed (HTTP 404); most behind real time not measured
+2026-11-14T02:29:30.938335463Z [Recordings] Shared ingest not used for this recording: Shared ingest not used: HTTP 404
+2026-11-14T02:29:30.939391127Z [Recordings] #29 continues after 15s on Fake A
+2026-11-14T02:29:30.952806088Z [Recordings] Starting recording #29 for schedule #32: "T3 S1 c5 back-off" on Fake A -> segments in appdata (part 41)
+2026-11-14T02:29:30.978693135Z [Recordings] #29 ended early (ffmpeg exit 8; "Error opening input files: Server returned 404 Not Found") on Fake A; it continues in the same recording (continued 40 times so far)
+2026-11-14T02:30:45.938216072Z [Ingest 72] not used: HTTP 404
+2026-11-14T02:30:45.938404387Z [Ingest 72] closed (HTTP 404); most behind real time not measured
+2026-11-14T02:30:45.938570069Z [Recordings] Shared ingest not used for this recording: Shared ingest not used: HTTP 404
+2026-11-14T02:30:45.939463303Z [Recordings] #29 continues after 75s on Fake B
+2026-11-14T02:30:45.952826271Z [Recordings] Starting recording #29 for schedule #32: "T3 S1 c5 back-off" on Fake B -> segments in appdata (part 42)
+2026-11-14T02:30:45.981118581Z [Recordings] #29 ended early (ffmpeg exit 8; "Error opening input files: Server returned 404 Not Found") on Fake B; it continues in the same recording (continued 41 times so far)
+2026-11-14T02:32:00.938319753Z [Ingest 73] not used: HTTP 404
+2026-11-14T02:32:00.938518461Z [Ingest 73] closed (HTTP 404); most behind real time not measured
+2026-11-14T02:32:00.938565749Z [Recordings] Shared ingest not used for this recording: Shared ingest not used: HTTP 404
+2026-11-14T02:32:00.939526729Z [Recordings] #29 continues after 75s on Fake A
+2026-11-14T02:32:00.953687072Z [Recordings] Starting recording #29 for schedule #32: "T3 S1 c5 back-off" on Fake A -> segments in appdata (part 43)
+2026-11-14T02:32:00.981633339Z [Recordings] #29 ended early (ffmpeg exit 8; "Error opening input files: Server returned 404 Not Found") on Fake A; it continues in the same recording (continued 42 times so far)
+2026-11-14T02:33:15.982708015Z [Ingest 74] reading 00dcac057683 for pool 3
+2026-11-14T02:33:15.983013161Z [Recordings] #29 continues after 75s on Fake B
+2026-11-14T02:33:16.002654359Z [Recordings] Starting recording #29 for schedule #32: "T3 S1 c5 back-off" on Fake B (shared ingest) -> segments in appdata (part 44)
+2026-11-14T02:35:24.001686316Z [Recordings] Scheduled stop time reached for schedule 32
+2026-11-14T02:35:24.044489633Z [Recordings] Schedule #32 "T3 S1 c5 back-off" (UK| BBC ONE HD): recording -> completed
+2026-11-14T02:35:24.044513361Z [Recordings] Recording #29 captured 51 segments in 1013s; making its MP4
+2026-11-14T02:35:24.082145859Z [Recordings] Making the MP4 of #29 from 51 segments -> /app/recordings/UK_ BBC ONE HD/T3 S1 c5 back-off - 2026-11-14 13-18.mp4
+2026-11-14T02:35:34.001974670Z [Ingest 74] closed (nobody is watching); most behind real time 0.2s
+2026-11-14T02:35:42.109934374Z [Recordings] #29 is finished: /app/recordings/UK_ BBC ONE HD/T3 S1 c5 back-off - 2026-11-14 13-18.mp4
+## reading
+# Minutes 1-10 of the outage: 4 starts a minute (one per provider per 15 s tick, A and B alternating). From the 10-minute
+# mark: one start every 75 s (02:29:30 -> 02:30:45 -> 02:32:00 -> 02:33:15), i.e. at most once a minute; the 60 s wait
+# lands just past a tick, so it is the next tick, 75 s. Still alternating A, B. B restored 02:32:10.7, A 02:32:40.2; the
+# recording resumed on B at 02:33:15 (65 s after B came back) and recorded to its scheduled end 02:35:24; never ended early.
+# Gap note "Gaps: 1, 815 s in all"; window 1013.1 s - MP4 197.9 s = 815.2 s missing: one outage, one gap.
+
+############ 6. connections after each check (fake /fake/status "connections"; staging /api/status providers used)
+after 1  (01:47:00Z poll): A 0, B 0
+after 2a (01:54:11Z poll): A 0, B 0
+after 2b (02:02:19Z): ingest closed "nobody is watching"; next check's polls start A 0, B 0 (02:02:25Z)
+after 3b (02:08:35Z poll): A 0, B 0 (the ingest for #29 closed on its linger)
+after 4b: the 4 plays' ingests closed when reclaimed (02:14:45), the recording's on its end; staging used 0/0 at 02:18:2x
+after 5  (02:36Z): fake A connections 0, fake B connections 0; /api/status Fake A state=up used=0, Fake B state=up used=0
+
+############ rows made by this run (staging only; left in place, rig data kept)
+schedules #24-#32, recordings #22-#29; four + four throwaway viewer users (ids 4-11), each deleted by id after check 4.
+Not run: #286 low disk (T1 only, as briefed).
