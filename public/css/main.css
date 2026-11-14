@@ -4399,3 +4399,22 @@ input[aria-invalid] { border-color: var(--color-error); }
     appearance: auto;
   }
 }
+
+/* TV Guide: programmes found by the search (#321), and the record mark on a scheduled programme (#62) */
+.epg-hits { margin-bottom: var(--space-md); }
+.epg-hits-title { font-size: var(--text-sm); color: var(--color-text-muted); margin: 0 0 var(--space-xs); }
+.epg-hits ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-xs); max-height: 40vh; overflow: auto; }
+.epg-hit {
+  display: flex; flex-direction: column; align-items: flex-start; width: 100%; min-height: 44px;
+  padding: var(--space-sm) var(--space-md); text-align: left; cursor: pointer;
+  background: var(--color-bg-tertiary); color: var(--color-text-primary);
+  border: 1px solid var(--color-border); border-radius: var(--radius-sm);
+}
+.epg-hit:hover { background: var(--color-accent-dim); }
+.epg-hit-where, .epg-hits-more { font-size: var(--text-xs); color: var(--color-text-muted); }
+.epg-rec-mark {
+  display: inline-block; width: 0.6em; height: 0.6em; margin-right: var(--space-xs); border-radius: 50%;
+  background: var(--color-accent); vertical-align: baseline;
+}
+.epg-rec-mark.recording-now { box-shadow: 0 0 0 2px var(--color-accent-dim); }
+.programme-menu-status { font-weight: 600; }

@@ -72,8 +72,15 @@ class EpgGuide {
         // Search input
         if (this.searchInput) {
             // #276 (C2): the guide's channels are in memory, so a keystroke filters at once.
-            this.searchInput.addEventListener('input', () => this.render());
+            this.searchInput.addEventListener('input', () => { this.render(); this.searchProgrammesSoon(); });
         }
+        // #321 (5): a programme found by its title opens the programme menu.
+        this.container?.addEventListener?.('click', (e) => {
+            const hit = e.target?.closest?.('[data-hit]');
+            if (!hit) return;
+            const found = (this._hits || {}).list?.[Number(hit.dataset.hit)];
+            if (found) this.showProgramDetails(this.programmeData(found.channel, found.programme));
+        });
 
         this.initResizer();
     }
@@ -362,6 +369,68 @@ class EpgGuide {
         return this.getCurrentProgramFor({ tvgId, name: channelName });
     }
 
+    /** The programme as the menu takes it (the strings a guide cell carries as data-*). */
+    programmeData(channel, prog) {
+        const canRecord = !!(channel && channel.sourceId && channel.id);
+        return {
+            title: prog.title || '', description: prog.description || '', start: prog.start, stop: prog.stop,
+            recordable: String(canRecord && prog.stopMs > Date.now()),
+            ...(canRecord ? { sourceId: String(channel.sourceId), channelId: String(channel.id), channelName: channel.name || '', channelLogo: channel.tvgLogo || '' } : {})
+        };
+    }
+
+    /** #321 (5): programmes whose title holds `term`, on air or starting in the next 24 h, soonest first. */
+    findProgrammes(term, { limit = 30 } = {}) {
+        const needle = String(term || '').toLowerCase().trim();
+        if (needle.length < 2) return { list: [], total: 0 };
+        const now = Date.now(), horizon = now + 24 * 3600000;
+        const found = [];
+        for (const channel of this.rows || []) {
+            for (const prog of channel.programmes || []) {
+                if (prog.stopMs <= now || prog.startMs >= horizon) continue;
+                if (String(prog.title || '').toLowerCase().includes(needle)) found.push({ channel, programme: prog });
+            }
+        }
+        found.sort((a, b) => a.programme.startMs - b.programme.startMs);
+        return { list: found.slice(0, limit), total: found.length };
+    }
+
+    /** The markup of the matching programmes for the search box, or none. */
+    programmeHitsHtml() {
+        const hits = this._hits;
+        if (!hits || !hits.list.length) return '';
+        const items = hits.list.map(({ channel, programme }, i) => `
+        <li><button type="button" class="epg-hit" data-hit="${i}">
+          <span class="epg-hit-title">${UI.escape(programme.title || 'Unknown')}</span>
+          <span class="epg-hit-where pig-amount">${UI.escape(channel.name || '')} \u00b7 ${UI.escape(UI.dateRange(new Date(programme.startMs), new Date(programme.stopMs)))}</span>
+        </button></li>`).join('');
+        const more = hits.total > hits.list.length ? `<p class="epg-hits-more">${hits.total - hits.list.length} more: keep typing to narrow them.</p>` : '';
+        return `<section class="epg-hits" id="epg-hits" aria-label="Programmes matching your search"><h3 class="epg-hits-title">Programmes</h3><ul>${items}</ul>${more}</section>`;
+    }
+
+    /**
+     * Search the programme titles a short pause after the last keystroke (the channel filter above is instant): on a
+     * large guide each keystroke does no scan of its own. The panel is drawn in place, without rebuilding the grid.
+     */
+    searchProgrammesSoon() {
+        if (!this._searchProgrammes) this._searchProgrammes = UI.debounce(() => this.searchProgrammes(), EpgGuide.SEARCH_PAUSE_MS);
+        const term = this.searchInput ? this.searchInput.value.trim() : '';
+        if (!term) this._hits = null; // cleared: the panel goes now
+        this._searchProgrammes();
+    }
+
+    searchProgrammes() {
+        const term = this.searchInput ? this.searchInput.value.trim() : '';
+        this._hits = term ? this.findProgrammes(term) : null;
+        const panel = this.container?.querySelector?.('#epg-hits');
+        const html = this.programmeHitsHtml();
+        if (panel) {
+            if (html) panel.outerHTML = html; else panel.remove();
+        } else if (html) {
+            this.container.insertAdjacentHTML?.('afterbegin', html);
+        }
+    }
+
     /**
      * Update filtered channels based on search or group
      */
@@ -469,7 +538,9 @@ class EpgGuide {
         const totalHeight = this.filteredChannels.length * this.rowHeight;
 
         // Build HTML structure - header is INSIDE scroll container for natural sync
+        if (!(this.searchInput && this.searchInput.value.trim())) this._hits = null;
         this.container.innerHTML = `
+      ${this.programmeHitsHtml()}
       <div class="epg-container" style="position: relative;">
         <div class="epg-scroll-container" style="overflow: auto; max-height: calc(100vh - 200px);">
           <div class="epg-time-header">
@@ -1114,5 +1185,6 @@ class EpgGuide {
 
 // Export
 EpgGuide.REFRESH_MS = 5 * 60 * 1000;
+EpgGuide.SEARCH_PAUSE_MS = 200;
 
 window.EpgGuide = EpgGuide;
