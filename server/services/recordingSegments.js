@@ -611,14 +611,34 @@ const segmentFiles = (rec) => epochs(rec.work_dir).flatMap(e => archiveOf(e.dir)
  * deletion (`signal`) kills the helper and the partial goes once it has exited. F1: the partial is this call's own
  * (created exclusively under a unique name). Returns the published path.
  */
-async function joinSegments(rec, dir, first, alt, signal = null, made = () => {}) {
+async function joinSegments(rec, dir, first, alt, signal = null, made = () => {}, until = () => {}) {
     const partial = owners.partialFor(path.join(dir, first));
     made(partial); // 0270: named to its writer before it exists
     try {
-        await shareFs.copyInto(partial, segmentFiles(rec), { signal });
+        await copyToShare(partial, segmentFiles(rec), signal, until);
         return await publishNoReplace(partial, dir, first, alt, rec.id);
     } catch (err) {
         if (!err.keepPartial && !unresponsive(err)) await removeMade(partial);
+        throw err;
+    }
+}
+
+/**
+ * #289 (Codex review of Server 3): `sources` copied into `partial` on the share (shareFs.copyInto). A copy the share
+ * stalled may still create or write the partial until its helper has exited (`settled`): the writer lasts until then
+ * (`until`), with the partial held so no take-back removes it meanwhile (a deletion waits for it). Then the partial goes:
+ * its name is this attempt's alone, never used by a later one; one the share does not let go of stays journalled.
+ */
+async function copyToShare(partial, sources, signal, until) {
+    try {
+        return await shareFs.copyInto(partial, sources, { signal });
+    } catch (err) {
+        if (unresponsive(err) && err.sent !== false) {
+            owners.hold(partial);
+            until((err.settled || new Promise(() => {})).then(async () => {
+                try { await removeMade(partial); } finally { owners.release(partial); }
+            }));
+        }
         throw err;
     }
 }
@@ -649,8 +669,8 @@ async function deliverTs(rec, stitched) {
     }
     const name = rec.segment_name || `Recording ${rec.id}`;
     // 0264: a writer of the recording (a deletion stops it and waits); deleted meanwhile, its copy goes.
-    const done = await write(rec.id, async (signal, made) => {
-        const t = await joinSegments(rec, dir, `${name}.ts`, n => `${name} (${n}).ts`, signal, made);
+    const done = await write(rec.id, async (signal, made, until) => {
+        const t = await joinSegments(rec, dir, `${name}.ts`, n => `${name} (${n}).ts`, signal, made, until);
         const size = await sizeOn(t);
         if (!owned(rec.id)) {
             try { await owners.withdrawBounded(t, rec.id, 'recording', ioFor(t)); } finally { owners.release(t); }
@@ -834,8 +854,8 @@ async function keepOriginal(rec, dir) {
             }
         }
         // 0264: a writer of the recording (a deletion stops it and waits).
-        const published = await write(rec.id, async (signal, made) => {
-            const p = await joinSegments(rec, dir, `${base}.ts`, n => `${base} (original${n > 2 ? ` ${n - 1}` : ''}).ts`, signal, made);
+        const published = await write(rec.id, async (signal, made, until) => {
+            const p = await joinSegments(rec, dir, `${base}.ts`, n => `${base} (original${n > 2 ? ` ${n - 1}` : ''}).ts`, signal, made, until);
             // D1 (0251), R4-D2: deleted (or being deleted) while it was copied - this copy is its own, so it goes too.
             if (!owned(rec.id)) {
                 try { await owners.withdrawBounded(p, rec.id, 'kept original', ioFor(p)); } finally { owners.release(p); }
@@ -881,12 +901,12 @@ async function moveNow(rec) {
             // 0264: a writer of the recording; a deletion stops it and waits. #289: copied by a helper process
             // of its own (shareFs.copyInto) with the writer's signal: a deletion kills it, and a share that stops
             // making progress rejects with SHARE_UNRESPONSIVE; nothing in this process waits on the share's bytes.
-            target = await write(rec.id, async (signal, made) => {
+            target = await write(rec.id, async (signal, made, until) => {
                 if (signal.aborted) return null;
                 made(partial);
                 let t;
                 try {
-                    await shareFs.copyInto(partial, [source], { signal });
+                    await copyToShare(partial, [source], signal, until);
                     const copied = await ioFor(partial).stat(partial); // #287
                     if (!copied || copied.size !== fs.statSync(source).size) throw new Error('the copy is not the same size');
                     t = await publishNoReplace(partial, dir, `${name}.mp4`, n => `${name} (${n}).mp4`, rec.id); // F1

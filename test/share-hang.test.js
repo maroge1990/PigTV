@@ -2012,6 +2012,8 @@ test('#289: a share that stalls mid-copy: the move gives up after the stall time
         const moved = recordings.getById(rec.id);
         assert.equal(moved.file_path, path.join(foxFooty, `${rec.segment_name}.mp4`));
         assert.equal(fs.statSync(moved.file_path).size, 5000);
+        // The stalled copy's partial goes once its helper has exited (it may still be held when the move runs).
+        await until(() => filesOf(rec).length === 1 && journalOf(rec.id).length === 0, 5000);
         assert.deepEqual(filesOf(rec), [`${rec.segment_name}.mp4`], 'published exactly once: no "(2)" copy, no partial left');
         assert.deepEqual(journalOf(rec.id), [], 'nothing of it left in the journal');
     } finally {
@@ -2081,5 +2083,37 @@ test('#289: the comparison with a file on the share runs on its helper: same siz
     } finally {
         real(() => { fs.rmSync(same, { force: true }); fs.rmSync(other, { force: true }); });
         shareFs.reset();
+    }
+});
+
+test('#289: a copy that misses its stall time and creates the partial late, after the recording is deleted, leaves no partial and no journal row', async () => {
+    const owners = load('services/recordingOwners');
+    const { rec, recordings } = await captured('Late copy');
+    await leftInAppdata(rec, recordings);
+    // The share holds the copy (no progress): its helper is killed after the stall time but is stuck in the kernel,
+    // and the copy (the partial's creation and its bytes) lands only when the share answers, just before it exits.
+    const helpers = stallingHelpers((op) => op === 'copyInto', { exitOnRelease: true });
+    const realFork = shareFs._spawner.fork;
+    const stallWas = shareFs.tuning.copyStallMs;
+    shareFs.reset();
+    shareFs.tuning.copyStallMs = 1000;
+    shareFs._spawner.fork = helpers.fork;
+    owners._setStopWaitMs(200); // the deletion stops waiting for the writer and goes on
+    try {
+        await segments.processQueue(later());
+        assert.equal(helpers.heldCount(), 1, 'the copy went out and missed its stall time');
+        assert.equal(recordings.getById(rec.id).segment_state, 'moving', 'a stall: it waits to move');
+        await engine.deleteRecording(rec.id);
+        assert.ok(!recordings.getById(rec.id), 'the recording is gone');
+        helpers.release(); // the share answers: the partial is created now, then the helper exits
+        assert.ok(await until(() => filesOf(rec).length === 0 && journalOf(rec.id).length === 0, 5000),
+            `nothing of it is left: ${JSON.stringify({ files: filesOf(rec), journal: journalOf(rec.id) })}`);
+    } finally {
+        helpers.release();
+        owners._setStopWaitMs();
+        shareFs._spawner.fork = realFork;
+        shareFs.tuning.copyStallMs = stallWas;
+        shareFs.reset();
+        await finishLeftovers();
     }
 });
