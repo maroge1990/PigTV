@@ -81,3 +81,35 @@ test('returning to Sport draws the cached answer hidden until this visit\'s read
     await tick(); await tick();
     assertNoScores(h.html(), 'still waiting for the answer');
 });
+
+// Codex sign-off of the fix (medium): a refresh whose answer fails never discloses the cached one.
+test('a revisit (the sport page too) whose read says shown but whose answer fails keeps the cached scores hidden', async () => {
+    for (const where of ['', 'Football']) {
+        const h = harness();
+        await shown(h);
+        h.p.hide();
+        const visit = h.p.show(where);
+        await tick();
+        h.queue.prefs.shift().resolve({ spoilerFree: false });
+        await tick();
+        h.queue.front.shift().reject(new Error('down'));
+        await visit; await tick();
+        assertNoScores(h.html(), `revisit ${where || 'front'}: the answer failed`);
+        assert.match(h.html(), /Couldn’t update/, 'the slim notice says so');
+    }
+});
+
+test('the tab shown again, a read that says shown and an answer that fails: the scores stay hidden', async () => {
+    const h = harness();
+    await shown(h);
+    h.b.document.hidden = true;
+    h.b.document.dispatchEvent(new FakeEvent('visibilitychange'));
+    h.b.document.hidden = false;
+    h.b.document.dispatchEvent(new FakeEvent('visibilitychange'));
+    await tick();
+    h.queue.prefs.shift().resolve({ spoilerFree: false });
+    await tick();
+    h.queue.front.shift().reject(new Error('down'));
+    await tick(); await tick();
+    assertNoScores(h.html(), 'resumed, the answer failed');
+});

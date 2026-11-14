@@ -124,19 +124,22 @@ class SportsPage {
         if (!this.prefs.known || this.prefs.spoilerFree) this.conceal();
         this.loadLabels();
         this.loadFeatures();
+        let answered = false;
         try {
             const answer = await API.request('GET', '/sports/front');
             if (serial !== this.serial || !this.active) return;
             if (!answer || typeof answer !== 'object') throw new Error('Invalid sport answer');
             this.apply(answer);
             this.failed = false; this.stale = false; this.updatedAt = Date.now();
+            answered = true;
         } catch (err) {
             if (serial !== this.serial || !this.active) return;
             console.warn('Sport could not be loaded:', err && err.message);
             if (this.front) this.stale = true; else this.failed = true;
         }
         this.loaded = true;
-        this.mayShow = this.prefs.known && !this.prefs.spoilerFree;
+        // only this refresh's own answer is disclosed; a failed one leaves the page as it was (concealed stays concealed)
+        if (answered) this.mayShow = this.prefs.known && !this.prefs.spoilerFree;
         this.loadMap();
         this.render();
         this.schedule();
