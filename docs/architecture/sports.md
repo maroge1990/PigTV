@@ -152,7 +152,11 @@ scoreboards and `sports_dashboard_catalog` the only store of a game's identity, 
 The 30-minute pass (`refreshAll`, same demand rule and EPG-sync kick) keeps only the rosters while the collector is on; a
 league's first whole window after start runs it at once (a cricket roster comes only from the window). `sport_fixtures` is left in place, unread and unwritten with the collector on, so a rollback (from 0553 or later: OPERATIONS.md › Rollback) finds
 its last rows (that build's own coverage then bounds them, and its first pass replaces them). With
-`PIGTV_SPORTS_DASHBOARD=0` the fixture refresh fetches scoreboards and feeds the classifier as before 0551. Request count
+`PIGTV_SPORTS_DASHBOARD=0` (#297 item 2) the fixture refresh is the schedule read, kept by design: the same ESPN scoreboard
+URLs, once per day of the window every 30 minutes (demand rule as above), storing teams, start, end and F1 session only (no
+score, status or clock) and feeding the classifier as before 0551; the collector never starts and nothing writes its
+tables (test/sport-scores-off.test.js). So `=0` means no live scores and no score polling, not no ESPN; `PIGTV_SPORT_FIXTURES=0`
+is no ESPN schedule either. Request count
 over a simulated day (test/sport-espn-requests.test.js, NFL and EPL followed): idle 1048 scoreboard requests before and
 after; a viewer 18:00-21:00 UTC 1118 -> 1048; an enabled rule all day 1576 -> 1096.
 

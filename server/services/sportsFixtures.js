@@ -25,6 +25,11 @@
  * timeout (services/sportsFixturesEspn.js). `PIGTV_SPORT_FIXTURES=0` turns this off completely:
  * no fetch ever runs and snapshot() always returns nothing, so resolveLive's ESPN rule never
  * applies and every league is exactly on the heuristics, as before 0161.
+ *
+ * #297 (item 2): with the score collector off (PIGTV_SPORTS_DASHBOARD=0) this is the schedule read, kept by design: the
+ * same ESPN scoreboard URLs the collector polls, but once per day of the window every 30 minutes, and only what a
+ * schedule says is kept (sportsFixturesEspn.competitionRecord: id, teams, start, end, F1 session), never a score, a status
+ * or a clock. The guide's live/replay check reads it (snapshot).
  */
 const { getDb } = require('../db/sqlite');
 const sportsClassify = require('./sportsClassify');
@@ -402,7 +407,7 @@ function scheduleCooldownRetry() {
 /**
  * Refresh every league that currently matters. Never throws; never runs two at once. #272 (D-1): while the score collector
  * is on it is the one fetcher of ESPN's scoreboards (and so of what the classifier reads, snapshot()); this pass then only
- * keeps each team league's /teams roster (once a day). With the collector off it fetches the scoreboards itself, as before.
+ * keeps each team league's /teams roster (once a day). With the collector off it is the schedule read (#297, header).
  */
 async function refreshAll(now = Date.now()) {
     if (!enabled()) return;
