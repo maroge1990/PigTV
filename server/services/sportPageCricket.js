@@ -561,12 +561,17 @@ function overlay(value, state, now) {
         const v = views.get(m.id);
         const shown = as(m);
         if (v) {
-            const declared = (i, k) => lead.innings?.[i]?.[k]?.declared === true;
+            // #297 (Codex, high): the read's summary, crease, session and a declaration go with ITS score; shown beside the
+            // collector's (this account's delayed) score only when the two are the same point of the match, else held back
+            const same = (a, b) => Boolean(a && b) && a.runs === b.runs && a.wickets === b.wickets && (a.overs ?? null) === (b.overs ?? null);
+            const declared = (i, k, r) => lead.innings?.[i]?.[k]?.declared === true && same(lead.innings[i][k], r);
+            const aligned = !v.moved && (!v.innings || (v.innings.length === (lead.innings || []).length
+                && v.innings.every((list, i) => list.length === lead.innings[i].length && list.every((r, k) => same(r, lead.innings[i][k])))));
             lead = { ...lead, status: v.status, breakLabel: v.breakLabel, days: daysOf(shown, n, now), nextStart: nextStartOf(shown, n, now),
-                session: v.status === 'live' && lead.status === 'live' ? lead.session : null,
-                crease: ['live', 'break'].includes(v.status) ? lead.crease : null,
-                summary: v.moved ? null : lead.summary,
-                innings: v.innings ? v.innings.map((list, i) => list.map((r, k) => ({ ...r, declared: declared(i, k) }))) : lead.innings,
+                session: aligned && v.status === 'live' && lead.status === 'live' ? lead.session : null,
+                crease: aligned && ['live', 'break'].includes(v.status) ? lead.crease : null,
+                summary: aligned ? lead.summary : null,
+                innings: v.innings ? v.innings.map((list, i) => list.map((r, k) => ({ ...r, declared: declared(i, k, r) }))) : lead.innings,
                 seriesLine: seriesLineOf(shown, meta.all.map(as)) };
         }
         const air = airingOf(shown, n, now);
@@ -585,7 +590,9 @@ function overlay(value, state, now) {
         if (air) airings.push(air);
         const v = views.get(m.id);
         if (!v) return o;
-        return { ...o, status: v.status, nextStart: nextStartOf(as(m), n, now), line: v.moved ? null : o.line, scores: v.scores || o.scores };
+        // #297 (Codex, high): the read's line goes with its own scores: shown only beside the same scores
+        const aligned = !v.moved && (!v.scores || JSON.stringify(v.scores) === JSON.stringify((o.scores || []).map(x => (typeof x === 'string' && x.trim() ? x.trim() : null))));
+        return { ...o, status: v.status, nextStart: nextStartOf(as(m), n, now), line: aligned ? o.line : null, scores: v.scores || o.scores };
     });
     const out = { ...value, lead, series, others };
     AIRINGS.set(out, airings);

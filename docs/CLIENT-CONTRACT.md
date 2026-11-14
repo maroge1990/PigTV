@@ -886,10 +886,11 @@ on demand (kept 2 min while the lead is in play, 10 min on a match day, 1 h othe
   score (the lead's `innings`, `others[]`' `scores`, which are then the C-R card's text: ESPN's without a chase's target)
   are its C-R card's for the asking account, with its score delay, so they change when the front page's do, wherever
   the collector holds a fresh snapshot; elsewhere the page's own read as before. A match the collector has seen finish
-  keeps its previous status and score until the page's own read has the result (renewed at once). A line read for
-  another state is not shown with the collector's: while the account's delayed view is behind the page's read, or ahead
-  of it before the renewed read lands, `summary`, `line` and the series match's `result` are null and `seriesLine` does
-  not count it; `days`, `nextStart`, `session`, `crease` and `channels` follow the status shown.
+  keeps its previous status and score until the page's own read has the result (renewed at once). The read's `summary`,
+  `crease`, `session`, `line` and an innings' `declared` are shown only when the read's score is the collector's (the same
+  point of the match: never a line or a batter ahead of the account's delayed score), else null (`declared` false).
+  While the account's delayed view is behind the page's read, or ahead of it before the renewed read lands, the series
+  match's `result` is null too and `seriesLine` does not count it; `days`, `nextStart` and `channels` follow the status.
 - Since 0436 (#210): `lead` and each `others[]` entry carry `league`: the C-U catalogue league the match is on the page
   for (`Cricket`, `Women's Cricket`, `BBL`, `Sheffield Shield`...), always one of the account's followed cricket leagues;
   null only if it matches none. Additive; a client files each match under its followed league by it, before

@@ -534,7 +534,8 @@ collector's `event` accessor reads it fresh by the front's rule, a tournament's 
 `lastWinner` when it is that race's; each match, round and bout keeps its own state from the read. Cricket: a match's status
 (espnState's key and the card's break label, a break C-S does not name being play) and score (the lead's innings from
 the card's `situation.innings`, the others' scores from its `scores`, placed by each side's home/away), for the lead,
-the series list and the others; a line read for another state (the summary, the result) is held back, and the days,
+the series list and the others; a line, crease or declaration read at another point than the collector's score (or
+for another state) is held back, and the days,
 next start, airings and series tally follow the status shown.
 
 **Any other team league (0388, C-T).** `services/sportPageLeague.js` answers `GET /api/sports/pages/league/:league` for

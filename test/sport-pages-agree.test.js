@@ -276,6 +276,43 @@ test('Cricket: a finish the page\'s read still lacks after renewing keeps the pa
     assert.equal(panels, 4, 'one read (two day lists), then one renewal (two) in the 30 s however many requests');
 });
 
+// Codex (high) on the Cricket overlay: with both reads live, the page's own summary, crease and the others' lines were
+// kept beside the collector's (delayed) score, so "India need 1 run" and a batter's 99 showed beside a score of 120.
+test('Cricket: both reads live at different points: no line, crease or declaration from the page\'s read beside the collector\'s score', async () => {
+    const cricket = load('services/sportPageCricket');
+    const espn = load('services/sportsScoresEspn');
+    cricket.reset();
+    const at = K + 7 * 24 * 60 * MIN;
+    const lead = { ...scriptedGame({ at, guideMin: 10, finalMin: 25 }), id: '9917004' };
+    const other = { ...scriptedGame({ at, guideMin: 10, finalMin: 25 }), id: '9917005' };
+    const otherBoard = (t) => { const b = cricketBoard(other, t); return { ...b, leagues: [{ ...b.leagues[0], id: '1600' }],
+        events: b.events.map(e => ({ ...e, competitions: e.competitions.map(c => ({ ...c, status: { ...c.status, summary: c.status.summary.replace('India', 'Pakistan') },
+            competitors: c.competitors.map(x => (x.team.displayName === 'India' ? { ...x, team: { ...x.team, id: '7', displayName: 'Pakistan', name: 'Pakistan', abbreviation: 'PAK' } } : x)) })) })) }; };
+    const panelAt = (t) => ({ scores: [cricketBoard(lead, t), otherBoard(t)] });
+    const summary = { matchcards: [{ headline: 'Batting', inningsNumber: 2, playerDetails: [{ playerName: 'Ahead Batter', dismissal: 'not out', runs: 99, ballsFaced: 60 }] }] };
+    let readAt = at + 24 * MIN; // the page's read: further on than the delayed view
+    cricket.fetcher.get = async url => (url.includes('scorepanel') ? { ok: true, json: panelAt(readAt) } : url.includes('/summary') ? { ok: true, json: summary }
+        : url.includes('cricket/1500/scoreboard') ? { ok: true, json: cricketBoard(lead, readAt) } : url.includes('cricket/1600/scoreboard') ? { ok: true, json: otherBoard(readAt) } : { ok: false, error: 'HTTP 404' });
+    const store = dashboard.store();
+    for (let t = at + 18 * MIN; t <= at + 24 * MIN; t += 30000) {
+        store.ingest(espn.normalize(cricketBoard(lead, t), 'Cricket', 'cricket/1500'), t);
+        store.ingest(espn.normalize(otherBoard(t), 'Cricket', 'cricket/1600'), t);
+    }
+    const now = at + 24 * MIN;
+    const page = await cricket.page(now, { ...pageDeps(1, now), followed: ['India'], leagues: ['Cricket'] }); // 90 s behind
+    assert.equal(page.lead.status, 'live');
+    assert.deepEqual(page.lead.innings.map(l => l.at(-1)?.runs), [150, 138], 'the delayed score (the read says 150)');
+    assert.equal(page.lead.summary, null, `the read's line ("India need 1 run") is held back: ${page.lead.summary}`);
+    assert.equal(page.lead.crease, null, 'the read\'s batter on 99 is held back');
+    const o = page.others.find(x => x.id === '9917005');
+    assert.deepEqual([o.status, o.scores[1], o.line], ['live', '138/5', null], 'an other match: its delayed score, no line from the read');
+    // the same point of the match: the read's line and crease stand
+    cricket.reset(); readAt = now;
+    const instant = await cricket.page(now, { ...pageDeps(2, now), followed: ['India'], leagues: ['Cricket'] });
+    assert.deepEqual([instant.lead.summary, instant.lead.crease?.[0]?.runs], ['India need 1 runs', 99]);
+    assert.equal(instant.others.find(x => x.id === '9917005').line, 'Pakistan need 1 runs');
+});
+
 test('F1: a finish the page\'s read still lacks after renewing keeps the page\'s own status (never over without a result), renewing at most every 30 s', async () => {
     const f1 = load('services/sportPageF1');
     const espn = load('services/sportsScoresEspn');
