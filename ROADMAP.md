@@ -9,7 +9,11 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 - **Released:** server **v0579** (`:release`, 13 Nov; v0577 the day before) and Apple **239** uploaded to TestFlight
   (tvOS and iOS, 14 Nov, after `Tools/test.sh all` in the Mac's clone). A release runs on Mark's go-ahead (D-45). Next
-  builds: server **0602**, Apple **247**. Apple 241 to 246 are pushed (CI green), not uploaded.
+  builds: server **0612**, Apple **247**. Apple 241 to 246 are pushed (CI green), not uploaded.
+- **14 Nov, batch Server 4 pushed, server 0602 to 0611 (#309, key-frame join edge cases):** table continuity, the PMT
+  in force, a byte budget on every join path (fallback, opener), a PAT split across chunks, `no-pat` after the look-back,
+  and high-bitrate feeds keep the key-frame join. Reviews: Opus 2 mediums, 5 lows; Codex 1 high; all fixed; the sign-off's
+  high was fixed by Mark's choice (0611). Evidence: `docs/evidence/2026-11-14-server4/`. Server 3 is next (built, in review).
 - **14 Nov, Apple 242 to 246 pushed (#317, Mark's requests from 239):** on iPhone and iPad, sports in Settings › Sport and
   leagues on a sport's page always show the reorder handles (≡), are dragged by them and saved at the drop (no Edit order). Move up / Move down are gone
   everywhere, so the Apple TV can't reorder (Mark's choice). The iPhone carousel reads "1 of 4"; "Your sport" has no "in your order"; the iPad's page beside the Settings menu
