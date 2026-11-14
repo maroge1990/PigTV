@@ -50,10 +50,6 @@ function getDefaultSettings() {
     userAgentCustom: '',          // Custom UA string when preset is 'custom'
     // Transcoding settings
     hwEncoder: 'auto',            // auto | nvenc | amf | qsv | vaapi | software
-    // Upscaling settings
-    upscaleEnabled: false,
-    upscaleMethod: 'hardware',    // hardware | software
-    upscaleTarget: '1080p',       // 1080p | 4k | 720p
     // Security
     // Hardware transcoding workarounds
     vaapiCpuScale: true,           // CPU scale + hwupload, instead of the full-GPU VAAPI pipeline

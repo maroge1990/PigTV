@@ -68,3 +68,34 @@ test('the playback strategy hands the session none of the retired transcode sett
     assert.ok(seen, 'an HLS session was asked for');
     for (const k of Object.keys(OLD_STORED)) assert.equal(k in seen, false, k);
 });
+
+// #322: web upscaling is removed (upscaleEnabled, upscaleMethod, upscaleTarget are retired). It re-encoded every web
+// play; now neither a stored switch nor an older page's `upscale: true` forces a re-encode or changes one.
+test('a stored upscaling switch no longer changes an encode, on any encoder', () => {
+    for (const hwEncoder of ['software', 'nvenc', 'qsv', 'amf', 'vaapi']) {
+        const base = { segmentType: 'mpegts', videoMode: 'encode', hwEncoder, videoCodec: 'hevc', audioCodec: 'eac3', audioChannels: 6 };
+        for (const old of [{ upscaleEnabled: true, upscaleTarget: '4k', upscaleMethod: 'software' },
+            { upscaleEnabled: true, upscaleTarget: '720p', upscaleMethod: 'hardware' }]) {
+            assert.deepEqual(args({ ...base, ...old }), args(base), `${hwEncoder} ${JSON.stringify(old)}`);
+        }
+    }
+});
+
+test('neither a stored upscaling switch nor an upscale request forces a re-encode of a feed the client can play', async () => {
+    const SETTINGS = { userAgentPreset: 'chrome', ffmpegPath: 'ffmpeg', upscaleEnabled: true, upscaleTarget: '4k', upscaleMethod: 'software' };
+    const caps = { ...strategy.DEFAULT_CAPABILITIES };
+    const url = 'http://provider.invalid/live/u/p/3.ts';
+    const raw = { streams: [{ codec_type: 'video', codec_name: 'h264', width: 1280, height: 720 },
+                            { codec_type: 'audio', codec_name: 'aac', profile: 'LC', channels: 2 }],
+                  format: { format_name: 'mpegts' } };
+    const key = `${url}|${db.getUserAgent(SETTINGS) || ''}|${Object.keys(caps).filter(k => caps[k]).sort().join(',')}`;
+    probeCache.set(key, { result: analyzeProbeResult(raw, url, caps), timestamp: Date.now() });
+    const real = transcodeSession.createSession;
+    let seen = null;
+    transcodeSession.createSession = async (u, options) => { seen = options; return { id: 'stub', start: async () => {}, waitForPlaylist: async () => true }; };
+    try {
+        const decision = await quietly(() => strategy.resolve({ url, capabilities: {}, settings: SETTINGS, upscale: true }));
+        assert.equal(decision.videoMode, 'copy', 'the video is copied, not re-encoded');
+    } finally { transcodeSession.createSession = real; }
+    for (const k of ['upscaleEnabled', 'upscaleMethod', 'upscaleTarget']) assert.equal(k in seen, false, k);
+});

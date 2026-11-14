@@ -201,10 +201,6 @@ class TranscodeSession extends EventEmitter {
             userAgent: options.userAgent || 'Mozilla/5.0',
             seekOffset: options.seekOffset || 0,
             hwEncoder: options.hwEncoder || 'software',
-            // Upscaling options
-            upscaleEnabled: options.upscaleEnabled || false,
-            upscaleMethod: options.upscaleMethod || 'hardware', // 'hardware' or 'software'
-            upscaleTarget: options.upscaleTarget || '1080p',
             // 'mpegts' (universal, but cannot carry HEVC for hls.js) or
             // 'fmp4' (lets HEVC be stream-copied instead of re-encoded)
             segmentType: options.segmentType === 'fmp4' ? 'fmp4' : 'mpegts',
@@ -928,63 +924,31 @@ class TranscodeSession extends EventEmitter {
         }
     }
 
-    /**
-     * The output height: the upscale target when upscaling is on, otherwise the 1080p cap (#322).
-     */
+    /** The output height: the 1080p cap (#322: fixed, and no upscaling). */
     getTargetHeight() {
-        const resolutionMap = {
-            '4k': 2160,
-            '1080p': 1080,
-            '720p': 720,
-            '480p': 480
-        };
-
-        // When upscaling is enabled, use the upscale target resolution
-        if (this.options.upscaleEnabled) {
-            const target = resolutionMap[this.options.upscaleTarget] || 1080;
-            console.log(`[TranscodeSession ${this.id}] Upscale target height: ${target}p`);
-            return target;
-        }
-
         return ENCODE_MAX_HEIGHT;
     }
 
     /**
-     * Build scale filter string based on encoder and upscaling settings
+     * The scale filter for an encoder.
      * @param {string} encoder - The encoder being used
      * @param {number} height - Target height
      */
     buildScaleFilter(encoder, height) {
-        const useUpscale = this.options.upscaleEnabled;
-        const upscaleMethod = this.options.upscaleMethod || 'hardware';
-
-        // Log upscaling status
-        if (useUpscale) {
-            console.log(`[TranscodeSession ${this.id}] Upscaling: ${upscaleMethod} method to ${height}p`);
+        switch (encoder) {
+            case 'nvenc':
+                // NVIDIA CUDA scaling with Lanczos
+                // Force nv12 (8-bit) output to handle 10-bit inputs (fixes "10 bit encode not supported")
+                return `scale_cuda=-2:${height}:interp_algo=lanczos:format=nv12`;
+            case 'vaapi':
+                return `scale_vaapi=w=-2:h=${height}:format=nv12`;
+            case 'qsv':
+                return `scale_qsv=w=-2:h=${height}:format=nv12`;
+            case 'amf': // AMF uses CPU decode, so a software scale
+            case 'software':
+            default:
+                return `scale=-2:${height}`;
         }
-
-        // Hardware scaling filters (for both upscale and downscale)
-        if (upscaleMethod === 'hardware' || !useUpscale) {
-            switch (encoder) {
-                case 'nvenc':
-                    // NVIDIA CUDA scaling with Lanczos
-                    // Force nv12 (8-bit) output to handle 10-bit inputs (fixes "10 bit encode not supported")
-                    return `scale_cuda=-2:${height}:interp_algo=lanczos:format=nv12`;
-                case 'vaapi':
-                    return `scale_vaapi=w=-2:h=${height}:format=nv12`;
-                case 'qsv':
-                    return `scale_qsv=w=-2:h=${height}:format=nv12`;
-                case 'amf':
-                    // AMF uses CPU decode, so use software scale
-                    return useUpscale ? `scale=-2:${height}:flags=lanczos` : `scale=-2:${height}`;
-                case 'software':
-                default:
-                    return useUpscale ? `scale=-2:${height}:flags=lanczos` : `scale=-2:${height}`;
-            }
-        }
-
-        // Software Lanczos scaling (high quality, slower)
-        return `scale=-2:${height}:flags=lanczos`;
     }
 
     /**
@@ -1036,10 +1000,7 @@ class TranscodeSession extends EventEmitter {
             // min(ih,H) clamps rather than resizes: a 1080p source with a
             // 1080p cap passes straight through instead of being rescaled to
             // the same size, which on CPU-side scaling is pure wasted work.
-            // Upscaling, when explicitly enabled, still needs a real resize.
-            const scale = this.options.upscaleEnabled
-                ? `scale=-2:${height}:flags=lanczos`
-                : `scale='trunc(iw*min(1,${height}/ih)/2)*2':'min(ih,${height})'`;
+            const scale = `scale='trunc(iw*min(1,${height}/ih)/2)*2':'min(ih,${height})'`;
             args.push('-vf', `${scale},format=nv12,hwupload`);
         } else {
             // VAAPI filter chain:
@@ -1092,7 +1053,7 @@ class TranscodeSession extends EventEmitter {
      * Software encoder arguments (fallback)
      */
     addSoftwareEncoderArgs(args, height, crf) {
-        // Software scaling (use Lanczos for upscaling if enabled)
+        // Software scaling
         args.push('-vf', this.buildScaleFilter('software', height));
 
         args.push(

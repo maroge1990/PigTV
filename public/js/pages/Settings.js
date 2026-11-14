@@ -139,7 +139,7 @@ class SettingsPage {
     }
 
     /**
-     * #276: the Playback → transcoding panel's values (encoder, decoding, recovery, upscaling, User-Agent), from one
+     * #276: the Playback → transcoding panel's values (encoder, decoding, recovery, User-Agent), from one
      * GET. Its controls stay disabled until they arrive, and after a failed load, which says so with Try again.
      */
     async loadTranscodeSettings() {
@@ -1008,36 +1008,6 @@ class SettingsPage {
             this.savePlayerSetting('hwEncoder');
         });
 
-        // Upscaling Settings
-        const upscaleEnabledToggle = document.getElementById('setting-upscale-enabled');
-        const upscaleMethodSelect = document.getElementById('setting-upscale-method');
-        const upscaleTargetSelect = document.getElementById('setting-upscale-target');
-        const upscaleMethodContainer = document.getElementById('upscale-method-container');
-        const upscaleTargetContainer = document.getElementById('upscale-target-container');
-
-        // Helper to toggle upscale options visibility
-        const toggleUpscaleOptions = (enabled) => {
-            if (upscaleMethodContainer) upscaleMethodContainer.style.display = enabled ? 'flex' : 'none';
-            if (upscaleTargetContainer) upscaleTargetContainer.style.display = enabled ? 'flex' : 'none';
-        };
-
-        // Upscaling event handlers
-        upscaleEnabledToggle?.addEventListener('change', () => {
-            this.app.player.settings.upscaleEnabled = upscaleEnabledToggle.checked;
-            this.savePlayerSetting('upscaleEnabled');
-            toggleUpscaleOptions(upscaleEnabledToggle.checked);
-        });
-
-        upscaleMethodSelect?.addEventListener('change', () => {
-            this.app.player.settings.upscaleMethod = upscaleMethodSelect.value;
-            this.savePlayerSetting('upscaleMethod');
-        });
-
-        upscaleTargetSelect?.addEventListener('change', () => {
-            this.app.player.settings.upscaleTarget = upscaleTargetSelect.value;
-            this.savePlayerSetting('upscaleTarget');
-        });
-
         // User-Agent handlers
         const toggleCustomInput = () => {
             if (customUaContainer) {
@@ -1063,16 +1033,8 @@ class SettingsPage {
         set('setting-hw-encoder', s.hwEncoder || 'auto');
         set('setting-user-agent-tc', s.userAgentPreset || 'chrome');
         set('setting-user-agent-custom-tc', s.userAgentCustom || '');
-        set('setting-upscale-method', s.upscaleMethod || 'hardware');
-        set('setting-upscale-target', s.upscaleTarget || '1080p');
         const customUa = document.getElementById('custom-user-agent-container-tc');
         if (customUa) customUa.style.display = (s.userAgentPreset || 'chrome') === 'custom' ? 'flex' : 'none';
-        const upscale = document.getElementById('setting-upscale-enabled');
-        if (upscale) upscale.checked = !!s.upscaleEnabled;
-        for (const id of ['upscale-method-container', 'upscale-target-container']) {
-            const el = document.getElementById(id);
-            if (el) el.style.display = s.upscaleEnabled ? 'flex' : 'none';
-        }
     }
 
     /**

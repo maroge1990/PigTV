@@ -611,42 +611,6 @@
               </div>
             </details>
 
-            <div class="settings-section" data-settings-values>
-              <h3>Upscaling</h3>
-              <div class="setting-item">
-                <label class="setting-toggle">
-                  <input type="checkbox" id="setting-upscale-enabled">
-                  <span class="toggle-slider"></span>
-                </label>
-                <div class="setting-info">
-                  <span class="setting-label">Enable upscaling</span>
-                  <span class="setting-hint">Upscale lower-resolution content to a higher resolution. On the web
-                    player this <strong>re-encodes every play</strong> (slower to start, more CPU or GPU); the Apple
-                    app is not affected.</span>
-                </div>
-              </div>
-              <div class="setting-item" id="upscale-method-container" style="display: none;">
-                <div class="setting-info" style="flex: 1;">
-                  <span class="setting-label">Upscale method</span>
-                  <span class="setting-hint">Hardware is faster; Software (Lanczos) is higher quality.</span>
-                </div>
-                <select id="setting-upscale-method" class="source-select" style="width: auto; min-width: 200px;">
-                  <option value="hardware">Hardware (GPU)</option>
-                  <option value="software">Software (Lanczos)</option>
-                </select>
-              </div>
-              <div class="setting-item" id="upscale-target-container" style="display: none;">
-                <div class="setting-info" style="flex: 1;">
-                  <span class="setting-label">Upscale target</span>
-                  <span class="setting-hint">Target resolution for upscaled output.</span>
-                </div>
-                <select id="setting-upscale-target" class="source-select" style="width: auto; min-width: 200px;">
-                  <option value="720p">720p (HD)</option>
-                  <option value="1080p" selected>1080p (Full HD)</option>
-                  <option value="4k">4K (2160p)</option>
-                </select>
-              </div>
-            </div>
 
           </div>
 

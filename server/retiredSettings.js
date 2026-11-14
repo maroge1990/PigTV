@@ -7,10 +7,11 @@
  * meaningful.
  * `requireStreamAuth` misled most: media routes always need a token (0196).
  * #322 (Mark, 14 Nov 2026): a re-encode is fixed at 1080p, medium quality, audio mix auto (`maxResolution`, `quality`,
- * `audioMixPreset`).
+ * `audioMixPreset`), and web upscaling is gone (`upscaleEnabled`, `upscaleMethod`, `upscaleTarget`): it re-encoded
+ * every web play.
  */
 module.exports = Object.freeze(['autoPlayNextEpisode', 'autoTranscode', 'forceProxy', 'forceRemux', 'forceTranscode',
     'forceVideoTranscode', 'probeCacheTTL', 'requireStreamAuth', 'seriesProbeCacheDays', 'showMovies', 'showSeries',
     'streamFormat',
     // #322
-    'maxResolution', 'quality', 'audioMixPreset']);
+    'maxResolution', 'quality', 'audioMixPreset', 'upscaleEnabled', 'upscaleMethod', 'upscaleTarget']);

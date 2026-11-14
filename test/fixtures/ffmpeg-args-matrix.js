@@ -3,7 +3,7 @@
 // arguments the builder produced for each of them BEFORE the tuner refactor (0126),
 // generated from the 0125 code; the test proves the refactored builder still
 // produces exactly those, token for token. #322 took out the cases that varied a retired setting (quality, max
-// resolution, audio mix): a 'night' mp2 case became the default mp2 case, generated from the code before #322.
+// resolution, audio mix, upscaling): a 'night' mp2 case became the default mp2 case, generated from the code before #322.
 const URL_ = 'http://provider.invalid/live/u/p/441372.ts';
 
 function matrix() {
@@ -34,8 +34,6 @@ function matrix() {
     for (const hwEncoder of ['software', 'nvenc', 'qsv', 'amf', 'vaapi']) {
         for (const extra of [
             {},
-            { upscaleEnabled: true, upscaleTarget: '4k', upscaleMethod: 'software' },
-            { upscaleEnabled: true, upscaleTarget: '1080p', upscaleMethod: 'hardware' },
             { vaapiCpuScale: false },
             { vaapiHwDecode: false },
             { vaapiCpuScale: false, vaapiHwDecode: false }

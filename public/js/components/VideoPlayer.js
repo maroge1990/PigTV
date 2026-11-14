@@ -771,8 +771,7 @@ class VideoPlayer {
                 hls: !!(window.Hls && window.Hls.isSupported()) || this.video.canPlayType('application/vnd.apple.mpegurl') !== '',
                 fmp4: true,
                 segmentedDelivery: true
-            },
-            upscale: this.settings.upscaleEnabled === true
+            }
         };
 
         // Prefer identifying the channel, so the server can record history and

@@ -61,7 +61,6 @@ const DEFAULT_CAPABILITIES = {
  * @param {object} opts.capabilities  what the client can decode
  * @param {object} opts.settings      app settings
  * @param {string} opts.ffprobePath
- * @param {boolean} opts.upscale      force an encode for upscaling
  * @param {string}  opts.owner        who is asking (see streamCoordinator.ownerKey)
  * @param {boolean} opts.live         live TV, as opposed to something seekable
  * @param {boolean} opts.audioEncode  re-encode the audio rather than copying it in the HLS
@@ -149,7 +148,7 @@ function noteStart(owner, analysis) {
  * A failure thrown here carries `providerReason: true` when the provider (or the
  * network to it) is what failed, which is what makes the route try the next one.
  */
-async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale = false, owner = null, live = false, audioEncode = false, providerId = null,
+async function resolve({ url, capabilities = {}, settings, ffprobePath, owner = null, live = false, audioEncode = false, providerId = null,
     refusedRetryDelaysMs = undefined, deadlineAt = null, timingNote = '', sessionOptions = null, lease = null, ingestSource = null }) {
     const caps = { ...DEFAULT_CAPABILITIES, ...capabilities };
     const userAgent = db.getUserAgent(settings);
@@ -174,10 +173,10 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
     // 1. Direct play. Nothing to do — no ffmpeg, no server CPU, no added
     //    latency. Only available when the container is already something the
     //    client handles and both codecs are decodable.
-    if (info.compatible && !upscale) return directDecision(url, info, probeNote, timingNote);
+    if (info.compatible) return directDecision(url, info, probeNote, timingNote);
 
     // 2. Everything else is an HLS session.
-    const plan = sessionPlan({ info, caps, settings, userAgent, owner, live, upscale, audioEncode });
+    const plan = sessionPlan({ info, caps, settings, userAgent, owner, live, audioEncode });
     // Which provider's connection the session holds (0173): the coordinator counts it in that
     // provider's pool. Set here, not in sessionPlan, which plans the ffmpeg only.
     // R11: the connection lease the caller took when it admitted this start. It is checked just
@@ -245,11 +244,11 @@ function directDecision(url, info, probeNote, note = '') {
  * the client can decode, re-encode only what it cannot. Returns the session
  * options plus the decisions the log and the response report.
  */
-function sessionPlan({ info, caps, settings, userAgent, owner, live, upscale, audioEncode }) {
+function sessionPlan({ info, caps, settings, userAgent, owner, live, audioEncode }) {
     //    Copy what the client can decode (both streams when the codecs are fine, and only the container needs
     //    changing - what /api/remux used to do); re-encode only what it cannot.
     const audioNeedsWork = info.audioOk === false;
-    const codecsOk = !upscale && info.videoOk && !audioNeedsWork;
+    const codecsOk = info.videoOk && !audioNeedsWork;
 
     //    fmp4 segments over mpegts whenever caps.fmp4 and either the video
     //    is HEVC (hls.js cannot demux HEVC out of MPEG-TS) or this is the
@@ -261,7 +260,7 @@ function sessionPlan({ info, caps, settings, userAgent, owner, live, upscale, au
     //    native session on H.264 content that played fine over remux: the
     //    same stream, correct either way, muxed into a container the
     //    source's timestamps don't actually satisfy.
-    const canCopyVideo = info.videoOk === true && !upscale;
+    const canCopyVideo = info.videoOk === true;
     const videoMode = canCopyVideo ? 'copy' : 'encode';
     const segmentType = (canCopyVideo && caps.fmp4 && (info.videoIsHevc || codecsOk)) ? 'fmp4' : 'mpegts';
     // The master playlist (VIDEO-RANGE, FRAME-RATE) a session is handed out through.
@@ -285,9 +284,6 @@ function sessionPlan({ info, caps, settings, userAgent, owner, live, upscale, au
         live,
         hwEncoder: settings.hwEncoder || 'software',
         // #322: resolution, quality and audio mix are the session's fixed values, not settings.
-        upscaleEnabled: upscale || settings.upscaleEnabled || false,
-        upscaleMethod: settings.upscaleMethod || 'hardware',
-        upscaleTarget: settings.upscaleTarget || '1080p',
         vaapiCpuScale: settings.vaapiCpuScale !== false,
         vaapiHwDecode: settings.vaapiHwDecode !== false,
         segmentType,
@@ -315,7 +311,7 @@ function sessionPlan({ info, caps, settings, userAgent, owner, live, upscale, au
         // This client decodes HE-AAC, so the session may copy it (0116).
         heaacCopy: caps.heaac === true
     };
-    return { options, videoMode, segmentType, videoRange, frameRate, codecsOk, canCopyVideo, upscale };
+    return { options, videoMode, segmentType, videoRange, frameRate, codecsOk, canCopyVideo };
 }
 
 /**
@@ -374,7 +370,7 @@ async function afterStart({ session, ready, info, plan, probeNote, fromProfile, 
 }
 
 function sessionDecision(sessionId, plan, info) {
-    const { videoRange, videoMode, segmentType, codecsOk, canCopyVideo, upscale } = plan;
+    const { videoRange, videoMode, segmentType, codecsOk, canCopyVideo } = plan;
     return {
         strategy: 'transcode',
         url: `/api/transcode/${sessionId}/${videoRange ? 'master' : 'stream'}.m3u8`,
@@ -387,7 +383,7 @@ function sessionDecision(sessionId, plan, info) {
             ? 'Codecs are fine; only the container changes, into HLS segments'
             : (canCopyVideo
                 ? 'Video copied; audio re-encoded for this client'
-                : (upscale ? 'Upscaling requested' : 'Video cannot be decoded by this client'))
+                : 'Video cannot be decoded by this client')
     };
 }
 

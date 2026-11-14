@@ -6,11 +6,12 @@ const path = require('node:path');
 // #65 (0360): settings that misled or set traps. The page's own text, read from the files the browser loads.
 const read = (f) => fs.readFileSync(path.join(__dirname, '../public', f), 'utf8');
 
-test('the encode-only options say they apply only when PigTV re-encodes, and upscaling says it re-encodes every web play', () => {
+test('the encode-only options say they apply only when PigTV re-encodes', () => {
     const html = read('index.html');
     assert.match(html, /<h3>Only when re-encoding<\/h3>/);
-    assert.match(html, /On the web\s+player this <strong>re-encodes every play<\/strong>/);
     assert.doesNotMatch(html, /<h3>Encoder Settings<\/h3>/);
+    // #322: web upscaling (which re-encoded every web play) is gone, with its warning.
+    assert.doesNotMatch(html, /<h3>Upscaling<\/h3>/);
 });
 
 test('cross-references name where things are now', () => {
