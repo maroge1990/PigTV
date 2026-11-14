@@ -15,7 +15,7 @@ const { redact } = require('../redact');
 
 const DEDUPE_MS = 60 * 60 * 1000;
 const TIMEOUT_MS = 10000;
-const EVENTS = ['provider-down', 'recording-failed', 'licence-expiring', 'guide-stale', 'test']; // #11: guide-stale
+const EVENTS = ['provider-down', 'recording-failed', 'licence-expiring', 'guide-stale', 'disk-low', 'test']; // #11: guide-stale
 const lastSent = new Map(); // key -> ms
 
 /** '' or a usable http(s) URL, else null (invalid). */
@@ -95,6 +95,15 @@ function recordingFailed(schedule, error) {
     });
 }
 
+/** #286: recordings were stopped because appdata ran low on space; one message per stop pass (deduped hourly). */
+function recordingsStoppedLowDisk(count, freeGB) {
+    emit('disk-low', {
+        title: 'PigTV: recordings stopped, disk nearly full',
+        message: `Free space in appdata ran low (${Number(freeGB).toFixed(1)} GB free); ${count} recording(s) stopped early. What they recorded is kept.`,
+        key: 'disk-low'
+    });
+}
+
 /** `reminders` from providerAccounts.reminders(): one message per provider per day count. */
 function licencesExpiring(reminders) {
     for (const r of reminders || []) {
@@ -109,4 +118,4 @@ function licencesExpiring(reminders) {
 
 function _reset() { lastSent.clear(); }
 
-module.exports = { send, emit, cleanUrl, providerDown, recordingFailed, licencesExpiring, EVENTS, DEDUPE_MS, _reset };
+module.exports = { send, emit, cleanUrl, providerDown, recordingFailed, recordingsStoppedLowDisk, licencesExpiring, EVENTS, DEDUPE_MS, _reset };

@@ -1685,8 +1685,16 @@ async function enforceFreeSpaceDuringRecording() {
         const work = hasFreeSpace(segments.workRoot(), minFreeGB, 0.5);
         if (!work.ok) {
             console.error(`[Recordings] Free space critical in appdata (${work.freeGB.toFixed(1)} GB); stopping ${segmented.length} segmented recording(s). What they recorded is kept.`);
+            try { require('./notify').recordingsStoppedLowDisk(segmented.length, work.freeGB); } catch (e) { /* best-effort (R11) */ }
             for (const scheduledId of segmented) {
-                try { await stopRecording(scheduledId, 'completed'); } catch (err) {
+                try {
+                    await stopRecording(scheduledId, 'completed');
+                    // #286: say why it ended (as stopForViewer does), so the completed schedule is not left unexplained.
+                    const row = scheduledDb.getById(scheduledId);
+                    if (row && row.status === 'completed' && !row.error) {
+                        setScheduleStatus(row, 'completed', { error: `Stopped early: free space in appdata ran low (${work.freeGB.toFixed(1)} GB free)` });
+                    }
+                } catch (err) {
                     console.error('[Recordings] Error stopping recording for low disk space:', err.message);
                 }
             }

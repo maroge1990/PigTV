@@ -313,9 +313,17 @@ test('stop, a viewer taking the stream, and low disk space never start a continu
     await until(() => scheduled.getById(c.id).status === 'recording' && captures().length === 3, 'c records');
     await sleep(100);
     await db.settings.update({ minFreeSpaceGB: 1e9 });
-    await engine.tick();
+    const notify = load('services/notify');
+    const realNotice = notify.recordingsStoppedLowDisk;
+    const notices = [];
+    notify.recordingsStoppedLowDisk = (...args) => { notices.push(args); };
+    try { await engine.tick(); } finally { notify.recordingsStoppedLowDisk = realNotice; }
+    assert.equal(notices.length, 1, 'one notice for the pass');
+    assert.equal(notices[0][0], 1, 'with the number of recordings stopped');
+    assert.ok(Number.isFinite(notices[0][1]), 'and the free space');
     // Segmented (R3): appdata is what fills; the recording ends with what it has, as a completed recording.
     assert.equal(scheduled.getById(c.id).status, 'completed');
+    assert.match(scheduled.getById(c.id).error, /^Stopped early: free space in appdata ran low \(\d+\.\d GB free\)$/);
     assert.ok(!activeFor(c.id));
     await engine.tick();
     assert.equal(rowsOf(c.id).length, 1);
@@ -335,6 +343,7 @@ test('low disk space in appdata stops a recording while the recordings share is 
         await db.settings.update({ recordingsPath: path.join(sandbox, 'unmounted', 'recordings'), minFreeSpaceGB: 1e9 });
         await engine.tick();
         assert.equal(scheduled.getById(c.id).status, 'completed', 'stopped by the appdata check');
+        assert.match(scheduled.getById(c.id).error, /^Stopped early: free space in appdata ran low/);
         assert.ok(!activeFor(c.id));
         assert.equal(rowsOf(c.id).length, 1);
         assert.notEqual(rowsOf(c.id)[0].segment_state, 'capturing', 'its capture is over');
