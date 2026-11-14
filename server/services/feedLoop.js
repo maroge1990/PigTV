@@ -41,6 +41,8 @@ const HEAD = 256;
 const STRIDE = 8;
 // Audio: the most of one PES assembled to be split into frames (a PES holds a few frames of ~0.2-4 kB).
 const MAX_AUDIO_UNIT = 64 * 1024;
+// A PSI section is at most 1,024 bytes (ISO 13818-1: section_length up to 1,021).
+const MAX_SECTION = 1024;
 const VIDEO_TYPES = { 0x01: 'mpeg2', 0x02: 'mpeg2', 0x1b: 'h264', 0x24: 'hevc' };
 const { isKeyFrame } = require('./tsKeyframes');
 
@@ -331,6 +333,7 @@ class LoopDetector {
         this.pmtPid = null;
         this.codec = null;
         this.sawPmt = false;
+        this.pmtPart = null;
         this.pmtAudioPid = null; // the programme's sound, as its PMT declares it (Opus #324)
         this.video = new Track('video');
         this.sound = new Track('audio');
@@ -377,7 +380,7 @@ class LoopDetector {
         const end = i + TS_PACKET;
         if (p >= end) return;
         if (pid === 0) { if (unitStart) this.readPat(b, p, end); return; }
-        if (pid === this.pmtPid) { if (unitStart) this.readPmt(b, p, end); return; }
+        if (pid === this.pmtPid) { this.collectPmt(b, i, p, end, unitStart); return; }
         let track = pid === this.video.pid ? this.video : pid === this.sound.pid ? this.sound : null;
         if (unitStart) {
             if (p + 9 > end || b[p] !== 0 || b[p + 1] !== 0 || b[p + 2] !== 1) return;
@@ -419,17 +422,47 @@ class LoopDetector {
         }
     }
 
-    readPmt(b, p, end) {
-        const at = p + 1 + b[p];
-        if (at + 12 > end || b[at] !== 0x02) return;
-        const length = ((b[at + 1] & 0x0f) << 8) | b[at + 2];
-        const stop = Math.min(at + 3 + length - 4, end);
+    /**
+     * The PMT, assembled across TS packets by its section_length (Codex sign-off of #324: a large PMT's audio entry can
+     * sit in a continuation packet). At most MAX_SECTION bytes; a gap in the continuity counter or a section that is
+     * too long drops the part collected. Only a whole section changes what is followed: an incomplete one leaves the
+     * sound unknown (waited for), never "none".
+     */
+    collectPmt(b, i, p, end, unitStart) {
+        const cc = b[i + 3] & 0x0f;
+        if (unitStart) {
+            const at = p + 1 + b[p];
+            if (at >= end) { this.pmtPart = null; return; }
+            this.pmtPart = { bytes: [Buffer.from(b.subarray(at, end))], have: end - at, cc };
+        } else {
+            const part = this.pmtPart;
+            if (!part) return;
+            if (cc === part.cc) return;                                  // a repeated packet
+            if (cc !== ((part.cc + 1) & 0x0f)) { this.pmtPart = null; return; } // a lost one
+            part.cc = cc;
+            part.bytes.push(Buffer.from(b.subarray(p, end)));
+            part.have += end - p;
+        }
+        const part = this.pmtPart;
+        if (part.have < 3) return;
+        const head = Buffer.concat(part.bytes);
+        const need = 3 + (((head[1] & 0x0f) << 8) | head[2]);
+        if (need > MAX_SECTION) { this.pmtPart = null; return; }
+        if (head.length < need) { part.bytes = [head]; return; }
+        this.pmtPart = null;
+        this.readPmt(head.subarray(0, need));
+    }
+
+    /** A whole PMT section (from its table_id): the video codec and the programme's sound. Anything else is ignored. */
+    readPmt(sec) {
+        if (sec.length < 16 || sec[0] !== 0x02 || !(sec[5] & 0x01)) return; // not a PMT in force
+        const stop = sec.length - 4; // less the CRC
         let video = null;
         let audio = null;
-        for (let e = at + 12 + (((b[at + 10] & 0x0f) << 8) | b[at + 11]); e + 5 <= stop; e += 5 + (((b[e + 3] & 0x0f) << 8) | b[e + 4])) {
-            const pid = ((b[e + 1] & 0x1f) << 8) | b[e + 2];
-            if (!video && VIDEO_TYPES[b[e]]) video = VIDEO_TYPES[b[e]];
-            else if (audio === null && isAudioEntry(b, e, stop)) audio = pid;
+        for (let e = 12 + (((sec[10] & 0x0f) << 8) | sec[11]); e + 5 <= stop; e += 5 + (((sec[e + 3] & 0x0f) << 8) | sec[e + 4])) {
+            const pid = ((sec[e + 1] & 0x1f) << 8) | sec[e + 2];
+            if (!video && VIDEO_TYPES[sec[e]]) video = VIDEO_TYPES[sec[e]];
+            else if (audio === null && isAudioEntry(sec, e, stop)) audio = pid;
         }
         this.sawPmt = true;
         if (video) this.codec = video;
@@ -481,7 +514,8 @@ class LoopDetector {
         if (!a.count || Math.abs(v.time - a.time) > 5) {
             // No sound in the programme: the picture decides. Sound declared but quiet: wait for it, and after the
             // confirmation window leave the run alone (Opus #324: never take a quiet sound PID as "no sound").
-            if (this.pmtAudioPid === null) return 'none';
+            // A PMT is known (from the PAT) but not yet read whole: the sound is unknown, so wait.
+            if (this.pmtAudioPid === null && !(this.pmtPid !== null && !this.sawPmt)) return 'none';
             if (run >= need + tuning.confirmWithinSec) {
                 this.note(`video repeats every ${period.toFixed(1)} s but the declared sound sent nothing: not judged`);
                 return settle(false);

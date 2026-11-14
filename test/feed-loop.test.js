@@ -178,3 +178,44 @@ test('the sound is the one the PMT declares: a subtitle PES first does not hide 
     const silentPicture = run([feeds.loopSilent]);
     assert.ok(silentPicture.verdict, 'a loop over silence is still found');
 });
+
+// Codex sign-off of #324: the PMT was read from its first TS packet only, then taken as complete. With a large PMT whose
+// audio entry is in the continuation packet, the sound was "none" for good, and a looping picture over live sound was a
+// loop. The PMT is now assembled across packets by its section_length.
+test('a PMT split over two packets, the sound in the second: a looping picture over live sound is still not a loop', { skip }, () => {
+    const data = fs.readFileSync(feeds.loopLiveSound);
+    const pidOf = (at) => ((data[at + 1] & 0x1f) << 8) | data[at + 2];
+    const packets = [];
+    let pmtPid = null;
+    for (let at = 0; at + 188 <= data.length; at += 188) {
+        const pid = pidOf(at);
+        if (pid === 0 && pmtPid === null) {
+            const sec = at + 5 + data[at + 4];
+            pmtPid = ((data[sec + 10] & 0x1f) << 8) | data[sec + 11];
+        }
+        if (pid !== pmtPid || !(data[at + 1] & 0x40)) { packets.push(data.subarray(at, at + 188)); continue; }
+        // The section, with a 170-byte private descriptor in its programme info: its ES loop moves into a second packet.
+        const from = at + 5 + data[at + 4];
+        const len = ((data[from + 1] & 0x0f) << 8) | data[from + 2];
+        const sec = data.subarray(from, from + 3 + len);
+        const pil = ((sec[10] & 0x0f) << 8) | sec[11];
+        const pad = Buffer.concat([Buffer.from([0x80, 168]), Buffer.alloc(168, 0x20)]);
+        const body = Buffer.concat([sec.subarray(3, 12 + pil), pad, sec.subarray(12 + pil)]); // CRC kept (not checked here)
+        const out = Buffer.concat([Buffer.from([0x02, 0xb0 | ((body.length >> 8) & 0x0f), body.length & 0xff]), body]);
+        const pil2 = pil + pad.length;
+        out[10] = (out[10] & 0xf0) | ((pil2 >> 8) & 0x0f); out[11] = pil2 & 0xff;
+        const first = Buffer.alloc(188, 0xff);
+        data.copy(first, 0, at, at + 4); first[3] = 0x10 | (data[at + 3] & 0x0f); first[4] = 0;
+        out.copy(first, 5, 0, 183);
+        const second = Buffer.alloc(188, 0xff);
+        second[0] = 0x47; second[1] = (pmtPid >> 8) & 0x1f; second[2] = pmtPid & 0xff; second[3] = 0x10 | ((data[at + 3] + 1) & 0x0f);
+        out.copy(second, 4, 183);
+        packets.push(first, second);
+    }
+    const split = path.join(dir, 'split-pmt.ts');
+    fs.writeFileSync(split, Buffer.concat(packets));
+    const r = run([split]);
+    assert.ok(r.detector.pmtAudioPid !== null, 'the sound is read from the PMT\'s second packet');
+    assert.equal(r.verdict, null, JSON.stringify(r.verdict));
+    assert.match(r.detector.notes.join(' | '), /the sound does not/);
+});
