@@ -696,8 +696,9 @@ on a race weekend, 1 h otherwise; nothing is fetched unless the page is asked fo
   the collector holds a fresh snapshot; elsewhere it is the page's own read as before. A session is `done` only with its
   `top` and results: one the collector has seen finish keeps its previous status until the page's own read has the
   result (renewed at once). While the account's delayed view is behind the page's read, the session shows the delayed
-  status without `top`, `results` is null when it is that session's (the race's, or the grid from qualifying), and
-  `phase` follows the statuses shown.
+  status without `top`, `results` is null when it is that session's (the race's, or the grid from qualifying),
+  `standings` is null when it is the race or the sprint (the table may count its points), and `phase` follows the
+  statuses shown.
 - Since 0424 (#201): `info.map` is the whole path to fetch as given, `/api/logo/<key>?size=3840`: ESPN's circuit SVG
   drawn by the server to a PNG 3840 px wide on a transparent background (ESPN's own JPEG is 320 px; without an SVG,
   that raster, never upscaled). Additive `info.mapDark`: the same for ESPN's dark-theme map, or null. A map the server

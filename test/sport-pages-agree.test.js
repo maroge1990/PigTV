@@ -166,17 +166,21 @@ function f1Board(game, now) {
 test('the F1 page and the front page agree about a session\'s status at every moment, with and without a delay; its result shows only once it is over', async () => {
     const f1 = load('services/sportPageF1');
     const { bad, seen } = await replay({ league: 'F1', source: 'racing/f1', at: K + 2 * 24 * 60 * MIN, words: C_P, reset: () => f1.reset(), board: f1Board,
-        serve: (json, url) => (url.includes('/racing/f1/scoreboard') ? { ok: true, json } : { ok: false, error: 'HTTP 404' }),
+        // the championship table: the winner's 25 points once the race is over
+        serve: (json, url) => (url.includes('/racing/f1/scoreboard') ? { ok: true, json } : url.includes('/racing/f1/standings') ? { ok: true, json: { children: [{ name: 'Driver Standings',
+            standings: { entries: [{ athlete: { id: '901', displayName: 'Alex Abel' }, stats: [{ name: 'rank', value: 1 }, { name: 'championshipPts', value: json.events[0].status.type.state === 'post' ? 25 : 0 }] }] } }] } }
+            : { ok: false, error: 'HTTP 404' }),
         ask: async (now, deps, answer) => {
             f1.fetcher.get = async url => answer(url);
             const page = await f1.page(now, { ...deps });
             const race = page.weekend.sessions.find(s => s.id === 'race');
-            return { status: race.status, scores: null, top: race.top, phase: page.weekend.phase, results: page.results };
+            return { status: race.status, scores: null, top: race.top, phase: page.weekend.phase, results: page.results, standings: page.standings };
         },
         check: (g, card, who) => [
             g.status === 'done' && !g.top && `${who}: a finished race without its result`,
             g.status !== 'done' && g.top && `${who}: a race not over with its result (${g.top.driver})`,
             g.status !== 'done' && g.results?.kind === 'race' && g.results.title.includes('Scripted') && `${who}: the results block names a race not over`,
+            g.status !== 'done' && g.standings?.drivers?.[0]?.points === 25 && `${who}: the championship table counts a race not over`,
             (g.phase === 'after') !== (g.status === 'done') && `${who}: the weekend's phase ${g.phase} with the race ${g.status}`
         ] });
     assert.deepEqual(bad, [], seen.join('\n'));

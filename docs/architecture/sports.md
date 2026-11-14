@@ -528,8 +528,8 @@ never waits, the renewed read lands for the next one), and a finish the read lac
 it has it, never a finished session without its result; a start is shown at once. The page's read further on than the account's delayed view: the
 collector's word, without what belongs to the later state. Their cache lifetimes are unchanged (no 2-minute floor is
 lifted), so the renewals are the only added reads: one per session start and finish. F1: a session's status; without its
-`top`, and without the results block when it is that session's (the race's result, the grid from qualifying), the
-weekend's phase following the statuses shown. Events: an event's status and break label (its id and words are the C-R card's; the
+`top`, without the results block when it is that session's (the race's result, the grid from qualifying) and without
+the standings when it is the race or the sprint, the weekend's phase following the statuses shown. Events: an event's status and break label (its id and words are the C-R card's; the
 collector's `event` accessor reads it fresh by the front's rule, a tournament's break for `BREAK_POLL` longer); no
 `lastWinner` when it is that race's; each match, round and bout keeps its own state from the read. Cricket: a match's status
 (espnState's key and the card's break label, a break C-S does not name being play) and score (the lead's innings from

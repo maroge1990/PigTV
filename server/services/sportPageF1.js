@@ -337,9 +337,14 @@ async function page(now = Date.now(), deps = {}) {
  * every 30 s, landing for the next request), as a finished session's order, teams and results come only from it; a
  * finish the read still lacks after that keeps the page's own status (never a finished session without its result). The
  * page's read newer than the account's delayed view: the collector's status, without the session's top line, and without
- * the results block when it is that session's (the race's result, the grid from qualifying). The weekend's phase
+ * the results block when it is that session's (the race's result, the grid from qualifying), and without the standings
+ * when it is the race or the sprint (their points may be in the read's table: never ahead of the view). The weekend's phase
  * follows the statuses shown. A session the collector holds nothing usable for keeps the page's own.
  */
+// The sessions that score championship points: while one is behind the account's delayed view, the read's table (which
+// may count it) is held back.
+const POINTS = new Set(['race', 'sprint']);
+
 async function withState(value, now, deps) {
     let view = overlay(value, deps.state);
     if (view.renew) {
@@ -353,7 +358,7 @@ function overlay(value, state) {
     const { rank } = require('./sportPageState');
     const meta = META.get(value);
     if (!meta) return { value, renew: false };
-    let renew = false, changed = false, dropResults = false;
+    let renew = false, changed = false, dropResults = false, dropStandings = false;
     const sessions = value.weekend.sessions.map(s => {
         let seen = null;
         try { seen = state(meta.cards.get(s.id)); } catch { seen = null; }
@@ -363,12 +368,14 @@ function overlay(value, state) {
         if (theirs > ours) { renew = true; if (word === 'done') return s; }
         changed = true;
         if (theirs < ours && meta.resultsFrom === s.id) dropResults = true;
+        if (theirs < ours && POINTS.has(s.id)) dropStandings = true;
         return { ...s, status: word, top: null };
     });
     if (!changed) return { value, renew };
     const race = sessions.find(s => s.id === 'race');
     const phase = race?.status === 'done' ? 'after' : sessions.some(s => s.status !== 'scheduled') ? 'during' : 'before';
-    return { value: { ...value, weekend: { ...value.weekend, phase, sessions }, results: dropResults ? null : value.results }, renew };
+    return { value: { ...value, weekend: { ...value.weekend, phase, sessions }, results: dropResults ? null : value.results,
+        standings: dropStandings ? null : value.standings }, renew };
 }
 
 async function espnPart(now, deps) {
