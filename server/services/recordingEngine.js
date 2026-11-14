@@ -1278,8 +1278,10 @@ async function onSegmentExit(schedule, entry, exitCode) {
         // once) and every other early end still count, so the cap still stops a capture that keeps failing.
         const freeResume = entry.stalled && ranLong;
         const candidate = entry.route.candidates[entry.index];
+        // #304 (Mark, 14 Nov): only a multi-route failure is held against its provider here. A stall on a channel's only
+        // provider stays out of its breaker (no "down" on Status, no providerDown notice); its failed connections still
+        // count where they are made (the ingest's, a play's).
         if (failover) providerRouting.noteFailure(candidate, entry.route.primaryKey);
-        else if (entry.stalled) noteSingleRouteStall(schedule, candidate); // #274 (D-10): a stall with one provider counts too
         console.warn(`[Recordings] #${entry.recordingId} ended early (${why})` +
             (entry.route.multi && candidate?.providerName ? ` on ${candidate.providerName}` : '') +
             '; it continues in the same recording');
@@ -1408,9 +1410,9 @@ function finishSchedule(scheduleId, why = null) {
  * the connection. Every running part is watched (stallWatchdog, one per part, from its start to its exit); what follows
  * depends on the route, not whether it is noticed. It is stopped the way a stop is, but marked stalled and not asked
  * for, so onSegmentExit continues it: with a backup (route multi) on the next provider, as since 0177; with one
- * provider in a new epoch on the same one, through 0499's early-end continuation (≤ MAX_SEGMENT_RESUMES, the gap noted).
- * The sampling is also where a part that is recording counts as a success for its provider's breaker (a half-open
- * provider is up again).
+ * provider in a new epoch on the same one, through 0499's early-end continuation (≤ MAX_SEGMENT_RESUMES, the gap noted),
+ * without counting toward that provider's breaker (#304). The sampling is also where a part that is recording counts as
+ * a success for its provider's breaker (a half-open provider is up again).
  */
 function watchForStall(entry) {
     stopStallWatch(entry);
@@ -1483,17 +1485,6 @@ function onCaptureStall(entry, quietMs) {
     const proc = entry.proc;
     // A stalled ffmpeg may be blocked reading the input and never see the "q".
     setTimeout(() => { if (proc.exitCode === null && proc.signalCode === null) { try { proc.kill('SIGKILL'); } catch (e) { /* gone */ } } }, 5000).unref?.();
-}
-
-/**
- * #274 (D-10): a single-provider stall counts toward its provider's breaker as a multi-route one does (noteFailure,
- * keyed by the channel's identity as a route's primaryKey is). It cannot hold back this recording's own resume: a
- * single route never consults the breaker or quarantine (routeFor), and a plan with nowhere else to go keeps the primary.
- */
-function noteSingleRouteStall(schedule, candidate) {
-    if (!candidate) return;
-    const key = providerRouting.channelIdentity(schedule.source_id, schedule.channel_item_id)?.key ?? bareChannelId(schedule.channel_item_id);
-    providerRouting.noteFailure({ ...candidate, channelKey: key }, key);
 }
 
 async function stopRecording(scheduledId, reasonStatus = 'completed') {

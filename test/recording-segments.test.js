@@ -933,7 +933,7 @@ test('#274: a single-provider capture that goes silent is noticed, ended, and co
     assert.equal(captures()[1][captures()[1].length - 1], path.join(rec.work_dir, 'e2', 'archive.m3u8'), 'a new epoch of the same recording');
     assert.match(rec.error, /^Gaps: 1, \d+ s in all \(the last: the capture ended \(no data; .*\)\)\.$/);
     assert.ok(logLines.some(l => new RegExp(`#${rec.id} has had no data for \\d+s; ending this part`).test(l)), 'the stall is logged (no provider name with one)');
-    assert.equal(routing.snapshot().providers.find(p => p.id === A.id).recentFailures, 1, 'the stall counts toward the provider\'s breaker');
+    assert.equal(routing.snapshot().providers.find(p => p.id === A.id).recentFailures, 0, '#304: a stall on the only provider stays out of its breaker');
     assert.equal(engine._stallWatchCount(), 1, 'one watchdog: the first part\'s went with it');
     // The first part's watchdog cannot act on the second: two more stall windows pass and it records on.
     const stallLines = logLines.filter(l => /has had no data/.test(l)).length;
@@ -944,6 +944,48 @@ test('#274: a single-provider capture that goes silent is noticed, ended, and co
     await engine.cancelScheduled(s.id);
     assert.equal(engine._stallWatchCount(), 0, 'a cancel leaves no watchdog');
     await until(() => recordings.getById(rec.id).status === 'completed', 'finished', 10000);
+});
+
+// #304 (Mark, 14 Nov): a stall on a channel's only provider counted toward that provider's breaker (#274), so stalls on
+// two channels within 5 min showed the provider down on Status and sent the providerDown notice. They no longer count.
+test('#304: single-provider stalls on two channels leave the provider up and send no providerDown notice', async () => {
+    tuning.endGraceMs = 0;
+    tuning.stallMs = 400;
+    tuning.stallCheckMs = 100;
+    const notify = load('services/notify');
+    const realDown = notify.providerDown;
+    const notices = [];
+    notify.providerDown = (...a) => { notices.push(a); };
+    const url2 = 'http://strong.invalid/live/u/p/102.ts';
+    const d = sqlite.getDb();
+    d.prepare(`INSERT OR IGNORE INTO playlist_items (id, source_id, item_id, type, name, category_id, is_hidden, sort_order, stable_id, stream_url)
+               VALUES (?, ?, 'pos_2', 'live', 'Fox Sports 506', 'Sport', 0, 2, 's102', ?)`).run(`${A.id}:pos_2`, A.id, url2);
+    try {
+        setBehaviour(url.A, 'stall');
+        setBehaviour(url2, 'stall');
+        const one = due({ windowMs: 60000 });
+        const now = Date.now();
+        const two = scheduled.create({ title: `Match ${++n}`, description: null, source_id: A.id, channel_item_id: 'pos_2', channel_stable_id: 's102',
+            channel_name: 'Fox Sports 506', channel_logo: null, program_start: now - 1000, program_end: now + 60000,
+            pre_buffer_min: 0, post_buffer_min: 0, created_by: 1, created_at: now });
+        const stalls = (id) => logLines.filter(l => l.includes(`#${rowsOf(id)[0]?.id} has had no data`)).length;
+        await until(() => stalls(one.id) >= 2 && stalls(two.id) >= 2, 'each channel stalled twice', 20000);
+        assert.equal(routing.providerState(A.id), 'up', 'the provider is not down');
+        assert.equal(routing.snapshot().providers.find(p => p.id === A.id).state, 'up', 'Status shows it up');
+        assert.equal(routing.snapshot().providers.find(p => p.id === A.id).recentFailures, 0, 'nothing counted toward its breaker');
+        assert.deepEqual(notices, [], 'no providerDown notice');
+        assert.ok(!logLines.some(l => l.includes('Strong8K is down')), 'no "down" line');
+        // Regression guard: a real failure noted the multi-route way still counts and still trips it.
+        routing.noteFailure({ providerId: A.id, channelKey: 's101' }, 's101');
+        routing.noteFailure({ providerId: A.id, channelKey: 's102' }, 's102');
+        assert.equal(routing.providerState(A.id), 'down', 'failures noted by noteFailure still trip the breaker');
+        assert.equal(notices.length, 1, 'and send the notice');
+        await engine.cancelScheduled(one.id);
+        await engine.cancelScheduled(two.id);
+    } finally {
+        notify.providerDown = realDown;
+        d.prepare("DELETE FROM playlist_items WHERE source_id = ? AND item_id = 'pos_2'").run(A.id);
+    }
 });
 
 test('#274: a stalled part that ignores "q" is killed; asked to stop meanwhile, it is not continued', async () => {

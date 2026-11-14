@@ -249,6 +249,8 @@ test('a stalled recording (no new segments) continues in the same recording on t
     assert.match(rec.error, /^Gaps: 1, \d+ s in all \(the last: the provider dropped out\)\.$/);
     assert.ok(logLines.some(l => /no data for \d+s from Strong8K/.test(l)), 'the stall is logged with the provider\'s name');
     assert.ok(routing.isQuarantined(A.id, 's101'), 'the stalled provider is skipped for this channel');
+    // #304: only a single-provider stall stays out of the breaker; a failover still counts toward it.
+    assert.equal(routing.snapshot().providers.find(p => p.id === A.id).recentFailures, 1, 'the failover counts toward its breaker');
 });
 
 test('#274: a failover leaves one watchdog, the new part\'s; a stop leaves none', async () => {

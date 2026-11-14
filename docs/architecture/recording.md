@@ -102,7 +102,7 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   of the route the run began on, then wait for the tick (#284); why each capture ended is logged. A capture whose
   segments stop growing for 30 s (`failoverTuning.stallMs`, sampled every 5 s by its own `stallWatchdog`, one per run)
   is ended as stalled on every route (#274): with a backup it fails over, with one provider it continues on the same one
-  as above, and either counts toward that provider's breaker. On a shared feed with one provider, a feed that has
+  as above. Only the failover counts toward its provider's breaker: a stall on a channel's only provider does not (#304, Mark), so it never shows that provider down nor sends its notice. On a shared feed with one provider, a feed that has
   handed the capture nothing since it last grew is left to the ingest's own rule (one silence, one resume). Not `append_list`: each run's playlist is ffmpeg's own and the server joins them.
   The Apple TV's watch copy (fMP4, `hvc1`) is made by a **local follower ffmpeg** per epoch, only when someone asks
   (`GET /:id/watch`); it never touches the provider. At the end the joined playlist is remuxed with preparation's own
