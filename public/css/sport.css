@@ -247,6 +247,9 @@
 .sp .rounds .rnote { margin-left: 6px; font-size: 14px; color: var(--color-text-secondary); }
 .sp .league { display: grid; grid-template-columns: minmax(0, 1fr) 460px; gap: 28px; align-items: start; }
 .sp .league.solo { grid-template-columns: minmax(0, 1fr); }
+/* #326 (rig): with no standings beside them the fixture cards keep their size, iOS's adaptive grid (minimum 300),
+   instead of two columns stretched across the window */
+.sp .league.solo .fxgrid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
 .sp .fxgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .sp .fxitem { flex: none; }
 .sp .fx { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; min-height: 130px; padding: 12px 16px;
@@ -292,7 +295,7 @@
 @media (max-width: 1100px) { .sp .league { grid-template-columns: minmax(0, 1fr); gap: 24px; }
   .sp .fxgrid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); } }
 @media (max-width: 768px) {
-  .sp .fxgrid { grid-template-columns: 1fr; gap: 10px; }
+  .sp .fxgrid, .sp .league.solo .fxgrid { grid-template-columns: 1fr; gap: 10px; }
   .sp .cardgrid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
   .sp .fx { min-height: 0; }
   .sp table.st td { padding: 0 4px; height: 32px; font-size: 13px; }
