@@ -171,9 +171,15 @@ class SportsPage {
         this.labelsLoaded = true;
         try {
             const catalog = await API.request('GET', '/sports/catalog');
-            const labels = {};
-            for (const s of catalog?.sports || []) for (const l of s.leagues || []) if (l && l.league && l.label) labels[l.league] = l.label;
+            const labels = {}, sports = {};
+            for (const s of catalog?.sports || []) {
+                for (const l of s.leagues || []) {
+                    if (l && l.league && l.label) labels[l.league] = l.label;
+                    if (l && l.league && s && typeof s.sport === 'string' && s.sport) sports[l.league] = s.sport;
+                }
+            }
             this.labels = labels;
+            this.leagueSports = sports;
             this.render();
         } catch { this.labelsLoaded = false; }
     }
@@ -966,18 +972,33 @@ class SportsPage {
     /** The What choices (RecordPlan.whats): this game; every game of the followed team, else of each side; every game of its league. */
     recordWhats(g) {
         const out = [{ kind: 'this' }];
-        const sport = ((this.front && this.front.sports) || []).find(s => s.league === g.league)?.sport || null;
         const team = this.teamFor(g);
         const names = team ? [team.name] : Array.isArray(g.competitors) && g.competitors.length === 2 ? g.competitors.map(c => c && c.name).filter(Boolean) : [];
-        for (const name of names) out.push({ kind: 'team', name, sport: team ? team.sport : sport });
+        // the sport is resolved when drawn and when saved (the catalogue may come after the page opened)
+        for (const name of names) out.push({ kind: 'team', name, sport: team ? team.sport : null });
         const league = String(g.league || '').trim();
         if (league && league.toLowerCase() !== 'sport') out.push({ kind: 'league', league });
         return out;
     }
+    /**
+     * A league's catalogue sport, whether or not anyone follows it (Codex #327: a league page's fixture): the catalogue
+     * (/api/sports/catalog), else the front page's `sports[]`, else the Sport page the league is shown on.
+     */
+    sportOfLeague(league) {
+        if (!league) return null;
+        const own = this.leagueSports && Object.hasOwn(this.leagueSports, league) ? this.leagueSports[league] : null;
+        if (own) return own;
+        const followed = ((this.front && this.front.sports) || []).find(s => s.league === league)?.sport;
+        if (followed) return followed;
+        const { sport } = this.route;
+        return sport && (this.route.league === league || this.shownLeague() === league) ? sport : null;
+    }
+    /** A team choice's sport: the follow's, else its league's; null when it cannot be told (the choice is then off). */
+    teamSport(w, g) { return w.sport || this.sportOfLeague(g.league); }
     whatLabel(w, st) {
         const a = st.airings[0];
         if (w.kind === 'this') return { title: 'This game', detail: a ? `${SportsPage.day(a.start, this.now())} ${UI.clock(a.start)}` : '' };
-        if (w.kind === 'team') return { title: `Every ${w.name} game`, detail: 'Never replays' };
+        if (w.kind === 'team') return { title: `Every ${w.name} game`, detail: this.teamSport(w, st.g) ? 'Never replays' : 'Not available: PigTV doesn’t know this league’s sport' };
         const name = SportView.label(w.league, this.labels);
         return { title: (st.g.competitors || []).length === 2 ? `Every ${name} game` : `Everything in ${name}`, detail: 'On your channels, never replays' };
     }
@@ -1069,8 +1090,8 @@ class SportsPage {
         if (st.whats.length) {
             html += '<h3 class="rsec" id="sp-rec-what">What</h3><div class="rwhat" role="radiogroup" aria-labelledby="sp-rec-what">';
             st.whats.forEach((w, i) => {
-                const l = this.whatLabel(w, st), on = i === st.what;
-                html += `<button type="button" class="rchoice${on ? ' on' : ''}" role="radio" aria-checked="${on}" data-act="r-what" data-index="${i}" data-key="r:what:${i}"><b>${e(l.title)}</b><span class="pig-amount">${e(l.detail)}</span></button>`;
+                const l = this.whatLabel(w, st), on = i === st.what, off = w.kind === 'team' && !this.teamSport(w, g);
+                html += `<button type="button" class="rchoice${on ? ' on' : ''}" role="radio" aria-checked="${on}" data-act="r-what" data-index="${i}" data-key="r:what:${i}"${off ? ' disabled' : ''}><b>${e(l.title)}</b><span class="pig-amount">${e(l.detail)}</span></button>`;
             });
             html += '</div>';
         }
@@ -1155,8 +1176,11 @@ class SportsPage {
             } else {
                 const what = st.whats[st.what] || { kind: 'this' };
                 if (what.kind === 'team') {
+                    // always a `team` rule (the team's games from the fixture), never a guide keyword
                     failText = 'The rule could not be added.';
-                    await API.recordings.addRule(what.sport ? { kind: 'team', match: what.name, sport: what.sport, ...pad } : { kind: 'sport', match: what.name, ...pad });
+                    const sport = this.teamSport(what, g);
+                    if (!sport) { failText = 'PigTV doesn’t know this league’s sport, so every game of the team can’t be recorded.'; throw new Error('no sport'); }
+                    await API.recordings.addRule({ kind: 'team', match: what.name, sport, ...pad });
                     toast = `Recording every ${what.name} game.`;
                 } else if (what.kind === 'league') {
                     failText = 'The rule could not be added.';
