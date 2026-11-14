@@ -818,7 +818,7 @@ function stallingHelpers(hold, { exitOnRelease = false } = {}) {
     const exit = (helper) => { helper.signalCode = 'SIGKILL'; helper.emit('exit', null, 'SIGKILL'); };
     const fork = () => {
         const helper = Object.assign(new EventEmitter(), {
-            connected: true, exitCode: null, signalCode: null, unref() {}, channel: { ref() {}, unref() {} },
+            pid: 1, connected: true, exitCode: null, signalCode: null, unref() {}, channel: { ref() {}, unref() {} },
             kill() { this.connected = false; if (exitOnRelease) dying.push(this); else exit(this); },
             send(msg) {
                 const { id, op, file, ...rest } = msg;
@@ -2115,5 +2115,35 @@ test('#289: a copy that misses its stall time and creates the partial late, afte
         shareFs.tuning.copyStallMs = stallWas;
         shareFs.reset();
         await finishLeftovers();
+    }
+});
+
+test('#289: a long-call helper that never spawned (no pid) is never counted as stuck, so later calls still fork', async () => {
+    const { EventEmitter } = require('node:events');
+    const realFork = shareFs._spawner.fork;
+    const forks = [];
+    shareFs.reset();
+    // As fork() when the process cannot start (EMFILE): no pid, an 'error', and never an 'exit'.
+    shareFs._spawner.fork = () => {
+        const helper = Object.assign(new EventEmitter(), {
+            pid: undefined, connected: false, exitCode: null, signalCode: null,
+            send() {}, kill() {}, unref() {}, channel: null
+        });
+        process.nextTick(() => helper.emit('error', Object.assign(new Error('spawn EMFILE'), { code: 'EMFILE' })));
+        forks.push(helper);
+        return helper;
+    };
+    try {
+        for (let i = 0; i < 3; i++) {
+            const err = await shareFs.copyInto(`/anywhere/${i}.partial`, ['/appdata/a']).then(() => null, e => e);
+            assert.equal(err?.code, 'SHARE_UNRESPONSIVE');
+            assert.equal(await Promise.race([err.settled.then(() => 'settled'), new Promise(r => setTimeout(() => r('waiting'), 1000))]),
+                'settled', 'nothing ran: settled at once');
+        }
+        assert.equal(forks.length, 3, 'each call forked: none was left stuck');
+        assert.equal(shareFs._stuck.size, 0);
+    } finally {
+        shareFs._spawner.fork = realFork;
+        shareFs.reset();
     }
 });

@@ -170,8 +170,13 @@ function long(op, file, extra, { signal = null, stallMs = tuning.copyStallMs } =
             if (signal) signal.removeEventListener('abort', onAbort);
             return true;
         }
-        // Killed: stuck until it exits (it may be held in the kernel on the hung mount), unless it has answered. Returns its exit.
+        // Killed: stuck until it exits (it may be held in the kernel on the hung mount), unless it has answered. Returns its
+        // exit. One that never spawned (no pid: EMFILE, say) ran nothing and never exits: never stuck, settled at once.
         function kill(answered = false) {
+            if (!helper.pid) {
+                try { helper.kill('SIGKILL'); } catch (e) { /* never started */ }
+                return Promise.resolve();
+            }
             const settled = exitOf(helper);
             if (!answered && helper.exitCode === null && helper.signalCode === null) stuck.add(helper);
             try { helper.kill('SIGKILL'); } catch (e) { /* gone */ }
@@ -200,7 +205,6 @@ function long(op, file, extra, { signal = null, stallMs = tuning.copyStallMs } =
             if (finish()) reject(unanswered('The recordings share helper stopped', Promise.resolve()));
         });
         helper.on('error', () => {
-            if (!helper.pid) stuck.delete(helper); // never spawned: nothing can be stuck
             if (finish()) reject(unanswered('The recordings share helper stopped', kill()));
         });
         if (signal) signal.addEventListener('abort', onAbort, { once: true });
