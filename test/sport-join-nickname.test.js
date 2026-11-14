@@ -146,6 +146,22 @@ test('#296 review: replays and highlights named in French, Spanish or Portuguese
     assert.equal(classify.classifyKind({ title: `NFL: ${a.name} v ${h.name} - Play Resumes` }).kind, 'event', 'not "resume"');
 });
 
+// Opus review of #296: a women's, under-age or reserve side's game is not the senior game of the same clubs.
+test('#296 review: a women\'s, U21 or reserves title does not join the senior game; a women\'s game still joins its own', () => {
+    const { page: g, game } = pairs[0];
+    const own = (title) => matchBroadcasts(catalog, [event(title, g, 0)]).get(game.id).length;
+    assert.equal(own(french(g)), 1);
+    for (const tag of ['(Women)', "Women's", '(Femmes)', 'féminin', 'Mujeres', 'U21', 'U-19', 'Réserves', 'Reserves', 'Espoirs']) {
+        assert.equal(own(`${french(g)} ${tag}`), 0, tag);
+    }
+    const start = Date.parse('2026-12-01T19:00:00Z');
+    const side = (id, name, nick, abbr) => ({ id, name, aliases: [name, nick, abbr], logo: null });
+    const wsl = [{ id: 'wsl:1', league: 'WSL', title: 'Arsenal Women v Chelsea Women', start,
+        competitors: [side('1', 'Arsenal Women', 'Arsenal', 'ARS'), side('2', 'Chelsea Women', 'Chelsea', 'CHE')] }];
+    const listing = { id: 'w', league: 'WSL', kind: 'event', title: 'Arsenal (Femmes) c. Chelsea (Femmes) en direct', start, end: start + 2 * 3600e3, channels: [] };
+    assert.equal(matchBroadcasts(wsl, [listing]).get('wsl:1').length, 1, 'the women\'s game itself');
+});
+
 // Codex review of #296 (high): a team rule joins only its own team's games, a recording's link only the games near it; the
 // nickname join must still see the rest of the league's catalogue, or a title naming another game's teams (or a name two
 // clubs share) joins the part it was given.

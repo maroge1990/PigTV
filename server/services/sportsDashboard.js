@@ -138,6 +138,7 @@ const ABBR_ALIAS_RE = /^[A-Z0-9]{2,4}$/;
 const nameFold = s => classify.normText(foldText(s));
 const says = (text, key) => text.includes(` ${key} `);
 const teamId = c => String(c.id ?? c.name ?? '');
+const SQUAD_RE = /(?:^| )(?:women|womens|woman|femmes?|feminin|feminine|feminines|mujeres|femenino|femenil|u ?\d\d|reserves?|espoirs)(?= |$)/;
 function leagueNames(games) {
     const keys = new Map();
     for (const game of games) for (const c of (Array.isArray(game?.competitors) ? game.competitors : [])) {
@@ -168,8 +169,13 @@ function namedByNickname(prepared, parsed) {
     const own = ids.map(id => names.distinct.get(id) || []);
     if (ids[0] === ids[1] || !own[0].length || !own[1].length) return false;
     const longestFirst = [...own[0], ...own[1]].sort((a, b) => b.length - a.length);
+    // Opus review of #296: a women's, under-age or reserve side's game ("Packers c. Bears (Femmes)", "U21") is not the
+    // senior one, unless the game itself is that side's
+    if (prepared.squad === undefined) prepared.squad = SQUAD_RE.test(nameFold([prepared.game.title,
+        ...sides.flatMap(c => [c.name, ...(Array.isArray(c.aliases) ? c.aliases : [])])].filter(t => typeof t === 'string').join(' ')));
     return guideTexts(parsed).some(text => {
         if (!own.every(keys => keys.some(k => says(text, k)))) return false;
+        if (!prepared.squad && SQUAD_RE.test(text)) return false;
         let rest = text;
         for (const k of longestFirst) while (says(rest, k)) rest = rest.replace(` ${k} `, ' | ');
         return !names.all.some(o => !ids.includes(o.id) && says(rest, o.k));
