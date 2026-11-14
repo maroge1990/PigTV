@@ -899,6 +899,40 @@ test('#284: a single-provider route that refuses at the start waits for the next
     await engine.cancelScheduled(s.id);
 });
 
+// #288 (Mark, 14 Nov; Opus L4): over a long outage a recording tried its provider every 15 s tick for hours (~960
+// connection attempts in 4 h, which some providers flag). After backoffAfterMs of outage (10 min) it now tries at most
+// once per backoffEveryMs (1 min), until a part grows again, which puts the pace back. Shortened here.
+test('#288: a long outage backs off to one try per backoffEveryMs; a part that grows resets the pace', async () => {
+    tuning.endGraceMs = 0;
+    tuning.backoffAfterMs = 1500;
+    tuning.backoffEveryMs = 2500;
+    setBehaviour(url.A, 'refuses');
+    const s = due({ windowMs: 60000 });
+    await engine.tick();
+    await settle(() => captures().length === 1 && waiting(s.id), 'the first try');
+    await engine.tick();
+    await settle(() => captures().length === 2 && waiting(s.id), 'inside the first stretch: every tick tries');
+    await sleep(1600); // the outage is now past backoffAfterMs, the last try 1.6 s ago
+    await engine.tick();
+    await sleep(300);
+    assert.equal(captures().length, 2, 'past backoffAfterMs: no try within backoffEveryMs of the last');
+    await sleep(1000);
+    await engine.tick();
+    await settle(() => captures().length === 3 && waiting(s.id), 'one try once backoffEveryMs has passed');
+    await engine.tick();
+    await sleep(300);
+    assert.equal(captures().length, 3, 'and then none again until the next one is due');
+    // The provider is back for a moment: a part that writes, then dies. The outage starts again from there.
+    setBehaviour(url.A, 'dies');
+    await sleep(2600);
+    await engine.tick();
+    await settle(() => captures().length === 4 && waiting(s.id), 'a part that grew');
+    setBehaviour(url.A, 'refuses');
+    await engine.tick();
+    await settle(() => captures().length === 5 && waiting(s.id), 'the pace is back to every tick');
+    await engine.cancelScheduled(s.id);
+});
+
 // #260 (0499): on 8 Nov the São Paulo GP's capture ended 37 minutes into the race, during a guide sync, with no provider
 // error and no backup provider configured. The recording was completed with what it had; nothing said why.
 test('0499: a capture that ends early for no provider reason, with one provider: the same recording continues, and why is logged', async () => {

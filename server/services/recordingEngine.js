@@ -54,7 +54,11 @@ const failoverTuning = {
     stallCheckMs: 5 * 1000,
     // #260 (0499): an epoch that ran at least this long before it ended is continued at once, a shorter one on
     // the next tick (#288: however many times, until the stop time).
-    resumeAtOnceAfterMs: 60 * 1000
+    resumeAtOnceAfterMs: 60 * 1000,
+    // #288 (Mark, 14 Nov; Opus L4): an outage (nothing grown since the recording last grew) is retried as usual for
+    // backoffAfterMs, then at most once per backoffEveryMs, until its stop time or a part grows again.
+    backoffAfterMs: 10 * 60 * 1000,
+    backoffEveryMs: 60 * 1000
 };
 
 let tickTimer = null;
@@ -1111,11 +1115,11 @@ async function startSegmented(schedule, settings, route, index, { refuse, lease,
 }
 
 /** R3: one epoch of a segmented recording (its first run, or a run after a failover or restart). */
-function spawnSegment(schedule, settings, { recordingId, workDir, route, index, lease = null, resumes = 0, shortRun = null, feed = null }) {
+function spawnSegment(schedule, settings, { recordingId, workDir, route, index, lease = null, resumes = 0, shortRun = null, feed = null, outageSince = null }) {
     const epoch = segments.nextEpoch(workDir);
     spawnPart(schedule, settings, {
         recordingId, outputPath: epoch.dir, route, index, lease, feed,
-        segmented: { workDir, epoch: epoch.n, offsetSec: epoch.offsetSec, resumes, shortRun }
+        segmented: { workDir, epoch: epoch.n, offsetSec: epoch.offsetSec, resumes, shortRun, outageSince }
     });
 }
 
@@ -1225,7 +1229,8 @@ async function onPartExit(schedule, entry, exitCode) {
 }
 
 // #288 (Mark, 14 Nov): no cap on how often one recording starts a new epoch. With every provider down it keeps trying,
-// paced (at once after a minute's run or #284's one try per provider, else on the next tick), until its stop time
+// paced (at once after a minute's run or #284's one try per provider, else on the next tick; after backoffAfterMs of an
+// outage at most once per backoffEveryMs), until its stop time
 // (continuePart ends it there); `resumes` only counts them for the log.
 // #260 (0499): how long an epoch must have run to be continued at once is failoverTuning.resumeAtOnceAfterMs (1 min).
 
@@ -1295,9 +1300,14 @@ async function onSegmentExit(schedule, entry, exitCode) {
         // each gap ending where the next begins (at a part's spawn).
         // #302 (Opus L3): a part that wrote nothing is still the same outage, so its gap adds to the current one's total
         // instead of counting another ("Gaps: 1, N s" for one outage, however many tries it took).
+        // #288 (Opus L4): the outage runs from the recording's last growth; a part that grew starts a new one (the pace
+        // goes back to normal), one that wrote nothing carries it on. continuePart backs off on a long one.
+        const grew = segments.epochSegmentCount(entry.outputPath) > 0;
+        const lostAt = Math.min(now, entry.lastGrowthAt ?? entry.spawnedAt ?? now);
         continuations.set(schedule.id, {
-            schedule, nextPart: 1, lostAt: Math.min(now, entry.lastGrowthAt ?? entry.spawnedAt ?? now), starting: false, waitingLogged: false,
-            newGap: segments.epochSegmentCount(entry.outputPath) > 0,
+            schedule, nextPart: 1, lostAt, starting: false, waitingLogged: false,
+            newGap: grew,
+            outageSince: grew ? lostAt : (entry.segmented.outageSince ?? lostAt), lastTryAt: entry.spawnedAt ?? now,
             resume: { recordingId: entry.recordingId, workDir: entry.segmented.workDir, resumes: entry.segmented.resumes + 1, shortRun,
                 why: failover ? 'the provider dropped out' : `the capture ended (${why})` }
         });
@@ -1368,6 +1378,10 @@ async function continuePart(scheduleId, now = Date.now()) {
         if (cont.resume) endSegmentCapture(scheduleId, cont.resume.recordingId);
         return;
     }
+    // #288 (Mark, 14 Nov; Opus L4): past backoffAfterMs of an outage, at most one try per backoffEveryMs (an immediate
+    // try per provider included), so a long outage is not a provider connection every 15 s for hours.
+    if (cont.outageSince != null && cont.lastTryAt != null && now - cont.outageSince >= failoverTuning.backoffAfterMs &&
+        now - cont.lastTryAt < failoverTuning.backoffEveryMs) return;
     cont.starting = true;
     try {
         const settings = await getSettings();
@@ -1402,7 +1416,8 @@ async function continuePart(scheduleId, now = Date.now()) {
             console.log(`[Recordings] #${rec.id} continues after ${Math.round(gapMs / 1000)}s` +
                 (route.multi ? ` on ${route.candidates[index].providerName}` : ''));
             continuations.delete(scheduleId);
-            spawnSegment(schedule, settings, { recordingId: rec.id, workDir: rec.work_dir, route, index, resumes: cont.resume.resumes, shortRun: cont.resume.shortRun, feed });
+            spawnSegment(schedule, settings, { recordingId: rec.id, workDir: rec.work_dir, route, index, resumes: cont.resume.resumes, shortRun: cont.resume.shortRun, feed,
+                outageSince: cont.outageSince ?? null });
             return;
         }
     } finally {
@@ -1619,6 +1634,14 @@ function resumeSegmentedOnStartup(schedule) {
         if (last && segments.epochSegmentCount(last.dir) > 0) lostAt = fs.statSync(path.join(last.dir, 'archive.m3u8')).mtimeMs;
         else if (last) { lostAt = fs.statSync(last.dir).mtimeMs; newGap = false; }
     } catch (e) { lostAt = null; newGap = true; /* the restart time, then */ }
+    // #288 (Opus L4): an outage the restart fell in goes on from the last growth before it (the back-off's clock).
+    let outageSince = null;
+    if (!newGap) {
+        try {
+            const grown = segments.epochs(rec.work_dir).filter(e => segments.epochSegmentCount(e.dir) > 0).pop();
+            outageSince = grown ? fs.statSync(path.join(grown.dir, 'archive.m3u8')).mtimeMs : lostAt;
+        } catch (e) { outageSince = lostAt; }
+    }
     segments.sealAll(rec.work_dir);
     const now = Date.now();
     // #217 (0440 Codex round 1, high): its game is checked before its stored stop decides whether it resumes.
@@ -1627,6 +1650,7 @@ function resumeSegmentedOnStartup(schedule) {
         console.warn(`[Recordings] Schedule #${schedule.id} was recording when the server stopped; it continues in the same recording (#${rec.id})`);
         continuations.set(schedule.id, {
             schedule, nextPart: 1, lostAt: Math.min(now, lostAt ?? now), starting: false, waitingLogged: false, newGap,
+            outageSince: outageSince === null ? null : Math.min(now, outageSince),
             resume: { recordingId: rec.id, workDir: rec.work_dir, resumes: 0, why: 'the server restarted' }
         });
         return true;
