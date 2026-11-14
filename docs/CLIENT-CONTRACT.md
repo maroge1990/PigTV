@@ -836,7 +836,7 @@ turns it off) and C-I's guide events. The legacy C-O routes and `features.sports
   `sports[]` lists the followed leagues (`live: 0`, `next: null`, `line: "quiet"`) and `follows[]` the followed names
   (`state: "none"`, `gameId`/`start` null; `logo` from the stored ESPN roster or null). `features.sportFront` still
   says whether scores are collected. A server from 0381 to 0502 answers 404 there with `sportFront` false.
-- Since #282 (server XXXX), with scores off but ESPN fixtures on (`sportFront` false, `PIGTV_SPORT_FIXTURES` not `0`), the
+- Since #282 (server 0717), with scores off but ESPN fixtures on (`sportFront` false, `PIGTV_SPORT_FIXTURES` not `0`), the
   page has cards again, built from ESPN's fixture list with the guide's channels joined (D-41: never from a listing alone),
   each drawn like a future game: the usual card shape and ids (`espn:<path>:<id>`), `status: "scheduled"`, `freshness:
   "unavailable"`, `observedAt: null`, `progress: {}`, never `scores`, `situation` or `breakLabel`; `channels`, `canWatch`
