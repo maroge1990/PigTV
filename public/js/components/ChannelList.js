@@ -933,14 +933,17 @@ class ChannelList {
                     this.saveCollapsedState();
                 }
 
-                // 2. Collapse ALL other groups (Focus Mode)
-                document.querySelectorAll('.group-header').forEach(header => {
-                    if (header !== groupHeader && !header.classList.contains('collapsed')) {
-                        const otherGroup = header.dataset.group;
-                        this.collapsedGroups.add(otherGroup);
-                        header.classList.add('collapsed');
-                    }
-                });
+                // 2. Collapse ALL other groups (Focus Mode). Not for a selection that only restores the last channel
+                // (play: false, #320): that must not close the groups the person had open.
+                if (play) {
+                    document.querySelectorAll('.group-header').forEach(header => {
+                        if (header !== groupHeader && !header.classList.contains('collapsed')) {
+                            const otherGroup = header.dataset.group;
+                            this.collapsedGroups.add(otherGroup);
+                            header.classList.add('collapsed');
+                        }
+                    });
+                }
                 this.saveCollapsedState();
 
                 // 3. Scroll Group to Top

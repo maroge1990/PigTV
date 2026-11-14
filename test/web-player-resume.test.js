@@ -171,3 +171,30 @@ test('ChannelList.selectChannel with play:false selects but does not start the p
     await list.selectChannel({ channelId: '7', sourceId: 's1' });
     assert.deepEqual(plays, [SEVEN]);
 });
+
+test('restoring the last channel (play:false) leaves the groups the person had open; a real selection still focuses its group', async () => {
+    for (const [play, otherCollapsed] of [[false, false], [true, true]]) {
+        const document = createDocument();
+        const mk = (group) => { const h = document.createElement('div'); h.className = 'group-header'; h.dataset = { group }; return h; };
+        const mine = mk('News'), other = mk('Sport');
+        document.body.appendChild(mine); document.body.appendChild(other);
+        const item = document.createElement('div');
+        item.classList.add('channel-item');
+        item.dataset = { renderId: 'r1' };
+        item.scrollIntoView = () => {};
+        item.closest = () => ({ querySelector: () => mine });
+        const context = vm.createContext({
+            console: { ...console, log() {}, warn() {}, error() {} }, window: { app: { player: { play() {} } } }, document,
+            Icons: {}, localStorage: { getItem: () => null, setItem() {} }, setTimeout: () => 0
+        });
+        loadUi(context);
+        vm.runInContext(read('js/components/ChannelList.js'), context);
+        const list = Object.create(vm.runInContext('ChannelList', context).prototype);
+        Object.assign(list, {
+            channels: [SEVEN], renderedChannels: [], collapsedGroups: new Set(), saveCollapsedState() {},
+            container: { querySelectorAll: () => [], querySelector: () => item }
+        });
+        await list.selectChannel({ channelId: '7', sourceId: 's1', renderId: 'r1' }, { play });
+        assert.equal(other.classList.contains('collapsed'), otherCollapsed, `play:${play}`);
+    }
+});
