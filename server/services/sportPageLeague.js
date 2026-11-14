@@ -216,7 +216,8 @@ function gameOf(event, { family, competition = null, league = null, path = null,
     if (!game.id) return null;
     // `card`: the score collector's id for the same competition (sportsScoresEspn.normalize), whose state page() lays over
     const card = path && str(String(c.id ?? '')) ? `espn:${path}:${String(c.id)}` : null;
-    return { game, join: { id: game.id, league, start, card, competitors: [{ aliases: sides.home.aliases }, { aliases: sides.away.aliases }] },
+    return { game, join: { id: game.id, league, start, card, // Opus review of #296: each side's id, which the nickname join tells teams apart by
+        competitors: [{ id: sides.home.side.id, aliases: sides.home.aliases }, { id: sides.away.side.id, aliases: sides.away.aliases }] },
         week: num(event.week?.number), seasonType: num(event.season?.type) };
 }
 

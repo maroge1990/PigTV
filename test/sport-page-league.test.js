@@ -169,6 +169,18 @@ test('channels come from the dashboard\'s game-guide join; an airing two games f
     assert.equal(map.get('b'), undefined);
 });
 
+// Opus review of #296: the page's join gave its sides no id, so the nickname join (a guide title in another language)
+// could not tell them apart and joined nothing here.
+test('#296: an airing listed only in French ("Bulls de Chicago c. Celtics de Boston") gets its channel on the league page', async () => {
+    const built = await lp.build('NBA', NOW, { zone: ZONE });
+    const bos = built.join.find(g => g.competitors.some(c => c.aliases.includes('Boston Celtics')) && g.competitors.some(c => c.aliases.includes('Chicago Bulls')));
+    const start = bos.start - 15 * 60e3;
+    const airing = { league: 'NBA', kind: 'event', title: 'NBA : Bulls de Chicago c. Celtics de Boston', start, end: start + 3.25 * 3600e3,
+        channels: [{ sourceId: 8, id: 'rds', name: 'RDS', start, end: start + 3.25 * 3600e3 }] };
+    const map = lp.channelsForGames(built.join, [airing], { now: bos.start, observedAt: bos.start });
+    assert.deepEqual(map.get(bos.id)?.map(c => c.id), ['rds']);
+});
+
 test('page(): kept per league, refreshed once stale; channels and following per request; ESPN down is not available', async () => {
     let calls = 0;
     const deps = { channelsFor: async (games) => { calls++; return new Map([[games[0].id, [{ sourceId: 1, id: 'a' }]]]); }, zone: ZONE,
