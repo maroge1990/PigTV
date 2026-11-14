@@ -222,7 +222,7 @@ test('an MP4 that fails its check three times: the segments go to the share as o
     const real = engine._nativeTools.duration;
     engine._nativeTools.duration = async (file) => (file.endsWith('.partial') ? 10 : 120); // the MP4 comes out short
     try {
-        const s = due({ windowMs: 900 });
+        const s = due({ windowMs: 2400 }); // two segments with at least 1 s of margin when every file runs at once
         await until(() => rowsOf(s.id).length === 1, 'recording');
         const [rec] = rowsOf(s.id);
         await until(() => recordings.getById(rec.id).status === 'completed', 'delivered', 15000);
