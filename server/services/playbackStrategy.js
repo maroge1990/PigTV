@@ -125,7 +125,7 @@ async function probedAnalysis({ url, ffprobePath, userAgent, caps, cacheKey, dea
     } catch (err) {
         // 0118 (C-B): ffprobe's error carries its stderr, and with it the stream's
         // (redacted) URL. The log keeps it; the client gets a fixed sentence.
-        console.warn(`[Playback] resolve probe failed on ${providerLabel(providerId)}: ${stripUrls(err.message)}`);
+        console.warn(`[Playback] resolve probe failed on ${providerLabel(providerId)}: ${probeFailureClass(err)}`);
         throw Object.assign(new Error(probeFailureMessage(err)), { status: err.status, providerReason: probeFailedForProvider(err) });
     }
     const info = analyzeProbeResult(raw, url, caps);
@@ -405,6 +405,20 @@ function sessionDecision(sessionId, plan, info) {
 function probeFailedForProvider(err) {
     const text = String(err && err.message || '');
     return /Probe timeout/i.test(text) || /^ffprobe exited with code/i.test(text);
+}
+
+/**
+ * #307: a fixed class for a failed probe's log line. ffprobe's own text can carry a bare host
+ * ("Failed to resolve hostname x", "Connection to tcp://x:80 failed"), which no URL pattern catches.
+ */
+function probeFailureClass(err) {
+    const text = String(err && err.message || '');
+    if (/Probe timeout|timed out/i.test(text)) return 'timed out';
+    if (/resolve hostname|Name or service not known|nodename nor servname|getaddrinfo/i.test(text)) return 'could not resolve the host';
+    if (/refused/i.test(text)) return 'connection refused';
+    const http = /\b(?:Server returned |HTTP error )?([45]\d\d)\b(?=.*(?:Server returned|HTTP error))|Server returned ([45]\d\d|[45]XX)/i.exec(text);
+    if (http) return `HTTP ${(http[1] || http[2]).replace(/XX$/i, 'xx')}`;
+    return 'probe failed';
 }
 
 function probeFailureMessage(err) {

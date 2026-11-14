@@ -76,6 +76,16 @@ test('a failed probe names the provider, not its address', async () => {
     assert.ok(lines.some(l => /probe failed/.test(l) && l.includes('Household')), lines.join('\n'));
 });
 
+test('a failed probe logs a fixed class, never ffprobe\'s text with its bare hostname', async () => {
+    const fake = path.join(sandbox, 'fake-ffprobe-dns.sh');
+    fs.writeFileSync(fake, `#!/bin/sh\necho "[tcp @ 0x1] Failed to resolve hostname ${HOST}: Name or service not known" >&2\necho "Connection to tcp://${HOST}:8123 failed" >&2\nexit 1\n`, { mode: 0o755 });
+    const lines = await captured(async () => {
+        await assert.rejects(playbackStrategy.resolve({ url: STREAM_URL, settings: {}, ffprobePath: fake, providerId: source.id, live: true }));
+    });
+    noAddress(lines);
+    assert.ok(lines.some(l => /probe failed/.test(l) && l.includes('Household') && l.includes('could not resolve the host')), lines.join('\n'));
+});
+
 test('a guide fetch names the provider, not its address', async () => {
     const lines = await captured(async () => {
         try { await syncService.syncEpgFromUrl(source.id, `http://${HOST}:8123/xmltv.php?username=u&password=pw`); } catch { /* unreachable on purpose */ }
