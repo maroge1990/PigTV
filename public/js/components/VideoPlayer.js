@@ -408,6 +408,9 @@ class VideoPlayer {
         const sidebarExpandBtn = document.getElementById('sidebar-expand-btn');
 
         const showOverlay = () => {
+            // Idle player (#320): the "Select a channel" / Resume overlay is showing. The controls overlay would sit on
+            // top of its Resume button and take the click, and there is nothing for the controls to control.
+            if (this.overlay && !this.overlay.classList.contains('hidden')) return;
             this.controlsOverlay.classList.remove('hidden');
             this.container.style.cursor = 'default';
             sidebarExpandBtn?.classList.add('visible');
