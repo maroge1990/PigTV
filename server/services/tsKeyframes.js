@@ -124,13 +124,18 @@ function pmtPidOf(buf, i) {
     return null;
 }
 
+const ccOf = (buf, i) => buf[i + 3] & 0x0f;
+
 /**
  * Collects one PSI section's packets as they come (a section may span several packets). `add(i)`
- * returns the offsets of every packet of a section it has just completed, else null.
+ * returns the offsets of every packet of a section it has just completed, else null. Continuity
+ * counters are followed (#309): a repeated packet (the same counter again) is skipped, and a gap
+ * drops the part-collected section, so a section is never completed from the wrong packets.
  */
 function sectionCollector(buf) {
     let packets = null;
     let need = 0;
+    let cc = -1;
     return (i) => {
         if (startsUnit(buf, i)) {
             const p = payloadOf(buf, i);
@@ -138,10 +143,15 @@ function sectionCollector(buf) {
             const at = p + 1 + buf[p];
             if (at + 3 > i + TS_PACKET) { packets = null; return null; }
             packets = [i];
+            cc = ccOf(buf, i);
             need = 3 + (((buf[at + 1] & 0x0f) << 8) | buf[at + 2]) - (i + TS_PACKET - at);
         } else if (packets) {
             const p = payloadOf(buf, i);
             if (p < 0) return null;
+            const next = ccOf(buf, i);
+            if (next === cc) return null;                       // a repeated packet
+            if (next !== ((cc + 1) & 0x0f)) { packets = null; return null; } // a lost packet
+            cc = next;
             packets.push(i);
             need -= i + TS_PACKET - p;
         } else return null;

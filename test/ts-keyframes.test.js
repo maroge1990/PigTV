@@ -113,3 +113,19 @@ test('a window that starts mid-packet (chunks split anywhere) still finds the pa
     assert.equal(r.at, want.at - cut);
     assert.deepEqual(r.tables, want.tables.map(o => o - cut));
 });
+
+test('#309: a repeated packet of a three-packet PMT is skipped, not counted toward the section; a lost one drops it', () => {
+    // 0579 counted payload bytes without the continuity counter: P1 P2 P2 completed the section
+    // without P3, and the joiner was sent a corrupt PMT (P3 never sent), so it waited for a repeat.
+    const pmt = ts.pmt({ descriptor: 400 });
+    assert.equal(pmt.length, 3 * 188, 'the PMT spans three packets');
+    const [p1, p2, p3] = [0, 1, 2].map(n => pmt.subarray(n * 188, (n + 1) * 188));
+    const tail = [ts.videoFrame(0, { key: true, rai: true }), ts.audio(), ts.videoFrame(1), ts.audio()];
+    const buf = Buffer.concat([ts.pat(), p1, p2, p2, p3, ...tail]);
+    const r = keyframeJoin(buf);
+    assert.equal(r.at, 5 * 188, 'the key frame after the tables');
+    assert.deepEqual(r.tables, [0, 188, 2 * 188, 4 * 188], 'PAT, P1, P2, P3: the repeat is not sent, the last packet is');
+    // P2 lost: P1 and P3 are not a section, whatever their byte count.
+    const lost = Buffer.concat([ts.pat(), p1, p3, ...tail]);
+    assert.equal(keyframeJoin(lost).at, -1);
+});
