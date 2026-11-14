@@ -1890,16 +1890,16 @@ test('#289: a copy to the share is watched for progress, not for its whole lengt
     const target = (n) => path.join(slowRecordings, `progress-${n}.bin.partial`);
     const stallWas = shareFs.tuning.copyStallMs;
     shareFs.reset();
-    shareFs.tuning.copyStallMs = 600;
+    shareFs.tuning.copyStallMs = 2000; // margins of 1 s or more: CI runs every file at once on 2 vCPUs
     blocked.length = 0;
     pooled.length = 0;
     try {
-        // 300 ms a chunk: 1.2 s in all, twice the stall time, but never that long without progress.
-        process.env.PIGTV_TEST_SHARE_SLOW_CHUNK_MS = '300';
+        // 1 s a chunk: 4 s in all, twice the stall time, but never more than half of it without progress.
+        process.env.PIGTV_TEST_SHARE_SLOW_CHUNK_MS = '1000';
         const began = Date.now();
         const slow = await loopFreeze(() => shareFs.copyInto(target(1), [src]));
         assert.equal(slow.result.size, bytes.length);
-        assert.ok(Date.now() - began >= 1000, 'it took longer than the stall time');
+        assert.ok(Date.now() - began >= 3000, 'it took longer than the stall time');
         assert.ok(slow.worst() < 300, `the event loop stalled for ${slow.worst()} ms`);
         assert.ok(real(() => fs.readFileSync(target(1))).equals(bytes), 'copied byte for byte');
         delete process.env.PIGTV_TEST_SHARE_SLOW_CHUNK_MS;
@@ -1912,7 +1912,7 @@ test('#289: a copy to the share is watched for progress, not for its whole lengt
         const stalled = await loopFreeze(() => assert.rejects(() => shareFs.copyInto(target(2), [src]),
             (err) => err.code === 'SHARE_UNRESPONSIVE' && err.sent === true && err.settled instanceof Promise));
         const took = Date.now() - at;
-        assert.ok(took >= 600 && took < 3000, `rejected after the stall time (${took} ms)`);
+        assert.ok(took >= 2000 && took < 6000, `rejected after the stall time (${took} ms)`);
         assert.ok(stalled.worst() < 300, `the event loop stalled for ${stalled.worst()} ms`);
         assert.ok(real(() => fs.existsSync(target(2))), 'it stopped mid-copy');
         assert.ok(shareFs.unresponsive(), 'the share counts as unresponsive');
@@ -1981,7 +1981,7 @@ test('#289: a share that stalls mid-copy: the move gives up after the stall time
     await leftInAppdata(rec, recordings);
     const stallWas = shareFs.tuning.copyStallMs;
     shareFs.reset();
-    shareFs.tuning.copyStallMs = 800;
+    shareFs.tuning.copyStallMs = 2000; // margins of 1 s or more
     process.env.PIGTV_TEST_SHARE_STALL_AFTER = '1'; // the copy helper stops after its first chunk
     hangMs = 1500;
     blocked.length = 0;
@@ -1990,7 +1990,7 @@ test('#289: a share that stalls mid-copy: the move gives up after the stall time
         const began = Date.now();
         const { worst } = await loopFreeze(() => segments.processQueue(later()));
         const took = Date.now() - began;
-        assert.ok(took >= 800 && took < 5000, `the move gave up after the stall time (${took} ms)`);
+        assert.ok(took >= 2000 && took < 7000, `the move gave up after the stall time (${took} ms)`);
         const waiting = recordings.getById(rec.id);
         assert.equal(waiting.segment_state, 'moving', 'a stall is not a failure: it waits to move');
         assert.equal(waiting.file_path, path.join(rec.work_dir, 'final.mp4'), 'its MP4 stays in appdata, playable');
