@@ -278,12 +278,13 @@ test('#129: ?details=0 leaves out (and does not read) what only the details draw
     raw.archiveSummary = (...a) => { reads++; return real(...a); };
     try {
         const { body } = await get('/api/status?details=0', adminToken);
-        for (const key of ['events', 'relay', 'ingest', 'feedLag', 'sportFixtures', 'sportEvents', 'preparation', 'loopDelay', 'catchup', 'backups', 'disk', 'warming']) {
+        for (const key of ['events', 'relay', 'ingest', 'feedLag', 'sportFixtures', 'sportEvents', 'preparation', 'loopDelay', 'catchup', 'backups', 'disk']) {
             assert.equal(body[key], undefined, `${key} is a detail`);
         }
         for (const key of ['build', 'providers', 'sessions', 'recordings', 'recentProblems', 'recordingsFolder', 'leastReliable', 'interruptions', 'sync', 'segmentedRecordings']) {
             assert.notEqual(body[key], undefined, `${key} is on the page without details`);
         }
+        assert.deepEqual(Object.keys(body.warming).sort(), ['active', 'enabled'], 'warming: only the summary the page draws');
         assert.equal(reads, 0, 'the catch-up summary is not read');
         const full = await get('/api/status', adminToken);
         assert.ok(Array.isArray(full.body.catchup) && full.body.disk, 'without the parameter, everything (as before)');
@@ -306,5 +307,19 @@ test('#299: a session\'s provider is named from the source list, and no app_sour
     } finally {
         d.prepare = orig;
         delete session.options.providerId;
+    }
+});
+
+test('#61: ?details=0 still carries the warming summary (enabled, active) the page draws, and the full response its counters', async () => {
+    const warming = load('services/channelWarming');
+    const real = warming.status;
+    warming.status = () => ({ enabled: true, active: 3, hits: 5, misses: 1, expired: 0, reclaimed: 0 });
+    try {
+        const { body } = await get('/api/status?details=0', adminToken);
+        assert.deepEqual(body.warming, { enabled: true, active: 3 });
+        const full = await get('/api/status', adminToken);
+        assert.equal(full.body.warming.hits, 5);
+    } finally {
+        warming.status = real;
     }
 });

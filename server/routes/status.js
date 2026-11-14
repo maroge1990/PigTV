@@ -351,7 +351,9 @@ router.get('/', async (req, res) => {
             // 0188: streams lost mid-play in the last 7 days, and how long they took to come back.
             interruptions: interruptionsSummary(),
             // R11: channels warmed ahead (the warmNextChannel setting).
-            warming: detail(() => require('../services/channelWarming').status(settings)),
+            // #61 (0601): the page's "Warming: N channels ready" line reads enabled and active, so those two
+            // are sent with details closed too; the counters stay a detail.
+            warming: (() => { const w = require('../services/channelWarming').status(settings); return full ? w : { enabled: w.enabled, active: w.active }; })(),
             // 0189: streams a relay is keeping going (Settings: In-stream recovery), and their standbys.
             relay: detail(() => { const r = require('../services/streamRelay'); return { ...r.modeOf(settings), streams: r.list() }; }),
             // Wave 5: shared ingests (one provider connection each), their subscribers, buffer and rate.

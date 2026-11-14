@@ -349,3 +349,9 @@ test('#61: Status shows "Warming: N channels ready" under Playing now only when 
     assert.ok(!warming({ enabled: false, active: 2 }).includes('Warming'), 'off: no line');
     assert.ok(!h.page.render(base).includes('Warming'), 'no warming field: no line');
 });
+
+test('#61: the page draws the warming line from the summary a details=0 response carries', () => {
+    const h = pageHarness();
+    const html = h.page.render({ providers: [], sessions: [], recordings: { active: [], upcoming: [] }, warming: { enabled: true, active: 3 } });
+    assert.ok(html.includes('Warming: 3 channels ready'));
+});
