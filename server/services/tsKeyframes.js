@@ -48,10 +48,11 @@ function sectionOf(buf, i) {
     return { at, end: Math.min(at + 3 + length - 4, limit) }; // less the CRC
 }
 
-/** The bytes of a section collected from `packets` (sectionCollector), from its table_id to its end. */
+/** The bytes of a section collected from `packets` (sectionCollector), from its table_id to its end; packets with no payload add none. */
 function sectionBytes(buf, packets) {
     const parts = packets.map((i, n) => {
         const p = payloadOf(buf, i);
+        if (p < 0) return buf.subarray(0, 0); // a packet its adaptation field fills
         return buf.subarray(n === 0 ? p + 1 + buf[p] : p, i + TS_PACKET);
     });
     const all = Buffer.concat(parts);
@@ -196,9 +197,11 @@ function sectionCollector(buf) {
                 if (next !== ((cc + 1) & 0x0f)) { packets = null; return null; } // a lost packet
             }
             cc = next;
-            const p = payloadOf(buf, i);
-            if (p < 0) return null;                             // an adaptation field fills it
+            // A packet whose adaptation field fills it is kept in the replay (its counter is part of
+            // the sequence a joiner's demuxer checks) but carries no section bytes.
             packets.push(i);
+            const p = payloadOf(buf, i);
+            if (p < 0) return null;
             need -= i + TS_PACKET - p;
         } else return null;
         if (need > 0) return null;

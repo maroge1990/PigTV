@@ -178,7 +178,24 @@ test('#309 review: table continuity: a packet whose adaptation field fills it st
     filled.set([0x47, (ts.PMT_PID >> 8) & 0x1f, ts.PMT_PID & 0xff, 0x30 | 5, 183, 0x00]);
     let buf = Buffer.concat([ts.pat(), withCc(p1, 4), filled, withCc(p2, 6), withCc(p3, 7), ...tail]);
     let r = keyframeJoin(buf);
-    assert.deepEqual({ at: r.at, tables: r.tables }, { at: 5 * 188, tables: [0, 188, 3 * 188, 4 * 188] }, 'the filled packet counted');
+    assert.deepEqual({ at: r.at, tables: r.tables }, { at: 5 * 188, tables: [0, 188, 2 * 188, 3 * 188, 4 * 188] },
+        'the filled packet counted, and sent with the PMT');
+    // Codex sign-off of the review fixes, high: the filled packet was left out of the tables sent, so
+    // the joiner's PMT counters went 4, 6, 7 and a demuxer that checks continuity dropped the PMT.
+    // What the joiner receives (the tables as found, then the stream from the key frame), read the
+    // way such a demuxer reads it: counters consecutive per PID, and the PMT and video found again.
+    const got = received(buf, r);
+    const counters = {};
+    for (let i = 0; i < got.length; i += 188) {
+        const pid = ((got[i + 1] & 0x1f) << 8) | got[i + 2];
+        if (!(got[i + 3] & 0x10)) continue; // no payload: the counter does not move
+        const cc = got[i + 3] & 0x0f;
+        if (pid in counters) assert.equal(cc, (counters[pid] + 1) & 0x0f, `PID ${pid}: counter ${counters[pid]} then ${cc}`);
+        counters[pid] = cc;
+    }
+    const again = keyframeJoin(got);
+    assert.equal(again.at, 5 * 188, 'the joiner finds the PMT, the video stream and the key frame in what it was sent');
+    assert.equal(again.codec, 'h264');
     // P2 with discontinuity_indicator set and a counter that jumps (P1 cc 4, P2 cc 11, P3 cc 12).
     const d2 = Buffer.alloc(188, 0xff);
     d2.set([0x47, (ts.PMT_PID >> 8) & 0x1f, ts.PMT_PID & 0xff, 0x30 | 11, 1, 0x80]);
