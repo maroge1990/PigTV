@@ -135,7 +135,8 @@ function sameGame(prepared, parsed) {
 // both teams by a name of theirs no other team of the league's games has, and no other of those teams; never a replay or
 // highlights, never one team alone; the time window above still applies. Abbreviations and bare cities are not names here.
 const ABBR_ALIAS_RE = /^[A-Z0-9]{2,4}$/;
-const nameFold = s => classify.normText(foldText(s));
+// Opus review of #296: French elision ("L'Avalanche", "l'Inter", "d'Ottawa") is its own word, not "lavalanche"
+const nameFold = s => classify.normText(foldText(s).replace(/(^|[^\p{L}\p{N}])[ldjn]['’](?=\p{L})/gu, '$1 '));
 const says = (text, key) => text.includes(` ${key} `);
 const teamId = c => String(c.id ?? c.name ?? '');
 const SQUAD_RE = /(?:^| )(?:women|womens|woman|femmes?|feminin|feminine|feminines|mujeres|femenino|femenil|u ?\d\d|reserves?|espoirs)(?= |$)/;

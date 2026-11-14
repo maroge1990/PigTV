@@ -162,6 +162,17 @@ test('#296 review: a women\'s, U21 or reserves title does not join the senior ga
     assert.equal(matchBroadcasts(wsl, [listing]).get('wsl:1').length, 1, 'the women\'s game itself');
 });
 
+// Opus review of #296: French elision joins its article to the name ("L'Avalanche"); the name is still read.
+test('#296 review: an elided article does not hide the name ("L\'Avalanche du Colorado", "l\'Inter", "l’Atlético")', () => {
+    const start = Date.parse('2026-12-01T19:00:00Z');
+    const side = (id, name, nick, abbr) => ({ id, name, aliases: [name, nick, abbr], logo: null });
+    const at = (league, title) => ({ id: 'e', league, kind: 'event', title, start, end: start + 3 * 3600e3, channels: [] });
+    const nhl = [{ id: 'nhl:1', league: 'NHL', start, competitors: [side('17', 'Colorado Avalanche', 'Avalanche', 'COL'), side('8', 'Montreal Canadiens', 'Canadiens', 'MTL')] }];
+    assert.equal(matchBroadcasts(nhl, [at('NHL', "L'Avalanche du Colorado c. les Canadiens de Montréal")]).get('nhl:1').length, 1);
+    const ucl = [{ id: 'ucl:1', league: 'UEFA', start, competitors: [side('110', 'Internazionale', 'Inter', 'INT'), side('1068', 'Atlético Madrid', 'Atlético', 'ATM')] }];
+    assert.equal(matchBroadcasts(ucl, [at('UEFA', "Ligue des champions : l'Inter reçoit l’Atlético de Madrid")]).get('ucl:1').length, 1);
+});
+
 // Codex review of #296 (high): a team rule joins only its own team's games, a recording's link only the games near it; the
 // nickname join must still see the rest of the league's catalogue, or a title naming another game's teams (or a name two
 // clubs share) joins the part it was given.
