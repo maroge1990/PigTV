@@ -623,28 +623,13 @@ async function joinSegments(rec, dir, first, alt, signal = null, made = () => {}
     }
 }
 
-/** F1: is `file` byte for byte this recording's segments, joined? (The only proof a file found on the share is its original.) */
+/**
+ * F1: is `file` byte for byte this recording's segments, joined? (The only proof a file found on the share is its original.)
+ * #289: compared by a helper process of its own (shareFs.sameBytes, sizes first), watched for progress: a share that stops
+ * answering rejects with SHARE_UNRESPONSIVE, and nothing in this process reads the share.
+ */
 async function sameBytesAsSegments(file, rec) {
-    const files = segmentFiles(rec);
-    let total = 0;
-    for (const f of files) total += fs.statSync(f).size; // appdata
-    const st = await ioFor(file).stat(file); // #287
-    if (!st || st.size !== total) return false;
-    const fh = await fsp.open(file, 'r');
-    try {
-        let at = 0;
-        for (const f of files) {
-            for await (const chunk of fs.createReadStream(f)) {
-                const theirs = Buffer.alloc(chunk.length);
-                const { bytesRead } = await fh.read(theirs, 0, chunk.length, at);
-                if (bytesRead !== chunk.length || !theirs.equals(chunk)) return false;
-                at += chunk.length;
-            }
-        }
-        return true;
-    } finally {
-        await fh.close();
-    }
+    return shareFs.sameBytes(file, segmentFiles(rec));
 }
 
 /** DVR-1: where the segments of a recording whose MP4 is `mp4` are kept on the share, if that name is

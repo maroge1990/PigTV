@@ -606,6 +606,7 @@ test('#287: a recording that keeps its original adopts the one already on the sh
     real(() => { fs.mkdirSync(foxFooty, { recursive: true }); fs.writeFileSync(original, segmentBytes(rec)); });
     hangMs = 400;
     blocked.length = 0;
+    pooled.length = 0;
     try {
         const { worst } = await loopFreeze(() => queueUntil(() => recordings.getById(rec.id).segment_state === 'done', 'finished'));
         const done = recordings.getById(rec.id);
@@ -613,6 +614,7 @@ test('#287: a recording that keeps its original adopts the one already on the sh
         assert.equal(done.segment_original, original, 'the file on the share is adopted as its original');
         assert.ok(done.file_path.startsWith(foxFooty + path.sep), done.file_path);
         assert.deepEqual([...blocked], [], 'no synchronous call on the share');
+        assert.deepEqual([...pooled], [], '#289: and no asynchronous one (a pool thread) either');
         assert.ok(worst() < 300, `the event loop stalled for ${worst()} ms`);
     } finally {
         engine._nativeTools.audioErrors = async () => 0;
@@ -788,10 +790,12 @@ test('#287: a kept original an earlier build left unproven is checked without a 
         segment_original = NULL WHERE id = ?`).run(mp4, rec.id);
     hangMs = 400;
     blocked.length = 0;
+    pooled.length = 0;
     try {
         const { worst } = await loopFreeze(() => segments.recoverLegacyOriginals());
         assert.equal(recordings.getById(rec.id).segment_original, conventional, 'the same bytes as its segments: claimed');
         assert.deepEqual([...blocked], [], 'no synchronous call on the share');
+        assert.deepEqual([...pooled], [], '#289: and no asynchronous one (a pool thread) either');
         assert.ok(worst() < 300, `the event loop stalled for ${worst()} ms`);
     } finally {
         hangMs = 3000;
@@ -2052,5 +2056,30 @@ test('#289: a recording deleted while its MP4 is copied to the share kills the c
         shareFs.tuning.copyStallMs = stallWas;
         shareFs.reset();
         await finishLeftovers();
+    }
+});
+
+test('#289: the comparison with a file on the share runs on its helper: same size, other bytes is not the same file', async () => {
+    const parts = [path.join(sandbox, 'cmp-a.ts'), path.join(sandbox, 'cmp-b.ts')];
+    fs.writeFileSync(parts[0], Buffer.alloc(1500, 1));
+    fs.writeFileSync(parts[1], Buffer.alloc(2500, 2));
+    const same = path.join(slowRecordings, 'cmp-same.ts');
+    const other = path.join(slowRecordings, 'cmp-other.ts');
+    const joined = Buffer.concat([Buffer.alloc(1500, 1), Buffer.alloc(2500, 2)]);
+    const flipped = Buffer.from(joined);
+    flipped[3999] = 9;
+    real(() => { fs.writeFileSync(same, joined); fs.writeFileSync(other, flipped); });
+    shareFs.reset();
+    blocked.length = 0;
+    pooled.length = 0;
+    try {
+        assert.equal(await shareFs.sameBytes(same, parts), true);
+        assert.equal(await shareFs.sameBytes(other, parts), false, 'one byte differs');
+        assert.equal(await shareFs.sameBytes(path.join(slowRecordings, 'cmp-missing.ts'), parts), false, 'nothing there');
+        assert.deepEqual(blocked, [], 'no synchronous call on the share');
+        assert.deepEqual(pooled, [], 'no asynchronous one either');
+    } finally {
+        real(() => { fs.rmSync(same, { force: true }); fs.rmSync(other, { force: true }); });
+        shareFs.reset();
     }
 });
