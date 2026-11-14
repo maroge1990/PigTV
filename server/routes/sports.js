@@ -197,6 +197,8 @@ router.get('/pages/cricket', pageRoute({ name: 'Cricket', error: 'Could not buil
     const cricketFollow = require('../services/sportPagePrefs').follows(req.user.id).sports.find(s => s.sport === 'Cricket');
     const now = Date.now();
     return cricket.page(now, {
+        // #297: each match's status and score from the score collector's store, with this account's score delay
+        ...require('../services/sportPageState').deps(req.user.id, now),
         // The Cricket sport's names, whichever of its leagues are followed (0393, Codex round 1), and those leagues (#195).
         followed: cricketFollow?.teams || [],
         leagues: cricketFollow?.leagues || [],

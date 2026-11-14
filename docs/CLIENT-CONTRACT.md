@@ -865,6 +865,14 @@ on demand (kept 2 min while the lead is in play, 10 min on a match day, 1 h othe
   says why), never `scheduled` at its old time; a match suspended in play is `live`, one ESPN has put in state post is
   `done` (0554, as before 0548);
   ESPN's detail saying "Delayed" is a `break`; a pause word with no ESPN state is `scheduled` (was `break`).
+- Since #297 (no field or word changes): a match's `status`, `breakLabel` (C-S's labels; another pause is `live`) and
+  score (the lead's `innings`, `others[]`' `scores`, which are then the C-R card's text: ESPN's without a chase's target)
+  are its C-R card's for the asking account, with its score delay, so they change when the front page's do, wherever
+  the collector holds a fresh snapshot; elsewhere the page's own read as before. A match the collector has seen finish
+  keeps its previous status and score until the page's own read has the result (renewed at once). A line read for
+  another state is not shown with the collector's: while the account's delayed view is behind the page's read, or ahead
+  of it before the renewed read lands, `summary`, `line` and the series match's `result` are null and `seriesLine` does
+  not count it; `days`, `nextStart`, `session`, `crease` and `channels` follow the status shown.
 - Since 0436 (#210): `lead` and each `others[]` entry carry `league`: the C-U catalogue league the match is on the page
   for (`Cricket`, `Women's Cricket`, `BBL`, `Sheffield Shield`...), always one of the account's followed cricket leagues;
   null only if it matches none. Additive; a client files each match under its followed league by it, before

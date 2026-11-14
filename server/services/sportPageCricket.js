@@ -53,6 +53,9 @@ const CACHE_KEYS = 4;
 const caches = createPageCache({ label: 'Cricket', coldWaitMs: COLD_WAIT_MS, maxEntries: CACHE_KEYS, ttlOf: (value, now) => ttlOf(value, now) });
 const pastDays = new Map(); // series-day URL -> json, for days before yesterday (UTC)
 const AIRINGS = new WeakMap(); // page value -> [{ id, start, end, teams }]: each match's airing window, for channels
+// #297: page value -> { lead: { m, n } | null, all: [m], others: [m] }: the internal matches the public ones were made from
+// (with the collector's card id and each side's home/away), what page() lays the collector's state over. Never sent.
+const META = new WeakMap();
 
 const str = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null);
 const num = (v) => (v !== null && v !== '' && v !== undefined && Number.isFinite(Number(v)) ? Number(v) : null);
@@ -135,6 +138,7 @@ function matchOf(event, league, registerImage) {
     const { status, breakLabel } = statusOf(c);
     const dayNumber = num(/^Day (\d{1,2})$/i.exec(str(c.status?.session) || '')?.[1]);
     const seriesId = validId(league?.id) || validId(event?.leagueId);
+    const cardId = validId(c.id) || id;
     return {
         id, seriesId, competition: competitionOf(league), label: text(c.description), format,
         venue: text(c.venue?.fullName), city: text(c.venue?.address?.city),
@@ -145,7 +149,10 @@ function matchOf(event, league, registerImage) {
         summary: text(c.status?.summary),
         winner: raw.findIndex(x => isTrue(x.winner)),
         international: String(c.class?.internationalClassId ?? '0') !== '0',
-        league: leagueOfMatch(seriesId, event)
+        league: leagueOfMatch(seriesId, event),
+        // #297: the score collector's id for the same match (sportsScoresEspn.normalize) and which side is home, in `teams`' order
+        card: seriesId ? `espn:cricket/${seriesId}:${cardId}` : null,
+        sides: raw.map(x => (x.homeAway === 'home' || x.homeAway === 'away' ? x.homeAway : null))
     };
 }
 
@@ -353,7 +360,7 @@ async function build(now, { registerImage = (u) => u, followed = followedTeams()
     // nothing else to show, this is a failed refresh (the last page stays), not an empty one.
     if (unclassified && !matches.length) return null;
     const pick = pickLead(matches, followed);
-    let lead = null, series = null, airings = [];
+    let lead = null, series = null, airings = [], leadDays = 1, lastAll = [];
     if (pick) {
         const league = leagues.get(pick.seriesId);
         const [summaryAnswer, all] = await Promise.all([
@@ -362,6 +369,7 @@ async function build(now, { registerImage = (u) => u, followed = followedTeams()
         ]);
         const summary = summaryAnswer?.ok && summaryAnswer.json && typeof summaryAnswer.json === 'object' ? summaryAnswer.json : null;
         const n = dayCount(pick, summaryDays(summary));
+        leadDays = n; lastAll = all;
         lead = {
             // #210: `league` the followed catalogue league the match is the page's for (C-U), so a client files it there.
             id: pick.id, seriesId: pick.seriesId, competition: pick.competition, league: pick.league ?? null, label: pick.label, format: pick.format,
@@ -378,9 +386,10 @@ async function build(now, { registerImage = (u) => u, followed = followedTeams()
                 status: m.status, result: m.status === 'done' ? m.summary : null, current: m.id === pick.id }))
         };
     }
-    const others = matches
+    const otherMatches = matches
         .filter(m => m.seriesId !== pick?.seriesId && !m.teams.every(t => /^tbc$/i.test(t.name)))
-        .sort(byInterest).slice(0, MAX_OTHERS)
+        .sort(byInterest).slice(0, MAX_OTHERS);
+    const others = otherMatches
         .map(m => {
             const n = dayCount(m);
             const air = airingOf(m, n, now);
@@ -390,6 +399,7 @@ async function build(now, { registerImage = (u) => u, followed = followedTeams()
         });
     const value = { available: true, updatedAt: now, lead, series, others };
     AIRINGS.set(value, airings);
+    META.set(value, { lead: pick ? { m: pick, n: leadDays } : null, all: lastAll, others: otherMatches });
     return value;
 }
 
@@ -460,7 +470,8 @@ function channelsForMatches(airings, events, { now, observedAt } = {}) {
  * fetched. The channels are this request's (`deps.channelsFor(airings)`: the current guide, this user's order).
  */
 async function page(now = Date.now(), deps = {}) {
-    const value = await espnPart(now, deps);
+    let value = await espnPart(now, deps);
+    if (value.available && deps.state) value = await withState(value, now, deps);
     if (!value.available || !deps.channelsFor) return value;
     const airings = AIRINGS.get(value) || [];
     let channels = new Map();
@@ -469,13 +480,116 @@ async function page(now = Date.now(), deps = {}) {
     return { ...value, lead: value.lead ? withChannels(value.lead) : null, others: value.others.map(withChannels) };
 }
 
-async function espnPart(now, deps) {
+/** This request's cache key and build: one entry per follow list. */
+function entryOf(now, deps) {
     const followed = Array.isArray(deps.followed) ? deps.followed.filter(n => typeof n === 'string') : followedTeams();
     const leagues = Array.isArray(deps.leagues) ? deps.leagues.filter(l => LEAGUES.includes(l)) : ['Cricket'];
     const key = JSON.stringify([followed.map(n => n.toLowerCase()), [...leagues].sort()]);
+    return { key, make: () => build(now, { ...deps, followed, leagues }) };
+}
+
+async function espnPart(now, deps) {
+    const { key, make } = entryOf(now, deps);
     // Only this follow list's own page: another's lead and series were chosen for someone else (0393, Codex round 1).
-    const own = await caches.get(key, now, () => build(now, { ...deps, followed, leagues }));
+    const own = await caches.get(key, now, make);
     return own ? own.value : { available: false };
+}
+
+/** The collector's word for a match as C-S says it: { status, breakLabel } (a break only with a label C-S knows), or null. */
+function wordOf(snapshot) {
+    const key = snapshot?.espn?.key;
+    if (key === 'break') return BREAKS.has(snapshot.breakLabel) ? { status: 'break', breakLabel: snapshot.breakLabel } : { status: 'live', breakLabel: null };
+    return Object.hasOwn(WORD, key ?? '') ? { status: WORD[key], breakLabel: null } : null;
+}
+
+/**
+ * #297: each match's status and score from the score collector's store for this account (`deps.state`, sportPageState:
+ * its delay; only a fresh or final snapshot), as the front page's card for the same match. The collector further on than
+ * the page's read (a match it has seen start or finish): the read is renewed at once (sportPageCache.renew: one build, at
+ * most every 30 s, waited for at most the cold wait), as the innings' detail, the batting card, the notes and the result
+ * line come only from it; a finish the read still lacks after that keeps the page's own status and score (never a
+ * finished match without its result). The page's read newer than the account's delayed view: the collector's status and
+ * score, without the result line (`summary`, `line`, a series match's `result`) or the series tally counting it. A line
+ * read for another state is not shown with the collector's (null). The days, the next start, the session, the crease and
+ * the airings follow the status shown. A match the collector holds nothing usable for keeps the page's own.
+ */
+async function withState(value, now, deps) {
+    let view = overlay(value, deps.state, now);
+    if (view.renew) {
+        const { key, make } = entryOf(now, deps);
+        const entry = await caches.renew(key, now, make);
+        if (entry?.value?.available && entry.value !== value) view = overlay(entry.value, deps.state, now);
+    }
+    return view.value;
+}
+
+/** A side's text as a page score: trimmed, empty is null. */
+const scoreText = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null);
+
+function overlay(value, state, now) {
+    const { rank } = require('./sportPageState');
+    const meta = META.get(value);
+    if (!meta) return { value, renew: false };
+    let renew = false;
+    // One match's view: { status, breakLabel, moved (another rank than the read's), scores, innings } or null (the page's own)
+    const viewOf = (m) => {
+        let seen = null;
+        try { seen = state(m.card); } catch { seen = null; }
+        const word = seen ? wordOf(seen.snapshot) : null;
+        if (!word) return null;
+        const theirs = rank(word.status), ours = rank(m.status);
+        if (theirs > ours) { renew = true; if (word.status === 'done') return null; }
+        const snap = seen.snapshot;
+        const at = m.sides.map(side => (side ? (snap.espn.sides || []).indexOf(side) : -1));
+        const placed = at.length === 2 && at.every(i => i >= 0);
+        const before = word.status === 'scheduled';
+        const scores = before ? [null, null] : placed && Array.isArray(snap.scores) ? at.map(i => scoreText(snap.scores[i])) : null;
+        const innings = before ? [[], []] : placed && Array.isArray(snap.situation?.innings)
+            ? at.map(i => (Array.isArray(snap.situation.innings[i]) ? snap.situation.innings[i] : []).map(r => ({ runs: r?.runs ?? null,
+                wickets: r?.wickets ?? null, overs: r?.overs === '' || r?.overs === undefined || r?.overs === null ? null : String(r.overs),
+                declared: false, current: r?.current === true }))) : null;
+        return { ...word, moved: theirs !== ours, scores, innings };
+    };
+    const views = new Map();
+    for (const m of [meta.lead?.m, ...meta.all, ...meta.others]) if (m && !views.has(m.id)) views.set(m.id, viewOf(m));
+    if (![...views.values()].some(Boolean)) return { value, renew };
+    const as = (m) => { const v = views.get(m.id); return v ? { ...m, status: v.status, breakLabel: v.breakLabel } : m; };
+    const airings = [];
+    let lead = value.lead;
+    if (lead && meta.lead) {
+        const { m, n } = meta.lead;
+        const v = views.get(m.id);
+        const shown = as(m);
+        if (v) {
+            const declared = (i, k) => lead.innings?.[i]?.[k]?.declared === true;
+            lead = { ...lead, status: v.status, breakLabel: v.breakLabel, days: daysOf(shown, n, now), nextStart: nextStartOf(shown, n, now),
+                session: v.status === 'live' && lead.status === 'live' ? lead.session : null,
+                crease: ['live', 'break'].includes(v.status) ? lead.crease : null,
+                summary: v.moved ? null : lead.summary,
+                innings: v.innings ? v.innings.map((list, i) => list.map((r, k) => ({ ...r, declared: declared(i, k) }))) : lead.innings,
+                seriesLine: seriesLineOf(shown, meta.all.map(as)) };
+        }
+        const air = airingOf(shown, n, now);
+        if (air) airings.push(air);
+    }
+    const series = value.series && { ...value.series, matches: value.series.matches.map(x => {
+        const v = views.get(x.id);
+        return v ? { ...x, status: v.status, result: v.status === 'done' && !v.moved ? x.result : null } : x;
+    }) };
+    const byId = new Map(meta.others.map(m => [m.id, m]));
+    const others = value.others.map(o => {
+        const m = byId.get(o.id);
+        if (!m) return o;
+        const n = dayCount(m);
+        const air = airingOf(as(m), n, now);
+        if (air) airings.push(air);
+        const v = views.get(m.id);
+        if (!v) return o;
+        return { ...o, status: v.status, nextStart: nextStartOf(as(m), n, now), line: v.moved ? null : o.line, scores: v.scores || o.scores };
+    });
+    const out = { ...value, lead, series, others };
+    AIRINGS.set(out, airings);
+    return { value: out, renew };
 }
 
 /** Tests: forget everything. */

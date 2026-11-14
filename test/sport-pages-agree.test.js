@@ -214,6 +214,68 @@ test('the Events page and the front page agree about an event\'s status at every
     assert.deepEqual(bad, [], seen.join('\n'));
 });
 
+// #297: the Cricket page took each match's status and score from its own read (kept 2 min while its lead is in play,
+// 10 min on a match day), so a match turned live or over up to 10 minutes after the front's card, and without the
+// account's delay. The scripted game as a T20 international: Australia made 150/7, India chase; its result line ("India
+// won by 3 wickets") only once it is over.
+const C_S = { scheduled: 'scheduled', live: 'live', break: 'break', finished: 'done', postponed: 'done', cancelled: 'done' };
+function cricketBoard(game, now) {
+    const { state, status } = statusAt(game, now);
+    const minute = Math.max(1, Math.floor((Math.min(now, game.finalAt) - game.start) / MIN) + 1);
+    const date = iso(game.start);
+    const innings = state === 'pre' ? [null, null] : [{ period: 1, runs: 150, wickets: 7, overs: '20', current: false },
+        { period: 2, runs: Math.min(151, minute * 6), wickets: Math.min(7, Math.floor(minute / 4)), overs: `${Math.min(19, minute - 1)}.3`, current: state === 'in' }];
+    const side = ([id, name, abbr, homeAway], i) => ({ id, homeAway, order: i + 1, team: { id, displayName: name, name, abbreviation: abbr },
+        ...(innings[i] ? { score: `${innings[i].runs}/${innings[i].wickets}`, linescores: [{ isBatting: true, period: innings[i].period, runs: innings[i].runs,
+            wickets: innings[i].wickets, overs: innings[i].overs, isCurrent: innings[i].current ? 1 : 0 }] } : {}) });
+    const summary = state === 'pre' ? 'Starts at 09:00 local time' : state === 'in' ? `India need ${151 - innings[1].runs} runs` : 'India won by 3 wickets';
+    return {
+        leagues: [{ id: '1500', name: 'Scripted Series 2026', abbreviation: 'SS', calendar: [iso(Date.parse(date.slice(0, 10)))] }],
+        events: [{ id: game.id, date, competitions: [{ id: game.id, date, description: '1st T20I', class: { generalClassCard: 'T20I', internationalClassId: 3 },
+            venue: { fullName: 'Scripted Oval', address: { city: 'Adelaide' } }, status: { ...status, summary },
+            competitors: [['2', 'Australia', 'AUS', 'home'], ['6', 'India', 'IND', 'away']].map(side) }] }]
+    };
+}
+test('the Cricket page and the front page agree about a match\'s status and score at every moment, with and without a delay; its result shows only once it is over', async () => {
+    const cricket = load('services/sportPageCricket');
+    const panel = (json) => ({ scores: [json] });
+    const { bad, seen } = await replay({ league: 'Cricket', source: 'cricket/1500', at: K + 5 * 24 * 60 * MIN, words: C_S, reset: () => cricket.reset(), board: cricketBoard,
+        collect: (json, url) => (url.includes('cricket/scorepanel') ? panel(json) : url.includes('cricket/1500/scoreboard') ? json : { events: [] }),
+        serve: (json, url) => (url.includes('cricket/scorepanel') ? { ok: true, json: panel(json) } : url.includes('cricket/1500/scoreboard') ? { ok: true, json } : { ok: false, error: 'HTTP 404' }),
+        ask: async (now, deps, answer) => {
+            cricket.fetcher.get = async url => answer(url);
+            const page = await cricket.page(now, { ...deps, followed: [], leagues: ['Cricket'] });
+            const lead = page.lead;
+            return { status: lead.status, scores: lead.innings.map(list => (list.length ? `${list.at(-1).runs}/${list.at(-1).wickets}` : null)),
+                summary: lead.summary, result: page.series.matches.find(m => m.current)?.result ?? null, seriesStatus: page.series.matches.find(m => m.current)?.status };
+        },
+        check: (g, card, who) => [
+            g.status === 'done' && !/won/.test(g.summary || '') && `${who}: a finished match without its result line`,
+            g.status !== 'done' && /won/.test(`${g.summary} ${g.result}`) && `${who}: a match not over with its result (${g.summary} / ${g.result})`,
+            g.seriesStatus !== g.status && `${who}: the series list says ${g.seriesStatus}, the lead ${g.status}`
+        ] });
+    assert.deepEqual(bad, [], seen.join('\n'));
+});
+
+test('Cricket: a finish the page\'s read still lacks after renewing keeps the page\'s own status and score, renewing at most every 30 s', async () => {
+    const cricket = load('services/sportPageCricket');
+    const espn = load('services/sportsScoresEspn');
+    cricket.reset();
+    const at = K + 6 * 24 * 60 * MIN;
+    const game = { ...scriptedGame({ at, guideMin: 10, finalMin: 25 }), id: '9917003' };
+    let panels = 0;
+    const lagging = cricketBoard(game, at + 20 * MIN);
+    cricket.fetcher.get = async url => { if (url.includes('scorepanel')) { panels++; return { ok: true, json: { scores: [lagging] } }; } return url.includes('/scoreboard') ? { ok: true, json: lagging } : { ok: false, error: 'HTTP 404' }; };
+    for (let t = at + 20 * MIN; t <= at + 27 * MIN; t += 30000) dashboard.store().ingest(espn.normalize(cricketBoard(game, t), 'Cricket', 'cricket/1500'), t);
+    const ask = (now) => cricket.page(now, { ...pageDeps(2, now), followed: ['India'], leagues: ['Cricket'] });
+    const first = await ask(at + 27 * MIN);
+    assert.equal(first.lead.status, 'live', 'the read says live: shown live');
+    assert.deepEqual(first.lead.innings.map(l => l.at(-1)?.runs), [150, 126], 'with the read\'s own score, not the final one');
+    assert.equal(first.lead.summary, 'India need 25 runs');
+    for (let t = at + 27 * MIN; t < at + 27.5 * MIN; t += 5000) await ask(t);
+    assert.equal(panels, 4, 'one read (two day lists), then one renewal (two) in the 30 s however many requests');
+});
+
 test('F1: a finish the page\'s read still lacks after renewing keeps the page\'s own status (never over without a result), renewing at most every 30 s', async () => {
     const f1 = load('services/sportPageF1');
     const espn = load('services/sportsScoresEspn');
