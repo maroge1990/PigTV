@@ -12,6 +12,20 @@ const identityOfStat = (st) => `${st.dev}:${st.ino}:${st.size}:${st.mtimeNs}:${s
 // Tests only: any call under this folder waits (a hung share).
 const HANG = process.env.PIGTV_TEST_SHARE_HANG || null;
 
+// #290: a probe killed on a stalled share can still create its file later, and nothing removes it. After a probe that
+// worked, the folder's earlier ones (not this one, and older than a minute, so one still being written is left) go.
+const STALE_PROBE_MS = 60 * 1000;
+function removeStaleProbes(dir, own) {
+    try {
+        for (const name of fs.readdirSync(dir)) {
+            if (!name.startsWith('.pigtv-write-test-')) continue;
+            const old = path.join(dir, name);
+            if (old === own) continue;
+            try { if (Date.now() - fs.statSync(old).mtimeMs > STALE_PROBE_MS) fs.unlinkSync(old); } catch (e) { /* best effort */ }
+        }
+    } catch (e) { /* best effort */ }
+}
+
 const under = (f, dir) => f === dir || f.startsWith(dir + path.sep);
 
 /** `extra`: a call's further arguments ({ to } for link and rename). */
@@ -53,7 +67,9 @@ function run(op, file, extra = {}) {
         case 'mkdir': fs.mkdirSync(file); return true;
         case 'writeProbe': {
             const probe = path.join(file, `.pigtv-write-test-${process.pid}-${Date.now()}`);
-            try { fs.writeFileSync(probe, 'pigtv'); fs.unlinkSync(probe); return true; } catch (e) { return false; }
+            try { fs.writeFileSync(probe, 'pigtv'); fs.unlinkSync(probe); } catch (e) { return false; }
+            removeStaleProbes(file, probe);
+            return true;
         }
         default: throw new Error(`unknown call ${op}`);
     }
