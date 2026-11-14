@@ -989,6 +989,31 @@ test('#274: a single-provider capture that goes silent is noticed, ended, and co
     await until(() => recordings.getById(rec.id).status === 'completed', 'finished', 10000);
 });
 
+// Latent crash behind #274's CI failure: "q" written to a non-feed capture whose ffmpeg had already exited raised EPIPE on
+// stdin with no listener (the listener was attached only with a feed), an uncaught exception that takes the server down.
+test('#274: asking a capture to stop after its ffmpeg exited does not raise an uncaught EPIPE', async () => {
+    tuning.endGraceMs = 0;
+    const uncaught = [];
+    const onUncaught = (e) => uncaught.push(e);
+    const prior = process.listeners('uncaughtException');
+    process.removeAllListeners('uncaughtException'); // node:test would otherwise fail the run on its own handler
+    process.on('uncaughtException', onUncaught);
+    try {
+        const s = due({ windowMs: 60000 });
+        await until(() => captures().length === 1 && engine._activeEntry(s.id), 'recording');
+        const entry = engine._activeEntry(s.id);
+        entry.proc.kill('SIGKILL');
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200); // blocks the loop: ffmpeg is gone, the server has not noticed
+        engine._askToStop(entry); // the pipe is dead but looks open: the write must not become an uncaught error
+        await sleep(300);
+        assert.deepEqual(uncaught.map(e => e.message), [], 'no uncaught error');
+        await engine.cancelScheduled(s.id);
+    } finally {
+        process.removeListener('uncaughtException', onUncaught);
+        for (const l of prior) process.on('uncaughtException', l);
+    }
+});
+
 // #304 (Mark, 14 Nov): a stall on a channel's only provider counted toward that provider's breaker (#274), so stalls on
 // two channels within 5 min showed the provider down on Status and sent the providerDown notice. They no longer count.
 test('#304: single-provider stalls on two channels leave the provider up and send no providerDown notice', async () => {

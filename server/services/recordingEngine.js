@@ -255,7 +255,9 @@ function askToStop(entry) {
         entry.feed.leave();
         return;
     }
-    entry.proc.stdin?.write('q');
+    // The capture may have exited already (an EPIPE comes back through the 'error' listener attached at spawn).
+    const stdin = entry.proc.stdin;
+    if (stdin && stdin.writable && !stdin.destroyed) stdin.write('q');
 }
 
 /**
@@ -1162,8 +1164,10 @@ function spawnPart(schedule, settings, { recordingId, outputPath, route, index, 
     };
     active.set(schedule.id, entry);
     watchForStall(entry);
+    // Every capture, not only a fed one: "q" written to one whose ffmpeg already exited raises EPIPE here, and with no
+    // listener it would be an uncaught exception.
+    proc.stdin.on('error', () => { /* ffmpeg exited first */ });
     if (feed) {
-        proc.stdin.on('error', () => { /* ffmpeg exited first */ });
         // Why the feed ended; its queued bytes still drain, and pipe() then ends stdin.
         feed.on('ingest-end', (why) => { entry.feedLost = why; });
         feed.pipe(proc.stdin);
@@ -2117,6 +2121,8 @@ module.exports = {
     _reconcileJobsOnStartup: reconcileJobsOnStartup,
     _reconcileOnStartup: reconcileOnStartup, // R3: what a restart does to a recording in progress
     _failoverTuning: failoverTuning,
+    _activeEntry: (id) => active.get(Number(id)), // tests: the running capture of a schedule
+    _askToStop: askToStop,
     _stallWatchCount: () => stallWatchdogs.size, // #274: no part's watchdog outlives it
     _stopTimeOf: stopTimeOf, // #217: the stop the hard stop and the stop checks read
     _chooseProvider: chooseProvider, // #137: which candidate a join-only start is given
