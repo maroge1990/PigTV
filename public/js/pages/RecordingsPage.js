@@ -248,7 +248,9 @@ class RecordingsPage {
         else tags.push(tag(this.statusLabel(item.status)));
         if (item.is_partial) tags.push(tag('Partial', 'warn'));
         if (item.status === 'completed' && item.watched) tags.push(tag('Watched'));
+        if (item.ad_detect_status === 'pending') tags.push(tag('Waiting to find breaks'));
         if (item.ad_detect_status === 'running') tags.push(tag('Finding breaks…'));
+        if (item.ad_detect_status === 'unavailable') tags.push(tag('Break detection unavailable'));
         if (item.ad_detect_status === 'done') tags.push(tag('Breaks marked'));
         if (item.ad_detect_status === 'failed') tags.push(tag('Break detection failed', 'bad'));
         if (item.compress_status === 'running') tags.push(tag('Compressing…'));
@@ -267,6 +269,7 @@ class RecordingsPage {
         }
         if (item.status === 'failed' && item.error) notes.push(`<p class="rec-err">${e(item.error)}</p>`);
         if (item.compress_status === 'failed' && item.compress_error) notes.push(`<p class="rec-err"><b>Compression failed:</b> ${e(item.compress_error)}</p>`);
+        if (item.ad_detect_status === 'unavailable' && item.ad_detect_error) notes.push(`<p class="rec-note"><b>Break detection unavailable:</b> ${e(item.ad_detect_error)}</p>`);
         if (item.ad_detect_status === 'failed' && item.ad_detect_error) notes.push(`<p class="rec-err"><b>Break detection failed:</b> ${e(item.ad_detect_error)}</p>`);
         if (progress) notes.push(`<p class="rec-progress"><span class="pig-amount">${e(progress.left)}</span></p>`);
 
@@ -296,6 +299,11 @@ class RecordingsPage {
         if (item.status === 'completed') {
             items.push({ label: 'Download', href: API.recordings.downloadUrl(item.id), download: true });
             if (!['running', 'pending', 'done'].includes(item.compress_status)) items.push({ label: 'Compress', run: () => this.compress(item.id) });
+            // #62: as the Apple app's Find breaks; not while a search runs, and not where this image has no detector.
+            if (!['running', 'pending', 'unavailable'].includes(item.ad_detect_status)) {
+                const label = item.ad_detect_status === 'failed' ? 'Retry finding breaks' : (item.ad_detect_status === 'done' ? 'Find breaks again' : 'Find breaks');
+                items.push({ label, run: () => this.findBreaks(item.id) });
+            }
         }
         items.push({ label: 'Delete', run: () => this.deleteRecording(item.id), danger: true });
         return items;
@@ -708,6 +716,18 @@ class RecordingsPage {
         } catch (err) {
             UI.toast(UI.errorText(err, 'Could not start compression.'), { kind: 'error' });
             if (btn) { btn.disabled = false; btn.textContent = 'Compress'; }
+        }
+    }
+
+    /** #62: look for commercial breaks now (or again); the card's tag follows it from waiting to marked or failed. */
+    async findBreaks(id) {
+        try {
+            await API.recordings.detectAds(id);
+            UI.toast('Looking for commercial breaks. This can take a few minutes.');
+            await this.refresh();
+            this.startCompressionWatch();
+        } catch (err) {
+            UI.toast(UI.errorText(err, 'Could not start looking for breaks.'), { kind: 'error' });
         }
     }
 

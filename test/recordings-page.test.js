@@ -296,9 +296,9 @@ test('#276: the "⋯" menu holds Download, Compress (when offered) and Delete; a
     assert.ok(!cardOf(html, 2).includes('data-action="delete"'), 'Delete is in the menu, not on the card');
     assert.ok(!cardOf(html, 2).includes('>Download<'), 'Download is in the menu');
     const labels = (id) => page.menuItems(id).map(i => `${i.label}${i.danger ? '!' : ''}${i.href ? '@' : ''}`).join(' ');
-    assert.equal(labels(2), 'Download@ Compress Delete!');
-    assert.equal(labels(1), 'Download@ Delete!', 'already compressed: no Compress');
-    assert.equal(labels(5), 'Download@ Compress Delete!', 'compression failed: offered again');
+    assert.equal(labels(2), 'Download@ Compress Find breaks Delete!');
+    assert.equal(labels(1), 'Download@ Find breaks Delete!', 'already compressed: no Compress');
+    assert.equal(labels(5), 'Download@ Compress Retry finding breaks Delete!', 'compression failed: offered again');
     assert.match(page.menuItems(2)[0].href, /^\/api\/recordings\/2\/download/);
     assert.ok(!cardOf(html, 4).includes('data-action="play"'), 'a failed recording has no Play');
     assert.ok(!cardOf(html, 4).includes('data-action="more"'));

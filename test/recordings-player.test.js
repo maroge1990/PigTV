@@ -204,3 +204,49 @@ test('#62: asking to watch keeps asking while the first piece is made, and plays
     assert.deepEqual(t.delays, [2000]);
     assert.equal(t.video().src, '/api/recordings/7/media.mp4?token=tok');
 });
+
+// #62: Find breaks, as the Apple app's per-recording action.
+const labels = (page, item) => { page.data.recordings = [item]; return page.menuItems(item.id).map(i => i.label); };
+
+test('#62: the menu offers Find breaks (or Retry / again) unless a search is running or no detector exists, and never on one still recording', () => {
+    const t = make(() => json({}));
+    const base = { id: 3, title: 'News', status: 'completed' };
+    assert.ok(labels(t.page, base).includes('Find breaks'));
+    assert.ok(labels(t.page, { ...base, ad_detect_status: 'done' }).includes('Find breaks again'));
+    assert.ok(labels(t.page, { ...base, ad_detect_status: 'failed' }).includes('Retry finding breaks'));
+    for (const status of ['running', 'pending', 'unavailable']) {
+        assert.ok(!labels(t.page, { ...base, ad_detect_status: status }).some(l => /breaks/.test(l)), status);
+    }
+    assert.ok(!labels(t.page, { ...base, status: 'recording' }).some(l => /breaks/.test(l)));
+});
+
+test('#62: choosing Find breaks posts detect-ads, says so, and refreshes so the card shows it running', async () => {
+    const t = make((url, method) => json(method === 'POST' ? { success: true, queued: true } : []));
+    t.page.refresh = async () => { t.refreshed = true; };
+    t.page.startCompressionWatch = () => { t.watching = true; };
+    t.page.data.recordings = [{ id: 3, title: 'News', status: 'completed' }];
+    t.page.menuItems(3).find(i => i.label === 'Find breaks').run();
+    await settle();
+    assert.deepEqual(t.requests, ['/api/recordings/3/detect-ads']);
+    assert.match(t.context.toasts[0][0], /Looking for commercial breaks/);
+    assert.ok(t.refreshed && t.watching, 'the progress is followed until the search ends');
+});
+
+test('#62: a refused Find breaks (already analysing) is told, not lost', async () => {
+    const t = make(() => json({ error: 'Already analysing' }, 409));
+    t.page.refresh = async () => {};
+    t.page.data.recordings = [{ id: 3, title: 'News', status: 'completed' }];
+    t.page.menuItems(3).find(i => i.label === 'Find breaks').run();
+    await settle();
+    assert.match(t.context.toasts[0][0], /Already analysing/);
+    assert.equal(t.context.toasts[0][1].kind, 'error');
+});
+
+test('#62: the card says when a search is waiting, and when this image has no detector', () => {
+    const t = make(() => json({}));
+    const pending = t.page.tileHtml({ id: 3, title: 'News', status: 'completed', ad_detect_status: 'pending' }, null);
+    assert.match(pending, /Waiting to find breaks/);
+    const none = t.page.tileHtml({ id: 3, title: 'News', status: 'completed', ad_detect_status: 'unavailable', ad_detect_error: 'Comskip is not installed in this image' }, null);
+    assert.match(none, /Break detection unavailable/);
+    assert.match(none, /Comskip is not installed/);
+});

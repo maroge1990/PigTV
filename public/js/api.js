@@ -238,6 +238,7 @@ const API = {
         // 0156: also lists schedules that ended up missed or failed in the last 7 days.
         getScheduledWithRecent: () => API.request('GET', '/recordings/scheduled?include=recent'),
         getActive: () => API.request('GET', '/recordings/active'),
+        detectAds: (id) => API.request('POST', `/recordings/${id}/detect-ads`), // #62: find (or find again) commercial breaks
         compress: (id) => API.request('POST', `/recordings/${id}/compress`),
         getMarkers: (id) => API.request('GET', `/recordings/${id}/markers`),
         // Cancels an upcoming/running schedule; for a failed or missed one (0207) deletes it
