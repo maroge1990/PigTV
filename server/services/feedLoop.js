@@ -39,6 +39,8 @@ const PTS_WRAP = 2 ** 33;
 // there; a repeat is equal everywhere. About a sixth of the work of hashing every byte.
 const HEAD = 256;
 const STRIDE = 8;
+// Audio: the most of one PES assembled to be split into frames (a PES holds a few frames of ~0.2-4 kB).
+const MAX_AUDIO_UNIT = 64 * 1024;
 const VIDEO_TYPES = { 0x01: 'mpeg2', 0x02: 'mpeg2', 0x1b: 'h264', 0x24: 'hevc' };
 const { isKeyFrame } = require('./tsKeyframes');
 
@@ -125,12 +127,14 @@ class Track {
         return (raw + this.wraps * PTS_WRAP) / 90000;
     }
 
-    begin(time, key) {
+    /** A new unit; `limit` is the elementary-stream bytes its PES header declares (Infinity when unbounded). */
+    begin(time, key, limit = Infinity) {
         this.open = true;
         this.fresh();
         this.unitTime = time;
         this.unitKey = key;
         this.unitBytes = 0;
+        this.unitLimit = limit;
         this.audioLen = 0;
     }
 
@@ -184,13 +188,23 @@ class Track {
             }
             return this.sample(b, from, to, off);
         }
-        if (!this.audio || this.audioLen + (to - from) > this.audio.length) {
-            const grown = Buffer.alloc(Math.max(4096, (this.audioLen + to - from) * 2));
+        // Bounded (Codex #324 high): what the PES header declares and no more, and at most MAX_AUDIO_UNIT; a unit
+        // over that (packets that never start a new PES, a broken header) is dropped, not hashed. Only the hash is lost.
+        const n = Math.min(to - from, this.unitLimit - this.audioLen);
+        if (n <= 0) return;
+        if (this.audioLen + n > MAX_AUDIO_UNIT) {
+            this.open = false;
+            this.audioLen = 0;
+            this.dropped = (this.dropped || 0) + 1;
+            return;
+        }
+        if (!this.audio || this.audioLen + n > this.audio.length) {
+            const grown = Buffer.alloc(Math.min(MAX_AUDIO_UNIT, Math.max(4096, (this.audioLen + n) * 2)));
             if (this.audio) this.audio.copy(grown, 0, 0, this.audioLen);
             this.audio = grown;
         }
-        b.copy(this.audio, this.audioLen, from, to);
-        this.audioLen += to - from;
+        b.copy(this.audio, this.audioLen, from, from + n);
+        this.audioLen += n;
     }
 
     /** The unit read so far is complete: add it (audio: each frame in it, else the whole PES). */
@@ -367,7 +381,8 @@ class LoopDetector {
             const time = raw === null ? track.time : track.timeOf(raw);
             const key = track.kind === 'video' && (
                 (afc & 2 && b[i + 4] > 0 && (b[i + 5] & 0x40) !== 0) || (!!this.codec && isKeyFrame(b, i, this.codec)));
-            track.begin(time, key);
+            const declared = (b[p + 4] << 8) | b[p + 5]; // PES_packet_length: 0 is unbounded (video)
+            track.begin(time, key, declared ? Math.max(0, declared - 3 - b[p + 8]) : Infinity);
             if (es < end) track.take(b, es, end);
             return;
         }
@@ -461,4 +476,4 @@ class LoopDetector {
     }
 }
 
-module.exports = { LoopDetector, tuning, audioFrameLength, requiredRun };
+module.exports = { LoopDetector, tuning, audioFrameLength, requiredRun, MAX_AUDIO_UNIT };

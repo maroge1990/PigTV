@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { haveFfmpeg, makeFeeds } = require('./helpers/loopFeeds');
-const { LoopDetector, audioFrameLength } = require('../server/services/feedLoop');
+const { LoopDetector, audioFrameLength, MAX_AUDIO_UNIT } = require('../server/services/feedLoop');
 
 // #324: the looping-feed detector on feeds made by the real ffmpeg (helpers/loopFeeds.js): a 24 s clip looped
 // with fresh timestamps is found within one period plus 10 s of media; a moving feed, still slates (short and
@@ -101,4 +101,28 @@ test('audio frames are split by their own headers (ADTS, AC-3, E-AC-3)', () => {
     const eac3 = Buffer.from([0x0b, 0x77, 0x02, 0xff, 0, 0x80, 0]);       // bsid 16, frmsiz 0x2ff: (767+1)*2
     assert.equal(audioFrameLength(eac3, 0), 1536);
     assert.equal(audioFrameLength(Buffer.from([1, 2, 3, 4, 5, 6, 7]), 0), 0);
+});
+
+// Codex #324 high: an audio PES was assembled without bound, so packets that never start a new PES grew memory forever.
+test('an audio PES that never ends is bounded: by its declared length, else by the unit cap, and is dropped', () => {
+    const packet = (pid, start, payload, cc) => {
+        const p = Buffer.alloc(188, 0xff);
+        p[0] = 0x47; p[1] = (start ? 0x40 : 0) | (pid >> 8); p[2] = pid & 0xff; p[3] = 0x10 | (cc & 0x0f);
+        payload.copy(p, 4);
+        return p;
+    };
+    const pesStart = (declared) => Buffer.from([0, 0, 1, 0xc0, declared >> 8, declared & 0xff, 0x80, 0x80, 5, 0x21, 0, 1, 0, 1, 0xff, 0xf1]);
+    for (const declared of [0, 1000]) {
+        const d = new LoopDetector();
+        d.push(packet(0x101, true, pesStart(declared), 0));
+        const body = Buffer.alloc(184, 0x55);
+        let peak = 0;
+        for (let n = 1; n <= 100000; n += 1000) {
+            d.push(Buffer.concat(Array.from({ length: 1000 }, (_, k) => packet(0x101, false, body, n + k))));
+            peak = Math.max(peak, d.sound.audio ? d.sound.audio.length : 0, d.sound.audioLen);
+        }
+        assert.ok(peak <= MAX_AUDIO_UNIT, `declared ${declared}: peak ${peak} bytes (cap ${MAX_AUDIO_UNIT})`);
+        if (declared) assert.ok(d.sound.audioLen <= declared, `declared ${declared}: held ${d.sound.audioLen}`);
+        assert.ok(d.describe().memoryBytes < 1024 * 1024, `declared ${declared}: ${d.describe().memoryBytes} bytes`);
+    }
 });
