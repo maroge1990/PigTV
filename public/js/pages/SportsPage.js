@@ -761,6 +761,9 @@ class SportsPage {
         this.closeMenu();
         const g = this.game(id), ev = g && SportView.event(g);
         if (!ev) return;
+        // #323 review: already set to record (on this channel or another): its padding is changed on that recording
+        // (PUT /recordings/scheduled/:id), never a second schedule the server would answer with the first unchanged.
+        if (g.recording && g.recording.scheduleId != null && g.recording.status) { this.changeRecording(id); return; }
         this.paddingDialog({ title: `Record ${g.title}`, action: 'Record this game', done: async ({ pre, post }) => {
             try {
                 const c = ev.channel;

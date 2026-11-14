@@ -141,3 +141,25 @@ test('the menu shows no score with scores hidden (its title and times only)', as
         assertNoScores(h.menu().innerHTML, `menu ${id}`);
     }
 });
+
+// #323 Codex review of step 5 (medium): More options on a game already set to record changes that recording (its
+// padding, through PUT /recordings/scheduled/:id), on whichever channel it is set; it never schedules a second one.
+for (const [what, status, extraChannel] of [['set on its channel', 'scheduled', false], ['recording, on another of its channels', 'recording', true]]) {
+    test(`More options on a game already ${what}: its padding is changed, nothing new is scheduled`, async () => {
+        const h = await harness();
+        const g = h.f.games.find(x => x.id === 'nxt');
+        g.recording = { scheduleId: 4, status };
+        if (extraChannel) g.channels.unshift({ sourceId: 2, stableId: 'o', id: '201', name: 'Other', start: g.start, end: g.start + 7200000 });
+        h.p.recordOptions('nxt');
+        const d = h.b.document.body.querySelector('dialog');
+        assert.match(d.querySelector('.ui-dialog-title').textContent, /^Change recording · Newcastle v Tottenham$/);
+        const pre = h.b.document.getElementById('sp-pad-pre'), post = h.b.document.getElementById('sp-pad-post');
+        Object.assign(pre, { min: '0', max: '60', value: status === 'recording' ? '' : '3' }); Object.assign(post, { min: '0', max: '180', value: '45' });
+        d.querySelector('.btn-primary').click();
+        await new Promise(setImmediate);
+        assert.equal(h.calls.filter(c => c[0] === 'schedule').length, 0, 'no second schedule');
+        const put = h.calls.find(c => c[0] === 'PUT');
+        assert.deepEqual(JSON.parse(JSON.stringify(put)), ['PUT', '/recordings/scheduled/4', status === 'recording' ? { postBufferMin: 45 } : { preBufferMin: 3, postBufferMin: 45 }],
+            status === 'recording' ? 'a running recording: only its finish' : 'both');
+    });
+}
