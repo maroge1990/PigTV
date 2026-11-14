@@ -15,12 +15,17 @@
  * there: the publish of a remux, an adoption or a compression). Paths only; nothing here knows what the share holds.
  * `local` makes the same calls in this process, for a path on a local disk (appdata); `withOwnHelper` makes them on a
  * helper of their own (a path an admin typed in Settings).
+ *
+ * #289: the long calls, copyInto (files in appdata joined into a new file on the share) and sameBytes (is a file on the
+ * share byte for byte those files?), each run on a helper of its own with a deadline on progress, not on the whole call
+ * (`long`). Nothing of the server process reads or writes the share's bytes, so a stalled share holds none of its threads.
  */
 const { fork } = require('child_process');
 const path = require('path');
 
 // How long a call may take before the share counts as unresponsive (a test may shorten it).
-const tuning = { timeoutMs: 5000 };
+// copyStallMs (#289): how long a long call may go without progress.
+const tuning = { timeoutMs: 5000, copyStallMs: 30000 };
 
 let child = null;
 let nextId = 1;
@@ -128,6 +133,90 @@ function call(op, file, { timeoutMs = tuning.timeoutMs } = {}, extra = {}) {
         }
     });
 }
+
+const abortError = () => Object.assign(new Error('The operation was aborted'), { name: 'AbortError', code: 'ABORT_ERR' });
+
+/**
+ * #289: a long call (copyInto, sameBytes) on a helper of its own, forked for it and killed once it has answered. Its
+ * deadline is on progress: the helper reports after each chunk, and `stallMs` without a report kills it (added to
+ * `stuck` until it exits), marks the share unresponsive (as `call` does) and rejects with SHARE_UNRESPONSIVE, sent and
+ * `settled` (its exit). `signal` (a recording's writer: a deletion) kills it too, and rejects with an AbortError once it
+ * has exited, so the caller's clean-up runs when nothing can still write. With MAX_STUCK helpers stuck it fails at
+ * once without forking.
+ */
+function long(op, file, extra, { signal = null, stallMs = tuning.copyStallMs } = {}) {
+    if (signal && signal.aborted) return Promise.reject(abortError());
+    if (inProcess) return runHere(op, file, extra);
+    if (stuck.size >= MAX_STUCK) {
+        return Promise.reject(unanswered('The recordings share is not answering (earlier calls are still stuck)', null));
+    }
+    return new Promise((resolve, reject) => {
+        let helper;
+        try { helper = spawner.fork(path.join(__dirname, 'shareFsWorker.js')); } catch (e) {
+            return reject(unanswered('The recordings share helper could not be started', null));
+        }
+        const id = nextId++;
+        let done = false;
+        let timer = null;
+        const onAbort = () => {
+            if (!finish()) return;
+            const settled = kill();
+            settled.then(() => reject(abortError()));
+        };
+        function finish() {
+            if (done) return false;
+            done = true;
+            clearTimeout(timer);
+            if (signal) signal.removeEventListener('abort', onAbort);
+            return true;
+        }
+        // Killed: stuck until it exits (it may be held in the kernel on the hung mount), unless it has answered. Returns its exit.
+        function kill(answered = false) {
+            const settled = exitOf(helper);
+            if (!answered && helper.exitCode === null && helper.signalCode === null) stuck.add(helper);
+            try { helper.kill('SIGKILL'); } catch (e) { /* gone */ }
+            try { helper.unref?.(); helper.channel?.unref?.(); } catch (e) { /* gone */ }
+            return settled;
+        }
+        const arm = () => {
+            clearTimeout(timer);
+            timer = setTimeout(() => {
+                if (!finish()) return;
+                if (!unresponsiveSince) unresponsiveSince = Date.now();
+                reject(unanswered(`The recordings share made no progress within ${Math.round(stallMs / 1000)} s`, kill()));
+            }, stallMs);
+        };
+        helper.on('message', (msg) => {
+            if (done || !msg || msg.id !== id) return;
+            if (msg.progress !== undefined) { arm(); return; }
+            finish();
+            kill(true); // it has answered: nothing of it is left to land
+            unresponsiveSince = null;
+            if (msg.error) reject(Object.assign(new Error(msg.error), { code: msg.code || 'SHARE_ERROR', sent: true, settled: Promise.resolve() }));
+            else resolve(msg.result);
+        });
+        helper.on('exit', () => {
+            stuck.delete(helper);
+            if (finish()) reject(unanswered('The recordings share helper stopped', Promise.resolve()));
+        });
+        helper.on('error', () => {
+            if (!helper.pid) stuck.delete(helper); // never spawned: nothing can be stuck
+            if (finish()) reject(unanswered('The recordings share helper stopped', kill()));
+        });
+        if (signal) signal.addEventListener('abort', onAbort, { once: true });
+        arm();
+        try {
+            helper.send({ ...extra, id, op, file: String(file) });
+        } catch (err) {
+            if (finish()) { kill(); reject(unanswered('The recordings share helper could not be reached', null)); } // never sent
+        }
+    });
+}
+
+/** #289: `sources` (files in appdata) joined into `to`, a new file on the share (never over one): { size }. */
+const copyInto = (to, sources, opts) => long('copyInto', to, { sources: sources.map(String) }, opts);
+/** #289: is `file` byte for byte `sources` (files in appdata), joined? Sizes first; false when it is missing. */
+const sameBytes = (file, sources, opts) => long('sameBytes', file, { sources: sources.map(String) }, opts);
 
 const exists = (file, opts) => call('exists', file, opts);
 const stat = (file, opts) => call('stat', file, opts);
@@ -287,4 +376,4 @@ function reset() {
 /** Tests: run calls in this process (true) or in the helper (false). */
 function _inProcess(on) { inProcess = !!on; }
 
-module.exports = { _inProcess, _spawner: spawner, _stuck: stuck, _ownHelpers: ownHelpers, call, exists, stat, statfs, mkdir, writeProbe, identity, unlink, link, nlink, rename, readdir, sizeOf, local, withOwnHelper, diskInfo, unresponsive, reset, tuning };
+module.exports = { _inProcess, _spawner: spawner, _stuck: stuck, _ownHelpers: ownHelpers, call, copyInto, sameBytes, exists, stat, statfs, mkdir, writeProbe, identity, unlink, link, nlink, rename, readdir, sizeOf, local, withOwnHelper, diskInfo, unresponsive, reset, tuning };

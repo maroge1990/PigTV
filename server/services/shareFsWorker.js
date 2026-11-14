@@ -11,6 +11,10 @@ const identityOfStat = (st) => `${st.dev}:${st.ino}:${st.size}:${st.mtimeNs}:${s
 
 // Tests only: any call under this folder waits (a hung share).
 const HANG = process.env.PIGTV_TEST_SHARE_HANG || null;
+// Tests only (#289): a long call waits forever once it has done this many bytes (a share that stalls mid-copy), and
+// waits this long after each chunk (a slow share that still makes progress).
+const STALL_AFTER = Number(process.env.PIGTV_TEST_SHARE_STALL_AFTER) || 0;
+const SLOW_CHUNK_MS = Number(process.env.PIGTV_TEST_SHARE_SLOW_CHUNK_MS) || 0;
 
 // #290: a probe killed on a stalled share can still create its file later, and nothing removes it. After a probe that
 // worked, the folder's earlier ones (not this one, and older than a minute, so one still being written is left) go.
@@ -27,13 +31,98 @@ function removeStaleProbes(dir, own) {
 }
 
 const under = (f, dir) => f === dir || f.startsWith(dir + path.sep);
+const wait = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+const forever = () => { for (;;) wait(60000); };
 
-/** `extra`: a call's further arguments ({ to } for link and rename). */
-function run(op, file, extra = {}) {
-    if (HANG && (under(file, HANG) || (extra && extra.to && under(String(extra.to), HANG)))) {
-        const view = new Int32Array(new SharedArrayBuffer(4));
-        for (;;) Atomics.wait(view, 0, 0, 60000);
+function trap(file, extra) {
+    if (HANG && (under(file, HANG) || (extra && extra.to && under(String(extra.to), HANG)))) forever();
+}
+
+// #289: the long calls, as generators that yield the bytes done so far after each chunk (the parent's stall timer
+// restarts on each). `sources`: files in appdata, in order.
+const CHUNK = 1024 * 1024;
+
+/** `to` created exclusively (never over a file), then each source appended in turn: { size }. */
+function* copyInto(to, sources) {
+    const out = fs.openSync(to, 'wx');
+    const buf = Buffer.allocUnsafe(CHUNK);
+    let size = 0;
+    try {
+        for (const src of sources) {
+            const fd = fs.openSync(String(src), 'r');
+            try {
+                for (;;) {
+                    const n = fs.readSync(fd, buf, 0, CHUNK, null);
+                    if (n === 0) break;
+                    for (let off = 0; off < n;) off += fs.writeSync(out, buf, off, n - off);
+                    size += n;
+                    yield size;
+                }
+            } finally { fs.closeSync(fd); }
+        }
+    } finally { fs.closeSync(out); }
+    return { size };
+}
+
+/** Is `file` byte for byte the sources, joined? Sizes first; a missing file is false. */
+function* sameBytes(file, sources) {
+    let total = 0;
+    for (const src of sources) total += fs.statSync(String(src)).size;
+    let st;
+    try { st = fs.statSync(file); } catch (e) { if (e.code === 'ENOENT') return false; throw e; }
+    if (st.size !== total) return false;
+    const fh = fs.openSync(file, 'r');
+    const mine = Buffer.allocUnsafe(CHUNK);
+    const theirs = Buffer.allocUnsafe(CHUNK);
+    let at = 0;
+    try {
+        for (const src of sources) {
+            const fd = fs.openSync(String(src), 'r');
+            try {
+                for (;;) {
+                    const n = fs.readSync(fd, mine, 0, CHUNK, null);
+                    if (n === 0) break;
+                    let got = 0;
+                    while (got < n) { const r = fs.readSync(fh, theirs, got, n - got, at + got); if (r === 0) break; got += r; }
+                    if (got !== n || !theirs.subarray(0, n).equals(mine.subarray(0, n))) return false;
+                    at += n;
+                    yield at;
+                }
+            } finally { fs.closeSync(fd); }
+        }
+    } finally { fs.closeSync(fh); }
+    return true;
+}
+
+const LONG = {
+    copyInto: (file, extra) => copyInto(file, extra.sources || []),
+    sameBytes: (file, extra) => sameBytes(file, extra.sources || [])
+};
+
+/** A long call made here, in one go (the in-process test mode, a stand-in helper). */
+function drain(gen) { for (;;) { const r = gen.next(); if (r.done) return r.value; } }
+
+/**
+ * A long call in the helper: `progress(bytes)` after each chunk, and a turn of this process's event loop between chunks
+ * so each progress message goes out at once.
+ */
+async function runLong(op, file, extra, progress) {
+    trap(file, extra);
+    const gen = LONG[op](file, extra);
+    for (;;) {
+        const r = gen.next();
+        if (r.done) return r.value;
+        progress(r.value);
+        if (STALL_AFTER && r.value >= STALL_AFTER) forever();
+        if (SLOW_CHUNK_MS) wait(SLOW_CHUNK_MS);
+        await new Promise((resolve) => setImmediate(resolve));
     }
+}
+
+/** `extra`: a call's further arguments ({ to } for link and rename, { sources } for copyInto and sameBytes). */
+function run(op, file, extra = {}) {
+    trap(file, extra);
+    if (LONG[op]) return drain(LONG[op](file, extra));
     switch (op) {
         case 'exists': return fs.existsSync(file);
         case 'stat': {
@@ -75,13 +164,20 @@ function run(op, file, extra = {}) {
     }
 }
 
-module.exports = { run, identityOfStat };
+module.exports = { run, runLong, identityOfStat, LONG_OPS: Object.keys(LONG) };
 if (require.main !== module || !process.send) return; // required in-process (tests), not forked
 
 process.on('message', (msg) => {
     if (!msg || typeof msg.id !== 'number') return;
+    const { id, op, file, ...extra } = msg;
+    if (LONG[op]) {
+        // #289: on a helper of its own (shareFs.long); the parent kills it when its progress stops.
+        runLong(op, String(file), extra, (done) => process.send({ id, progress: done })).then(
+            (result) => process.send({ id, result }),
+            (err) => process.send({ id, error: err.message, code: err.code || 'SHARE_ERROR' }));
+        return;
+    }
     try {
-        const { id, op, file, ...extra } = msg;
         process.send({ id, result: run(op, String(file), extra) });
     } catch (err) {
         process.send({ id: msg.id, error: err.message, code: err.code || 'SHARE_ERROR' });

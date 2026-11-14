@@ -309,19 +309,43 @@ for (const [label, tools] of [
     });
 }
 
+const TS_PARTIAL = /\.ts\.\d+-[0-9a-f]+\.partial$/;
+const MP4_PARTIAL = /\.mp4\.\d+-[0-9a-f]+\.partial$/;
+const abortError = () => Object.assign(new Error('The operation was aborted'), { name: 'AbortError', code: 'ABORT_ERR' });
+/** The copy shareFs.copyInto's helper makes, made here: `to` created exclusively, the sources appended. */
+function copyHere(to, sources) {
+    const fd = fs.openSync(to, 'wx');
+    let size = 0;
+    try { for (const src of sources) { const b = fs.readFileSync(src); fs.writeSync(fd, b); size += b.length; } } finally { fs.closeSync(fd); }
+    return { size };
+}
+/**
+ * #289: the copies to the share run on a helper process of their own (shareFs.copyInto). For the copy whose partial
+ * matches `pattern`, `run(to, sources)` stands in for that helper here (it may copy, fail or wait). An abort (a
+ * deletion) kills the helper: the call rejects with an AbortError once `exited()` has settled (at once, unless the
+ * helper is stuck in the kernel). `once`: only the next such copy. Returns the restore.
+ */
+function standInCopy(pattern, run, { exited = () => Promise.resolve(), once = false } = {}) {
+    const shareFs = load('services/shareFs');
+    const real = shareFs.copyInto;
+    shareFs.copyInto = (to, sources, opts = {}) => {
+        if (!pattern.test(String(to))) return real(to, sources, opts);
+        if (once) shareFs.copyInto = real;
+        const { signal } = opts;
+        if (signal && signal.aborted) return Promise.reject(abortError());
+        return new Promise((resolve, reject) => {
+            const onAbort = () => { exited().then(() => reject(abortError())); };
+            if (signal) signal.addEventListener('abort', onAbort, { once: true });
+            Promise.resolve().then(() => run(String(to), sources.map(String))).then(resolve, reject)
+                .finally(() => { if (signal) signal.removeEventListener('abort', onAbort); });
+        });
+    };
+    return () => { shareFs.copyInto = real; };
+}
+
 /** F1: the share's .ts writes fail to open (a share gone read-only), until `restore()` is called. */
 function failTsWrites() {
-    const real = fs.createWriteStream;
-    fs.createWriteStream = function (file, ...rest) {
-        if (/\.ts\.\d+-[0-9a-f]+\.partial$/.test(String(file))) {
-            const { Writable } = require('node:stream');
-            const w = new Writable({ write(chunk, enc, cb) { cb(); } });
-            process.nextTick(() => w.destroy(Object.assign(new Error('read-only file system'), { code: 'EROFS' })));
-            return w;
-        }
-        return real.call(this, file, ...rest);
-    };
-    return () => { fs.createWriteStream = real; };
+    return standInCopy(TS_PARTIAL, () => { throw Object.assign(new Error('read-only file system'), { code: 'EROFS' }); });
 }
 
 test('DVR-1: a kept original that cannot be written keeps the segments in appdata and retries, never deleting them', async () => {
@@ -345,21 +369,14 @@ test('DVR-1: a kept original that cannot be written keeps the segments in appdat
 test('F2: while the kept original is being copied the row waits as moving, so a restart finds and finishes it', async () => {
     await withTools({ duration: async (f) => (f.endsWith('recording.m3u8') ? null : 120) }, async () => {
         const { rec, workDir, mp4 } = finishingRow();
-        const real = fs.createWriteStream;
         let seen = null;
-        fs.createWriteStream = function (file, ...rest) {
-            if (/\.ts\.\d+-[0-9a-f]+\.partial$/.test(String(file)) && !seen) {
-                // The copy opens: this is what a restart now would find in the database.
-                seen = { state: recordings.getById(rec.id).segment_state, queued: recordings.findSegmentWork().some(r => r.id === rec.id) };
-                // ...and the server dies here: the copy never finishes.
-                const { Writable } = require('node:stream');
-                const w = new Writable({ write(c, e, cb) { cb(); } });
-                process.nextTick(() => w.destroy(new Error('killed')));
-                return w;
-            }
-            return real.call(this, file, ...rest);
-        };
-        try { await segments.finishOne(rec); } finally { fs.createWriteStream = real; }
+        const restore = standInCopy(TS_PARTIAL, () => {
+            // The copy starts: this is what a restart now would find in the database.
+            seen = { state: recordings.getById(rec.id).segment_state, queued: recordings.findSegmentWork().some(r => r.id === rec.id) };
+            // ...and the server dies here: the copy never finishes.
+            throw new Error('killed');
+        }, { once: true });
+        try { await segments.finishOne(rec); } finally { restore(); }
         assert.deepEqual(seen, { state: 'moving', queued: true }, 'durably pending, not done');
         assert.ok(fs.existsSync(workDir));
         // After the restart the queue retries the move and only then is it done.
@@ -454,28 +471,13 @@ test('D1: deleting a recording while its original is being copied keeps the othe
         fs.writeFileSync(segments.keptOriginalPath(mp4), foreign);
         // The copy writes every byte, then waits at its end (a barrier, not a timer) while the
         // recording is deleted; only then does it close and publish.
-        const real = fs.createWriteStream;
-        let reached;
-        const atEnd = new Promise(r => { reached = r; });
-        let release;
-        const gate = new Promise(r => { release = r; });
-        fs.createWriteStream = function (file, ...rest) {
-            if (/\.ts\.\d+-[0-9a-f]+\.partial$/.test(String(file))) {
-                fs.createWriteStream = real;
-                const { Writable } = require('node:stream');
-                const fd = fs.openSync(file, 'wx');
-                return new Writable({
-                    write(chunk, enc, cb) { fs.writeSync(fd, chunk); cb(); },
-                    final(cb) { reached(); gate.then(() => { fs.closeSync(fd); cb(); }); }
-                });
-            }
-            return real.call(this, file, ...rest);
-        };
+        const copy = holdTsCopy();
+        const release = copy.release;
         let finishing;
         try {
             finishing = segments.finishOne(rec);
-            await atEnd;
-        } finally { fs.createWriteStream = real; }
+            await copy.atEnd;
+        } finally { copy.unhook(); }
         assert.equal(recordings.getById(rec.id).segment_state, 'moving');
         await engine.deleteRecording(rec.id);
         release();
@@ -556,24 +558,17 @@ test('R4-D1: reopening the database after 0242 stopped mid-copy, then deleting, 
 // ---- R4-D2 (0257): a publication racing a deletion, in both orders, on every publishing path ----
 
 /** The next .ts copy to the share writes every byte, then waits at its end until released (a barrier). */
-function holdTsCopy() {
-    const real = fs.createWriteStream;
+function holdTsCopy(pattern = TS_PARTIAL) {
     let reached, release;
     const atEnd = new Promise(r => { reached = r; });
     const gate = new Promise(r => { release = r; });
-    fs.createWriteStream = function (file, ...rest) {
-        if (/\.ts\.\d+-[0-9a-f]+\.partial$/.test(String(file))) {
-            fs.createWriteStream = real;
-            const { Writable } = require('node:stream');
-            const fd = fs.openSync(file, 'wx');
-            return new Writable({
-                write(chunk, enc, cb) { fs.writeSync(fd, chunk); cb(); },
-                final(cb) { reached(); gate.then(() => { fs.closeSync(fd); cb(); }); }
-            });
-        }
-        return real.call(this, file, ...rest);
-    };
-    return { atEnd, release: () => release(), restore: () => { fs.createWriteStream = real; release(); } };
+    const unhook = standInCopy(pattern, async (to, sources) => {
+        const done = copyHere(to, sources);
+        reached();
+        await gate;
+        return done;
+    }, { once: true });
+    return { atEnd, release: () => release(), unhook, restore: () => { unhook(); release(); } };
 }
 
 /** deleteRecording's work-folder removal waits until released (the deletion is then still running). */
@@ -640,22 +635,10 @@ test('R4-D2: an MP4 moved to the share while the deletion is still running is re
     fs.renameSync(mount, away);
     try { await segments.finishOne(rec); } finally { fs.renameSync(away, mount); }
     assert.equal(recordings.getById(rec.id).segment_state, 'moving', 'waiting in appdata');
-    // 0267: the move copies as a stream; this holds its write at the end until released.
-    const realStream = fs.createWriteStream;
-    let reached, release;
-    const copying = new Promise(r => { reached = r; });
-    const gate = new Promise(r => { release = r; });
-    fs.createWriteStream = function (file, ...rest) {
-        if (!/\.mp4\.\d+-[0-9a-f]+\.partial$/.test(String(file))) return realStream.call(this, file, ...rest);
-        fs.createWriteStream = realStream;
-        const { Writable } = require('node:stream');
-        const fd = fs.openSync(file, 'wx');
-        return new Writable({
-            write(chunk, enc, cb) { fs.writeSync(fd, chunk); cb(); },
-            final(cb) { reached(); gate.then(() => { fs.closeSync(fd); cb(); }); }
-        });
-    };
-    const held = { restore: () => { fs.createWriteStream = realStream; } };
+    // 0267, #289: the move's copy (its helper) is held at the end until released.
+    const held = holdTsCopy(MP4_PARTIAL);
+    const copying = held.atEnd;
+    const release = held.release;
     const removal = holdRemoveWork();
     try {
         const moving = segments.moveOne(recordings.getById(rec.id));
@@ -1725,20 +1708,10 @@ test('E2: a deletion during the MP4\'s move to a share that stopped answering st
     assert.equal(recordings.getById(rec.id).segment_state, 'moving', 'waiting in appdata');
     // The share takes the first bytes, then the next write's callback never comes and the stream can
     // be destroyed (a write stuck in the kernel cannot be: see REPAIR-STATUS, E2 / Codex WriteStream).
-    const realCopy = fs.promises.copyFile, realStream = fs.createWriteStream;
+    // #289: the copy's helper writes the first bytes and is then silent (a share that stopped answering).
     let reached;
     const copying = new Promise(r => { reached = r; });
-    fs.promises.copyFile = async (src, dest, ...a) => { // the old path: a copy that cannot be stopped
-        if (!String(dest).includes('.mp4.')) return realCopy(src, dest, ...a);
-        fs.writeFileSync(dest, 'first bytes'); reached(); return new Promise(() => {});
-    };
-    fs.createWriteStream = function (file, ...rest) {
-        if (!/\.mp4\.\d+-[0-9a-f]+\.partial$/.test(String(file))) return realStream.call(this, file, ...rest);
-        const { Writable } = require('node:stream');
-        fs.writeFileSync(file, 'first bytes');
-        reached();
-        return new Writable({ write() { /* never calls back: the share stopped answering */ } });
-    };
+    const unhook = standInCopy(MP4_PARTIAL, (to) => { fs.writeFileSync(to, 'first bytes'); reached(); return new Promise(() => {}); });
     let moving, deleting;
     try {
         moving = segments.moveOne(recordings.getById(rec.id));
@@ -1750,8 +1723,8 @@ test('E2: a deletion during the MP4\'s move to a share that stopped answering st
         assert.deepEqual(leftIn(path.dirname(mp4), path.basename(mp4, '.mp4')), [], 'no MP4 or partial on the share');
         assert.equal(fs.existsSync(workDir), false);
     } finally {
-        fs.promises.copyFile = realCopy; fs.createWriteStream = realStream;
-        await Promise.race([Promise.all([moving, deleting]), new Promise(r => setTimeout(r, 1000))]); // the old copy never settles
+        unhook();
+        await Promise.race([Promise.all([moving, deleting]), new Promise(r => setTimeout(r, 1000))]);
     }
 });
 
@@ -1766,23 +1739,16 @@ test('H: a deletion whose share copy cannot be stopped completes after its wait,
     fs.renameSync(mount, away);
     try { await segments.finishOne(rec); } finally { fs.renameSync(away, mount); }
     assert.equal(recordings.getById(rec.id).segment_state, 'moving');
-    const realStream = fs.createWriteStream, realCopy = fs.promises.copyFile;
     let reached, unstick, partial = null;
     const copying = new Promise(r => { reached = r; });
     const stuck = new Promise(r => { unstick = r; });
-    const { Writable } = require('node:stream');
-    const hold = (file) => { partial = String(file); fs.writeFileSync(partial, 'first bytes'); reached(); };
-    fs.createWriteStream = function (file, ...rest) {
-        if (!/\.mp4\.\d+-[0-9a-f]+\.partial$/.test(String(file))) return realStream.call(this, file, ...rest);
-        hold(file);
-        // As fs.WriteStream: its write is in flight on a share that stopped answering, and destroying it
-        // waits for that write before the stream closes.
-        return new Writable({ write(chunk, enc, cb) { stuck.then(() => cb()); }, destroy(err, cb) { stuck.then(() => cb(err)); } });
-    };
-    fs.promises.copyFile = async (src, dest, ...a) => { // the 0266 path: a copy that never ends
-        if (!String(dest).includes('.mp4.')) return realCopy(src, dest, ...a);
-        hold(dest); await stuck; return realCopy(src, dest, ...a);
-    };
+    // #289: the copy's helper is stuck in the kernel on a share that stopped answering: killed, it exits only once
+    // the share answers again.
+    const unhook = standInCopy(MP4_PARTIAL, async (to) => {
+        partial = to; fs.writeFileSync(partial, 'first bytes'); reached();
+        await stuck;
+        throw new Error('the share dropped the copy');
+    }, { exited: () => stuck });
     engine._owners?._setStopWaitMs?.(200); // absent before 0270: the old code waits as it always did
     let moving, deleting;
     try {
@@ -1802,7 +1768,7 @@ test('H: a deletion whose share copy cannot be stopped completes after its wait,
         assert.deepEqual(leftIn(path.dirname(mp4), path.basename(mp4, '.mp4')), []);
         assert.equal(sqlite.getDb().prepare('SELECT COUNT(*) AS n FROM recording_cleanup').get().n, 0);
     } finally {
-        unstick(); fs.createWriteStream = realStream; fs.promises.copyFile = realCopy; engine._owners?._setStopWaitMs?.();
+        unstick(); unhook(); engine._owners?._setStopWaitMs?.();
         await Promise.race([Promise.all([moving, deleting]), new Promise(r => setTimeout(r, 1000))]);
     }
 });

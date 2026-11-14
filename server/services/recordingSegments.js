@@ -31,8 +31,6 @@ const fs = require('fs');
 const fsp = fs.promises;
 const path = require('path');
 const crypto = require('crypto');
-const { Readable } = require('stream');
-const { pipeline } = require('stream/promises');
 const { spawn } = require('child_process');
 const media = require('./recordingMedia');
 const { parseMediaPlaylist, renderMediaPlaylist } = require('./hlsPlaylist');
@@ -607,19 +605,17 @@ const segmentFiles = (rec) => epochs(rec.work_dir).flatMap(e => archiveOf(e.dir)
 
 /**
  * Every epoch's segments, in order, joined into one MPEG-TS file published in `dir` as `first`
- * (else `alt(n)`), never over an existing file. DVR-5 (0227): one pipeline owns both ends, so a
- * share that fails to open, fills or drops mid-write rejects here (the partial is removed) instead
- * of raising an unhandled stream error, and the writer's backpressure paces the reads. F1: the
- * partial is this call's own (created exclusively under a unique name). Returns the published path.
+ * (else `alt(n)`), never over an existing file. #289: the copy is shareFs.copyInto, a helper process of its own whose
+ * progress is watched: a share that fails to open, fills or drops mid-write rejects here (the partial is removed); one
+ * that stops making progress rejects with SHARE_UNRESPONSIVE (the partial kept for the next attempt to take back); a
+ * deletion (`signal`) kills the helper and the partial goes once it has exited. F1: the partial is this call's own
+ * (created exclusively under a unique name). Returns the published path.
  */
 async function joinSegments(rec, dir, first, alt, signal = null, made = () => {}) {
     const partial = owners.partialFor(path.join(dir, first));
     made(partial); // 0270: named to its writer before it exists
-    async function* pieces() {
-        for (const file of segmentFiles(rec)) yield* fs.createReadStream(file);
-    }
     try {
-        await pipeline(Readable.from(pieces(), { objectMode: false }), fs.createWriteStream(partial, { flags: 'wx' }), ...(signal ? [{ signal }] : []));
+        await shareFs.copyInto(partial, segmentFiles(rec), { signal });
         return await publishNoReplace(partial, dir, first, alt, rec.id);
     } catch (err) {
         if (!err.keepPartial && !unresponsive(err)) await removeMade(partial);
@@ -897,17 +893,15 @@ async function moveNow(rec) {
         const partial = owners.partialFor(path.join(dir, `${name}.mp4`));
         let target;
         try {
-            // 0264: a writer of the recording; a deletion stops it and waits. 0267 (Codex review of
-            // 0266): copied as a stream with the writer's signal, so a deletion stops it between
-            // chunks (copyFile runs to the end). A single write stuck in the kernel on a share that
-            // stopped answering cannot be interrupted in-process - nor can the deletion's own
-            // unlinks on that share (see docs/reviews/2026-10-25/repair/REPAIR-STATUS.md).
+            // 0264: a writer of the recording; a deletion stops it and waits. #289: copied by a helper process
+            // of its own (shareFs.copyInto) with the writer's signal: a deletion kills it, and a share that stops
+            // making progress rejects with SHARE_UNRESPONSIVE; nothing in this process waits on the share's bytes.
             target = await write(rec.id, async (signal, made) => {
                 if (signal.aborted) return null;
                 made(partial);
                 let t;
                 try {
-                    await pipeline(fs.createReadStream(source), fs.createWriteStream(partial, { flags: 'wx' }), { signal });
+                    await shareFs.copyInto(partial, [source], { signal });
                     const copied = await ioFor(partial).stat(partial); // #287
                     if (!copied || copied.size !== fs.statSync(source).size) throw new Error('the copy is not the same size');
                     t = await publishNoReplace(partial, dir, `${name}.mp4`, n => `${name} (${n}).mp4`, rec.id); // F1

@@ -64,6 +64,18 @@ for (const name of ['existsSync', 'statSync', 'statfsSync', 'mkdirSync', 'writeF
     };
 }
 
+// #289: and any asynchronous call this process opens on the share (a stream, an open): each holds a libuv pool thread
+// that playback needs, for as long as a hung share keeps it. Recorded (the call goes on) for a test to check.
+const pooled = [];
+for (const [where, name] of [[fs, 'createReadStream'], [fs, 'createWriteStream'], [fs, 'open'], [fs, 'copyFile'], [fs.promises, 'open'],
+    [fs.promises, 'copyFile'], [fs.promises, 'readFile'], [fs.promises, 'writeFile']]) {
+    const realCall = where[name];
+    where[name] = function (p, ...rest) {
+        if (onShare(p) || (name === 'copyFile' && onShare(rest[0]))) pooled.push(`${name} ${p}`);
+        return realCall.call(this, p, ...rest);
+    };
+}
+
 /** The longest gap between 20 ms timer ticks while `work` runs: how long the event loop was frozen. */
 async function loopFreeze(work) {
     let last = Date.now();
@@ -570,12 +582,14 @@ test('#287: an MP4 left in appdata moves to a share that answers its checks with
     try {
         await leftInAppdata(rec, recordings);
         blocked.length = 0;
+    pooled.length = 0;
         const { worst } = await loopFreeze(() => queueUntil(() => recordings.getById(rec.id).segment_state === 'done', 'moved', { at: later }));
         const moved = recordings.getById(rec.id);
         assert.ok(moved.file_path.startsWith(foxFooty + path.sep), moved.file_path);
         assert.equal(real(() => fs.statSync(moved.file_path).size), 5000);
         assert.deepEqual(filesOf(rec), [path.basename(moved.file_path)], 'one file, no partial left');
         assert.deepEqual([...blocked], [], 'no synchronous call on the share');
+        assert.deepEqual([...pooled], [], '#289: and no asynchronous one (a pool thread) either');
         assert.ok(worst() < 300, `the event loop stalled for ${worst()} ms`);
     } finally {
         hangMs = 3000;
@@ -669,12 +683,14 @@ test('#287: an MP4 that cannot be made: the segments go to the share as a .ts wi
     engine._nativeTools.ffmpeg = async () => ({ code: 1, tail: ['Invalid data found when processing input'] });
     hangMs = 400;
     blocked.length = 0;
+    pooled.length = 0;
     try {
         const { worst } = await loopFreeze(() => queueUntil(() => recordings.getById(rec.id).segment_state === 'done', 'delivered as a .ts after three attempts'));
         const done = recordings.getById(rec.id);
         assert.equal(done.file_path, path.join(foxFooty, `${rec.segment_name}.ts`));
         assert.equal(done.file_size_bytes, joined);
         assert.deepEqual([...blocked], [], 'no synchronous call on the share');
+        assert.deepEqual([...pooled], [], '#289: and no asynchronous one (a pool thread) either');
         assert.ok(worst() < 300, `the event loop stalled for ${worst()} ms`);
     } finally {
         engine._nativeTools.ffmpeg = remux;
@@ -1858,5 +1874,183 @@ test('#289: ad detection on a file of a hung share answers "not responding" with
     } finally {
         adDetect._setForTests();
         shareFs.reset();
+    }
+});
+
+// ---- #289: the copies to the share and the comparison with it run on a helper of their own, watched for progress ----
+
+test('#289: a copy to the share is watched for progress, not for its whole length: a slow one finishes, one that stops is killed', async () => {
+    const src = path.join(sandbox, 'appdata-source.bin');
+    const bytes = require('node:crypto').randomBytes(3 * 1024 * 1024 + 10); // four chunks
+    fs.writeFileSync(src, bytes);
+    const target = (n) => path.join(slowRecordings, `progress-${n}.bin.partial`);
+    const stallWas = shareFs.tuning.copyStallMs;
+    shareFs.reset();
+    shareFs.tuning.copyStallMs = 600;
+    blocked.length = 0;
+    pooled.length = 0;
+    try {
+        // 300 ms a chunk: 1.2 s in all, twice the stall time, but never that long without progress.
+        process.env.PIGTV_TEST_SHARE_SLOW_CHUNK_MS = '300';
+        const began = Date.now();
+        const slow = await loopFreeze(() => shareFs.copyInto(target(1), [src]));
+        assert.equal(slow.result.size, bytes.length);
+        assert.ok(Date.now() - began >= 1000, 'it took longer than the stall time');
+        assert.ok(slow.worst() < 300, `the event loop stalled for ${slow.worst()} ms`);
+        assert.ok(real(() => fs.readFileSync(target(1))).equals(bytes), 'copied byte for byte');
+        delete process.env.PIGTV_TEST_SHARE_SLOW_CHUNK_MS;
+        assert.equal(await shareFs.sameBytes(target(1), [src]), true);
+        assert.equal(await shareFs.sameBytes(target(1), [src, src]), false, 'another size');
+        await assert.rejects(() => shareFs.copyInto(target(1), [src]), { code: 'EEXIST' }, 'never over a file');
+        // A share that stops after the first chunk.
+        process.env.PIGTV_TEST_SHARE_STALL_AFTER = '1';
+        const at = Date.now();
+        const stalled = await loopFreeze(() => assert.rejects(() => shareFs.copyInto(target(2), [src]),
+            (err) => err.code === 'SHARE_UNRESPONSIVE' && err.sent === true && err.settled instanceof Promise));
+        const took = Date.now() - at;
+        assert.ok(took >= 600 && took < 3000, `rejected after the stall time (${took} ms)`);
+        assert.ok(stalled.worst() < 300, `the event loop stalled for ${stalled.worst()} ms`);
+        assert.ok(real(() => fs.existsSync(target(2))), 'it stopped mid-copy');
+        assert.ok(shareFs.unresponsive(), 'the share counts as unresponsive');
+        await assert.rejects(() => shareFs.sameBytes(target(1), [src]), { code: 'SHARE_UNRESPONSIVE' }, 'a comparison is watched the same way');
+        assert.deepEqual(blocked, [], 'no synchronous call on the share');
+        assert.deepEqual(pooled, [], 'no asynchronous one either');
+    } finally {
+        delete process.env.PIGTV_TEST_SHARE_SLOW_CHUNK_MS;
+        delete process.env.PIGTV_TEST_SHARE_STALL_AFTER;
+        shareFs.tuning.copyStallMs = stallWas;
+        shareFs.reset();
+        real(() => { for (const n of [1, 2]) fs.rmSync(target(n), { force: true }); });
+    }
+});
+
+test('#289: helpers of long calls stuck after a kill are bounded, and an abort rejects only once its helper has exited', async () => {
+    const { EventEmitter } = require('node:events');
+    const realFork = shareFs._spawner.fork;
+    const stallWas = shareFs.tuning.copyStallMs;
+    const forks = [];
+    shareFs.reset();
+    shareFs.tuning.copyStallMs = 100;
+    shareFs._spawner.fork = () => {
+        const helper = Object.assign(new EventEmitter(), {
+            pid: 1, connected: true, exitCode: null, signalCode: null,
+            send() {}, kill() { this.connected = false; }, unref() {}, channel: { ref() {}, unref() {} }
+        });
+        forks.push(helper);
+        return helper;
+    };
+    try {
+        await assert.rejects(() => shareFs.copyInto('/anywhere/a.partial', ['/appdata/a']), { code: 'SHARE_UNRESPONSIVE' });
+        await assert.rejects(() => shareFs.sameBytes('/anywhere/a.ts', ['/appdata/a']), { code: 'SHARE_UNRESPONSIVE' });
+        assert.equal(forks.length, 2);
+        const began = Date.now();
+        await assert.rejects(() => shareFs.copyInto('/anywhere/b.partial', ['/appdata/a']), { code: 'SHARE_UNRESPONSIVE', sent: false });
+        assert.ok(Date.now() - began < 50, 'failed at once');
+        assert.equal(forks.length, 2, 'no third helper while two are stuck');
+        forks[0].emit('exit', null, 'SIGKILL');
+        forks[1].emit('exit', null, 'SIGKILL');
+        // A deletion (the writer's signal) kills the helper; its rejection waits for the exit.
+        shareFs.tuning.copyStallMs = 10000;
+        const controller = new AbortController();
+        let outcome = null;
+        const copying = shareFs.copyInto('/anywhere/c.partial', ['/appdata/a'], { signal: controller.signal })
+            .then(() => { outcome = 'resolved'; }, (err) => { outcome = err.name; });
+        assert.equal(forks.length, 3);
+        controller.abort();
+        await new Promise(r => setTimeout(r, 50));
+        assert.equal(forks[2].connected, false, 'killed');
+        assert.equal(outcome, null, 'not yet: it has not exited');
+        forks[2].emit('exit', null, 'SIGKILL');
+        await copying;
+        assert.equal(outcome, 'AbortError');
+        await assert.rejects(() => shareFs.copyInto('/anywhere/d.partial', ['/appdata/a'], { signal: controller.signal }), { name: 'AbortError' });
+        assert.equal(forks.length, 3, 'an aborted signal forks nothing');
+    } finally {
+        shareFs._spawner.fork = realFork;
+        shareFs.tuning.copyStallMs = stallWas;
+        shareFs.reset();
+    }
+});
+
+test('#289: a share that stalls mid-copy: the move gives up after the stall time, the loop goes on, and once the share answers the recording is published exactly once', async () => {
+    const { rec, recordings } = await captured('Stalled copy');
+    await leftInAppdata(rec, recordings);
+    const stallWas = shareFs.tuning.copyStallMs;
+    shareFs.reset();
+    shareFs.tuning.copyStallMs = 800;
+    process.env.PIGTV_TEST_SHARE_STALL_AFTER = '1'; // the copy helper stops after its first chunk
+    hangMs = 1500;
+    blocked.length = 0;
+    pooled.length = 0;
+    try {
+        const began = Date.now();
+        const { worst } = await loopFreeze(() => segments.processQueue(later()));
+        const took = Date.now() - began;
+        assert.ok(took >= 800 && took < 5000, `the move gave up after the stall time (${took} ms)`);
+        const waiting = recordings.getById(rec.id);
+        assert.equal(waiting.segment_state, 'moving', 'a stall is not a failure: it waits to move');
+        assert.equal(waiting.file_path, path.join(rec.work_dir, 'final.mp4'), 'its MP4 stays in appdata, playable');
+        assert.ok(filesOf(rec).some(n => n.endsWith('.partial')), 'the copy had begun');
+        assert.ok(shareFs.unresponsive(), 'the share counts as unresponsive');
+        assert.deepEqual([...blocked], [], 'no synchronous call on the share');
+        assert.deepEqual([...pooled], [], 'no asynchronous one either');
+        assert.ok(worst() < 300, `the event loop stalled for ${worst()} ms`);
+    } finally {
+        delete process.env.PIGTV_TEST_SHARE_STALL_AFTER;
+        shareFs.tuning.copyStallMs = stallWas;
+        hangMs = 3000;
+    }
+    // The share answers again: the next move takes back the stalled partial and publishes the MP4 once.
+    shareFs.reset();
+    bypass = true;
+    try {
+        await queueUntil(() => recordings.getById(rec.id).segment_state === 'done', 'moved once the share answers', { at: later });
+        const moved = recordings.getById(rec.id);
+        assert.equal(moved.file_path, path.join(foxFooty, `${rec.segment_name}.mp4`));
+        assert.equal(fs.statSync(moved.file_path).size, 5000);
+        assert.deepEqual(filesOf(rec), [`${rec.segment_name}.mp4`], 'published exactly once: no "(2)" copy, no partial left');
+        assert.deepEqual(journalOf(rec.id), [], 'nothing of it left in the journal');
+    } finally {
+        bypass = false;
+        await finishLeftovers();
+    }
+});
+
+test('#289: a recording deleted while its MP4 is copied to the share kills the copy helper and leaves no partial', async () => {
+    const { rec, recordings } = await captured('Deleted mid-copy');
+    await leftInAppdata(rec, recordings);
+    const stallWas = shareFs.tuning.copyStallMs;
+    const realFork = shareFs._spawner.fork;
+    let copier = null;
+    shareFs.reset();
+    shareFs.tuning.copyStallMs = 20000;
+    process.env.PIGTV_TEST_SHARE_STALL_AFTER = '1'; // the copy goes quiet after its first chunk, well within its stall time
+    shareFs._spawner.fork = (file) => {
+        const helper = realFork(file);
+        const send = helper.send.bind(helper);
+        helper.send = (msg, ...rest) => { if (msg && msg.op === 'copyInto') copier = helper; return send(msg, ...rest); };
+        return helper;
+    };
+    blocked.length = 0;
+    pooled.length = 0;
+    try {
+        const moving = segments.processQueue(later());
+        assert.ok(await until(() => filesOf(rec).some(n => n.endsWith('.partial')), 10000), 'the copy has begun');
+        const began = Date.now();
+        await engine.deleteRecording(rec.id);
+        await moving;
+        assert.ok(Date.now() - began < 5000, 'the deletion did not wait for the stall time');
+        assert.ok(copier && copier.signalCode === 'SIGKILL', 'the copy helper was killed');
+        assert.ok(!recordings.getById(rec.id), 'the recording is gone');
+        assert.deepEqual(filesOf(rec), [], 'no partial left on the share');
+        assert.deepEqual(journalOf(rec.id), [], 'nor in the journal');
+        assert.deepEqual([...blocked], [], 'no synchronous call on the share');
+        assert.deepEqual([...pooled], [], 'no asynchronous one either');
+    } finally {
+        delete process.env.PIGTV_TEST_SHARE_STALL_AFTER;
+        shareFs._spawner.fork = realFork;
+        shareFs.tuning.copyStallMs = stallWas;
+        shareFs.reset();
+        await finishLeftovers();
     }
 });
