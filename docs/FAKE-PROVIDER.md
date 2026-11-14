@@ -40,6 +40,8 @@ node scripts/fake-provider.js --game-at 2026-11-04T09:00:00Z --game-guide-min 10
 its `--guide-min` slot) and final `--final-min` minutes after kick-off. `GET /fake/game` shows the timeline;
 `POST /fake/game?final=now|<minutes after kick-off>|<ISO>` moves the final. The server reads ESPN at fixed `https://`
 addresses, so it is pointed at the fake from outside (the rig below): no server setting exists for it.
+`fake-provider.js --game-lang fr` lists the game in French only ("Premier League : Everton de Merseyside c. Fulham de
+Londres", as RDS names teams), for #296's join by nickname; on the rig, add it to `PIGTV_RIG_FAKE_FLAGS`.
 
 ## Channels (profile a)
 

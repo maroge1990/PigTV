@@ -31,14 +31,18 @@ const GAME = {
     id: '9917001', league: 'EPL', path: 'soccer/eng.1', tvg: 'itv1.uk',
     title: 'Premier League: Everton v Fulham', home: team('368', 'Everton', 'EVE'), away: team('370', 'Fulham', 'FUL')
 };
+// #296's T3: the guide title in another language (fake-provider.js --game-lang fr), naming the teams as RDS does, with no
+// English listing beside it
+const TITLES = { en: GAME.title, fr: 'Premier League : Everton de Merseyside c. Fulham de Londres' };
 
 /**
  * The timeline: { start, guideEnd, finalAt, stateAt(now), programme() }. `finalAt` can be moved (setFinal).
  */
-function scriptedGame({ at, guideMin = 10, finalMin = 25 }) {
+function scriptedGame({ at, guideMin = 10, finalMin = 25, lang = 'en' }) {
     const start = typeof at === 'number' ? at : Date.parse(at);
     if (!Number.isFinite(start)) throw new Error('--game-at needs an ISO time');
     if (!(guideMin > 0) || !(finalMin > 0)) throw new Error('--guide-min and --final-min must be positive');
+    if (!Object.hasOwn(TITLES, lang)) throw new Error(`--game-lang is one of ${Object.keys(TITLES).join(', ')}`);
     const g = {
         ...GAME, start, guideEnd: start + guideMin * MIN, finalAt: start + finalMin * MIN,
         stateAt: (now) => now < g.start ? 'pre' : now < g.finalAt ? 'in' : 'post',
@@ -48,7 +52,7 @@ function scriptedGame({ at, guideMin = 10, finalMin = 25 }) {
             g.finalAt = t;
         },
         /** Its guide programme, as fake-provider.js's EVENTS give one (absolute times). */
-        programme: () => ({ tvgs: [GAME.tvg], start: g.start, stop: g.guideEnd, title: GAME.title, categories: ['Sport', 'Football'], flag: 'live' })
+        programme: () => ({ tvgs: [GAME.tvg], start: g.start, stop: g.guideEnd, title: TITLES[lang], categories: ['Sport', 'Football'], flag: 'live' })
     };
     return g;
 }
@@ -157,4 +161,4 @@ async function main() {
 
 if (require.main === module) main().catch(e => { console.error(e.message); process.exit(1); });
 
-module.exports = { GAME, scriptedGame, scoreboard, handler, createFakeScores };
+module.exports = { GAME, TITLES, scriptedGame, scoreboard, handler, createFakeScores };

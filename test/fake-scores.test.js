@@ -10,7 +10,7 @@ const espn = require('../server/services/sportsScoresEspn');
 const fixturesEspn = require('../server/services/sportsFixturesEspn');
 const guideEnd = require('../server/services/recordingGuideEnd');
 const overrun = require('../server/services/sportOverrun');
-const { GAME, scriptedGame, scoreboard, createFakeScores } = require('../scripts/fake-scores');
+const { GAME, TITLES, scriptedGame, scoreboard, createFakeScores } = require('../scripts/fake-scores');
 const { programmesFor, parseArgs } = require('../scripts/fake-provider');
 
 const MIN = 60000;
@@ -63,6 +63,22 @@ test('the fake provider puts the same game in ITV1\'s guide with --game-at, and 
     assert.ok(itv.every((p, i) => i === 0 || p.start === itv[i - 1].stop), 'the filler around it still tiles the hour');
     assert.equal(programmesFor('bbcone.uk', K, K - 60 * MIN, K + 60 * MIN, [prog]).filter(p => p.title === GAME.title).length, 0);
     assert.equal(programmesFor('itv1.uk', K, K - 60 * MIN, K + 60 * MIN).filter(p => p.title === GAME.title).length, 0, 'not without --game-at');
+});
+
+// #296's T3: --game-lang fr lists the game in French only; the guide's classifier reads it as a Premier League game and
+// the shared join finds it by the teams' names (the recording's game link here; a team rule joins the same way).
+test('--game-lang fr lists the game in French only, and the server still joins it to the scripted game', () => {
+    assert.equal(parseArgs(['--game-at', '2026-11-04T09:00:00Z', '--game-lang', 'fr']).gameLang, 'fr');
+    assert.throws(() => scriptedGame({ at: K, lang: 'xx' }), /--game-lang/);
+    const game = scriptedGame({ at: K, guideMin: 10, lang: 'fr' });
+    const prog = game.programme();
+    assert.equal(prog.title, TITLES.fr);
+    const classify = require('../server/services/sportsClassify');
+    assert.equal(classify.detectLeague(prog.title), GAME.league);
+    assert.equal(classify.classifyKind({ title: prog.title, categories: prog.categories }).kind, 'event');
+    const schedule = { id: 2, title: prog.title, program_start: prog.start, program_end: prog.stop, status: 'scheduled' };
+    const catalog = read(game, K - MIN);
+    assert.equal(guideEnd.gameFor(schedule, catalog)?.id, catalog[0].id);
 });
 
 test('over HTTP it answers the collector\'s paths, other leagues empty, and /fake/game moves the final', async () => {

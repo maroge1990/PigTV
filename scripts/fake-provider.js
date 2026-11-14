@@ -458,7 +458,7 @@ class HlsSession {
 const DEFAULTS = {
     profile: 'a', user: 'pigtv', pass: 'fake', channels: 4, maxConnections: 4, enforceLimit: true, expiresDays: 365,
     size: '640x360', uhdSize: '960x540', fps: 25, videoKbps: 600, lingerMs: 5000, stallAfter: 20, closeAfter: 20,
-    reanchorHours: 3, ffmpegPath: 'ffmpeg', fontFile: null, publicUrl: null, quiet: false, anchor: null, gameAt: null, gameGuideMin: 10,
+    reanchorHours: 3, ffmpegPath: 'ffmpeg', fontFile: null, publicUrl: null, quiet: false, anchor: null, gameAt: null, gameGuideMin: 10, gameLang: 'en',
     heaacFile: path.join(__dirname, '..', 'test', 'fixtures', 'synthetic-heaac.aac')
 };
 
@@ -482,7 +482,7 @@ function createFakeProvider(options = {}) {
         return anchor;
     };
     // --game-at: the scripted game of scripts/fake-scores.js in the guide (the rig's PIGTV_RIG_SCORES=fake, #217's T3)
-    const scripted = o.gameAt ? [require('./fake-scores').scriptedGame({ at: o.gameAt, guideMin: o.gameGuideMin }).programme()] : [];
+    const scripted = o.gameAt ? [require('./fake-scores').scriptedGame({ at: o.gameAt, guideMin: o.gameGuideMin, lang: o.gameLang }).programme()] : [];
     const heaacOk = fs.existsSync(o.heaacFile);
     let aacMainFile = null;
     if (heaacOk) {
@@ -753,7 +753,8 @@ const USAGE = `Usage: node scripts/fake-provider.js [options]
   --reanchor H         move the sport schedule to the current half hour every H hours (3; 0 = never)
   --anchor ISO         fix the sport schedule's anchor (implies no re-anchoring)
   --game-at ISO        add scripts/fake-scores.js's scripted game (Premier League: Everton v Fulham) to ITV1's guide at
-                       this kick-off; --game-guide-min N its guide slot (10). Give fake-scores.js the same values
+                       this kick-off; --game-guide-min N its guide slot (10). Give fake-scores.js the same values.
+                       --game-lang fr lists it in French only ("Everton de Merseyside c. Fulham de Londres", #296)
   --public-url URL     the address written into listings (default: the request's Host)
   --ffmpeg PATH        ffmpeg binary (ffmpeg); --font FILE a TTF for drawtext if ffmpeg has no default
   --quiet              no log lines`;
@@ -765,7 +766,7 @@ function parseArgs(argv) {
         '--channels': ['channels', num], '--max-connections': ['maxConnections', num], '--expires-days': ['expiresDays', num],
         '--size': ['size'], '--uhd-size': ['uhdSize'], '--fps': ['fps', num], '--video-kbps': ['videoKbps', num], '--linger-ms': ['lingerMs', num],
         '--stall-after': ['stallAfter', num], '--close-after': ['closeAfter', num], '--reanchor': ['reanchorHours', num], '--anchor': ['anchor'],
-        '--game-at': ['gameAt'], '--game-guide-min': ['gameGuideMin', num],
+        '--game-at': ['gameAt'], '--game-guide-min': ['gameGuideMin', num], '--game-lang': ['gameLang'],
         '--public-url': ['publicUrl'], '--ffmpeg': ['ffmpegPath'], '--font': ['fontFile'] };
     for (let i = 0; i < argv.length; i++) {
         const a = argv[i];
