@@ -1284,8 +1284,9 @@ async function onSegmentExit(schedule, entry, exitCode) {
         // #304 (Mark, 14 Nov): only a failure on a channel with more than one provider is held against its provider here.
         // A stall on a channel's only provider stays out of its breaker (no "down" on Status, no providerDown notice),
         // also when backups exist but this channel has no link to one (Opus M1): it is only quarantined, so a sibling feed
-        // of the same provider is tried next. A play's failed connections still count (routes/playback.js, streamRelay.js).
-        if (failover && entry.route.oneProvider) providerRouting.quarantine(candidate?.providerId, candidate?.channelKey);
+        // of the same provider is tried next. A play's failed connections still count (routes/playback.js, streamRelay.js),
+        // and so does a refused or failed connection here (0595, Codex sign-off): only a stall is kept out.
+        if (failover && entry.route.oneProvider && entry.stalled) providerRouting.quarantine(candidate?.providerId, candidate?.channelKey);
         else if (failover) providerRouting.noteFailure(candidate, entry.route.primaryKey);
         // #288 (Opus M2): a short run on a multi route that ended without a provider reason (an "account expired" page,
         // a crash) is quarantined too, without a breaker count, so the next try goes to the next provider instead of

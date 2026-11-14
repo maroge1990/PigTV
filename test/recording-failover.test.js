@@ -279,6 +279,29 @@ test('#304: a stall on a channel with no backup link (backups configured) stays 
     }
 });
 
+// 0595 (Codex sign-off of 0588): the one-provider exemption is for a stall only; a refused connection on such a channel
+// is a real failed connection and still counts toward its provider's breaker (Mark, 14 Nov).
+test('#304: a refused connection on a channel with no backup link (backups configured) still counts toward its breaker', async () => {
+    tuning.endGraceMs = 0;
+    const d = sqlite.getDb();
+    d.prepare(`INSERT INTO playlist_items (id, source_id, item_id, type, name, category_id, is_hidden, sort_order, stable_id, stream_url)
+               VALUES (?, ?, 'pos_2', 'live', 'Local News', 'News', 0, 2, 's102', ?)`).run(`${A.id}:pos_2`, A.id, url.A(102));
+    try {
+        setBehaviour(url.A(102), 'refuses');
+        const now = Date.now();
+        const s = scheduled.create({ title: `News ${++n}`, description: null, source_id: A.id, channel_item_id: 'pos_2', channel_stable_id: 's102',
+            channel_name: 'Local News', channel_logo: null, program_start: now - 1000, program_end: now + 60000,
+            pre_buffer_min: 0, post_buffer_min: 0, created_by: 1, created_at: now });
+        await engine.tick();
+        await settle(() => captures().length >= 1 && !activeFor(s.id), 'refused');
+        assert.deepEqual([...new Set(inputs())], [url.A(102)], 'only its own provider');
+        assert.equal(routing.snapshot().providers.find(p => p.id === A.id).recentFailures, 1, 'the refused connection counts');
+        await engine.cancelScheduled(s.id);
+    } finally {
+        d.prepare("DELETE FROM playlist_items WHERE source_id = ? AND item_id = 'pos_2'").run(A.id);
+    }
+});
+
 test('#304: a linked channel whose backups are held back right now still counts its stall (a real multi route)', async () => {
     tuning.endGraceMs = 0;
     tuning.stallMs = 400;
