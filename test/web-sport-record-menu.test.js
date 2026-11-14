@@ -163,3 +163,21 @@ for (const [what, status, extraChannel] of [['set on its channel', 'scheduled', 
             status === 'recording' ? 'a running recording: only its finish' : 'both');
     });
 }
+
+// #323 Codex review of step 5 (medium): "Record every <team> game" is the game's own sport's follow, and the rule's sport
+// the game's: an NFL "Giants" follow never makes an AFL GWS Giants card a rule of American football.
+test('Record every <team> game: only a follow of the game\'s sport, with the game\'s sport', async () => {
+    const h = await harness();
+    const base = h.f.games.find(g => g.id === 'nxt');
+    h.f.games.push({ ...base, id: 'gws', league: 'AFL', sport: 'Australian football', title: 'GWS Giants v Carlton', followed: true, followedSides: undefined,
+        competitors: [{ id: 'g', name: 'GWS Giants' }, { id: 'c', name: 'Carlton' }], recording: undefined });
+    h.f.sports.push({ league: 'AFL', sport: 'Australian football', live: 0, next: null, line: 'quiet' });
+    h.f.follows.push({ league: 'NFL', sport: 'American football', name: 'Giants', logo: null, state: 'none', gameId: null, start: null });
+    h.p.openMenu(h.p.game('gws'), h.anchor());
+    assert.ok(!items(h.menu().innerHTML).some(i => i[0] === 'record-every'), 'the NFL Giants follow is not this AFL game\'s');
+    h.f.follows.push({ league: 'AFL', sport: 'Australian football', name: 'GWS Giants', logo: null, state: 'none', gameId: null, start: null });
+    h.p.openMenu(h.p.game('gws'), h.anchor());
+    assert.ok(items(h.menu().innerHTML).some(i => i[1] === 'Record every GWS Giants game'));
+    await h.p.recordEvery('gws');
+    assert.deepEqual(JSON.parse(JSON.stringify(h.calls.find(c => c[0] === 'rule'))), ['rule', { kind: 'team', match: 'GWS Giants', sport: 'Australian football' }]);
+});

@@ -567,13 +567,17 @@ class SportsPage {
     /** The followed team "Record every <team> game" is for: the follow the game is for, else its followed side. */
     teamFor(g) {
         if (!g || g.synthetic || !this.front || !Array.isArray(g.competitors) || g.competitors.length !== 2) return null;
-        const follows = this.front.follows || [];
+        // #323 review: only the game's own sport's follows (an NFL "Giants" is not the AFL's GWS Giants), and the rule's
+        // sport is the game's
+        const sport = SportView.sportOf(g.league, null, this.front);
+        const follows = (this.front.follows || []).filter(f => (f.sport || SportView.sportOf(f.league, null, this.front)) === sport);
         const same = (a, b) => { const x = String(a || '').toLowerCase(), y = String(b || '').toLowerCase(); return x === y || x.endsWith(` ${y}`) || y.endsWith(` ${x}`); };
         const own = follows.find(f => f.gameId === g.id && g.competitors.some(c => same(c.name, f.name)));
+        // the server's followedSides are its own match within the game's sport; a name decides only within it
         const side = own ? null : SportView.followedSide(g, follows.map(f => f.name));
         const f = own || (side != null ? follows.find(x => same(x.name, g.competitors[side].name)) : null);
         if (!f) return null;
-        return { name: f.name, sport: f.sport || SportView.sportOf(g.league, null, this.front) };
+        return { name: f.name, sport };
     }
     /** The channels airing a game now (its own times), for "Watch on…". */
     channelsOnAir(g) {
