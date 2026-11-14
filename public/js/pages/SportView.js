@@ -1248,12 +1248,15 @@ const SportView = (() => {
         if (o.status === 'scheduled') { const t = o.nextStart ?? o.start; return t != null ? when(t, now) : 'Upcoming'; }
         return 'Finished';
     }
+    /** #326: iOS's other-match card: the competition, the teams without badges, the line, the state (red when live, no
+     *  dot; accent before; grey after) and the channel; a live card's red outline at 35 %. */
     function otherCard(o, ctx) {
         const live = o.status === 'live';
         const sc = ctx.hide ? [] : (o.scores || []);
-        const rows = (o.teams || []).map((t, i) => `<span class="trow">${badge(t.name, t.logo, 26, 'Cricket')}<span class="n">${e(t.name)}</span>${sc[i] ? `<span class="sc pig-amount">${e(sc[i])}</span>` : ''}</span>`).join('');
+        const rows = (o.teams || []).map((t, i) => `<span class="trow"><span class="n">${e(t.name)}</span>${sc[i] ? `<span class="sc pig-amount">${e(sc[i])}</span>` : ''}</span>`).join('');
         const ch = (o.channels || [])[0];
-        return `<div class="gitem"><button type="button" class="gcard${live ? ' live' : ''}" data-act="game" data-id="${e(`ck:${o.id}`)}" data-key="ck:${e(o.id)}"><span class="sk">${e(o.competition || 'Cricket')}</span>${rows}${!ctx.hide && o.line ? `<span class="sline">${e(o.line)}</span>` : ''}<span class="cbot">${live ? dot() : ''}<span class="${live ? 'clk' : 'when'} pig-amount">${e(otherStatus(o, ctx.now))}</span>${o.status !== 'done' ? `<span class="ch">${e(ch ? ch.name : 'Not in guide yet')}</span>` : ''}</span></button></div>`;
+        const state = live ? 'clk' : o.status === 'done' ? 'res' : o.status === 'scheduled' ? 'soon' : 'when';
+        return `<div class="gitem ock"><button type="button" class="gcard ocard${live ? ' live' : ''}" data-act="game" data-id="${e(`ck:${o.id}`)}" data-key="ck:${e(o.id)}"><span class="sk">${e(o.competition || 'Cricket')}</span>${rows}${!ctx.hide && o.line ? `<span class="sline">${e(o.line)}</span>` : ''}<span class="cbot"><span class="${state} pig-amount">${e(otherStatus(o, ctx.now))}</span>${o.status !== 'done' ? `<span class="ch">${e(ch ? ch.name : 'Not in guide yet')}</span>` : ''}</span></button></div>`;
     }
     function leadBlock(lead, ctx, leagueLabel) {
         const { hide, now } = ctx;
@@ -1261,12 +1264,19 @@ const SportView = (() => {
         const pill = cricketPill(lead, now);
         const kicker = [lead.label || lead.competition || leagueLabel, lead.venue, hide ? null : lead.seriesLine].filter(Boolean).join(' · ');
         let board;
+        const mine = (t) => followsTeam(ctx.following || [], t && t.name);
+        const who = (t, i) => {
+            // iOS: heavy while batting, only with scores shown (a batting side says who is ahead in the match)
+            const bat = !hide && lead.status === 'live' && ((lead.innings || [])[i] || []).some(x => x.current);
+            return `<span class="nm${bat ? ' bat' : ''}">${badge(t.name, t.logo, ctx.phone ? 28 : 34, 'Cricket')}${mine(t) ? star() : ''}${e(t.name)}</span>`;
+        };
         if (hide) {
-            board = `<div class="board"><div class="tms">${(lead.teams || []).map(t => `<div class="tm"><span class="nm">${badge(t.name, t.logo, 34, 'Cricket')}${e(t.name)}</span></div>`).join('')}</div></div>`;
+            board = `<div class="board"><div class="tms">${(lead.teams || []).map((t, i) => `<div class="tm${mine(t) ? ' me' : ''}">${who(t, i)}</div>`).join('')}</div>`
+                + `<div class="bhidden">${ICON.eyeOff}<span>Scores hidden</span></div></div>`;
         } else {
             const b = scoreboard(lead), cols = `grid-template-columns: minmax(0, 1fr) repeat(${b.headers.length}, minmax(64px, auto))`;
             board = `<div class="board"><div class="hdr" style="${cols}"><span></span>${b.headers.map(h => `<span>${e(h)}</span>`).join('')}</div>`
-                + (lead.teams || []).map((t, i) => `<div class="tm" style="${cols}"><span class="nm">${badge(t.name, t.logo, 34, 'Cricket')}${e(t.name)}</span>${b.rows[i].map((v, j) => `<span class="${j === b.rows[i].length - 1 ? 'o' : 'r'} pig-amount">${e(v ?? '')}</span>`).join('')}</div>`).join('')
+                + (lead.teams || []).map((t, i) => `<div class="tm${mine(t) ? ' me' : ''}" style="${cols}">${who(t, i)}${b.rows[i].map((v, j) => `<span class="${j === b.rows[i].length - 1 ? 'o' : 'r'} pig-amount">${e(v ?? '')}</span>`).join('')}</div>`).join('')
                 + (lead.summary || (lead.crease && lead.crease.length) ? `<div class="sum">${lead.summary ? `<b>${e(lead.summary)}</b>` : ''}${lead.crease && lead.crease.length ? `<span>${e(lead.crease.map(c => (c.runs != null ? `${surname(c.name)} ${c.runs}*` : surname(c.name))).join(' · '))}</span>` : ''}</div>` : '')
                 + '</div>';
         }
@@ -1278,12 +1288,13 @@ const SportView = (() => {
             if (act !== 'none' && act !== 'details') actions += `<button type="button" class="pill" data-act="record-menu" aria-haspopup="menu" data-id="${e(g.id)}" data-key="lead:record">${ICON.rec}Record</button>`;
         }
         const chn = ev ? (act === 'remind' ? `${when(ev.start, now)} on ${ev.channel.name}` : `on ${ev.channel.name}`) : lead.status === 'done' ? '' : 'Not in guide yet';
-        return `<div class="lead"><div class="lead-k"><span>${e(kicker)}</span><span class="lpill${lead.status === 'live' ? ' live' : ''}">${e(pill)}</span></div>`
+        return `<div class="lead"><div class="lead-k"><span>${e(kicker)}</span><span class="lpill${lead.status === 'live' ? ' live' : lead.status === 'done' ? ' done' : ''}">${e(pill)}</span></div>`
             + `<h3 class="ltitle">${e(cricketTitle(lead.teams))}</h3>${board}${days}<div class="cact">${actions}${chn ? `<span class="chn">${e(chn)}</span>` : ''}</div></div>`;
     }
     function seriesPanel(series, lead, ctx) {
-        return `<section class="series" aria-label="${e(series.name || 'Series')}"><div class="sh"><b>${e(series.name || '')}</b>${series.season ? `<span>${e(series.season)}</span>` : ''}</div>`
-            + (series.matches || []).map(m => `<div class="sm${m.current || (lead && m.id === lead.id) ? ' cur' : ''}"><div class="a"><b>${e(m.label || '')}</b>${m.start != null ? `<span>${e(UI.date(m.start))}</span>` : ''}</div><span class="res">${e(seriesResult(m, lead, ctx.hide, ctx.now))}</span></div>`).join('')
+        const pill = (m) => (lead && (m.current || m.id === lead.id) ? (lead.status === 'live' ? ' lpill live' : ' lpill') : '');
+        return `<section class="series" aria-label="${e(series.name || 'Series')}"><div class="sh"><b>${e(series.name || '')}</b>${series.season ? `<span>${e(String(series.season).replace('/', '–'))}</span>` : ''}</div>`
+            + (series.matches || []).map(m => `<div class="sm${m.current || (lead && m.id === lead.id) ? ' cur' : ''}"><div class="a"><b>${e(m.label || '')}</b>${m.start != null ? `<span>${e(UI.date(m.start))}</span>` : ''}</div><span class="res${pill(m)}">${e(seriesResult(m, lead, ctx.hide, ctx.now))}</span></div>`).join('')
             + '</section>';
     }
     /** The cricket page for one followed league: its lead match (scoreboard, days, actions) beside its tour, then its other matches. */
