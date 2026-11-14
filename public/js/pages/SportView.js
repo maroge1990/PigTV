@@ -1061,6 +1061,12 @@ const SportView = (() => {
         const word = label(league, ctx.labels), words = leagueWords(word);
         if (!['league', 'nfl', 'f1', 'cricket', 'events'].includes(kind)) return gamesGrid(league, ctx);
         const a = lp && lp.answer;
+        // #326 review: embedded under a sport's banner, a league page that failed, is not available or lists no rounds
+        // never hides the league's games the front page already has: they show as cards (as the page did before)
+        const theirs = ctx.embedded && ctx.front ? leagueGames(league, ctx.front) : [];
+        const fallback = () => (theirs.length ? leagueGamesHtml(league, ctx) : null);
+        if (!a && lp && lp.failed && fallback()) return fallback();
+        if (a && a.available === false && fallback()) return fallback();
         if (!a) {
             if (lp && lp.failed) return `<div class="sp-state" id="sp-state" data-state="league-error" data-title="${e(words.failed.title)}" data-detail="${e(words.failed.detail)}"></div>`;
             return placeholder(kind === 'nfl' ? 'league' : kind, ctx.phone);
@@ -1075,9 +1081,14 @@ const SportView = (() => {
         if (kind === 'events') return (lp.stale ? staleNote(lp.updatedAt) : '') + eventsPage(a, sport, league, ctx);
         const fx = kind === 'nfl' ? nflFixture(a, following, ctx.hide) : leagueFixture(a, league, following, ctx.hide);
         const note = lp.stale ? staleNote(lp.updatedAt) : '';
-        if (!fx.rounds.length) return note + `<div class="sp-league-empty">${UI.stateBlock('empty', words.empty, { label: 'Open the TV Guide', href: '#guide' })}</div>`;
+        if (!fx.rounds.length) return note + (fallback() || `<div class="sp-league-empty">${UI.stateBlock('empty', words.empty, { label: 'Open the TV Guide', href: '#guide' })}</div>`);
         const season = a.season && (a.season.label || a.season.year) ? String(a.season.label || a.season.year) : '';
-        return note + fixturePage(fx, { ...ctx, season }, word);
+        // the front page's games of the league that none of its rounds holds (a thin league page): after it, as cards
+        const held = new Set();
+        for (const r of fx.rounds) for (const g of r.games) { const c = fixtureCard(g, league, ctx.front); if (c) held.add(c.id); }
+        const more = theirs.filter(g => !terminal(g) && !held.has(g.id));
+        const extra = more.length ? `<section class="lgames more" aria-label="${e(`More ${word}`)}"><h3 class="sec-title"><span class="sec-h"><span class="s">${e(`More ${word}`)}</span></span></h3><div class="cardgrid">${more.map(g => card(g, ctx)).join('')}</div></section>` : '';
+        return note + fixturePage(fx, { ...ctx, season }, word) + extra;
     }
 
     // ---------- Formula 1 (C-P; SportMotorViews, F1PageText) ----------
