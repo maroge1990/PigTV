@@ -181,8 +181,16 @@ test('the sound is the one the PMT declares: a subtitle PES first does not hide 
 
 // Codex sign-off of #324: the PMT was read from its first TS packet only, then taken as complete. With a large PMT whose
 // audio entry is in the continuation packet, the sound was "none" for good, and a looping picture over live sound was a
-// loop. The PMT is now assembled across packets by its section_length.
-test('a PMT split over two packets, the sound in the second: a looping picture over live sound is still not a loop', { skip }, () => {
+// loop. The PMT is now assembled across packets by its section_length, and used only when intact (CRC-32, lengths).
+const { crc32 } = require('../server/services/feedLoop');
+const withCrc = (body) => { const c = Buffer.alloc(4); c.writeUInt32BE(crc32(body)); return Buffer.concat([body, c]); };
+
+/**
+ * The live-sound loop with every PMT rewritten: `edit(section without CRC)` returns the new section body (from table_id,
+ * without CRC); `crc` false keeps a wrong one. The section goes over two packets (`pointer`: the second is itself a
+ * payload-unit start whose pointer_field carries the rest of the section, then stuffing).
+ */
+function rewritePmt(name, edit, { crc = true, pointer = false } = {}) {
     const data = fs.readFileSync(feeds.loopLiveSound);
     const pidOf = (at) => ((data[at + 1] & 0x1f) << 8) | data[at + 2];
     const packets = [];
@@ -194,28 +202,66 @@ test('a PMT split over two packets, the sound in the second: a looping picture o
             pmtPid = ((data[sec + 10] & 0x1f) << 8) | data[sec + 11];
         }
         if (pid !== pmtPid || !(data[at + 1] & 0x40)) { packets.push(data.subarray(at, at + 188)); continue; }
-        // The section, with a 170-byte private descriptor in its programme info: its ES loop moves into a second packet.
         const from = at + 5 + data[at + 4];
         const len = ((data[from + 1] & 0x0f) << 8) | data[from + 2];
-        const sec = data.subarray(from, from + 3 + len);
-        const pil = ((sec[10] & 0x0f) << 8) | sec[11];
-        const pad = Buffer.concat([Buffer.from([0x80, 168]), Buffer.alloc(168, 0x20)]);
-        const body = Buffer.concat([sec.subarray(3, 12 + pil), pad, sec.subarray(12 + pil)]); // CRC kept (not checked here)
-        const out = Buffer.concat([Buffer.from([0x02, 0xb0 | ((body.length >> 8) & 0x0f), body.length & 0xff]), body]);
-        const pil2 = pil + pad.length;
-        out[10] = (out[10] & 0xf0) | ((pil2 >> 8) & 0x0f); out[11] = pil2 & 0xff;
+        const body = edit(Buffer.from(data.subarray(from, from + 3 + len - 4)));
+        const out = crc ? withCrc(body) : Buffer.concat([body, Buffer.from([0xde, 0xad, 0xbe, 0xef])]);
+        const cc = data[at + 3] & 0x0f;
         const first = Buffer.alloc(188, 0xff);
-        data.copy(first, 0, at, at + 4); first[3] = 0x10 | (data[at + 3] & 0x0f); first[4] = 0;
+        first[0] = 0x47; first[1] = 0x40 | ((pmtPid >> 8) & 0x1f); first[2] = pmtPid & 0xff; first[3] = 0x10 | cc; first[4] = 0;
         out.copy(first, 5, 0, 183);
         const second = Buffer.alloc(188, 0xff);
-        second[0] = 0x47; second[1] = (pmtPid >> 8) & 0x1f; second[2] = pmtPid & 0xff; second[3] = 0x10 | ((data[at + 3] + 1) & 0x0f);
-        out.copy(second, 4, 183);
+        const rest = out.subarray(183);
+        second[0] = 0x47; second[1] = (pointer ? 0x40 : 0) | ((pmtPid >> 8) & 0x1f); second[2] = pmtPid & 0xff; second[3] = 0x10 | ((cc + 1) & 0x0f);
+        if (pointer) { second[4] = rest.length; rest.copy(second, 5); } else rest.copy(second, 4);
         packets.push(first, second);
     }
-    const split = path.join(dir, 'split-pmt.ts');
-    fs.writeFileSync(split, Buffer.concat(packets));
-    const r = run([split]);
+    const file = path.join(dir, name);
+    fs.writeFileSync(file, Buffer.concat(packets));
+    return file;
+}
+/** A 170-byte private descriptor in the programme info: the ES loop moves into the second packet. */
+function padded(sec) {
+    const pil = ((sec[10] & 0x0f) << 8) | sec[11];
+    const pad = Buffer.concat([Buffer.from([0x80, 168]), Buffer.alloc(168, 0x20)]);
+    const body = Buffer.concat([sec.subarray(0, 12 + pil), pad, sec.subarray(12 + pil)]);
+    const length = body.length - 3 + 4;
+    body[1] = (body[1] & 0xf0) | ((length >> 8) & 0x0f); body[2] = length & 0xff;
+    const pil2 = pil + pad.length;
+    body[10] = (body[10] & 0xf0) | ((pil2 >> 8) & 0x0f); body[11] = pil2 & 0xff;
+    return body;
+}
+const entriesOf = (sec) => { const out = []; for (let e = 12 + (((sec[10] & 0x0f) << 8) | sec[11]); e + 5 <= sec.length; e += 5 + (((sec[e + 3] & 0x0f) << 8) | sec[e + 4])) out.push(e); return out; };
+
+test('a PMT split over two packets, the sound in the second: a looping picture over live sound is still not a loop', { skip }, () => {
+    const r = run([rewritePmt('split-pmt.ts', padded)]);
     assert.ok(r.detector.pmtAudioPid !== null, 'the sound is read from the PMT\'s second packet');
     assert.equal(r.verdict, null, JSON.stringify(r.verdict));
     assert.match(r.detector.notes.join(' | '), /the sound does not/);
+});
+
+// Codex check of 0cce183: section_length bytes collected do not prove a PMT intact. Each of these, read as it stands,
+// says "no sound" (so a looping picture over live sound would be a loop); each is now ignored and the sound found.
+test('a damaged PMT is ignored, never taken as "no sound": a wrong CRC, a corrupted length, a truncated section', { skip }, () => {
+    const noAudio = (sec) => { const [, a] = entriesOf(sec); sec[a] = 0x06; sec[a + 3] &= 0xf0; sec[a + 4] = 0; return sec; }; // not sound
+    const cases = {
+        'bad-crc.ts': rewritePmt('bad-crc.ts', (sec) => noAudio(padded(sec)), { crc: false }),
+        // The video entry's ES_info_length runs past the section: read as it stands, the audio entry is skipped.
+        'bad-length.ts': rewritePmt('bad-length.ts', (sec) => { const body = padded(sec); const [v] = entriesOf(body); body[v + 3] |= 0x0f; body[v + 4] = 0xff; return body; }),
+        // section_length cut two bytes into the audio entry (CRC recomputed): its entry does not fit.
+        'truncated.ts': rewritePmt('truncated.ts', (sec) => {
+            const body = padded(sec);
+            const [, a] = entriesOf(body);
+            const cut = Buffer.from(body.subarray(0, a + 2));
+            const length = cut.length - 3 + 4;
+            cut[1] = (cut[1] & 0xf0) | ((length >> 8) & 0x0f); cut[2] = length & 0xff;
+            return cut;
+        })
+    };
+    for (const [name, file] of Object.entries(cases)) {
+        const r = run([file]);
+        assert.equal(r.verdict, null, `${name}: ${JSON.stringify(r.verdict)}`);
+        assert.equal(r.detector.sawPmt, false, `${name}: the damaged PMT was not used`);
+        assert.match(r.detector.notes.join(' | '), /the sound does not/, `${name}: the live sound is still heard`);
+    }
 });

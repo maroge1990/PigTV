@@ -43,6 +43,22 @@ const STRIDE = 8;
 const MAX_AUDIO_UNIT = 64 * 1024;
 // A PSI section is at most 1,024 bytes (ISO 13818-1: section_length up to 1,021).
 const MAX_SECTION = 1024;
+
+// CRC-32/MPEG-2 (polynomial 0x04C11DB7, initial 0xFFFFFFFF, not reflected): over a whole section, its CRC included, 0.
+const CRC_TABLE = (() => {
+    const t = new Uint32Array(256);
+    for (let i = 0; i < 256; i++) {
+        let c = i << 24;
+        for (let k = 0; k < 8; k++) c = c & 0x80000000 ? (c << 1) ^ 0x04c11db7 : c << 1;
+        t[i] = c >>> 0;
+    }
+    return t;
+})();
+function crc32(buf) {
+    let c = 0xffffffff;
+    for (let i = 0; i < buf.length; i++) c = ((c << 8) ^ CRC_TABLE[((c >>> 24) ^ buf[i]) & 0xff]) >>> 0;
+    return c >>> 0;
+}
 const VIDEO_TYPES = { 0x01: 'mpeg2', 0x02: 'mpeg2', 0x1b: 'h264', 0x24: 'hevc' };
 const { isKeyFrame } = require('./tsKeyframes');
 
@@ -456,13 +472,27 @@ class LoopDetector {
     /** A whole PMT section (from its table_id): the video codec and the programme's sound. Anything else is ignored. */
     readPmt(sec) {
         if (sec.length < 16 || sec[0] !== 0x02 || !(sec[5] & 0x01)) return; // not a PMT in force
+        // Intact only (Codex sign-off of #324): its CRC-32 holds and every length inside it lands within it. A damaged
+        // or truncated section changes nothing: the sound stays unknown, never "none".
+        if (crc32(sec) !== 0) return;
         const stop = sec.length - 4; // less the CRC
+        const first = 12 + (((sec[10] & 0x0f) << 8) | sec[11]);
+        if (first > stop) return;
+        const entries = [];
+        let e = first;
+        while (e < stop) {
+            if (e + 5 > stop) return;
+            const next = e + 5 + (((sec[e + 3] & 0x0f) << 8) | sec[e + 4]);
+            if (next > stop) return;
+            entries.push(e);
+            e = next;
+        }
         let video = null;
         let audio = null;
-        for (let e = 12 + (((sec[10] & 0x0f) << 8) | sec[11]); e + 5 <= stop; e += 5 + (((sec[e + 3] & 0x0f) << 8) | sec[e + 4])) {
-            const pid = ((sec[e + 1] & 0x1f) << 8) | sec[e + 2];
-            if (!video && VIDEO_TYPES[sec[e]]) video = VIDEO_TYPES[sec[e]];
-            else if (audio === null && isAudioEntry(sec, e, stop)) audio = pid;
+        for (const at of entries) {
+            const pid = ((sec[at + 1] & 0x1f) << 8) | sec[at + 2];
+            if (!video && VIDEO_TYPES[sec[at]]) video = VIDEO_TYPES[sec[at]];
+            else if (audio === null && isAudioEntry(sec, at, stop)) audio = pid;
         }
         this.sawPmt = true;
         if (video) this.codec = video;
@@ -555,4 +585,4 @@ class LoopDetector {
     }
 }
 
-module.exports = { LoopDetector, tuning, audioFrameLength, requiredRun, MAX_AUDIO_UNIT };
+module.exports = { LoopDetector, tuning, audioFrameLength, requiredRun, MAX_AUDIO_UNIT, crc32 };
