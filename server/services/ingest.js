@@ -101,10 +101,18 @@ class Subscription extends Readable {
         this.joinedAt = Date.now();
         this.bytesOut = 0;
         this.endReason = null;
+        this.awaitPat = false;
     }
     _read() { /* data is pushed by the ingest; pausing only grows our queue, which eviction bounds */ }
     deliver(chunk) {
         if (this.destroyed || this.endReason) return;
+        if (this.awaitPat) {
+            // #309: a joiner whose backlog was too big starts at the next PAT the feed sends.
+            const at = firstPatOffset(chunk);
+            if (at < 0) return;
+            this.awaitPat = false;
+            chunk = chunk.subarray(at);
+        }
         this.bytesOut += chunk.length;
         this.push(chunk);
         if (this.readableLength > tuning.slowBytes) this.finish('slow-consumer', { providerReason: false });
@@ -385,7 +393,8 @@ class Ingest extends EventEmitter {
      * key frame's first packet (#3: a copy session's ffmpeg copies audio at once and video from a key
      * frame, and a play that starts out of step stays so on AVPlayer). If none can be found, or that
      * backlog is over half the slow-consumer limit (it is handed over before the reader can read, and
-     * would end it at once), it starts at the last PAT in the buffer's final 2 s, as before.
+     * would end it at once), it starts at the last PAT in the buffer's final 2 s, as before; if that
+     * too is over the budget (#309: sparse PATs, a burst), at the next PAT the feed sends.
      */
     subscribe(info = {}, { fromStart = false } = {}) {
         const sub = new Subscription(this, info);
@@ -427,7 +436,17 @@ class Ingest extends EventEmitter {
         if (tail.length) {
             const joined = Buffer.concat(tail);
             const at = lastPatOffset(joined);
-            if (at >= 0) sub.deliver(joined.subarray(at));
+            if (at >= 0 && joined.length - at <= tuning.slowBytes / 2) sub.deliver(joined.subarray(at));
+            else if (at >= 0) {
+                // #309: over the same budget (sparse PATs, a burst), handing it over would end the
+                // reader here, before its consumer listens. It waits for the feed's next PAT instead.
+                sub.awaitPat = true;
+                this.joinFallbacksLogged = this.joinFallbacksLogged || new Set();
+                if (!this.joinFallbacksLogged.has('wait')) {
+                    this.joinFallbacksLogged.add('wait');
+                    this.log(`a reader waits for the next PAT: the backlog from the newest PAT (${((joined.length - at) / 1048576).toFixed(1)} MB) is over half the slow-reader limit`);
+                }
+            }
         }
         return sub;
     }

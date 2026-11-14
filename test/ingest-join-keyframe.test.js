@@ -31,8 +31,9 @@ before(async () => {
         const send = () => {
             const f = feed.frame;
             const parts = [];
-            if (f % (path === '/offbeat' ? 7 : 5) === 0) { parts.push(ts.pat()); if (path !== '/nopmt') parts.push(ts.pmt()); }
-            parts.push(ts.videoFrame(f, { key: f % GOP === 0, rai: true }), ts.audio());
+            const sparse = path === '/sparse'; // 56 KB a frame (11 Mb/s), a PAT a second, no key frame
+            if (f % (path === '/offbeat' ? 7 : sparse ? 25 : 5) === 0) { parts.push(ts.pat()); if (path !== '/nopmt') parts.push(ts.pmt()); }
+            parts.push(ts.videoFrame(f, { key: !sparse && f % GOP === 0, rai: true, more: sparse ? 300 : 2 }), ts.audio());
             res.write(Buffer.concat(parts));
             feed.frame++;
         };
@@ -157,6 +158,32 @@ test('no PMT: the joiner starts at the newest PAT in the final 2 s, as before, a
         }
     } finally { console.log = log; }
     const said = lines.filter(l => /joined at the newest PAT: no PMT/.test(l));
+    assert.equal(said.length, 1, lines.join('\n'));
+    assert.doesNotMatch(said[0], /127\.0\.0\.1|http/);
+});
+
+test('#309: a fallback backlog over the budget is not handed over (it would end the reader inside subscribe); the reader starts at the next PAT', async () => {
+    // 0579: no key frame, so the old join from the newest PAT in the final 2 s, with no byte budget:
+    // 20 frames since a PAT here, about 1.1 MB, against a 1 MiB limit ended the reader as a slow
+    // consumer before the session could listen for it, and the play ended with no reason.
+    const lines = [];
+    const log = console.log;
+    console.log = (...a) => { lines.push(a.join(' ')); };
+    try {
+        await openAndWait('/sparse', { phase: [20, 23] }); // 20-23 frames after a PAT (one every 25)
+        T.slowBytes = 1024 * 1024;
+        const sub = await ingest.subscribe({ pool: 'j', url: `${base}/sparse`, purpose: 'viewer' });
+        assert.equal(sub.endReason, null, `the reader is still subscribed (ended: ${JSON.stringify(sub.endReason)})`);
+        assert.ok(sub.readableLength <= T.slowBytes / 2, `nothing over the budget was handed over (${sub.readableLength} B)`);
+        const got = [];
+        sub.on('data', d => got.push(d));
+        await until(() => Buffer.concat(got).length >= 188 * 4, 'the next PAT and what follows');
+        const packets = ts.readPackets(Buffer.concat(got));
+        assert.deepEqual([packets[0].pid, packets[0].pusi, packets[1].pid], [0, true, ts.PMT_PID], 'it starts at a PAT, then the PMT');
+        assert.equal(sub.endReason, null);
+        sub.leave();
+    } finally { console.log = log; }
+    const said = lines.filter(l => /waits for the next PAT/.test(l));
     assert.equal(said.length, 1, lines.join('\n'));
     assert.doesNotMatch(said[0], /127\.0\.0\.1|http/);
 });
