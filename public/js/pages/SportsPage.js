@@ -246,6 +246,7 @@ class SportsPage {
             if (scrolls[k]) el.scrollLeft = scrolls[k];
         }
         if (focusKey) [...(this.root.querySelectorAll?.('[data-key]') || [])].find(n => n.getAttribute('data-key') === focusKey)?.focus?.({ preventScroll: true });
+        if (this.menu) { const a = this.anchorFor(this.menu); if (a) { this.menu.anchor = a; a.setAttribute?.('aria-expanded', 'true'); } }
     }
 
     /** The markup for what is shown now: the header, then the state block or the page. */
@@ -463,11 +464,11 @@ class SportsPage {
             else if (e.key === 'Home') { e.preventDefault(); list[0]?.focus(); }
             else if (e.key === 'End') { e.preventDefault(); list[list.length - 1]?.focus(); }
             else if (e.key === 'Escape') { e.preventDefault(); close(); }
-            else if (e.key === 'Tab') close(false);
+            else if (e.key === 'Tab') close(true); // focus back on the card, so Tab goes on from there
         });
         const outside = (e) => { if (!menu.contains(e.target) && !anchor?.contains?.(e.target)) close(false); };
         document.addEventListener('pointerdown', outside, true);
-        this.menu = { el: menu, anchor, gameId: g.id, outside };
+        this.menu = { el: menu, anchor, key: anchor?.getAttribute?.('data-key') || null, gameId: g.id, outside };
         anchor?.setAttribute?.('aria-expanded', 'true');
         this.placeMenu();
         (rows()[0] || menu).focus?.();
@@ -490,8 +491,16 @@ class SportsPage {
         this.menu = null;
         document.removeEventListener('pointerdown', m.outside, true);
         m.el.remove();
-        m.anchor?.setAttribute?.('aria-expanded', 'false');
-        if (focus && m.anchor?.isConnected !== false) m.anchor?.focus?.();
+        // #323 review: a poll may have redrawn the page under the menu: its card is found again by its data-key
+        const anchor = this.anchorFor(m);
+        anchor?.setAttribute?.('aria-expanded', 'false');
+        if (focus) anchor?.focus?.();
+    }
+    /** The menu's card as the page now draws it: the same element, else the one with its data-key. */
+    anchorFor(m) {
+        if (m.anchor && m.anchor.isConnected !== false) return m.anchor;
+        if (!m.key || !this.root?.querySelectorAll) return null;
+        return [...this.root.querySelectorAll('[data-key]')].find(n => n.getAttribute('data-key') === m.key) || null;
     }
 }
 
