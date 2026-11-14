@@ -4271,6 +4271,9 @@ body.ui-dialog-open {
   padding: var(--space-xs) 0; border-bottom: 1px solid var(--color-border, rgba(255,255,255,0.08)); }
 .sport-follow-actions { display: inline-flex; align-items: center; gap: var(--space-xs); flex-wrap: wrap; }
 .sport-follow-record { display: inline-flex; align-items: center; gap: var(--space-sm); font-size: var(--text-md); color: var(--color-text-muted); }
+/* #323: Settings › Sport › Score delay: the seconds and their Save, on one line. */
+.sport-delay-field { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--space-sm); }
+.sport-delay-field input { width: 7em; }
 .sport-follow-add { display: flex; gap: var(--space-sm); margin-top: var(--space-sm); flex-wrap: wrap; }
 .sport-follow-add input[type="search"] { flex: 1 1 200px; min-width: 0; }
 .sport-follow-select { max-width: 100%; margin-top: var(--space-sm); }

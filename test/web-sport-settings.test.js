@@ -436,3 +436,48 @@ test('sign-off: when the notice ends with the list unknown, the rule is neither 
     assert.equal(server.rules[0].enabled, false);
     assert.match(root.innerHTML, /Could not confirm whether Arsenal is still followed/);
 });
+
+test('#323: Score delay sits under Hide scores; a bad number is said beside the field, never dropped; it saves with its revision', async () => {
+    // Moved here from the retired C-O Sport page's "Scores & delay" dialog (Apple: Settings › Sport › Score delay).
+    const sent = [];
+    let conflict = false;
+    const { settings, root, ctx } = panel({
+        'GET /sports/catalog': { sports: catalog }, 'GET /sports/follows': { spoilerFree: false, sports: [] },
+        'GET /recordings/rules': [], 'GET /sports/suggestions': { suggestions: [] },
+        'GET /sports/preferences': () => ({ avoidSpoilers: false, scoreDelaySeconds: conflict ? 30 : 90, revision: conflict ? 4 : 3 }),
+        'PUT /sports/preferences': (body) => { sent.push(body); if (conflict) return Object.assign(new Error('Conflict'), { status: 409 }); return { avoidSpoilers: false, scoreDelaySeconds: body.scoreDelaySeconds, revision: 4 }; } });
+    await settings.load();
+    const html = root.innerHTML;
+    assert.ok(html.indexOf('Hide scores') < html.indexOf('Score delay'), 'under Hide scores');
+    assert.match(html, /<label class="setting-label" for="sport-delay">Score delay<\/label>/);
+    assert.match(html, /<input type="number" id="sport-delay" min="0" max="300" step="1" inputmode="numeric" value="90"/);
+    assert.match(html, /<button class="btn btn-sm btn-secondary" data-act="delay-save">Save score delay<\/button>/);
+    const errors = [];
+    ctx.errors = errors;
+    vm.runInContext('UI.fieldError = (input, text) => { errors.push(text); };', ctx);
+    const input = { min: '0', max: '300', value: '', focus() { this.focused = true; } };
+    root.querySelector = (sel) => (sel === '#sport-delay' ? input : null);
+    const click = () => root.listeners.click({ target: { closest: () => ({ dataset: { act: 'delay-save' } }) } });
+    for (const bad of ['', '1.5', '-1', '301', 'abc']) {
+        input.value = bad; errors.length = 0; input.focused = false;
+        await click();
+        assert.match(errors[0] || '', /Enter a whole number from 0 to 300\./, `"${bad}" is said`);
+        assert.equal(input.focused, true);
+    }
+    assert.equal(sent.length, 0, 'nothing bad is sent');
+    input.value = '0';
+    await click(); await settle();
+    assert.deepEqual(JSON.parse(JSON.stringify(sent)), [{ scoreDelaySeconds: 0, revision: 3 }], '0 is a delay, sent with the revision it was read at');
+    assert.match(root.innerHTML, /Score delay saved: 0 seconds\./);
+    conflict = true; input.value = '45';
+    await click(); await settle();
+    assert.match(root.innerHTML, /changed on another device/);
+    assert.match(root.innerHTML, /value="30"/, 'the newer value is shown');
+});
+
+test('#323: a server without the score delay shows no row', async () => {
+    const { settings, root } = panel({ 'GET /sports/catalog': { sports: catalog }, 'GET /sports/follows': { spoilerFree: false, sports: [] },
+        'GET /recordings/rules': [], 'GET /sports/suggestions': { suggestions: [] }, 'GET /sports/preferences': Object.assign(new Error('Not found'), { status: 404 }) });
+    await settings.load();
+    assert.doesNotMatch(root.innerHTML, /Score delay/);
+});

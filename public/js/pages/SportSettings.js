@@ -165,7 +165,32 @@ class SportFollowSettings {
             return;
         }
         this.render();
-        await Promise.all([this.loadRules(), this.loadSuggestions(), this.loadNames()]);
+        await Promise.all([this.loadRules(), this.loadSuggestions(), this.loadNames(), this.loadDelay()]);
+        this.render();
+    }
+
+    /** #323 (C-O since 0446, as Apple's Settings › Sport): the account's score delay; a server without it shows no row. */
+    async loadDelay() {
+        try {
+            const p = await API.request('GET', '/sports/preferences');
+            this.delay = p && Number.isInteger(p.scoreDelaySeconds) && Number.isInteger(p.revision) ? p : null;
+        } catch { this.delay = null; }
+    }
+    /** Save the typed delay (0-300 whole seconds) with the revision it was read at; a newer one elsewhere is said. */
+    async saveDelay() {
+        const input = this.root.querySelector('#sport-delay');
+        if (!input || !this.delay) return;
+        const seconds = UI.readWholeNumber(input);
+        if (seconds === null) { input.focus?.(); return; }
+        try {
+            this.delay = await API.request('PUT', '/sports/preferences', { scoreDelaySeconds: seconds, revision: this.delay.revision });
+            this.message = `Score delay saved: ${seconds} seconds.`;
+        } catch (err) {
+            if (err && err.status === 409) {
+                await this.loadDelay();
+                this.message = 'Score delay was changed on another device. It shows that value now: save again to change it.';
+            } else this.message = UI.errorText(err, 'Score delay was not saved.');
+        }
         this.render();
     }
 
@@ -222,6 +247,7 @@ class SportFollowSettings {
         const b = e.target?.closest?.('button[data-act]');
         if (!b) return;
         const { act, sport, league, name } = b.dataset;
+        if (act === 'delay-save') return this.saveDelay();
         const M = SportFollowModel;
         const index = this.state.sports.findIndex(s => s.sport === sport);
         if (act === 'sport-up' || act === 'sport-down') {
@@ -535,6 +561,10 @@ class SportFollowSettings {
             <fieldset class="sport-follow-body" ${this.unknown ? 'disabled' : ''}>
             <div class="setting-item"><label class="setting-toggle"><input type="checkbox" id="sport-follow-spoilers" ${this.state.spoilerFree ? 'checked' : ''}><span class="toggle-slider"></span></label>
                 <div class="setting-info"><span class="setting-label">Hide scores</span><span class="setting-hint">Hide scores and results everywhere in Sport.</span></div></div>
+            ${this.delay ? `<div class="setting-item sport-delay"><div class="setting-info"><label class="setting-label" for="sport-delay">Score delay</label>
+                <span class="setting-hint" id="sport-delay-hint">Clocks and scores follow it: how many seconds behind the scores feed they show, 0 to 300.</span></div>
+                <div class="sport-delay-field"><input type="number" id="sport-delay" min="0" max="300" step="1" inputmode="numeric" value="${e(this.delay.scoreDelaySeconds)}" aria-describedby="sport-delay-hint">
+                <button class="btn btn-sm btn-secondary" data-act="delay-save">Save score delay</button></div></div>` : ''}
             ${suggestions ? `<ul class="sport-follow-suggestions">${suggestions}</ul>` : ''}
             ${cards || UI.stateBlock('empty', { title: 'You follow no sport yet', detail: 'Choose one below to follow it.' })}
             ${unfollowed.length ? `<div class="sport-follow-add"><select id="sport-follow-add" class="sport-follow-select" aria-label="Add a sport">${unfollowed.map(c => `<option value="${e(c.sport)}">${e(c.sport)}</option>`).join('')}</select>

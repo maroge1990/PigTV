@@ -345,34 +345,6 @@ test('Recording settings: a bad number is refused with a message beside it and n
     assert.equal(doc.getElementById('dvr-setting-pre').after, null);
 });
 
-test('Sport score delay: a bad number is said beside the field, not silently dropped', async () => {
-    const c = sandbox({ document: { hidden: false, addEventListener() {} }, API: {}, performance: { now: () => 0 }, localStorage: { getItem: () => 't' } });
-    vm.runInContext(read('public/js/pages/SportsPage.js'), c);
-    const page = Object.create(c.window.SportsPage.prototype);
-    const line = { hidden: true }, delay = fakeInput({ value: '', focus() { this.focused = true; }, toggleAttribute(n, on) { if (on) this.attrs.set(n, ''); else this.attrs.delete(n); } });
-    let submit, onInput, saved = 0;
-    delay.addEventListener = (t, fn) => { onInput = fn; };
-    const form = { elements: { avoidSpoilers: { checked: false }, scoreDelaySeconds: delay }, querySelector: (s) => (s === '.field-error' ? line : { onclick: null }) };
-    const dialog = { innerHTML: '', querySelector: () => form };
-    Object.assign(page, { state: { response: { preferences: { revision: 1, avoidSpoilers: false, scoreDelaySeconds: 90 } }, legacy: false, save: async () => { saved++; } },
-        dialog, closeDialog() {} });
-    page.settings(true);
-    assert.match(dialog.innerHTML, /<form novalidate>/);
-    assert.match(dialog.innerHTML, /class="field-error" id="sports-delay-error" role="alert" hidden>Enter a whole number of seconds from 0 to 300\./);
-    for (const bad of ['', '1.5', '-1', '301', 'abc']) {
-        delay.value = bad; line.hidden = true;
-        await form.onsubmit({ preventDefault() {} });
-        assert.equal(line.hidden, false, `"${bad}" is said`);
-        assert.equal(delay.focused, true);
-    }
-    assert.equal(saved, 0);
-    onInput();
-    assert.equal(line.hidden, true, 'typing clears the message');
-    delay.value = '0';
-    await form.onsubmit({ preventDefault() {} });
-    assert.equal(saved, 1, '0 is a delay');
-});
-
 test('Channel numbers: a duplicate is flagged as it is typed, and Save stays off while one exists', () => {
     const c = sandbox({ document: { ...fakeDocument(), getElementById: (id) => (id === 'lineup-save' ? save : id === 'lineup-status' ? status : null) } });
     const save = { disabled: true }, status = { textContent: '', classList: { toggle() {} } };
