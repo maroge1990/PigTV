@@ -105,7 +105,7 @@ test('the phone front page: the follows carousel with its dots, then a card of r
     const { V } = browser();
     const html = V.front(ctx(V, answer(), { phone: true }));
     assert.match(html, /<div class="carousel" data-carousel="follows" aria-label="Your follows">/);
-    assert.match(html, /<div class="kicker k live"><span class="dot" aria-hidden="true"><\/span><span>Live · Premier League · Your team<\/span>/);
+    assert.match(html, /<div class="kicker k live"><span class="dot" aria-hidden="true"><\/span><span>Live · Premier League<\/span>/);
     assert.match(html, /<div class="fline">Nothing in the next three days<\/div>/, 'a follow with nothing on');
     assert.match(html, /<div class="dots" aria-hidden="true"><i class="on"><\/i><i><\/i><i><\/i><span>1 of 3 follows<\/span><\/div>/);
     assert.match(html, /<section class="grp" aria-label="Football">[\s\S]*?<div class="rows"><button type="button" class="row" data-act="game" data-id="ars"/);

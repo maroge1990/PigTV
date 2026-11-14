@@ -651,8 +651,6 @@ const SportView = (() => {
         const { front, now } = ctx;
         const r = row(g, ctx), live = r.live != null;
         let kicker = live ? `${isOnAir(g) ? 'On air' : 'Live'} · ${leagueWord}` : terminal(g) ? `${statusWord(g)} · ${leagueWord}` : `${leagueWord} · ${startLine(g, now)}`;
-        // the mocks: a followed game's card says whose it is, as the banner's kicker does
-        if (g.followed === true) kicker += ` · ${yours(sportOf(g.league, null, front))}`;
         const line = [];
         if (isOnAir(g)) line.push(onAirLine(g));
         else if (live) { const c = r.live.replace(/^LIVE\s*/, ''); if (c) line.push(c); }
