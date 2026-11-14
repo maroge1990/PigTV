@@ -146,3 +146,35 @@ test('a 115 s loop at 60 fps is found, although its run outlasts the ring of uni
     assert.ok(Math.abs(found.at - 258.75) < 1, `found ${found.at} s in`);
     assert.equal(found.audio, 'none');
 });
+
+// Opus #324: the sound was the first PES with stream id 0xbd or 0xc0-0xdf, but DVB subtitles and teletext use 0xbd too.
+// One subtitle PES ahead of the programme made its real sound ignored, so a looping picture over live sound was a loop.
+// The sound is now the PMT's; and a PMT's sound that sends nothing is waited for, never taken as "no sound".
+test('the sound is the one the PMT declares: a subtitle PES first does not hide live sound, and quiet sound is waited for', { skip }, () => {
+    const data = fs.readFileSync(feeds.loopLiveSound);
+    const probe = new LoopDetector();
+    probe.push(data.subarray(0, 188 * 2000));
+    const pts = Math.round(probe.video.times[0] * 90000);
+    const pkt = Buffer.alloc(188, 0xff);
+    pkt[0] = 0x47; pkt[1] = 0x40 | 0x01; pkt[2] = 0xf0; pkt[3] = 0x10; // PID 0x1f0, not in the PMT
+    Buffer.from([0, 0, 1, 0xbd, 0, 0, 0x80, 0x80, 5, 0x21 | ((pts / 2 ** 29) & 0x0e), (pts >> 22) & 0xff, ((pts >> 14) & 0xfe) | 1,
+        (pts >> 7) & 0xff, ((pts << 1) & 0xfe) | 1, 0x20, 0x00, 0x0f]).copy(pkt, 4);
+    const sub = path.join(dir, 'subtitle-first.ts');
+    fs.writeFileSync(sub, Buffer.concat([pkt, data]));
+    const withSubtitle = run([sub]);
+    assert.equal(withSubtitle.verdict, null, JSON.stringify(withSubtitle.verdict));
+    assert.match(withSubtitle.detector.notes.join(' | '), /the sound does not/);
+
+    // The loop with its sound packets taken out, the PMT still declaring them: waited for, not judged without sound.
+    const loop = fs.readFileSync(feeds.loop);
+    const audioPid = (() => { const d = new LoopDetector(); d.push(loop.subarray(0, 188 * 2000)); return d.pmtAudioPid; })();
+    assert.ok(audioPid !== null, 'the PMT declares the sound');
+    const kept = [];
+    for (let at = 0; at + 188 <= loop.length; at += 188) if ((((loop[at + 1] & 0x1f) << 8) | loop[at + 2]) !== audioPid) kept.push(loop.subarray(at, at + 188));
+    const quiet = path.join(dir, 'quiet-sound.ts');
+    fs.writeFileSync(quiet, Buffer.concat(kept));
+    assert.equal(run([quiet]).verdict, null);
+    // Sound declared and sent, but silence: still found (the picture decides).
+    const silentPicture = run([feeds.loopSilent]);
+    assert.ok(silentPicture.verdict, 'a loop over silence is still found');
+});

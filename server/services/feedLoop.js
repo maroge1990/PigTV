@@ -90,6 +90,18 @@ function requiredRun(period) {
     return period + Math.max(tuning.minRunSec, tuning.beyondPeriod * period);
 }
 
+// Audio in a PMT: MPEG-1/2 audio, AAC (ADTS, LATM), AC-3, E-AC-3; or private data (0x06) carrying an AC-3, E-AC-3 or AAC
+// descriptor (DVB). Private data without one (subtitles, teletext) is not sound.
+const AUDIO_TYPES = new Set([0x03, 0x04, 0x0f, 0x11, 0x81, 0x87]);
+const AUDIO_DESCRIPTORS = new Set([0x6a, 0x7a, 0x7c]);
+function isAudioEntry(b, e, stop) {
+    if (AUDIO_TYPES.has(b[e])) return true;
+    if (b[e] !== 0x06) return false;
+    const end = Math.min(stop, e + 5 + (((b[e + 3] & 0x0f) << 8) | b[e + 4]));
+    for (let d = e + 5; d + 2 <= end; d += 2 + b[d + 1]) if (AUDIO_DESCRIPTORS.has(b[d])) return true;
+    return false;
+}
+
 class Track {
     constructor(kind) {
         this.kind = kind;
@@ -318,6 +330,8 @@ class LoopDetector {
         this.carryLen = 0;
         this.pmtPid = null;
         this.codec = null;
+        this.sawPmt = false;
+        this.pmtAudioPid = null; // the programme's sound, as its PMT declares it (Opus #324)
         this.video = new Track('video');
         this.sound = new Track('audio');
         this.verdict = null;
@@ -369,9 +383,10 @@ class LoopDetector {
             if (p + 9 > end || b[p] !== 0 || b[p + 1] !== 0 || b[p + 2] !== 1) return;
             const sid = b[p + 3];
             if (!track) {
-                // The first video and the first audio PES stream, by stream id.
+                // The first video PES stream by stream id. The sound is the PMT's (readPmt): 0xbd is also DVB
+                // subtitles and teletext. Before any PMT, only an MPEG audio stream id (0xc0-0xdf) is taken as sound.
                 if (sid >= 0xe0 && sid <= 0xef && this.video.pid === null) { track = this.video; track.pid = pid; }
-                else if (((sid >= 0xc0 && sid <= 0xdf) || sid === 0xbd) && this.sound.pid === null) { track = this.sound; track.pid = pid; }
+                else if (sid >= 0xc0 && sid <= 0xdf && this.sound.pid === null && !this.sawPmt) { track = this.sound; track.pid = pid; }
                 else return;
             }
             track.end();
@@ -409,9 +424,20 @@ class LoopDetector {
         if (at + 12 > end || b[at] !== 0x02) return;
         const length = ((b[at + 1] & 0x0f) << 8) | b[at + 2];
         const stop = Math.min(at + 3 + length - 4, end);
+        let video = null;
+        let audio = null;
         for (let e = at + 12 + (((b[at + 10] & 0x0f) << 8) | b[at + 11]); e + 5 <= stop; e += 5 + (((b[e + 3] & 0x0f) << 8) | b[e + 4])) {
-            const codec = VIDEO_TYPES[b[e]];
-            if (codec) { this.codec = codec; return; }
+            const pid = ((b[e + 1] & 0x1f) << 8) | b[e + 2];
+            if (!video && VIDEO_TYPES[b[e]]) video = VIDEO_TYPES[b[e]];
+            else if (audio === null && isAudioEntry(b, e, stop)) audio = pid;
+        }
+        this.sawPmt = true;
+        if (video) this.codec = video;
+        this.pmtAudioPid = audio;
+        // The sound followed is the PMT's: a stream taken before it (or before a PMT change) is dropped.
+        if (this.sound.pid !== audio) {
+            this.sound = new Track('audio');
+            this.sound.pid = audio;
         }
     }
 
@@ -452,7 +478,16 @@ class LoopDetector {
         const a = this.sound;
         const v = this.video;
         const settle = (value) => { v.judged.settled = true; return value; };
-        if (!a.count || Math.abs(v.time - a.time) > 5) return 'none';
+        if (!a.count || Math.abs(v.time - a.time) > 5) {
+            // No sound in the programme: the picture decides. Sound declared but quiet: wait for it, and after the
+            // confirmation window leave the run alone (Opus #324: never take a quiet sound PID as "no sound").
+            if (this.pmtAudioPid === null) return 'none';
+            if (run >= need + tuning.confirmWithinSec) {
+                this.note(`video repeats every ${period.toFixed(1)} s but the declared sound sent nothing: not judged`);
+                return settle(false);
+            }
+            return null;
+        }
         if (a.period && Math.abs(a.periodSec() - period) <= tuning.audioSlackSec && a.runSec() >= tuning.minRunSec / 2) return 'repeats';
         if (Math.floor(run) === v.judged.lastLook) return null; // at most once per second of media
         v.judged.lastLook = Math.floor(run);
