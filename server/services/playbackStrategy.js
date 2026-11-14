@@ -30,7 +30,8 @@ const channelProfiles = require('./channelProfiles');
 const { MESSAGES: FAILURE_TEXT } = require('./playbackErrors');
 const playbackHandles = require('./playbackHandles');
 const playbackEvents = require('./playbackEvents');
-const { redact } = require('../redact');
+const { redact, stripUrls } = require('../redact');
+const { providerLabel } = require('../providerLabel');
 const db = require('../db');
 
 const DEFAULT_CAPABILITIES = {
@@ -100,7 +101,7 @@ function storedAnalysis(cacheKey) {
  * ffprobe the stream (one provider connection - or, Wave 5, none: through the shared ingest the
  * session will read, when `ingestSource` is given and the ingest takes the stream) and cache it.
  */
-async function probedAnalysis({ url, ffprobePath, userAgent, caps, cacheKey, deadlineAt = null, ingestSource = null }) {
+async function probedAnalysis({ url, ffprobePath, userAgent, caps, cacheKey, deadlineAt = null, ingestSource = null, providerId = null }) {
     const probeStartedAt = Date.now();
     // 0174: a failover resolve bounds the probe by its deadline (never above the usual 15 s).
     const timeout = deadlineAt ? Math.max(1000, Math.min(15000, deadlineAt - probeStartedAt)) : undefined;
@@ -124,7 +125,7 @@ async function probedAnalysis({ url, ffprobePath, userAgent, caps, cacheKey, dea
     } catch (err) {
         // 0118 (C-B): ffprobe's error carries its stderr, and with it the stream's
         // (redacted) URL. The log keeps it; the client gets a fixed sentence.
-        console.warn(`[Playback] resolve probe failed: ${redact(err.message)}`);
+        console.warn(`[Playback] resolve probe failed on ${providerLabel(providerId)}: ${stripUrls(err.message)}`);
         throw Object.assign(new Error(probeFailureMessage(err)), { status: err.status, providerReason: probeFailedForProvider(err) });
     }
     const info = analyzeProbeResult(raw, url, caps);
@@ -163,7 +164,7 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, upscale 
     // follows a profile through the in-memory cache, so a failed start can drop both.
     // Wave 5 (phase 5b): a live channel play with the shared ingest on (`ingestSource`, from the
     // route) probes through it and its session reads it; one provider connection for both.
-    const analysis = storedAnalysis(cacheKey) || await probedAnalysis({ url, ffprobePath, userAgent, caps, cacheKey, deadlineAt, ingestSource });
+    const analysis = storedAnalysis(cacheKey) || await probedAnalysis({ url, ffprobePath, userAgent, caps, cacheKey, deadlineAt, ingestSource, providerId });
     const { info, probeNote, fromProfile, probedAt } = analysis;
 
     // 0124: how this start was served, for the admin status page's recent plays.

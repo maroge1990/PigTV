@@ -6,6 +6,7 @@ const { stableChannelId, providerStreamId, summarise } = require('./stableIds');
 const { sources, settings } = require('../db'); // For source config and settings
 const xtreamApi = require('./xtreamApi');
 const { redact } = require('../redact');
+const { providerLabel } = require('../providerLabel');
 const m3uParser = require('./m3uParser');
 const backupChannels = require('./backupChannels');
 const hiddenChannels = require('./hiddenChannels');
@@ -1128,7 +1129,7 @@ class SyncService {
      * Processes EPG files in batches to avoid OOM on large EPG data
      */
     async syncEpgFromUrl(sourceId, url, { acceptSmaller = false, ifChanged = false } = {}) {
-        console.log(`[Sync] Fetching EPG from: ${redact(url).slice(0, 80)}...`);
+        console.log(`[Sync] Fetching the guide for ${providerLabel(sourceId)}`);
         logMemory();
 
         const db = getDb();

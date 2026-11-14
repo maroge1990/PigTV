@@ -44,4 +44,10 @@ function redact(value) {
     return s;
 }
 
-module.exports = { redact };
+/** #307: redact(), then every URL left in the text replaced outright (host and port included) for a log line. */
+function stripUrls(value) {
+    if (value == null) return value;
+    return redact(value).replace(/\b[a-z][a-z0-9+.-]*:\/\/\S+/gi, '[url removed]');
+}
+
+module.exports = { redact, stripUrls };

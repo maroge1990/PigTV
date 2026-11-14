@@ -16,6 +16,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs').promises;
 const { redact } = require('../redact');
+const { providerLabel } = require('../providerLabel');
 const crypto = require('crypto');
 const EventEmitter = require('events');
 const hwDetect = require('./hwDetect');
@@ -230,7 +231,7 @@ class TranscodeSession extends EventEmitter {
         }
 
         this.status = 'starting';
-        console.log(`[TranscodeSession ${this.id}] Starting session for: ${redact(this.url)}`);
+        console.log(`[TranscodeSession ${this.id}] Starting session for ${this.options.channelName ? `"${this.options.channelName}" on ` : ''}${providerLabel(this.options.providerId)}`);
 
         // Create session directory
         try {
@@ -1292,7 +1293,7 @@ class TranscodeSession extends EventEmitter {
      * re-resolves.
      */
     async handleStall() {
-        console.error(`[TranscodeSession ${this.id}] Releasing stalled session for ${redact(this.url)}`);
+        console.error(`[TranscodeSession ${this.id}] Releasing stalled session${this.options.channelName ? ` for "${this.options.channelName}"` : ''} on ${providerLabel(this.options.providerId)}`);
         if (this.stderrTail.length) {
             console.error(`[TranscodeSession ${this.id}] Last ffmpeg output:`);
             this.stderrTail.forEach(line => console.error(`[TranscodeSession ${this.id}]   ${redact(line)}`));
