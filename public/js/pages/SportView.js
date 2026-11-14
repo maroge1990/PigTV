@@ -59,20 +59,22 @@ const SportView = (() => {
         return typeof path === 'string' && /^\/api\/logo\/[A-Za-z0-9_.-]+$/.test(path) && !path.includes('..') ? path : null;
     }
 
-    /** The status in words, sentence case. A finished football game reads "FT", as the mocks have it. */
+    /** #326: the status as iOS words it (`statusLabel`), in capitals: "FINAL", "LIVE", "CANCELLED", "STATUS UNAVAILABLE". */
     function statusWord(g) {
         switch (g.status) {
-            case 'finished': return family(g) === 'football' || /football|soccer/i.test(g.sport || '') ? 'FT' : 'Final';
-            case 'cancelled': return 'Cancelled';
-            case 'postponed': return 'Postponed';
-            case 'suspended': return 'Suspended';
-            case 'break': return g.breakLabel || 'Break';
-            case 'scheduled': return isOnAir(g) ? 'On air' : 'Upcoming';
+            case 'finished': return 'FINAL';
+            case 'cancelled': return 'CANCELLED';
+            case 'postponed': return 'POSTPONED';
+            case 'suspended': return 'SUSPENDED';
+            case 'break': return g.breakLabel || 'BREAK';
+            case 'scheduled': return isOnAir(g) ? 'ON AIR' : 'UPCOMING';
             default:
-                if (g.status === 'live' && g.freshness === 'fresh') return 'Live';
-                return g.broadcastStatus === 'on-tv' ? 'On TV now' : g.freshness === 'buffering' ? 'Buffering' : 'Status unavailable';
+                if (g.status === 'live' && g.freshness === 'fresh') return 'LIVE';
+                return g.broadcastStatus === 'on-tv' ? 'ON TV NOW' : g.freshness === 'buffering' ? 'BUFFERING' : 'STATUS UNAVAILABLE';
         }
     }
+    /** Swift's `capitalized`: "FINAL" -> "Final", "STATUS UNAVAILABLE" -> "Status Unavailable" (a row's or a line's words). */
+    const capitalized = (s) => String(s).toLowerCase().replace(/(^|[\s-])(\p{L})/gu, (m, a, c) => a + c.toUpperCase());
 
     /** "Not on your channels" and friends: what the game's channel situation is, for a finished or channel-less game. */
     function availabilityWord(g) {
@@ -574,9 +576,10 @@ const SportView = (() => {
         const sc = two ? scores(g, front, hide) : null;
         const ongoing = showsLive(g);
         const clock = ongoing ? cardClock(g, front, hide) : null;
-        const live = isOnAir(g) ? clock : ongoing ? ['Live', clock === statusWord(g) ? null : clock].filter(Boolean).join(' ') : null;
+        // iPhone: "LIVE 2nd half 67'" (after a red dot), a result "Final"
+        const live = isOnAir(g) ? clock : ongoing ? ['LIVE', clock === statusWord(g) ? null : clock].filter(Boolean).join(' ') : null;
         const channel = channelLine(g);
-        const sub = ongoing ? channel : terminal(g) ? statusWord(g) : [startLine(g, now), channel].filter(Boolean).join(' · ');
+        const sub = ongoing ? channel : terminal(g) ? capitalized(statusWord(g)) : [startLine(g, now), channel].filter(Boolean).join(' · ');
         return { two, stars, score: sc ? sc.join('–') : null, live, sub };
     }
     function rowHtml(g, ctx) {
@@ -615,9 +618,9 @@ const SportView = (() => {
         if (g.followed === true) kicker += ` · ${yours(sportOf(g.league, null, front))}`;
         const line = [];
         if (isOnAir(g)) line.push(onAirLine(g));
-        else if (live) { const c = r.live.replace(/^Live\s*/, ''); if (c) line.push(c); }
+        else if (live) { const c = r.live.replace(/^LIVE\s*/, ''); if (c) line.push(c); }
         else if (!terminal(g)) line.push(startLine(g, now));
-        else line.push(statusWord(g));
+        else line.push(capitalized(statusWord(g)));
         const ch = channelLine(g);
         if (ch && !terminal(g)) line.push(ch);
         let mid;
@@ -1389,7 +1392,7 @@ const SportView = (() => {
     }
 
     return {
-        ICON, hidden, family, terminal, underWay, isOnAir, showsLive, isNextRound, logo, statusWord, progressLabel, situationLabel,
+        ICON, hidden, family, terminal, underWay, isOnAir, showsLive, isNextRound, logo, statusWord, capitalized, progressLabel, situationLabel,
         scores, situation, when, headerDate, startLine, channelLine, cardClock, event, action, actionLabel, followedSides,
         followedSide, sections, alsoInYourSports, headerLine, followTrailing, hero, NO_HERO, followKey, followsGoneLive,
         resolveHero, heroFollowIndex, fastRefresh, monogram, badge, leagueBadge, header, scoresChip, card, banner, heroButtons,

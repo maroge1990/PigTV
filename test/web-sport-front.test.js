@@ -42,7 +42,7 @@ for (const phone of [false, true]) {
         const html = V.front(ctx(V, answer(), { hide: true, phone }));
         assertNoScores(html, phone ? 'phone' : 'computer');
         assert.match(html, phone ? /<span class="fscore v pig-amount">v<\/span>/ : /<span class="n">Arsenal<\/span><\/span>/, 'the score space is blank');
-        assert.match(html, />FT</, 'a finished game reads FT');
+        assert.match(html, phone ? />Final</ : />FINAL</, 'a finished game reads FINAL (a row: Final), as iOS');
         // the hero follows a different follow, and the NFL hero: still nothing
         for (const heroId of ['nfl', 'pen', 'cri']) assertNoScores(V.front(ctx(V, answer(), { hide: true, phone, heroId })), `hero ${heroId}`);
     });
@@ -109,7 +109,7 @@ test('the phone front page: the follows carousel with its dots, then a card of r
     assert.match(html, /<div class="fline">Nothing in the next three days<\/div>/, 'a follow with nothing on');
     assert.match(html, /<div class="dots" aria-hidden="true"><i class="on"><\/i><i><\/i><i><\/i><span>1 of 3 follows<\/span><\/div>/);
     assert.match(html, /<section class="grp" aria-label="Football">[\s\S]*?<div class="rows"><button type="button" class="row" data-act="game" data-id="ars"/);
-    assert.match(html, /<span class="lv"><span class="dot" aria-hidden="true"><\/span>Live 2nd half 67&#39;<\/span>/);
+    assert.match(html, /<span class="lv"><span class="dot" aria-hidden="true"><\/span>LIVE 2nd half 67&#39;<\/span>/);
     assert.doesNotMatch(html, /class="banner"/);
 });
 
