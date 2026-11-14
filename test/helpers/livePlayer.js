@@ -43,7 +43,7 @@ function el(document, tag, { id, className, parent } = {}) {
 }
 
 /**
- * `terminal`: what GET /api/playback/:id/terminal-status answers ('none' | 'taken-over').
+ * `terminal`: what GET /api/playback/:id/terminal-status answers ('none' | 'taken-over'), or a promise of it.
  * `resolve(n, body)`: the n-th resolve's answer ({status, body}); by default a new session each time (s1, s2, …).
  */
 function makeLivePlayer({ terminal = () => 'none', resolve, page = 'live', extraDom } = {}) {
@@ -84,7 +84,7 @@ function makeLivePlayer({ terminal = () => 'none', resolve, page = 'live', extra
             return answer(200, { strategy: 'transcode', container: 'hls', videoMode: 'copy', url: `/api/transcode/${sid}/master.m3u8`, sessionId: sid });
         }
         const term = url.match(/^\/api\/playback\/([^/]+)\/terminal-status$/);
-        if (term) return answer(200, { status: terminal(decodeURIComponent(term[1])) });
+        if (term) return answer(200, { status: await terminal(decodeURIComponent(term[1])) }); // may be a promise the test settles
         return answer(200, null);
     };
 

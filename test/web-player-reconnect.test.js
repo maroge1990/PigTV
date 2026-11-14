@@ -202,3 +202,78 @@ test('before any picture: one retry, as before (0102), then the error now has Tr
     assert.ok(h.overlay.querySelector('.player-retry-btn'));
     assert.deepEqual(h.deletes(), ['/api/transcode/s1', '/api/transcode/s2'], 'neither session is held');
 });
+
+// Review of #321 (Codex high): the takeover question's "pending" flag was not tied to the play. Asked for channel A,
+// then B selected: B's failures were taken for A's pending reconnect and dropped, and B sat "playing" with its session
+// held, no reconnect and no Try again. It now belongs to A's play generation, and stop() clears it.
+function deferredTerminal() {
+    const waiting = {};
+    const terminal = (sid) => new Promise((resolve) => { waiting[sid] = resolve; });
+    return { terminal, waiting };
+}
+
+test('a newer channel while the old one\'s takeover question is out: the new channel\'s failures still recover', async () => {
+    for (const how of ['hls', '503']) {
+        const { terminal, waiting } = deferredTerminal();
+        const h = await playingSeven({ terminal, resolve: (i) => (how === '503' && i === 2
+            ? { status: 503, body: { error: 'The provider did not respond.' } }
+            : { status: 200, body: { strategy: 'transcode', container: 'hls', url: `/api/transcode/s${i}/master.m3u8`, sessionId: `s${i}` } }) });
+        h.fire('ended');
+        await h.clock.advance(0);
+        assert.ok(waiting.s1, `${how}: A's takeover question is out`);
+        await h.player.play(NINE, null);           // B: resolve #2
+        await h.clock.flush();
+        if (how === 'hls') {
+            assert.equal(h.player.currentSessionId, 's2');
+            h.FakeHls.instances.at(-1).emit('error', { fatal: true, type: 'networkError', details: 'manifestLoadError', response: { code: 404 } });
+            await h.clock.advance(0);
+        }
+        assert.equal(h.resolvesMade().length, 3, `${how}: B is asked for again, not dropped as "already pending"`);
+        assert.equal(h.resolvesMade()[2].body.channelId, '9');
+        waiting.s1('none');                        // A's late answer: stale, changes nothing
+        await h.clock.advance(20000);
+        assert.equal(h.resolvesMade().length, 3, `${how}: A is not reconnected`);
+        assert.equal(h.player.currentChannel, NINE);
+        assert.equal(h.player.currentSessionId, 's3');
+    }
+});
+
+test('a newer channel whose own retry fails too: its session is given back and it shows Try again', async () => {
+    const { terminal, waiting } = deferredTerminal();
+    const h = await playingSeven({ terminal });
+    h.fire('ended');
+    await h.clock.advance(0);
+    await h.player.play(NINE, null);               // s2
+    await h.clock.flush();
+    for (let i = 0; i < 2; i++) {                  // B fails before its first picture, twice
+        h.FakeHls.instances.at(-1).emit('error', { fatal: true, type: 'networkError', details: 'manifestLoadError', response: { code: 404 } });
+        await h.clock.advance(0);
+    }
+    waiting.s1('none');
+    await h.clock.advance(1000);
+    assert.equal(h.player._playing, false);
+    assert.ok(h.deletes().includes('/api/transcode/s3'), 'B\'s last session is given back');
+    assert.ok(h.overlay.querySelector('.player-retry-btn'), 'Try again');
+});
+
+test('an older takeover answer cannot clear a newer play\'s pending one (a second signal is still the same failure)', async () => {
+    const { terminal, waiting } = deferredTerminal();
+    const h = await playingSeven({ terminal });
+    h.fire('ended');
+    await h.clock.advance(0);                      // A asks about s1
+    await h.player.play(NINE, null);               // B: s2
+    await h.clock.flush();
+    await h.plays(1);
+    h.fire('ended');
+    await h.clock.advance(0);                      // B asks about s2
+    assert.ok(waiting.s2);
+    waiting.s1('none');                            // A's answer lands while B's is out
+    await h.clock.flush();
+    h.fire('ended');                               // a second signal for B's same failure
+    await h.clock.advance(0);
+    assert.equal(h.resolvesMade().length, 2, 'nothing new while B\'s question is out');
+    waiting.s2('none');
+    await h.clock.advance(20000);
+    assert.equal(h.resolvesMade().length, 3, 'exactly one reconnect for B');
+    assert.equal(h.resolvesMade()[2].body.channelId, '9');
+});

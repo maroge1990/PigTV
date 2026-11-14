@@ -1144,7 +1144,7 @@ class VideoPlayer {
         // The channel's identity is what is replayed (0121: the web resolves by
         // source + bare id and never holds a stream URL).
         if (!key) return false;
-        if (this._reconnectTimer || this._reconnectPending) return true;
+        if (this._reconnectTimer || this.reconnectPending()) return true;
         if (this._hasPlayed) {
             const delay = this.takeRecoverySlot();
             if (delay === null) return false;
@@ -1182,9 +1182,11 @@ class VideoPlayer {
         this._reconnectTimer = setTimeout(async () => {
             this._reconnectTimer = null;
             if (generation !== this._playGeneration) return;
-            this._reconnectPending = true;
+            // The takeover question belongs to this play: a newer play or a stop moves the generation on, so it no
+            // longer counts as pending for the play that follows, and its finally cannot clear a newer one.
+            this._reconnectPendingGen = generation;
             let takenOver = false;
-            try { takenOver = failedSession ? await this.sessionWasTakenOver(failedSession) : false; } finally { this._reconnectPending = false; }
+            try { takenOver = failedSession ? await this.sessionWasTakenOver(failedSession) : false; } finally { if (this._reconnectPendingGen === generation) this._reconnectPendingGen = null; }
             if (generation !== this._playGeneration) return;
             if (takenOver) {
                 this.stop(); // gives the session back (already gone at the server: harmless)
@@ -1193,6 +1195,11 @@ class VideoPlayer {
             }
             this.play(this.currentChannel, this.currentStreamUrl, { isRetry: true, reconnect: true, audioEncode: audioEncode || this._audioEncodeActive });
         }, delay);
+    }
+
+    /** A reconnect of the current play is waiting on its takeover question (an older play's never counts). */
+    reconnectPending() {
+        return this._reconnectPendingGen != null && this._reconnectPendingGen === this._playGeneration;
     }
 
     /** GET /api/playback/:id/terminal-status (0094): true only for `taken-over`; anything else (or no answer in 5 s) recovers. */
@@ -1211,7 +1218,7 @@ class VideoPlayer {
      * attempts are used up give the session back and show the error with Try again. Ignored when nothing is playing.
      */
     handleStreamFailure(reason, codeName) {
-        if (!this._playing || this._reconnectTimer || this._reconnectPending) return;
+        if (!this._playing || this._reconnectTimer || this.reconnectPending()) return;
         console.warn(`[Player] ${reason}`);
         this.reportClientEvent({ ...this.describeMediaError(), event: 'media-error', code: null, codeName, message: reason });
         this.stopStallWatch();
@@ -1262,7 +1269,7 @@ class VideoPlayer {
 
     checkStall() {
         const video = this.video;
-        if (!video || !this._playing || this._reconnectTimer || this._reconnectPending) return;
+        if (!video || !this._playing || this._reconnectTimer || this.reconnectPending()) return;
         const now = performance.now();
         const hidden = typeof document !== 'undefined' && document.hidden === true;
         if (video.paused || video.seeking || hidden || video.currentTime !== this._progressTime) {
@@ -1975,6 +1982,7 @@ class VideoPlayer {
         if (this._resolveAbort) { try { this._resolveAbort.abort(); } catch (e) { /* done */ } this._resolveAbort = null; }
         // #321: a pending reconnect belongs to the play being stopped; the new generation already makes it stale.
         if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null; }
+        this._reconnectPendingGen = null;
         this.stopStallWatch();
         this.hideReconnecting();
         this.clearStartWatch();
@@ -2371,8 +2379,8 @@ class VideoPlayer {
                 break;
             case 'l':
             case 'Backspace':
-                // #321: Last channel (only on Live TV, as every key here)
-                if (!this.previousChannel()) break;
+                // #321: Last channel (only on Live TV, as every key here); Ctrl/Cmd/Alt+L stay the browser's (address bar)
+                if (e.ctrlKey || e.metaKey || e.altKey || !this.previousChannel()) break;
                 e.preventDefault();
                 this.lastChannel();
                 break;

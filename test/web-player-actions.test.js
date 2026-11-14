@@ -167,6 +167,19 @@ test('a reconnect or Try again is not a channel change: Last channel stays the o
     assert.equal(h.player.previousChannel(), SEVEN);
 });
 
+test('Ctrl/Cmd/Alt+L stay the browser\'s (the address bar): only a bare L is Last channel', async () => {
+    const h = await harness();
+    await h.player.play(SEVEN, null);
+    await h.player.play(NINE, null);
+    for (const mod of ['ctrlKey', 'metaKey', 'altKey']) {
+        const e = new FakeEvent('keydown', { key: 'l', [mod]: true, target: { closest: () => null } });
+        h.document.listeners.keydown.forEach(fn => fn(e));
+        assert.equal(e.defaultPrevented, false, mod);
+    }
+    await h.clock.flush();
+    assert.equal(h.player.currentChannel, NINE);
+});
+
 test('on another page the L key does nothing', async () => {
     const h = await harness({ page: 'guide' });
     await h.player.play(SEVEN, null);
