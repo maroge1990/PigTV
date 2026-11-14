@@ -43,7 +43,7 @@ beforeEach(async () => {
         available: true,
         spawn: fakeSpawn
     });
-    await db.settings.update({ adDetectionEnabled: true, comskipIniPath: '' });
+    await db.settings.update({ adDetectionEnabled: true });
 });
 
 after(() => {
@@ -80,4 +80,22 @@ test('post-recording runs: timeout scales with the recording, never below 30 min
     const out = await result;
     assert.equal(out.ok, true);
     assert.equal(typeof out.elapsedSec, 'number');
+});
+
+// #322: `comskipIniPath` (an override of the bundled Comskip tuning, with no control anywhere) is retired: a stored
+// path is never handed to Comskip.
+test('a stored Comskip tuning path is not used: detection runs with the bundled tuning', async () => {
+    const custom = path.join(sandbox, 'custom-comskip.ini');
+    fs.writeFileSync(custom, '[x]\n');
+    const sqlite = load('db/sqlite');
+    sqlite.getDb().prepare('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)').run('comskipIniPath', JSON.stringify(custom));
+    await db.settings.update({ adDetectionEnabled: true }); // a write: the next read sees the stored path
+    const r = makeRecording({ status: 'completed' });
+    recordings.setAdDetectStatus(r.id, 'pending');
+    const run = load('services/recordingPost').processAdDetectionQueue({ manual: true });
+    for (let i = 0; i < 200 && !procs[0]; i++) await new Promise(res => setTimeout(res, 10));
+    assert.ok(procs[0], 'Comskip was started');
+    assert.equal(procs[0].args.includes(`--ini=${custom}`), false);
+    procs[0].exit('');
+    await run;
 });

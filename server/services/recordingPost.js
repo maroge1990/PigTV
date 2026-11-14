@@ -229,7 +229,7 @@ async function compressRecording(rec, settings) {
 
 let detecting = false;
 
-async function detectAdsFor(rec, settings) {
+async function detectAdsFor(rec) {
     const adDetect = require('./adDetect');
 
     if (!(await adDetect.isAvailable())) {
@@ -240,8 +240,8 @@ async function detectAdsFor(rec, settings) {
     recordingsDb.setAdDetectStatus(rec.id, 'running');
     console.log(`[Recordings] Detecting commercial breaks in #${rec.id}`);
 
+    // #322: always the bundled Comskip tuning (the unused comskipIniPath override is retired).
     const result = await adDetect.detect(rec.file_path, {
-        iniPath: settings.comskipIniPath || undefined,
         // 0207: scaled to the recording, not a flat 30 minutes.
         timeoutMs: adDetect.postTimeoutMs(rec.duration_sec)
     });
@@ -273,7 +273,7 @@ async function processAdDetectionQueue({ manual = false } = {}) {
     detecting = true;
     jobs.detecting = pending[0].id;
     try {
-        await detectAdsFor(pending[0], settings);
+        await detectAdsFor(pending[0]);
     } catch (err) {
         console.error('[Recordings] Break detection error:', err.message);
         recordingsDb.setAdDetectStatus(pending[0].id, 'failed', err.message);

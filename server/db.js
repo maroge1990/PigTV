@@ -72,7 +72,6 @@ function getDefaultSettings() {
     // Commercial break detection
     adDetectionEnabled: false,     // Analyse finished recordings for advert breaks
     adAutoSkip: false,             // Skip detected breaks automatically during playback
-    comskipIniPath: '',            // Override the bundled Comskip tuning
     // Compression, applied on request from the Recordings page rather than
     // automatically: the space is already spent by the time a recording
     // finishes, and most recordings are watched and deleted. Compressing is
