@@ -409,3 +409,21 @@ test('a start that fails on a feed just found repeating is held against the chan
     assert.ok(!/providerRouting\.noteFailure\((candidate|first), routing\.primaryKey\)/.test(route));
     assert.match(relaySrc, /routing\(\)\.noteStartFailure\(candidate, ctx\.primaryKey\)/);
 });
+
+// Opus #324: plan() falls back to the primary even when that provider is down or expired, and otherFeedFor took it.
+for (const [label, setUp, undo] of [
+    ['down', () => routing._breakers.set(B.id, { state: 'down', until: Date.now() + 600000, cooldownMs: 600000, failures: [] }), () => routing._breakers.delete(B.id)],
+    ['expired', () => load('db/sqlite').getDb().prepare('INSERT OR REPLACE INTO provider_accounts (source_id, exp_date, ok) VALUES (?, ?, 1)').run(B.id, Date.now() - 86400000),
+        () => load('db/sqlite').getDb().prepare('DELETE FROM provider_accounts WHERE source_id = ?').run(B.id)]
+]) test(`a provider that is ${label} is not somewhere to go, even when the plan lists it`, { skip }, async () => {
+    gate = Promise.resolve();
+    setUp();
+    const out = captureLog();
+    try {
+        const feed = await ingest.subscribe({ ...ingest.sourceFor(candA, await settingsNow(), channelRef), purpose: 'viewer', owner: 'device:tv' });
+        feed.resume();
+        await until(() => out.lines.some(l => l.includes('no other provider for this channel: it plays on')), 'kept', 20000);
+        assert.equal(feed.endReason, null);
+        feed.leave();
+    } finally { out.restore(); undo(); }
+});

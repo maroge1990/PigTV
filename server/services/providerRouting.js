@@ -241,6 +241,10 @@ async function otherFeedFor({ channelRef, ingestKey, owner = null, owners = null
     for (const c of candidates || []) {
         if (!c || !isStreamUrl(c.url) || isQuarantined(c.providerId, c.channelKey)) continue;
         if (isRepeating(c.providerId, c.channelKey)) continue; // found looping too in the last hour
+        // plan() falls back to the primary even when it is down or expired (Opus #324): never somewhere to go.
+        if (providerState(c.providerId) === 'down') continue;
+        const source = providerMap().get(Number(c.providerId));
+        if (source && isExpired(source)) continue;
         let key = null;
         try { key = ingest.keyOf(coordinator.poolOf(c.providerId), c.url); } catch { continue; }
         if (key === ingestKey) continue; // the looping feed itself
