@@ -9,9 +9,9 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 - **Released:** server **v0579** (`:release`, 13 Nov; v0577 the day before) and Apple **239** uploaded to TestFlight
   (tvOS and iOS, 14 Nov, after `Tools/test.sh all` in the Mac's clone). A release runs on Mark's go-ahead (D-45). Next
-  builds: server **0602**, Apple **243**. Apple 241 and 242 are pushed, not uploaded.
-- **14 Nov, Apple 242 pushed (#317, Mark's requests from 239):** on iPhone and iPad, sports in Settings › Sport and
-  leagues on a sport's page are dragged at any time and saved at the drop (no Edit order). Move up / Move down are gone
+  builds: server **0602**, Apple **244**. Apple 241 to 243 are pushed, not uploaded.
+- **14 Nov, Apple 242 and 243 pushed (#317, Mark's requests from 239):** on iPhone and iPad, sports in Settings › Sport and
+  leagues on a sport's page always show the reorder handles (≡), are dragged by them and saved at the drop (no Edit order). Move up / Move down are gone
   everywhere, so the Apple TV can't reorder (Mark's choice). The iPhone carousel reads "1 of 4". Evidence:
   `docs/evidence/2026-11-14-sport-order/`.
 - **14 Nov, batch Apple 2 pushed, Apple 240 and 241 (#262, D-62):** iPhone and iPad run from iOS 17.0, the Apple TV
