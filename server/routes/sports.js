@@ -241,7 +241,10 @@ router.get('/pages/events', pageRoute({ name: 'events', error: 'Could not build 
     } }, async (req, league) => {
     const sport = require('../services/sportCatalog').sportOf(league);
     const names = require('../services/sportPagePrefs').follows(req.user.id).sports.find(s => s.sport === sport)?.teams || [];
-    return require('../services/sportPageEvents').page(league, Date.now(), { names });
+    const now = Date.now();
+    // #297: each event's status from the score collector's store, with this account's score delay
+    const { event } = require('../services/sportPageState').deps(req.user.id, now);
+    return require('../services/sportPageEvents').page(league, now, { names, event });
 }));
 
 // #68, #67 (0346, C-P): the sport pages' spoiler-free switch and followed names; the account's own since 0391 (#193, D-41).

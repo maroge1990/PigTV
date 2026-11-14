@@ -865,4 +865,4 @@ function store() {
 // give (cricket; sportsFixtures.refreshRoster), rather than up to 30 minutes later.
 function start(options = {}) { if(collectorEnabled() && !runtime) {runtime=createCollector({store:store(),onCoverage:()=>fixtures.scheduleRefresh(),...options});runtime.start();} } // options: tests only
 function stop() {runtime?.stop();runtime=null;require('./sportsDashboardResponse').close();}
-module.exports={enabled,collectorEnabled,dashboardEnabled,localDay,timezone,matchBroadcasts,buildDashboard,createCollector,store,start,stop,noteLook,cadence,response: options => require('./sportsDashboardResponse').response(options)};
+module.exports={BREAK_POLL,enabled,collectorEnabled,dashboardEnabled,localDay,timezone,matchBroadcasts,buildDashboard,createCollector,store,start,stop,noteLook,cadence,response: options => require('./sportsDashboardResponse').response(options)};

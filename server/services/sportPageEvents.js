@@ -251,11 +251,51 @@ async function cached(league, now) {
  * C-V's answer for `league` at `now`, for an account following `names` (its sport's followed names, C-U): the cached
  * ESPN part with each event's `followed` (the event's own spellings of those names), or `{ available: false }`.
  */
-async function page(league, now = Date.now(), { names = [] } = {}) {
-    const value = await cached(league, now);
+async function page(league, now = Date.now(), { names = [], event: eventState = null } = {}) {
+    let value = await cached(league, now);
     if (!value) return { available: false };
+    if (eventState) value = await withState(league, value, now, eventState);
     const wanted = new Set(names.map(personKey).filter(Boolean));
     return { ...value, events: value.events.map(({ players, ...e }) => ({ ...e, followed: players.filter(p => wanted.has(personKey(p))) })) };
+}
+
+/**
+ * #297: each event's status (and break label) from the score collector's store for this account (`state(cardId)`,
+ * sportPageState.deps `event`: its delay; only a fresh or final snapshot), as the front page's card for the same event:
+ * the ids and words are the cards' (sportIndividual). The collector further on than the page's read: the read is renewed
+ * at once (sportPageCache.renew: one build, at most every 30 s, waited for at most the cold wait), as the draws, the
+ * leaderboard, the bouts and a race's winner come only from it; a finish the read still lacks after that keeps the
+ * page's own status. The page's read newer than the account's delayed view: the collector's status, and no `lastWinner`
+ * when it is this race's. Each match, round and bout keeps its own state from the page's read, as before.
+ */
+async function withState(league, value, now, state) {
+    let view = overlay(value, state);
+    if (view.renew) {
+        const entry = await caches.renew(league, now, () => build(league, now));
+        if (entry?.value && entry.value !== value) view = overlay(entry.value, state);
+    }
+    return view.value;
+}
+
+function overlay(value, state) {
+    const { rank } = require('./sportPageState');
+    let renew = false, changed = false, lastWinner = value.lastWinner ?? null;
+    const events = value.events.map(e => {
+        let seen = null;
+        try { seen = state(e.id); } catch { seen = null; }
+        const word = seen?.snapshot?.state;
+        const theirs = rank(word), ours = rank(e.status) ?? 0; // the page's `unknown`: nothing shown yet
+        if (theirs === null) return e;
+        if (theirs > ours) { renew = true; if (theirs === 2) return e; }
+        const breakLabel = word === 'break' && typeof seen.snapshot.breakLabel === 'string' ? seen.snapshot.breakLabel : null;
+        if (word === e.status && (e.breakLabel ?? null) === breakLabel) return e;
+        changed = true;
+        if (theirs < ours && lastWinner && lastWinner.race === e.name && lastWinner.date === e.start) lastWinner = null;
+        const { breakLabel: _drop, ...rest } = e;
+        return { ...rest, status: word, ...(breakLabel ? { breakLabel } : {}) };
+    });
+    if (!changed) return { value, renew };
+    return { value: { ...value, events, ...('lastWinner' in value ? { lastWinner } : {}) }, renew };
 }
 
 /** Tests: forget everything. */

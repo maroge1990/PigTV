@@ -13,7 +13,10 @@
  * - Hiding scores is not applied here: the front leaves scores out when the household's spoiler-free switch is on, and
  *   the pages always send them and the client hides them by that same switch (C-P, C-Q, C-T), unchanged.
  *
- * deps(userId, now) -> { state(cardId) -> { snapshot } | null, covered(league) -> boolean } or {} with the collector off.
+ * deps(userId, now) -> { state(cardId) -> { snapshot } | null, event(cardId) -> { snapshot } | null, covered(league) -> boolean }
+ * or {} with the collector off. `event`: a tennis, golf, UFC or racing card (#297), whose snapshot has no page facts (its
+ * state is already the Events page's word, C-V), fresh by the front's rule for those leagues (a break, polled every
+ * BREAK_POLL, stays fresh that much longer).
  * `covered`: the collector has wholly answered the league's window within the last 30 minutes, so a page need not
  * re-read ESPN's scoreboard every 2 minutes while a game is on (its state comes from here).
  */
@@ -35,13 +38,24 @@ function deps(userId, now = Date.now()) {
         const fresh = now - seen.observedAt <= delay * 1000 + FRESH_ALLOWANCE_MS;
         return fresh || seen.data.state === 'finished' ? { snapshot: seen.data, observedAt: seen.observedAt } : null;
     };
+    // #297: the Events page's cards (sportIndividual), fresh as the front reads them (sportsDashboard.buildDashboard)
+    const event = (cardId) => {
+        if (!cardId) return null;
+        let seen;
+        try { seen = store.delayed(cardId, now, delay); } catch { return null; }
+        const s = seen?.data?.state;
+        if (typeof s !== 'string' || s === 'unknown') return null;
+        const allowance = s === 'break' ? dashboard.BREAK_POLL + FRESH_ALLOWANCE_MS : FRESH_ALLOWANCE_MS;
+        const fresh = now - seen.observedAt <= delay * 1000 + allowance;
+        return fresh || s === 'finished' ? { snapshot: seen.data, observedAt: seen.observedAt } : null;
+    };
     const covered = (league) => {
         try {
             const row = require('../db/sqlite').getDb().prepare('SELECT observed_at FROM sports_dashboard_coverage WHERE league = ?').get(league);
             return Boolean(row) && now - row.observed_at <= COVERED_MS;
         } catch { return false; }
     };
-    return { state, covered };
+    return { state, event, covered };
 }
 
 /** The score of `side` ('home' | 'away') in a snapshot, as a page's string, or null. */

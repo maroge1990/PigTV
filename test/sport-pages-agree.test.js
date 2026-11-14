@@ -182,6 +182,38 @@ test('the F1 page and the front page agree about a session\'s status at every mo
     assert.deepEqual(bad, [], seen.join('\n'));
 });
 
+// #297: the Events pages (tennis, golf, UFC, IndyCar, NASCAR) took each event's status from their own read (kept 10 min
+// while one is on, else up to an hour), so an event turned live or over up to 10 minutes after the front's card. The
+// scripted game as an IndyCar race, whose winner the page shows (`lastWinner`) only once it is over. C-V's words are C-R's.
+const C_V = { scheduled: 'scheduled', live: 'live', break: 'break', finished: 'finished', postponed: 'postponed', cancelled: 'cancelled' };
+function raceBoard(game, now) {
+    const { state, status } = statusAt(game, now);
+    const date = iso(game.start);
+    const drivers = [['801', 'Cara Cole'], ['802', 'Dev Dunn']];
+    return {
+        leagues: [{ id: '2040', name: 'IndyCar', calendar: [] }],
+        events: [{ id: game.id, name: 'Scripted 500', date, status, competitions: [{ id: game.id, date, status,
+            venue: { fullName: 'Scripted Speedway', address: { city: 'Indianapolis', country: 'USA' } },
+            competitors: drivers.map(([id, name], i) => ({ id, type: 'athlete', order: i + 1, winner: state === 'post' && i === 0, athlete: { displayName: name } })) }] }]
+    };
+}
+test('the Events page and the front page agree about an event\'s status at every moment, with and without a delay; a race\'s winner shows only once it is over', async () => {
+    const ev = load('services/sportPageEvents');
+    const { bad, seen } = await replay({ league: 'IndyCar', source: 'racing/irl', at: K + 4 * 24 * 60 * MIN, words: C_V, reset: () => ev.reset(), board: raceBoard,
+        serve: (json, url) => (url.includes('/racing/irl/scoreboard') ? { ok: true, json } : { ok: false, error: 'HTTP 404' }),
+        ask: async (now, deps, answer) => {
+            ev.fetcher.get = async url => answer(url);
+            const page = await ev.page('IndyCar', now, { event: deps.event });
+            const race = page.events.find(e => e.name === 'Scripted 500');
+            return { status: race.status, scores: null, lastWinner: page.lastWinner };
+        },
+        check: (g, card, who) => [
+            g.status === 'finished' && g.lastWinner?.race !== 'Scripted 500' && `${who}: a finished race without its winner`,
+            g.status !== 'finished' && g.lastWinner?.race === 'Scripted 500' && `${who}: a race not over with its winner`
+        ] });
+    assert.deepEqual(bad, [], seen.join('\n'));
+});
+
 test('F1: a finish the page\'s read still lacks after renewing keeps the page\'s own status (never over without a result), renewing at most every 30 s', async () => {
     const f1 = load('services/sportPageF1');
     const espn = load('services/sportsScoresEspn');

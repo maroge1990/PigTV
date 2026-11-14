@@ -131,7 +131,7 @@ scoreboards and `sports_dashboard_catalog` the only store of a game's identity, 
 
 | Store | Written by | Read by |
 |---|---|---|
-| `sports_dashboard_catalog` (+ `sports_score_history`) | the collector | the front page, dashboard, the League and NFL pages' games' state (0557, 0558, `sportPageState`) and the F1 page's sessions' (#297), follows, suggestions, recording rules, recording ends, and (through `sportsFixtures.snapshot`) the guide's live/replay classifier |
+| `sports_dashboard_catalog` (+ `sports_score_history`) | the collector | the front page, dashboard, the League and NFL pages' games' state (0557, 0558, `sportPageState`) and the F1 and Events pages' (#297), follows, suggestions, recording rules, recording ends, and (through `sportsFixtures.snapshot`) the guide's live/replay classifier |
 | `sports_dashboard_coverage` | the collector (0550; since 0552 also the teams its window's answers name) | `sportsFixtures.snapshot`, the Status page's fixtures panel, the roster pass |
 | `sport_fixture_teams` | the 30-minute pass: ESPN `/teams` once a day per league, else (cricket, or `/teams` not answering) the teams of the collector's last window; International cricket's every pass | rosters: classifier, follows, Settings, front-page logos |
 | `sport_fixture_status` | the leagues' own feeds (`recordFeed`); the fixture refresh with the collector off | the Status page |
@@ -502,7 +502,9 @@ without its result; a start is shown at once. The page's read further on than th
 collector's word, without what belongs to the later state. Their cache lifetimes are unchanged (no 2-minute floor is
 lifted), so the renewals are the only added reads: one per session start and finish. F1: a session's status; without its
 `top`, and without the results block when it is that session's (the race's result, the grid from qualifying), the
-weekend's phase following the statuses shown.
+weekend's phase following the statuses shown. Events: an event's status and break label (its id and words are the C-R card's; the
+collector's `event` accessor reads it fresh by the front's rule, a tournament's break for `BREAK_POLL` longer); no
+`lastWinner` when it is that race's; each match, round and bout keeps its own state from the read.
 
 **Any other team league (0388, C-T).** `services/sportPageLeague.js` answers `GET /api/sports/pages/league/:league` for
 every `ESPN_LEAGUE_PATHS` league but F1, NFL, IPL and BBL (one cache entry per league, so leagues never evict each

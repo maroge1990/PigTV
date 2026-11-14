@@ -1052,6 +1052,11 @@ on whenever ESPN fixtures are, as the other pages.
   switch on (C-U) the client hides `sets`, every `winner`, golf `pos`, `toPar`, `rounds` and `status` (the field may be
   shown alphabetically), UFC `result`, and `lastWinner`; `status`, `start`, the draws and the names stay.
 - No channels: an event's airings are on its C-R card (Watch and Record from there or the banner).
+- Since #297 (no field or word changes): an event's `status` and `breakLabel` are its C-R card's for the asking account,
+  with its score delay, so they change when the front page's do, wherever the collector holds a fresh snapshot; elsewhere
+  the page's own read as before. An event the collector has seen finish keeps its previous status until the page's own
+  read has it (renewed at once). While the account's delayed view is behind the page's read, the event shows the delayed
+  status and `lastWinner` is null when it is that race's. Each match, round and bout keeps its own state from the read.
 - A server before 0428 answers 404 to `/api/sports/pages/events`: ask only with this flag.
 
 ### C-W. Live pause. Flag: `livePause` (0468, #37)

@@ -158,3 +158,20 @@ test('the NFL page: two accounts on one cached page, the collector\'s state and 
     assert.deepEqual(game(await nfl.page(now, pageState.deps(2, now))), own, 'collector off: the page\'s own');
     delete process.env.PIGTV_SPORTS_DASHBOARD;
 });
+
+test('#297: an Events card\'s state for the page, fresh by the front\'s rule: a break polled every 5 minutes stays fresh that much longer', () => {
+    const store = dashboard.store();
+    const card = (id, state, extra = {}) => ({ id: `espn:golf/pga:${id}`, league: 'PGA Tour', title: 'Scripted Open', start: K - 24 * 60 * MIN, end: K + 48 * 60 * MIN,
+        format: null, session: null, circuit: null, competitors: [], players: [], snapshot: { state, ...extra, progress: {}, scores: null, situation: null } });
+    store.ingest([card('1', 'break', { breakLabel: 'Round 2 complete' }), card('2', 'live'), card('3', 'finished')], K);
+    const at = (now) => pageState.deps(2, now).event; // account 2: no delay
+    assert.equal(at(K + 6 * MIN)('espn:golf/pga:1')?.snapshot.breakLabel, 'Round 2 complete', 'a break 6 minutes old: within 5 min + 2 min');
+    assert.equal(at(K + 8 * MIN)('espn:golf/pga:1'), null, 'and not past it');
+    assert.equal(at(K + 2 * MIN)('espn:golf/pga:2')?.snapshot.state, 'live');
+    assert.equal(at(K + 3 * MIN)('espn:golf/pga:2'), null, 'play is fresh 2 minutes only: then the page\'s own');
+    assert.equal(at(K + 60 * MIN)('espn:golf/pga:3')?.snapshot.state, 'finished', 'a final does not go stale');
+    assert.equal(at(K)('espn:golf/pga:9'), null, 'not held');
+    process.env.PIGTV_SPORTS_DASHBOARD = '0';
+    assert.equal(pageState.deps(2, K).event, undefined, 'collector off');
+    delete process.env.PIGTV_SPORTS_DASHBOARD;
+});
