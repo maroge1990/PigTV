@@ -102,6 +102,8 @@ class Track {
         this.count = 0;
         this.period = 0;
         this.runStart = -1;
+        this.runStartTime = 0;
+        this.runStartSpan = 0;
         this.lastRaw = null;
         this.wraps = 0;
         this.time = 0;
@@ -251,11 +253,14 @@ class Track {
             // The run (if any) is broken: look for a new period from this unit's last twin.
             this.period = 0;
             this.runStart = i;
+            // Kept as values (Opus #324): a run outlasts its period, so these slots leave the ring before it is judged.
+            this.runStartTime = time;
+            this.runStartSpan = 0;
             this.judged = null;
             const prev = this.last.get(hash);
             if (prev !== undefined) {
                 const span = time - this.times[prev % this.cap];
-                if (span >= tuning.minPeriodSec && span <= tuning.maxPeriodSec) this.period = i - prev;
+                if (span >= tuning.minPeriodSec && span <= tuning.maxPeriodSec) { this.period = i - prev; this.runStartSpan = span; }
             }
         }
         this.last.set(hash, i);
@@ -264,7 +269,7 @@ class Track {
     /** Seconds of the current run, 0 when there is none. */
     runSec() {
         if (!this.period) return 0;
-        return this.time - this.times[this.runStart % this.cap];
+        return this.time - this.runStartTime;
     }
 
     /** Seconds of one period, measured at the newest unit. */
@@ -423,8 +428,7 @@ class LoopDetector {
             const distinct = v.distinct(v.period);
             const keyframes = v.keyframesIn(v.period);
             // The clock across the run: one period ago at its start and now must be the same span.
-            const startSpan = v.times[v.runStart % v.cap] - v.times[(v.runStart - v.period) % v.cap];
-            const even = Math.abs(startSpan - period) <= 1;
+            const even = Math.abs(v.runStartSpan - period) <= 1;
             v.judged = { period, distinct, keyframes, even, ok: distinct >= tuning.minDistinct && keyframes >= tuning.minKeyframes && even && period >= tuning.minPeriodSec };
             if (!v.judged.ok) {
                 this.note(`video repeats every ${period.toFixed(1)} s for ${run.toFixed(1)} s but is not a clip ` +

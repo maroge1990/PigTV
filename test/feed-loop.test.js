@@ -126,3 +126,23 @@ test('an audio PES that never ends is bounded: by its declared length, else by t
         assert.ok(d.describe().memoryBytes < 1024 * 1024, `declared ${declared}: ${d.describe().memoryBytes} bytes`);
     }
 });
+
+// Opus #324: a run must outlast its period, so with a long period at a high frame rate the run's first units leave the
+// 8,192-unit ring before it is judged (at 60 fps, any period over ~109 s); its start time and clock span are kept as
+// values. A 115 s loop at 60 fps (6,900 pictures a pass, a key frame a second, no sound) is found at 2 x 115 + 28.75 s.
+test('a 115 s loop at 60 fps is found, although its run outlasts the ring of units', () => {
+    const d = new LoopDetector();
+    const fps = 60;
+    const pass = 115 * fps;
+    let found = null;
+    for (let i = 0; i < 3 * pass && !found; i++) {
+        const n = i % pass; // the picture within the clip: the same hash every pass, timestamps rising
+        d.video.add(Math.imul(n + 1, 0x9e3779b1), Math.imul(n + 7, 0x85ebca6b), i / fps, n % fps === 0);
+        d.judge();
+        if (d.verdict) found = { ...d.verdict, at: i / fps };
+    }
+    assert.ok(found, 'found');
+    assert.ok(Math.abs(found.periodSec - 115) < 0.1, `period ${found.periodSec} s`);
+    assert.ok(Math.abs(found.at - 258.75) < 1, `found ${found.at} s in`);
+    assert.equal(found.audio, 'none');
+});
