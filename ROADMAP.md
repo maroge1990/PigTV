@@ -9,7 +9,10 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 - **Released:** server **v0579** (`:release`, 13 Nov; v0577 the day before) and Apple **239** uploaded to TestFlight
   (tvOS and iOS, 14 Nov, after `Tools/test.sh all` in the Mac's clone). A release runs on Mark's go-ahead (D-45). Next
-  builds: server **0626**, Apple **247**. Apple 241 to 246 are pushed (CI green), not uploaded.
+  builds: server **0633**, Apple **247**. Apple 241 to 246 are pushed (CI green), not uploaded.
+- **14 Nov, batch Sport 1 pushed, server 0626 to 0632 (#296):** a game listed only in another language joins its channel by
+  the teams' nicknames (front page, league pages, recording rules); review fixes 0627 to 0632. The sign-off's high (squads) was
+  filed as #319 by Mark's choice. Evidence: `docs/evidence/2026-11-14-sport1/`.
 - **14 Nov, batch Server 3 pushed, server 0612 to 0625 (#289, #290 items 1 and 2):** the last share calls are off the
   event loop and the thread pool (the sweep, the routes with a 503, ad detection, copies and the byte check on a helper of
   their own); stale probes and orphan work folders go; 0617 fixes a crash when a stopped capture's ffmpeg had exited.
@@ -138,20 +141,19 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 Batches regrouped on 12 Nov 2026 after the audit (every open issue read against server 0577 and Apple 218). Each is one
 theme and one review round. Order within a section is the order to take them.
 
-1. **Sport 1, matching:** #296 (a listing with no English name), with what #231 left. Full review rule.
+1. **Sport 2, one source for the sport pages:** #297 · #282 · #29's re-measure; then #291 (after a read of production's
+   settings; its item 2 is partly wrong, see the issue).
 
 ## Next
 
-2. **Sport 2, one source for the sport pages:** #297 · #282 · #29's re-measure; then #291 (after a read of production's
-   settings; its item 2 is partly wrong, see the issue).
-3. **Sport 3, pickers:** #265 step 2 · #266 (server and Apple), once Mark confirms the rows.
-4. **Web 1:** #62 play errors · #63 first run without a Home page · #64 Settings.js and sign-out · #292 · #295.
+2. **Sport 3, pickers:** #265 step 2 · #266 (server and Apple), once Mark confirms the rows.
+3. **Web 1:** #62 play errors · #63 first run without a Home page · #64 Settings.js and sign-out · #292 · #295.
 
 ## Later (each needs a capture, a real provider, a device or a design choice first)
 
 - **A/V sync:** #267 meter · #268 marker, then #3 and #27. **Relay and recovery (released alone, D-25):** #4 · #41's
   transition table and invariant test · #74 · #30. **Start speed:** #240 · #36 · #38.
-- **Operations:** #43 · #44 · #45 · #28. **Recording text:** #314. **Logs:** #315. **Recording playback reads:** #318. **Tests:** #26, and the stored replay for #22 to #24 re-run after 0551.
+- **Operations:** #43 · #44 · #45 · #28. **Recording text:** #314. **Logs:** #315. **Recording playback reads:** #318. **Sport join squads:** #319. **Tests:** #26, and the stored replay for #22 to #24 re-run after 0551.
 - **Apple launch and tests:** #54 · #55 · #53 · #283 · #313 (Apple 1's review lows) · #316. **Apple structure:** #50 · #51.
 - **Apple player:** #25 · #35 · #58 · #308 (Start over from live) · #101. **Apple, design first:** #56 · #57 · #232.
   **Brand kit:** #294.
