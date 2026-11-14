@@ -46,15 +46,16 @@
 .sp .pill svg { width: 16px; height: 16px; }
 
 /* ---------- the banner (SportBanner: hero left, list right) ---------- */
-.sp .banner { position: relative; display: flex; align-items: center; gap: 20px; min-height: 252px; padding: 18px 18px 18px 26px;
-  background: var(--surface); border: 1px solid var(--color-border); border-radius: 24px; overflow: hidden; }
+.sp .banner { position: relative; display: flex; align-items: center; gap: 20px; min-height: 220px; padding: 16px 16px 16px 20px;
+  background: var(--surface); border-radius: 22px; overflow: hidden; }
 .sp .banner .art { position: absolute; top: 50%; right: 410px; width: 230px; height: 230px; transform: translateY(-50%);
   object-fit: contain; opacity: .16; pointer-events: none; }
 .sp .banner.full .art { right: 70px; opacity: .22; }
 .sp .banner .art.map { width: 360px; height: 200px; opacity: .45; right: 60px; }
 .sp .banner:not(.full) .art.map { right: 410px; opacity: .22; }
-.sp .banner .backbtn { position: relative; z-index: 1; flex: 0 0 auto; width: 44px; height: 44px; border-radius: 12px; background: var(--raised);
-  border: 1px solid var(--color-border); display: grid; place-items: center; align-self: center; }
+.sp .banner .backbtn { position: relative; z-index: 1; flex: 0 0 auto; width: 44px; height: 44px; border-radius: 16px; background: var(--raised);
+  border: 0; display: grid; place-items: center; align-self: center; margin-right: 4px; }
+.sp .banner .backbtn:hover { background: var(--color-hover-raised); }
 .sp .banner .backbtn svg { width: 22px; height: 22px; }
 .sp .hero { position: relative; z-index: 1; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .sp .kicker { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
@@ -92,35 +93,36 @@
 .sp .sec-h .chev, .sp .grp-h .chev { font-size: 21px; font-weight: 800; color: var(--color-text-secondary); }
 .sp .sec-h .note { font-size: 14px; color: var(--color-text-secondary); margin-left: 4px; }
 .sp .rail-k { margin: 8px 0 6px; font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--color-text-secondary); }
-.sp .rail { position: relative; display: flex; gap: 16px; overflow-x: auto; scrollbar-width: none; padding: 4px; margin: 0 calc(-1 * var(--gutter)) 0 -4px;
+.sp .rail { position: relative; display: flex; gap: 12px; overflow-x: auto; scrollbar-width: none; padding: 4px; margin: 0 calc(-1 * var(--gutter)) 0 -4px;
   padding-right: var(--gutter); scroll-snap-type: x proximity; }
 .sp .rail::-webkit-scrollbar, .sp .carousel::-webkit-scrollbar, .sp .brows::-webkit-scrollbar { display: none; }
 
 /* the game card (SportGameCard, the iPad's 260 x 112) */
-.sp .gitem { position: relative; flex: 0 0 272px; display: flex; scroll-snap-align: start; }
-.sp .gcard { position: relative; flex: 1; min-width: 0; min-height: 116px; display: flex; flex-direction: column; gap: 2px; padding: 10px 14px;
-  border-radius: 16px; background: var(--surface); border: 1px solid var(--color-border); text-align: left; }
-.sp .gcard:hover { background: var(--raised); }
-.sp .gcard.fol { border-color: transparent; box-shadow: inset 0 0 0 3px var(--color-accent); }
-.sp .gcard.live { border-color: transparent; box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--live) 80%, transparent); }
-.sp .trow { display: flex; align-items: center; gap: 8px; min-height: 32px; }
-.sp .trow .n { flex: 1; min-width: 0; font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sp .trow .sc { font-size: 18px; font-weight: 800; }
+.sp .gitem { position: relative; flex: 0 0 260px; display: flex; scroll-snap-align: start; }
+.sp .gcard { position: relative; flex: 1; min-width: 0; min-height: 112px; display: flex; flex-direction: column; gap: 4px; padding: 10px 14px;
+  border-radius: 16px; background: var(--raised); border: 0; text-align: left; }
+.sp .gcard:hover { background: var(--color-hover-raised); }
+.sp .gcard.fol { box-shadow: inset 0 0 0 3px var(--color-accent); }
+.sp .gcard.live { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--live) 80%, transparent); }
+.sp .trow { display: flex; align-items: center; gap: 8px; min-height: 40px; }
+.sp .gcard .trow + .trow, .sp .fx .trow + .trow { margin-top: -4px; }
+.sp .trow .n { flex: 1; min-width: 0; font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sp .trow .sc { font-size: 17px; font-weight: 800; }
 .sp .trow.reserve, .sp .sk.reserve { padding-right: 24px; }
 .sp .star { color: var(--color-accent-text); font-size: 12px; line-height: 1; }
 .sp .row .star { margin-right: 4px; }
-.sp .cbot { display: flex; align-items: center; gap: 8px; margin-top: auto; padding-top: 4px; font-size: 13px; white-space: nowrap; min-width: 0; }
+.sp .cbot { display: flex; align-items: center; gap: 8px; margin-top: auto; padding-top: 4px; font-size: 12px; white-space: nowrap; min-width: 0; }
 .sp .cbot .clk { font-weight: 700; color: var(--live); overflow: hidden; text-overflow: ellipsis; }
 .sp .cbot .when { font-weight: 700; }
 .sp .cbot .res { font-weight: 600; color: var(--color-text-secondary); }
 .sp .cbot .ch { margin-left: auto; color: var(--color-text-secondary); overflow: hidden; text-overflow: ellipsis; }
 .sp .cbot .act { margin-left: auto; font-weight: 700; color: var(--color-accent-text); }
-.sp .cbot .dot { width: 9px; height: 9px; }
-.sp .gcard .sk { font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--color-text-secondary); text-transform: uppercase;
+.sp .cbot .dot { width: 10px; height: 10px; }
+.sp .gcard .sk { font-size: 11px; font-weight: 700; letter-spacing: 1.4px; color: var(--color-text-secondary); text-transform: uppercase;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sp .gcard .stitle { display: flex; gap: 6px; align-items: center; font-size: 16px; font-weight: 700; margin-top: 2px; min-width: 0; }
+.sp .gcard .stitle { display: flex; gap: 4px; align-items: center; font-size: 15px; font-weight: 700; margin-top: 2px; min-width: 0; }
 .sp .gcard .stitle .t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sp .gcard .sline { font-size: 13px; color: var(--color-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sp .gcard .sline { font-size: 12px; color: var(--color-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* #310: the record mark, an icon in the card's top corner */
 .sp .rmark { position: absolute; top: 18px; right: 14px; width: 16px; height: 16px; border-radius: 50%; border: 2.5px solid var(--live); }
 .sp .rmark.rec { background: var(--live); }
@@ -215,15 +217,17 @@
 .sp .rounds .rnote { margin-left: 6px; font-size: 14px; color: var(--color-text-secondary); }
 .sp .league { display: grid; grid-template-columns: minmax(0, 1fr) 460px; gap: 28px; align-items: start; }
 .sp .league.solo { grid-template-columns: minmax(0, 1fr); }
-.sp .fxgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.sp .fxgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .sp .fxitem { flex: none; }
-.sp .fx { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; min-height: 124px; padding: 12px 16px;
-  border-radius: 16px; background: var(--surface); border: 1px solid var(--color-border); text-align: left; }
-.sp .fx:hover { background: var(--raised); }
-.sp .fx.fol { border-color: transparent; box-shadow: inset 0 0 0 3px var(--color-accent); }
-.sp .fx.live { border-color: transparent; box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--live) 80%, transparent); }
-.sp .fx .rec { font-size: 13px; color: var(--color-text-secondary); white-space: nowrap; }
-.sp .fx .sline { font-size: 13px; color: var(--color-text-secondary); }
+.sp .fx { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; min-height: 130px; padding: 12px 16px;
+  border-radius: 16px; background: var(--raised); border: 0; text-align: left; }
+.sp .fx:hover { background: var(--color-hover-raised); }
+.sp .fx.fol { box-shadow: inset 0 0 0 3px var(--color-accent); }
+.sp .fx.live { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--live) 80%, transparent); }
+.sp .fx .trow .n { flex: 0 1 auto; font-weight: 600; }
+.sp .fx .trow .sc { margin-left: auto; }
+.sp .fx .rec { flex: 1; font-size: 12px; color: var(--color-text-secondary); white-space: nowrap; }
+.sp .fx .sline { font-size: 12px; color: var(--color-text-secondary); }
 .sp .subhead { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
 .sp .subhead h3 { margin: 0; font-size: 21px; font-weight: 800; }
 .sp .subhead .views { display: flex; gap: 6px; margin-left: auto; flex-wrap: wrap; }
@@ -261,14 +265,16 @@
 /* ---------- Formula 1 (SportMotorViews) ---------- */
 .sp .tiles { display: flex; gap: 14px; align-items: stretch; margin-top: 18px; overflow-x: auto; scrollbar-width: none; padding: 3px; margin-left: -3px; }
 .sp .tiles::-webkit-scrollbar { display: none; }
-.sp .tile { flex: 1 1 0; min-width: 160px; max-width: 210px; min-height: 132px; display: flex; flex-direction: column; gap: 3px; padding: 12px 14px;
-  border-radius: 16px; background: var(--surface); border: 1px solid var(--color-border); text-align: left; }
-.sp .tile:hover { background: var(--raised); }
-.sp .tile .tt { display: flex; align-items: center; gap: 6px; font-size: 16px; font-weight: 800; white-space: nowrap; }
-.sp .tile .wh { font-size: 13px; color: var(--color-text-secondary); white-space: nowrap; }
-.sp .tile .ln { margin-top: auto; font-size: 13px; font-weight: 700; }
-.sp .tile .chn { font-size: 13px; color: var(--color-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sp .tag { margin-left: auto; font-size: 12px; font-weight: 800; letter-spacing: 1px; padding: 2px 8px; border-radius: 999px; text-transform: uppercase; }
+.sp .tile { flex: 1 1 0; min-width: 150px; max-width: 190px; min-height: 120px; display: flex; flex-direction: column; gap: 3px; padding: 12px 16px;
+  border-radius: 16px; background: var(--raised); border: 0; text-align: left; }
+.sp .tile:hover { background: var(--color-hover-raised); }
+.sp .tile.live { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--live) 80%, transparent); }
+.sp .tile.live .ln { color: var(--live); }
+.sp .tile .tt { display: flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 700; white-space: nowrap; }
+.sp .tile .wh { font-size: 12px; color: var(--color-text-secondary); white-space: nowrap; }
+.sp .tile .ln { margin-top: auto; font-size: 12px; font-weight: 700; }
+.sp .tile .chn { font-size: 12px; color: var(--color-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sp .tag { margin-left: auto; font-size: 11px; font-weight: 700; letter-spacing: 1px; padding: 4px 8px; line-height: 1; border-radius: 999px; text-transform: uppercase; }
 .sp .tag.next { color: var(--color-accent-text); box-shadow: inset 0 0 0 2px var(--color-accent); }
 .sp .tag.live { background: var(--live); color: #fff; }
 .sp .circuit { flex: 0 0 320px; display: flex; gap: 12px; padding: 12px 14px; border-radius: 16px; background: var(--raised); }
@@ -342,7 +348,7 @@
 
 /* ---------- events: golf, tennis, UFC, racing (SportEventsViews) ---------- */
 .sp .evhead { display: flex; align-items: center; gap: 16px; margin: 22px 0 16px; }
-.sp .evhead .gitem { flex: 0 0 272px; }
+.sp .evhead .gitem { flex: 0 0 260px; }
 .sp .evhead h3 { margin: 0; font-size: 21px; font-weight: 800; }
 .sp .evhead .sub { font-size: 14px; color: var(--color-text-secondary); }
 .sp .golf { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 28px; align-items: start; }

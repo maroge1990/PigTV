@@ -1039,7 +1039,7 @@ const SportView = (() => {
         const tiles = (w.sessions || []).map(s => {
             const p = sessionPill(s, w, now, hide);
             const tag = p.state === 'live' ? '<span class="tag live">Live</span>' : p.state === 'onair' ? '<span class="tag live">On air</span>' : p.state === 'next' ? '<span class="tag next">Next</span>' : '';
-            return `<button type="button" class="tile${p.state === 'done' ? ' done' : ''}" data-act="game" data-id="${e(`f1s:${s.id}`)}" data-key="tile:${e(s.id)}"><span class="tt">${e(s.name)}${tag}</span><span class="wh pig-amount">${e(dayClock(s.start))}</span><span class="ln">${e(p.line)}</span><span class="chn">${e((s.channels || [])[0] ? s.channels[0].name : 'Not in guide yet')}</span></button>`;
+            return `<button type="button" class="tile${p.state === 'done' ? ' done' : p.state === 'live' ? ' live' : ''}" data-act="game" data-id="${e(`f1s:${s.id}`)}" data-key="tile:${e(s.id)}"><span class="tt">${e(s.name)}${tag}</span><span class="wh pig-amount">${e(dayClock(s.start))}</span><span class="ln">${e(p.line)}</span><span class="chn">${e((s.channels || [])[0] ? s.channels[0].name : 'Not in guide yet')}</span></button>`;
         }).join('');
         return tiles;
     }
