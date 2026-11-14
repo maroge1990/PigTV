@@ -1307,6 +1307,12 @@ class SettingsPage {
         return this.app.currentUser?.role === 'admin';
     }
 
+    /** #322: the Advanced block (encoder, GPU decode, CPU scale, User-Agent) is for admins only. */
+    showAdminOnly() {
+        const advanced = document.getElementById('transcode-advanced');
+        if (advanced) advanced.hidden = !this.isAdmin();
+    }
+
     /** R8 (pilot): the provider picker and its groups, with what each holds or skipped. */
     async loadImportExclusions() {
         const select = document.getElementById('import-exclusions-provider');
@@ -1390,6 +1396,7 @@ class SettingsPage {
             this.switchTab('playback', { history: 'none' });
         }
         this.openedOnce = true;
+        this.showAdminOnly();
 
         // Refresh ALL player settings from server
         if (this.app.player?.settings) {

@@ -449,22 +449,7 @@
               <h3>Only when re-encoding</h3>
               <p class="setting-hint" id="reencode-only-hint">PigTV copies the provider's video whenever the device can play it. A play
                 it has to re-encode (a format the browser cannot play) is made at up to 1080p in medium quality, with
-                surround sound mixed down to stereo; the setting below applies only to those plays.</p>
-              <div class="setting-item">
-                <div class="setting-info" style="flex: 1;">
-                  <span class="setting-label">Hardware encoder</span>
-                  <span class="setting-hint">Select which GPU encoder to use for transcoding. Auto will use the best
-                    available.</span>
-                </div>
-                <select id="setting-hw-encoder" class="source-select" style="width: auto; min-width: 200px;">
-                  <option value="auto">Auto (recommended)</option>
-                  <option value="nvenc">NVIDIA NVENC</option>
-                  <option value="amf">AMD AMF</option>
-                  <option value="qsv">Intel QuickSync</option>
-                  <option value="vaapi">VAAPI (Linux)</option>
-                  <option value="software">Software (CPU)</option>
-                </select>
-              </div>
+                surround sound mixed down to stereo.</p>
             </div>
 
             <div class="settings-section" data-settings-values>
@@ -531,8 +516,26 @@
               </div>
             </div>
 
-            <details class="settings-section settings-advanced" data-settings-values>
-              <summary>Advanced: hardware decoding and how the provider is contacted</summary>
+            <!-- #322: admins only (SettingsPage.showAdminOnly) -->
+            <details class="settings-section settings-advanced" id="transcode-advanced" data-settings-values hidden>
+              <summary>Advanced: the encoder, hardware decoding and how the provider is contacted</summary>
+              <h3>Encoder</h3>
+              <div class="setting-item">
+                <div class="setting-info" style="flex: 1;">
+                  <span class="setting-label">Hardware encoder</span>
+                  <span class="setting-hint">Used only for the plays PigTV re-encodes. Auto uses the best one
+                    available.</span>
+                </div>
+                <select id="setting-hw-encoder" class="source-select" style="width: auto; min-width: 200px;">
+                  <option value="auto">Auto (recommended)</option>
+                  <option value="nvenc">NVIDIA NVENC</option>
+                  <option value="amf">AMD AMF</option>
+                  <option value="qsv">Intel QuickSync</option>
+                  <option value="vaapi">VAAPI (Linux)</option>
+                  <option value="software">Software (CPU)</option>
+                </select>
+              </div>
+
               <h3>Hardware decoding</h3>
               <div class="setting-item">
                 <label class="setting-toggle">
