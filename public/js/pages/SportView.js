@@ -563,15 +563,22 @@ const SportView = (() => {
         return `<button type="button" class="row" data-act="game" data-id="${e(g.id)}" data-key="row:${e(g.id)}"><span class="l1">${l1}</span><span class="l2 pig-amount">${l2}</span>${recordMark(g)}</button>`;
     }
 
-    /** A follow's carousel card (SportPhoneLayout.card): kicker, the two sides and the short score, the line, its buttons. */
+    /** A follow's carousel card (SportPhoneLayout.card): its game's card, or the follow with nothing in three days. */
     function phoneCard(index, ctx) {
-        const { front, hide, now, labels } = ctx;
+        const { front, labels, links = false } = ctx;
         const f = front.follows[index], g = game(front, f.gameId), leagueWord = label(f.league, labels);
         if (!g) {
+            const body = `${badge(f.name, f.logo, 48)}<span class="ft">${e(f.name)}</span>`;
             return `<div class="fcard" data-index="${index}"><div class="kicker k"><span>${e(leagueWord)}</span></div>`
-                + `<div class="fbody fsolo">${badge(f.name, f.logo, 48)}<span class="ft">${e(f.name)}</span></div>`
+                + (links ? `<button type="button" class="fbody fsolo" data-act="open-sport" data-sport="${e(f.sport || sportOf(f.league, null, front))}" data-key="fc:${index}">${body}</button>`
+                    : `<div class="fbody fsolo">${body}</div>`)
                 + `<div class="fline">Nothing in the next three days</div></div>`;
         }
+        return gameCard(g, ctx, { key: `fc:${index}`, leagueWord, solo: f });
+    }
+    /** A game's carousel card: kicker, the two sides and the short score (or "v"), the line, Watch or Remind me and Record. */
+    function gameCard(g, ctx, { key, leagueWord, solo = null }) {
+        const { front, now } = ctx;
         const r = row(g, ctx), live = r.live != null;
         let kicker = live ? `${isOnAir(g) ? 'On air' : 'Live'} · ${leagueWord}` : terminal(g) ? `${statusWord(g)} · ${leagueWord}` : `${leagueWord} · ${startLine(g, now)}`;
         // the mocks: a followed game's card says whose it is, as the banner's kicker does
@@ -588,17 +595,18 @@ const SportView = (() => {
             const side = (c, i) => `<span class="fside"><span class="bw">${badge(c.name, c.logo, 48)}${r.stars.includes(i) ? '<span class="st" aria-hidden="true">★</span>' : ''}</span><span class="fn">${r.stars.includes(i) ? '<span class="visually-hidden">Your team, </span>' : ''}${e(c.name)}</span></span>`;
             mid = `<span class="fsides">${side(g.competitors[0], 0)}<span class="fscore${r.score ? '' : ' v'} pig-amount">${r.score ? e(r.score) : 'v'}</span>${side(g.competitors[1], 1)}</span>`;
         } else {
-            mid = `<span class="fsolo">${badge(f.name, f.logo, 48)}<span class="ft">${e(g.title)}${g.session ? `<small>${e(g.session)}</small>` : ''}</span></span>`;
+            const who = solo ? badge(solo.name, solo.logo, 48) : leagueBadge(g.league);
+            mid = `<span class="fsolo">${who}<span class="ft">${e(g.title)}${g.session ? `<small>${e(g.session)}</small>` : ''}</span></span>`;
         }
         const act = action(g, now), ev = !terminal(g) ? event(g) : null;
         let buttons = '';
         if (ev) {
-            if (act === 'watch') buttons += `<button type="button" class="pill primary" data-act="watch" data-id="${e(g.id)}" data-key="fc:${index}:watch">${ICON.play}Watch</button>`;
-            else if (act === 'remind') buttons += `<button type="button" class="pill primary" data-act="remind" data-id="${e(g.id)}" data-key="fc:${index}:remind">${ICON.bell}Remind me</button>`;
-            buttons += `<button type="button" class="pill" data-act="record" data-id="${e(g.id)}" data-key="fc:${index}:record">${ICON.rec}Record</button>`;
+            if (act === 'watch') buttons += `<button type="button" class="pill primary" data-act="watch" data-id="${e(g.id)}" data-key="${e(key)}:watch">${ICON.play}Watch</button>`;
+            else if (act === 'remind') buttons += `<button type="button" class="pill primary" data-act="remind" data-id="${e(g.id)}" data-key="${e(key)}:remind">${ICON.bell}Remind me</button>`;
+            buttons += `<button type="button" class="pill" data-act="record" data-id="${e(g.id)}" data-key="${e(key)}:record">${ICON.rec}Record</button>`;
         }
-        return `<div class="fcard" data-index="${index}"><div class="kicker k${live ? ' live' : ''}">${live ? dot() : ''}<span>${e(kicker)}</span></div>`
-            + `<button type="button" class="fbody" data-act="game" data-id="${e(g.id)}" data-key="fc:${index}">${mid}<span class="fline pig-amount">${e(line.join(' · '))}</span></button>`
+        return `<div class="fcard"><div class="kicker k${live ? ' live' : ''}">${live ? dot() : ''}<span>${e(kicker)}</span></div>`
+            + `<button type="button" class="fbody" data-act="game" data-id="${e(g.id)}" data-key="${e(key)}">${mid}<span class="fline pig-amount">${e(line.join(' · '))}</span></button>`
             + (buttons ? `<div class="factions">${buttons}</div>` : '') + '</div>';
     }
     const position = (i, count) => `${Math.min(i + 1, count)} of ${count} ${count === 1 ? 'follow' : 'follows'}`;
@@ -636,13 +644,155 @@ const SportView = (() => {
     }
     const isEmpty = (f) => !(f.sports || []).length;
 
+    // ---------- a sport's page (SportPageRules, SportPageView; SportPhonePage, SportPhonePageLayout) ----------
+
+    const sportName = (entry) => entry.sport || entry.league;
+    /** The sport's followed leagues in the order sent (playing now first); else the leagues its rails name. */
+    function sportLeagues(sport, front) {
+        const entries = (front.sports || []).filter(s => sportName(s) === sport);
+        if (entries.length) return entries;
+        const seen = [];
+        for (const r of front.rails || []) if (sportOf(r.league, r.sport, front) === sport && !seen.includes(r.league)) seen.push(r.league);
+        return seen.map(league => ({ league, live: 0, next: null, line: 'quiet', sport }));
+    }
+    const unique = (games) => games.filter((g, i) => games.findIndex(x => x.id === g.id) === i);
+    function sportGames(sport, front) {
+        return unique((front.rails || []).filter(r => sportOf(r.league, r.sport, front) === sport).flatMap(r => railGames(front, r)));
+    }
+    function leagueGames(league, front) {
+        return unique((front.rails || []).filter(r => r.league === league).flatMap(r => railGames(front, r)));
+    }
+    /** The hero: a follow of this sport live, else a live game in its leagues, else a follow's next, else the next game. */
+    function sportHero(sport, front) {
+        const follows = front.follows || [];
+        const mine = follows.map((f, i) => i).filter(i => (follows[i].sport || sportOf(follows[i].league, null, front)) === sport && game(front, follows[i].gameId));
+        const live = mine.filter(i => follows[i].state === 'live');
+        const fi = front.hero && front.hero.followIndex;
+        if (live.includes(fi)) return { gameId: follows[fi].gameId, followIndex: fi };
+        if (live.length) return { gameId: follows[live[0]].gameId, followIndex: live[0] };
+        const games = sportGames(sport, front);
+        const on = games.find(showsLive);
+        if (on) return { gameId: on.id, followIndex: null };
+        const start = (i) => (Number.isFinite(follows[i].start) ? follows[i].start : (game(front, follows[i].gameId) || {}).start ?? Infinity);
+        const next = mine.filter(i => follows[i].state === 'next').sort((a, b) => start(a) - start(b));
+        if (next.length) return { gameId: follows[next[0]].gameId, followIndex: next[0] };
+        const soon = games.filter(g => g.status === 'scheduled').sort((a, b) => a.start - b.start)[0];
+        return { gameId: soon ? soon.id : null, followIndex: null };
+    }
+    /** The league the page opens on: the chosen one while it is the sport's, else the hero's, else the first. */
+    function openingLeague(sport, front, chosen = null) {
+        const leagues = sportLeagues(sport, front).map(s => s.league);
+        if (chosen && leagues.includes(chosen)) return chosen;
+        const h = game(front, sportHero(sport, front).gameId);
+        if (h && leagues.includes(h.league)) return h.league;
+        return leagues[0] || null;
+    }
+    /** The banner's list on a sport page: its leagues, each "2 live", its next start, or "Nothing scheduled". */
+    function leagueItems(sport, front, now, labels) {
+        return sportLeagues(sport, front).map(entry => {
+            const live = entry.live > 0 || entry.line === 'live';
+            const trailing = live ? `${Math.max(entry.live || 0, 1)} live` : entry.next && Number.isFinite(entry.next.start) ? when(entry.next.start, now) : 'Nothing scheduled';
+            return { key: entry.league, title: label(entry.league, labels), trailing, live, badge: leagueBadge(entry.league) };
+        });
+    }
+    /** A league's games in groups: Live, Later today, Coming up (later days, the next round), Earlier (newest first). */
+    function leagueGroups(league, front, now) {
+        const games = leagueGames(league, front);
+        const live = games.filter(showsLive);
+        const ended = games.filter(terminal).sort((a, b) => b.start - a.start);
+        const upcoming = games.filter(g => !terminal(g) && !showsLive(g)).sort((a, b) => a.start - b.start);
+        const today = upcoming.filter(g => !isNextRound(g) && sameDay(g.start, now));
+        const later = upcoming.filter(g => !today.includes(g));
+        return [['Live', live], ['Later today', today], ['Coming up', later], ['Earlier', ended]].filter(x => x[1].length).map(([title, list]) => ({ title, games: list }));
+    }
+    /** The phone carousel on a sport page: the league's followed games, then its others on now; else the next to start. */
+    function leagueCards(league, front) {
+        const out = [], seen = [];
+        (front.follows || []).forEach((f, i) => {
+            const g = f.league === league ? game(front, f.gameId) : null;
+            if (g && !terminal(g) && !seen.includes(g.id)) { seen.push(g.id); out.push({ g, follow: f, key: `lc:${i}` }); }
+        });
+        const games = leagueGames(league, front);
+        for (const g of games) if (showsLive(g) && !seen.includes(g.id)) { seen.push(g.id); out.push({ g, follow: null, key: `lc:${g.id}` }); }
+        if (!out.length) {
+            const next = games.filter(g => g.status === 'scheduled').sort((a, b) => a.start - b.start)[0];
+            if (next) out.push({ g: next, follow: null, key: `lc:${next.id}` });
+        }
+        return out.slice(0, 8);
+    }
+    const EVENT_LEAGUES = ['Grand Slams', 'ATP Tour', 'WTA Tour', 'Majors', 'PGA Tour', 'DP World Tour', 'LIV', 'LPGA', 'UFC', 'IndyCar', 'NASCAR'];
+    /** What a league's own page is (by the server's flags in /api/info), else "games": its C-R games only. */
+    function leagueContent(league, sport, features = {}) {
+        if (league === 'F1' && features.sportPages) return 'f1';
+        if (league === 'NFL' && features.sportPageNfl) return 'nfl';
+        if ((league === 'Cricket' || sport === 'Cricket') && features.sportPageCricket) return 'cricket';
+        if (Array.isArray(features.sportPageLeagues) && features.sportPageLeagues.includes(league)) return 'league';
+        if (features.sportPageEvents && EVENT_LEAGUES.includes(league)) return 'events';
+        return 'games';
+    }
+    /** The link to a league's own page: "Rounds and standings", "Weekend and standings", "Scoreboard and tour"… */
+    function moreTitle(content, sport) {
+        if (content === 'nfl' || content === 'league') return 'Rounds and standings';
+        if (content === 'f1') return 'Weekend and standings';
+        if (content === 'cricket') return 'Scoreboard and tour';
+        if (content === 'events') return ({ Golf: 'Leaderboard', Tennis: 'Order of play', Combat: 'Fight card' })[sport] || 'Events';
+        return null;
+    }
+    /** A league with nothing to show: its one action is Open the TV Guide (secondary: the banner's button is the rose one). */
+    const nothingSoon = (name) => `<div class="sp-league-empty">${UI.stateBlock('empty', { title: 'Nothing in the next three days', detail: `${name} has no games in the next three days.` }, { label: 'Open the TV Guide', href: '#guide' })}</div>`;
+
+    function groupsHtml(groups, ctx) {
+        return groups.map(gr => `<section class="grp" aria-label="${e(gr.title)}"><h3 class="sec-title"><span class="grp-h plain"><span class="s">${e(gr.title)}</span></span></h3><div class="rows">${gr.games.map(g => rowHtml(g, ctx)).join('')}</div></section>`).join('');
+    }
+    /** "Rounds and standings ›  Premier League": the league's own page, where it has one (the pages that are built). */
+    function moreRow(sport, league, ctx) {
+        const content = leagueContent(league, sport, ctx.features);
+        const title = (ctx.pages || []).includes(content) ? moreTitle(content, sport) : null;
+        if (!title) return '';
+        return `<button type="button" class="more-row" data-act="open-league" data-sport="${e(sport)}" data-league="${e(league)}" data-key="more:${e(league)}"><span class="s">${e(title)}</span><span class="chev" aria-hidden="true">›</span><span class="note">${e(label(league, ctx.labels))}</span></button>`;
+    }
+
+    /** A sport's page below its header: the banner and the league's groups (computer), or chips, carousel, groups (phone). */
+    function sportPage(sport, ctx) {
+        const { front: f, hide, now, labels, map, stale, staleSince, chosen } = ctx;
+        const leagues = sportLeagues(sport, f), league = openingLeague(sport, f, chosen);
+        const h = sportHero(sport, f), g = game(f, h.gameId);
+        let html = (stale ? staleNote(staleSince) : '') + (f.scores === 'unavailable' ? scoresNote() : '');
+        const groups = league ? leagueGroups(league, f, now) : [];
+        const leagueLabel = league ? label(league, labels) : sport;
+        if (!ctx.phone) {
+            const words = g ? hero(g, f, hide, now, labels) : { kicker: sport, live: false, title: sport, line: 'Nothing in the next three days' };
+            html += banner({ hero: words, items: leagueItems(sport, f, now, labels), listTitle: `<span class="up">${e(sport)} · Your leagues</span>`,
+                selected: leagues.findIndex(x => x.league === league), art: backdrop(g, f, h.followIndex, map), back: 'Back to Sport',
+                actions: heroButtons(g, now), listAct: 'league' });
+            if (!league || !groups.length) return html + nothingSoon(leagueLabel);
+            const col = (titles) => groupsHtml(groups.filter(x => titles.includes(x.title)), ctx);
+            return html + `<div class="groups2"><div>${col(['Live', 'Later today'])}</div><div>${col(['Coming up', 'Earlier'])}</div></div>` + moreRow(sport, league, ctx);
+        }
+        if (leagues.length > 1) {
+            html += `<div class="chips" role="group" aria-label="${e(sport)} leagues">${leagues.map(x => `<button type="button" class="lchip${x.league === league ? ' on' : ''}" data-act="league" data-league="${e(x.league)}" aria-pressed="${x.league === league}" data-key="chip:${e(x.league)}">${e(label(x.league, labels))}</button>`).join('')}</div>`;
+        }
+        if (!league) return html + nothingSoon(sport);
+        const cards = leagueCards(league, f);
+        if (cards.length) {
+            const word = label(league, labels);
+            html += `<div class="carousel" data-carousel="league:${e(league)}" aria-label="${e(word)}">${cards.map(c => gameCard(c.g, ctx, { key: c.key, leagueWord: word, solo: c.follow })).join('')}</div>`
+                + dots(cards.length, 0, (i, n) => `${Math.min(i + 1, n)} of ${n}`);
+        }
+        if (!groups.length && !cards.length) return html + nothingSoon(leagueLabel);
+        return html + groupsHtml(groups, ctx) + moreRow(sport, league, ctx);
+    }
+
+
     return {
         ICON, hidden, family, terminal, underWay, isOnAir, showsLive, isNextRound, logo, statusWord, progressLabel, situationLabel,
         scores, situation, when, headerDate, startLine, channelLine, cardClock, event, action, actionLabel, followedSides,
         followedSide, sections, alsoInYourSports, headerLine, followTrailing, hero, NO_HERO, followKey, followsGoneLive,
         resolveHero, heroFollowIndex, fastRefresh, monogram, badge, leagueBadge, header, scoresChip, card, banner, heroButtons,
         followItems, front, frontDesktop, frontPhone, row, rowHtml, phoneCard, dots, position, isEmpty, game, sportOf, label,
-        railGames, staleNote, scoresNote, star, dot, recordMark, kickerWord, yours, availabilityWord, onAirLine, e
+        railGames, staleNote, scoresNote, star, dot, recordMark, kickerWord, yours, availabilityWord, onAirLine, e, gameCard,
+        sportLeagues, sportGames, leagueGames, sportHero, openingLeague, leagueItems, leagueGroups, leagueCards, leagueContent,
+        moreTitle, sportPage, EVENT_LEAGUES, groupsHtml, nothingSoon
     };
 })();
 

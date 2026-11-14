@@ -22,6 +22,9 @@ class SportsPage {
         this.timer = null; this.waiting = null; this.watchCancelled = false;
         this.menu = null;
         this.path = '';
+        this.stack = [];      // the Sport places this visit pushed, so the page's own Back can go back through history
+        this.chosen = {};     // a sport page's chosen league, by sport
+        this.features = null; // /api/info's flags: which league pages the server has
         this.phoneQuery = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(max-width: 768px)') : null;
         this.phoneQuery?.addEventListener?.('change', () => this.render());
         if (typeof document !== 'undefined' && document.addEventListener) {
@@ -38,11 +41,23 @@ class SportsPage {
 
     /** Sport is a page with places in it: the app hands every visit, Back and the nav link to openPath. */
     get opensRoot() { return true; }
-    titleParts() { return []; }
+    /** "Sport · Football · PigTV", "Sport · Football · Premier League · PigTV". */
+    titleParts(sub) {
+        const { sport, league } = SportsPage.parse(sub);
+        return [sport, league && SportView.label(league, this.labels)].filter(Boolean);
+    }
+    /** "Football/EPL" -> { sport: 'Football', league: 'EPL' }; each part URL-encoded in the address. */
+    static parse(path) {
+        const parts = String(path || '').split('/').filter(Boolean).map(p => { try { return decodeURIComponent(p); } catch { return p; } });
+        return { sport: parts[0] || null, league: parts[1] || null };
+    }
+    static path(sport, league) { return [sport, league].filter(Boolean).map(encodeURIComponent).join('/'); }
+    get route() { return SportsPage.parse(this.path); }
 
     async show(sub) {
         this.active = true;
         this.path = sub || '';
+        this.stack = [];
         this.prefs.known = false; // Apple 90: the choice is forgotten until it is read again
         if (this.watchCancelled) { this.watchCancelled = false; UI.toast('Remind me was cancelled because Sport was closed.'); }
         this.render();
@@ -57,13 +72,28 @@ class SportsPage {
     }
     openPath(sub, history = 'none') {
         const path = sub || '';
-        if (history === 'push') this.app?.setLocation?.('sports', path || undefined, 'push');
+        if (history === 'push' || history === 'replace') this.app?.setLocation?.('sports', path || undefined, history);
+        else {
+            // Back or Forward: the browser has moved; a place this visit pushed is popped
+            if (this.stack.length && this.stack[this.stack.length - 1] === path) this.stack.pop();
+            if (typeof document !== 'undefined' && this.app?.titleFor) document.title = this.app.titleFor('sports', path || undefined);
+        }
+        if (history === 'push' && path !== this.path) this.stack.push(this.path);
         this.path = path;
         this.closeMenu();
         this.render();
+        this.loadMap();
+        if (this.root?.scrollTo && history !== 'none') this.root.scrollTo(0, 0);
     }
     /** A place in Sport: a new history entry, so Back returns. */
     go(path) { this.openPath(path, 'push'); }
+    /** The page's own back button: Back through history when this visit came from there, else up one place. */
+    back() {
+        const { sport, league } = this.route;
+        const up = league ? SportsPage.path(sport) : '';
+        if (this.stack.length && this.stack[this.stack.length - 1] === up && typeof history !== 'undefined') history.back();
+        else this.openPath(up, 'replace');
+    }
 
     // ---------- data ----------
 
@@ -86,6 +116,7 @@ class SportsPage {
             this.prefs = { known: false, spoilerFree: true };
         }
         this.loadLabels();
+        this.loadFeatures();
         try {
             const answer = await API.request('GET', '/sports/front');
             if (serial !== this.serial || !this.active) return;
@@ -120,9 +151,21 @@ class SportsPage {
             this.render();
         } catch { this.labelsLoaded = false; }
     }
+    /** /api/info's flags, once: which league pages the server has (ESPN fixtures can be off). */
+    async loadFeatures() {
+        if (this.features) return;
+        this.features = {};
+        try { this.features = (await API.request('GET', '/info'))?.features || {}; this.render(); } catch { this.features = null; }
+    }
+    /** The game the banner's hero shows here: the front page's hero, or a sport page's. */
+    shownHeroId() {
+        const { sport } = this.route;
+        if (!this.front) return null;
+        return sport ? SportView.sportHero(sport, this.front).gameId : this.heroId;
+    }
     /** The circuit map behind a race hero (C-P `info.map`), asked once. */
     async loadMap() {
-        const g = SportView.game(this.front || {}, this.heroId);
+        const g = SportView.game(this.front || {}, this.shownHeroId());
         if (!g || g.league !== 'F1' || this.f1Asked) return;
         this.f1Asked = true;
         try {
@@ -172,7 +215,8 @@ class SportsPage {
 
     context() {
         return { front: this.front, hide: this.hidden, now: this.now(), labels: this.labels, phone: this.phone,
-            heroId: this.heroId, followIndex: this.followIndex, map: this.f1Map, stale: this.stale, staleSince: this.updatedAt };
+            heroId: this.heroId, followIndex: this.followIndex, map: this.f1Map, stale: this.stale, staleSince: this.updatedAt,
+            links: true, features: this.features || {}, pages: SportsPage.PAGES, chosen: this.chosen[this.route.sport] || null };
     }
 
     /** The whole page, keeping the focused control and each rail's scroll across a redraw. */
@@ -192,13 +236,23 @@ class SportsPage {
 
     /** The markup for what is shown now: the header, then the state block or the page. */
     markup() {
-        const V = SportView, now = this.now(), hide = this.hidden;
-        const head = V.header({ title: 'Sport', now, hide });
-        let body;
-        if (!this.loaded && !this.front) body = '<div class="sp-state" id="sp-state" data-state="loading"></div>';
-        else if (this.failed && !this.front) body = '<div class="sp-state" id="sp-state" data-state="error"></div>';
-        else if (this.front && V.isEmpty(this.front)) body = (this.front.scores === 'unavailable' ? V.scoresNote() : '') + '<div class="sp-state" id="sp-state" data-state="empty"></div>';
-        else body = V.front(this.context());
+        const V = SportView, now = this.now(), hide = this.hidden, { sport } = this.route;
+        const loading = !this.loaded && !this.front, failed = this.failed && !this.front;
+        let head, body;
+        if (sport) {
+            // a sport's page: on a phone the "‹ Sport" header; on a computer the banner holds the back button (its h2 unseen)
+            head = this.phone || loading || failed ? V.header({ title: sport, now, hide, back: 'Sport' })
+                : `<h2 class="visually-hidden">${V.e(sport)}</h2>`;
+            if (loading) body = '<div class="sp-state" id="sp-state" data-state="loading"></div>';
+            else if (failed) body = '<div class="sp-state" id="sp-state" data-state="error"></div>';
+            else body = V.sportPage(sport, this.context());
+        } else {
+            head = V.header({ title: 'Sport', now, hide });
+            if (loading) body = '<div class="sp-state" id="sp-state" data-state="loading"></div>';
+            else if (failed) body = '<div class="sp-state" id="sp-state" data-state="error"></div>';
+            else if (V.isEmpty(this.front)) body = (this.front.scores === 'unavailable' ? V.scoresNote() : '') + '<div class="sp-state" id="sp-state" data-state="empty"></div>';
+            else body = V.front(this.context());
+        }
         return `<div class="sp${this.phone ? ' is-phone' : ''}">${head}${body}</div>`;
     }
 
@@ -260,11 +314,24 @@ class SportsPage {
             case 'record': return this.record(id);
             case 'follow': return this.selectFollow(Number(el.getAttribute('data-index')));
             case 'retry': return this.refresh();
-            case 'back': return typeof history !== 'undefined' && history.length > 1 ? history.back() : this.go('');
+            case 'back': return this.back();
+            case 'open-sport': return this.go(SportsPage.path(el.getAttribute('data-sport')));
+            case 'open-league': return this.go(SportsPage.path(el.getAttribute('data-sport'), el.getAttribute('data-league')));
+            case 'league': return this.chooseLeague(el);
             default: return undefined;
         }
     }
     game(id) { return this.front ? SportView.game(this.front, id) : null; }
+    /** A league chosen on a sport page (the banner's list, or a chip on a phone): its games show below. */
+    chooseLeague(el) {
+        const { sport } = this.route;
+        if (!sport || !this.front) return;
+        const index = el.getAttribute('data-index');
+        const league = el.getAttribute('data-league') || (index != null ? SportView.sportLeagues(sport, this.front)[Number(index)]?.league : null);
+        if (!league) return;
+        this.chosen[sport] = league;
+        this.render();
+    }
 
     /** A card pressed: Watch while its channel airs it (checked now, not when drawn), else its menu. */
     select(id, anchor) {
@@ -406,5 +473,8 @@ class SportsPage {
         if (focus && m.anchor?.isConnected !== false) m.anchor?.focus?.();
     }
 }
+
+/** The league pages built so far (#323 steps 3-5); a league whose page is not here shows no "Rounds and standings ›". */
+SportsPage.PAGES = [];
 
 if (typeof window !== 'undefined') window.SportsPage = SportsPage;
