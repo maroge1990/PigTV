@@ -59,3 +59,16 @@ test('a newer Remind me replaces the older one: the older timer does nothing', a
     assert.deepEqual(h.watched, []);
     assert.ok(h.p.waiting, 'the newer one still waits');
 });
+
+test('Remind me less than a minute before the start waits for it, rather than failing to Watch too early', async () => {
+    const front = answer();
+    const g = front.games.find(x => x.id === 'nxt');
+    g.start = NOW + 30000; g.channels[0].start = NOW + 30000; g.channels[0].end = NOW + 7230000;
+    const h = await harness(front);
+    h.p.remind('nxt');
+    assert.deepEqual(h.watched, [], 'not played before its channel shows it');
+    assert.ok(h.p.waiting, 'it waits');
+    const wait = h.timers.at(-1).ms;
+    assert.ok(wait > 0 && wait <= 30000, `the timer is set for the start (${wait} ms)`);
+    assert.match(h.b.context.toasts.at(-1)[0], /plays on Stan Sport 2 at /);
+});

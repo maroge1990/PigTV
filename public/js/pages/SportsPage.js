@@ -380,7 +380,8 @@ class SportsPage {
         this.closeMenu();
         const g = this.game(id), ev = g && SportView.event(g);
         if (!ev) return;
-        if (ev.start - this.now() <= 60000) { this.watch(id); return; }
+        // already started on its channel: Watch now; any time before (a minute away too), wait for it
+        if (ev.start <= this.now()) { this.watch(id); return; }
         if (this.waiting) clearTimeout(this.waiting.timer);
         // #323 review: this reminder's own token; Cancel, a newer Remind me or leaving Sport replaces or clears it, and a
         // timer (or the refresh it waits for) that finds it gone does nothing.
