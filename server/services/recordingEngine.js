@@ -677,6 +677,8 @@ function setScheduleStatus(schedule, status, extra = {}) {
     const id = (typeof schedule === 'object' && schedule !== null) ? schedule.id : schedule;
     const before = (typeof schedule === 'object' && schedule !== null) ? schedule : scheduledDb.getById(id);
     const prevStatus = before?.status;
+    // #305: a schedule that waited keeps no reason once it records (unless the caller gives one).
+    if (status === 'recording') extra = { error: null, clash_winner: null, ...extra };
     const updated = scheduledDb.setStatus(id, status, extra);
     if (updated && prevStatus && prevStatus !== status) {
         const title = updated.title || before?.title || 'Untitled';

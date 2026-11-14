@@ -345,6 +345,15 @@ test('low disk space in appdata stops a recording while the recordings share is 
     }
 });
 
+test('#305: a schedule that waited records without the reason it waited', async () => {
+    const s = due();
+    scheduled.setStatus(s.id, 'waiting', { error: 'Another recording is using the recording slot.', clash_winner: 999 });
+    await until(() => scheduled.getById(s.id).status === 'recording' && captures().length === 1, 'recording');
+    const row = scheduled.getById(s.id);
+    assert.equal(row.error, null, 'the old waiting reason is gone');
+    assert.equal(row.clash_winner, null);
+});
+
 // ------------------------------------------------------------ no backup --
 // One provider refusing waits for the next tick each time (not at once): recording-segments.test.js's "#284: a
 // single-provider route that refuses at the start"; one dropping mid-recording continues (0499): its "0499" test.
