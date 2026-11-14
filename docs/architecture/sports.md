@@ -530,8 +530,9 @@ collector's word, without what belongs to the later state. Their cache lifetimes
 lifted), so the renewals are the only added reads: one per session start and finish. F1: a session's status; without its
 `top`, without the results block when it is that session's (the race's result, the grid from qualifying) and without
 the standings when it is the race or the sprint, the weekend's phase following the statuses shown. Events: an event's status and break label (its id and words are the C-R card's; the
-collector's `event` accessor reads it fresh by the front's rule, a tournament's break for `BREAK_POLL` longer); no
-`lastWinner` when it is that race's; each match, round and bout keeps its own state from the read. Cricket: a match's status
+collector's `event` accessor reads it fresh by the front's rule, a tournament's break for `BREAK_POLL` longer); while the
+read is further on, none of its results (sets, winners, positions, scores to par, bout results) and no `lastWinner`
+when it is that race's; each match, round and bout keeps its own state from the read. Cricket: a match's status
 (espnState's key and the card's break label, a break C-S does not name being play) and score (the lead's innings from
 the card's `situation.innings`, the others' scores from its `scores`, placed by each side's home/away), for the lead,
 the series list and the others; a line, crease or declaration read at another point than the collector's score (or

@@ -280,6 +280,32 @@ test('Cricket: a finish the page\'s read still lacks after renewing keeps the pa
     assert.equal(panels, 4, 'one read (two day lists), then one renewal (two) in the 30 s however many requests');
 });
 
+// Opus review (medium): an event over in the page's read but still on for the account kept the read's winners.
+test('Events: a UFC night over in the page\'s read, still on for a delayed account: no winner or result from the read', async () => {
+    const ev = load('services/sportPageEvents');
+    const individual = load('services/sportIndividual');
+    ev.reset();
+    const at = K + 8 * 24 * 60 * MIN;
+    const night = { ...scriptedGame({ at, guideMin: 10, finalMin: 25 }), id: '9917006' };
+    const ufc = (t) => {
+        const { state, status } = statusAt(night, t);
+        const date = iso(night.start);
+        return { leagues: [{ id: '3321', calendar: [] }], events: [{ id: night.id, name: 'UFC Scripted Night', date, status,
+            competitions: [{ id: '9917061', date, status, type: { abbreviation: 'Lightweight' },
+                competitors: [['Eve Ford', 1], ['Gil Hart', 2]].map(([name, order]) => ({ order, winner: state === 'post' && order === 1, athlete: { displayName: name } })) }] }] };
+    };
+    ev.fetcher.get = async url => (url.includes('mma/ufc/scoreboard') ? { ok: true, json: ufc(at + 26 * MIN) } : { ok: false, error: 'HTTP 404' });
+    const store = dashboard.store();
+    for (let t = at + 20 * MIN; t <= at + 26 * MIN; t += 30000) store.ingest(individual.normalize(ufc(t), 'UFC', 'mma/ufc'), t);
+    const now = at + 26 * MIN;
+    const page = await ev.page('UFC', now, { event: pageDeps(1, now).event }); // 90 s: the night is still on
+    const e = page.events.find(x => x.name === 'UFC Scripted Night');
+    assert.equal(e.status, 'live');
+    assert.deepEqual(e.bouts.map(b => [b.result, ...b.fighters.map(f => f.winner)]), [[null, null, null]], 'no winner or result from the read');
+    const own = (await ev.page('UFC', now, { event: pageDeps(2, now).event })).events.find(x => x.name === 'UFC Scripted Night');
+    assert.deepEqual([own.status, own.bouts[0].fighters.map(f => f.winner)], ['finished', [true, false]], 'over for the account with no delay: its result');
+});
+
 // Codex (high) on the Cricket overlay: with both reads live, the page's own summary, crease and the others' lines were
 // kept beside the collector's (delayed) score, so "India need 1 run" and a batter's 99 showed beside a score of 120.
 test('Cricket: both reads live at different points: no line, crease or declaration from the page\'s read beside the collector\'s score', async () => {

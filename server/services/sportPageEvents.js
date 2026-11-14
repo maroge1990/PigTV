@@ -265,8 +265,8 @@ async function page(league, now = Date.now(), { names = [], event: eventState = 
  * the ids and words are the cards' (sportIndividual). The collector further on than the page's read: the read is renewed
  * at once (sportPageCache.renew: one build, at most every 30 s, landing for the next request), as the draws, the
  * leaderboard, the bouts and a race's winner come only from it; a finish the read still lacks after that keeps the
- * page's own status. The page's read newer than the account's delayed view: the collector's status, and no `lastWinner`
- * when it is this race's. Each match, round and bout keeps its own state from the page's read, as before.
+ * page's own status. The page's read newer than the account's delayed view: the collector's status, no results from the
+ * read (withoutResults) and no `lastWinner` when it is this race's. Each match, round and bout keeps its own state.
  */
 async function withState(league, value, now, state) {
     let view = overlay(value, state);
@@ -275,6 +275,20 @@ async function withState(league, value, now, state) {
         if (entry?.value && entry.value !== value) view = overlay(entry.value, state);
     }
     return view.value;
+}
+
+/**
+ * #297 (Opus review, medium): an event the page's read has further on than the account's delayed view (over in the read,
+ * still on for the account) shows nothing of its results from that read: no tennis `sets` or `winner`, no golf `pos`,
+ * `toPar`, `rounds` or `status`, no UFC `winner` or `result` (the race's `lastWinner` is held back by overlay()). The
+ * draws, the field, the card and each match's or bout's own status and start stay.
+ */
+function withoutResults(e) {
+    const out = { ...e };
+    if (Array.isArray(e.matches)) out.matches = e.matches.map(m => ({ ...m, sets: null, players: (m.players || []).map(p => ({ ...p, winner: null })) }));
+    if (Array.isArray(e.leaderboard)) out.leaderboard = e.leaderboard.map(r => ({ ...r, pos: null, toPar: null, rounds: (r.rounds || []).map(() => null), status: null }));
+    if (Array.isArray(e.bouts)) out.bouts = e.bouts.map(b => ({ ...b, result: null, fighters: (b.fighters || []).map(f => ({ ...f, winner: null })) }));
+    return out;
 }
 
 function overlay(value, state) {
@@ -292,7 +306,7 @@ function overlay(value, state) {
         changed = true;
         if (theirs < ours && lastWinner && lastWinner.race === e.name && lastWinner.date === e.start) lastWinner = null;
         const { breakLabel: _drop, ...rest } = e;
-        return { ...rest, status: word, ...(breakLabel ? { breakLabel } : {}) };
+        return { ...(theirs < ours ? withoutResults(rest) : rest), status: word, ...(breakLabel ? { breakLabel } : {}) };
     });
     if (!changed) return { value, renew };
     return { value: { ...value, events, ...('lastWinner' in value ? { lastWinner } : {}) }, renew };
