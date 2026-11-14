@@ -162,3 +162,40 @@ test('#309: a key frame is read with the PMT in force where it lies, never with 
     r = keyframeJoin(Buffer.concat(held));
     assert.deepEqual({ at: r.at, tables: r.tables }, { at: h[2], tables: [h[0], h[1]] });
 });
+
+/** A copy of TS packet `p` with continuity counter `cc`. */
+const withCc = (p, cc) => { const q = Buffer.from(p); q[3] = (q[3] & 0xf0) | (cc & 0x0f); return q; };
+
+test('#309 review: table continuity: a packet whose adaptation field fills it still moves the counter; a discontinuity is not a gap', () => {
+    // Opus review of #309, low 5: the counter was read only from packets that carry payload bytes,
+    // so a payload-flagged packet whose adaptation field fills it looked like a lost packet after it;
+    // and a signalled discontinuity was taken for one.
+    const pmt = ts.pmt({ descriptor: 400 });
+    const [p1, p2, p3] = [0, 1, 2].map(n => pmt.subarray(n * 188, (n + 1) * 188));
+    const tail = [ts.videoFrame(0, { key: true, rai: true }), ts.audio()];
+    // P1 (cc 4), a filled packet (cc 5: adaptation and payload flags, a 183-byte adaptation field), P2 (6), P3 (7).
+    const filled = Buffer.alloc(188, 0xff);
+    filled.set([0x47, (ts.PMT_PID >> 8) & 0x1f, ts.PMT_PID & 0xff, 0x30 | 5, 183, 0x00]);
+    let buf = Buffer.concat([ts.pat(), withCc(p1, 4), filled, withCc(p2, 6), withCc(p3, 7), ...tail]);
+    let r = keyframeJoin(buf);
+    assert.deepEqual({ at: r.at, tables: r.tables }, { at: 5 * 188, tables: [0, 188, 3 * 188, 4 * 188] }, 'the filled packet counted');
+    // P2 with discontinuity_indicator set and a counter that jumps (P1 cc 4, P2 cc 11, P3 cc 12).
+    const d2 = Buffer.alloc(188, 0xff);
+    d2.set([0x47, (ts.PMT_PID >> 8) & 0x1f, ts.PMT_PID & 0xff, 0x30 | 11, 1, 0x80]);
+    p2.copy(d2, 6, 4, 186);
+    buf = Buffer.concat([ts.pat(), withCc(p1, 4), d2, withCc(p3, 12), ...tail]);
+    r = keyframeJoin(buf);
+    assert.deepEqual({ at: r.at, tables: r.tables }, { at: 4 * 188, tables: [0, 188, 2 * 188, 3 * 188] }, 'the discontinuity is followed');
+});
+
+test('#309 review: a PMT with current_next_indicator 0 (announced for later) is not taken as the one in force', () => {
+    const NEW = 0x102;
+    const next = Buffer.from(ts.pmt({ videoPid: NEW }));
+    next[10] &= 0xfe; // the section's version byte: current_next_indicator 0
+    const parts = [ts.pat(), ts.pmt(), ts.videoFrame(0, { key: true, rai: true }), ts.audio(),
+        ts.pat(), next, ts.videoFrame(10, { key: true, rai: true, pid: NEW }), ts.audio()];
+    let o = 0;
+    const at = parts.map(p => { const a = o; o += p.length; return a; });
+    const r = keyframeJoin(Buffer.concat(parts));
+    assert.deepEqual({ at: r.at, tables: r.tables }, { at: at[2], tables: [at[0], at[1]] });
+});

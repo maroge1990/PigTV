@@ -99,7 +99,8 @@ function tableTracker(buf) {
         const done = addPmt(i);
         if (done) {
             const sec = sectionBytes(buf, done);
-            if (sec[0] === 0x02) { t.pmt = done; t.video = videoOfPmt(sec); t.sawPmt = true; }
+            // current_next_indicator 0: a table announced for later, not yet in force.
+            if (sec[0] === 0x02 && sec.length > 5 && (sec[5] & 0x01)) { t.pmt = done; t.video = videoOfPmt(sec); t.sawPmt = true; }
             t.changing = false;
         } else {
             const start = addPmt.pending();
@@ -186,12 +187,17 @@ function sectionCollector(buf) {
             cc = ccOf(buf, i);
             need = 3 + (((buf[at + 1] & 0x0f) << 8) | buf[at + 2]) - (i + TS_PACKET - at);
         } else if (packets) {
-            const p = payloadOf(buf, i);
-            if (p < 0) return null;
+            const afc = (buf[i + 3] >> 4) & 3;
+            if (!(afc & 1)) return null;                        // no payload: the counter stays
             const next = ccOf(buf, i);
-            if (next === cc) return null;                       // a repeated packet
-            if (next !== ((cc + 1) & 0x0f)) { packets = null; return null; } // a lost packet
+            const discontinuity = (afc & 2) && buf[i + 4] > 0 && (buf[i + 5] & 0x80);
+            if (!discontinuity) {
+                if (next === cc) return null;                   // a repeated packet
+                if (next !== ((cc + 1) & 0x0f)) { packets = null; return null; } // a lost packet
+            }
             cc = next;
+            const p = payloadOf(buf, i);
+            if (p < 0) return null;                             // an adaptation field fills it
             packets.push(i);
             need -= i + TS_PACKET - p;
         } else return null;
