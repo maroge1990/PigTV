@@ -1700,12 +1700,18 @@ class VideoPlayer {
      */
     offerResume() {
         if (this._playing) return;
-        const saved = this.recallChannel();
+        const channel = this.savedChannel();
         const list = window.app && window.app.channelList;
-        const channel = saved && list && list.findChannel(saved.sourceId, saved.id);
         if (!channel) return;
         this.offerResumeFor(channel);
         list.selectChannel({ channelId: channel.id, sourceId: channel.sourceId }, { play: false });
+    }
+
+    /** The remembered channel, if it is still in the line-up. */
+    savedChannel() {
+        const saved = this.recallChannel();
+        const list = window.app && window.app.channelList;
+        return (saved && list && list.findChannel(saved.sourceId, saved.id)) || null;
     }
 
     offerResumeFor(channel) {
@@ -1788,7 +1794,14 @@ class VideoPlayer {
     initMediaSessionHandlers() {
         if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
         const set = (action, fn) => { try { navigator.mediaSession.setActionHandler(action, fn); } catch (err) { /* this browser lacks the action */ } };
-        set('play', () => { this.video.play().catch(() => { }); });
+        set('play', () => {
+            // Nothing loaded: the play key does what the Resume button does, rather than playing an empty source.
+            if (!this._playing) {
+                const channel = this._resumeChannel || this.savedChannel();
+                if (channel) { this._resumeChannel = channel; this.resume(); return; }
+            }
+            this.video.play().catch(() => { });
+        });
         set('pause', () => { this.video.pause(); });
         set('previoustrack', () => this.channelUp());
         set('nexttrack', () => this.channelDown());

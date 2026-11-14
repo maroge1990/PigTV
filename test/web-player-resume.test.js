@@ -198,3 +198,19 @@ test('restoring the last channel (play:false) leaves the groups the person had o
         assert.equal(other.classList.contains('collapsed'), otherCollapsed, `play:${play}`);
     }
 });
+
+test('the Media Session play key with nothing loaded resumes the remembered channel, and plays the video when something is loaded', () => {
+    const { player, handlers, storage, selected } = harness();
+    storage.set('pigtv_last_channel:5', JSON.stringify({ sourceId: 's1', id: '7' }));
+    let videoPlays = 0;
+    player.video.play = () => { videoPlays++; return Promise.resolve(); };
+    player.initMediaSessionHandlers();
+    handlers.play();
+    assert.equal(videoPlays, 0, 'no empty source is played');
+    assert.equal(selected.length, 1);
+    assert.equal(selected[0][0].channelId, '7');
+    player._playing = true;
+    handlers.play();
+    assert.equal(videoPlays, 1);
+    assert.equal(selected.length, 1);
+});
