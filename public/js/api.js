@@ -255,6 +255,9 @@ const API = {
         updateRule: (id, patch) => API.request('PUT', `/recordings/rules/${id}`, patch),
         deleteRule: (id) => API.request('DELETE', `/recordings/rules/${id}`),
         delete: (id) => API.request('DELETE', `/recordings/${id}`),
+        // #62: the address to play, asking again while it says {status: 'preparing'}; 'watch' for one still recording.
+        playback: (id) => API.request('GET', `/recordings/${id}/playback?async=1`),
+        watch: (id) => API.request('GET', `/recordings/${id}/watch`),
         streamUrl: (id) => API.withStreamToken(`/api/recordings/${id}/stream`),
         downloadUrl: (id) => API.withStreamToken(`/api/recordings/${id}/download`)
     },

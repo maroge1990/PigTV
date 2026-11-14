@@ -4418,3 +4418,19 @@ input[aria-invalid] { border-color: var(--color-error); }
 }
 .epg-rec-mark.recording-now { box-shadow: 0 0 0 2px var(--color-accent-dim); }
 .programme-menu-status { font-weight: 600; }
+
+/* #62: the recordings player's own status: Preparing…, or the reason it did not play, with Try again. */
+.recording-player-status {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-lg);
+}
+.recording-player-status[hidden] { display: none; }
+.recording-player-status .state-block {
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
+  padding: var(--space-xl) var(--space-lg);
+}

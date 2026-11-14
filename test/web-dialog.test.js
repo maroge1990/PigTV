@@ -185,8 +185,8 @@ test('Edit user still saves the same payload, closes, and reloads the list; a fa
 
 function recordingPlayer() {
     const { context, document } = browser(['pages/RecordingsPage.js'], { API: { recordings: {
-        getPosition: async () => ({ position_sec: 0 }), streamUrl: (id) => `/s/${id}`, setPosition: async () => {}, getMarkers: async () => ({ markers: [] })
-    }, settings: { get: async () => ({}) } } });
+        getPosition: async () => ({ position_sec: 0 }), playback: async (id) => ({ url: `/s/${id}`, container: 'mp4' }), streamUrl: (id) => `/s/${id}`, setPosition: async () => {}, getMarkers: async () => ({ markers: [] })
+    }, settings: { get: async () => ({}) }, withStreamToken: (u) => u } });
     const real = document.createElement;
     let video;
     document.createElement = (tag) => {
@@ -197,9 +197,10 @@ function recordingPlayer() {
                 if (this.className !== 'recording-player-overlay') return;
                 const box = real('div'); box.className = 'recording-player-box';
                 const close = real('button'); close.className = 'recording-player-close';
-                video = real('video'); video.pause = () => { video.paused = true; video.pauseCalls = (video.pauseCalls || 0) + 1; }; video.src = '/s/1';
+                video = real('video'); video.pause = () => { video.paused = true; video.pauseCalls = (video.pauseCalls || 0) + 1; };
                 const skip = real('button'); skip.className = 'skip-ad-btn'; const marks = real('div'); marks.className = 'ad-markers';
-                [close, video, marks, skip].forEach(c => box.appendChild(c));
+                const status = real('div'); status.className = 'recording-player-status';
+                [close, video, status, marks, skip].forEach(c => box.appendChild(c));
                 this.appendChild(box);
             } });
         }

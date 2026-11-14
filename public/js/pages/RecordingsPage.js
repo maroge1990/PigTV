@@ -735,7 +735,12 @@ class RecordingsPage {
         if (active) this.startCompressionWatch();
     }
 
-    async play(id) {
+    /**
+     * Open the player. #62: the page asks the server for the address (`/playback?async=1`, or `/watch` for a recording
+     * still in progress), shows "Preparing…" while the server gets it ready, then plays it; every failure is written in
+     * the player with Try again, never a silent black box. `watch` plays a recording in progress from its start.
+     */
+    async play(id, { watch = false } = {}) {
         this.closePlayer();
 
         const overlay = document.createElement('div');
@@ -747,6 +752,7 @@ class RecordingsPage {
             <div class="recording-player-box">
                 <button class="recording-player-close" aria-label="Close player">&times;</button>
                 <video controls></video>
+                <div class="recording-player-status" hidden></div>
                 <div class="ad-markers" aria-hidden="true"></div>
                 <button class="skip-ad-btn" hidden>Skip ad</button>
             </div>
@@ -765,23 +771,127 @@ class RecordingsPage {
         overlay.querySelector('.recording-player-close').focus?.();
 
         // 0207: where this login stopped last time. Asked before anything plays; a failure
-        // to read it just means playing from the start.
+        // to read it just means playing from the start. A recording in progress always plays from its start.
         let resumeAt = 0;
-        try {
-            const pos = await API.recordings.getPosition(id);
-            if (pos && pos.position_sec > 10 && !pos.watched) resumeAt = await this.askResume(overlay, pos.position_sec);
-        } catch (err) { /* play from the start */ }
+        if (!watch) {
+            try {
+                const pos = await API.recordings.getPosition(id);
+                if (pos && pos.position_sec > 10 && !pos.watched) resumeAt = await this.askResume(overlay, pos.position_sec);
+            } catch (err) { /* play from the start */ }
+        }
         if (resumeAt === null || this._playerOverlay !== overlay) return; // closed while asking
 
-        const video = overlay.querySelector('video');
-        if (resumeAt > 0) {
-            video.addEventListener('loadedmetadata', () => { video.currentTime = resumeAt; }, { once: true });
-        }
-        video.autoplay = true;
-        video.src = API.recordings.streamUrl(id);
+        await this.startPlayback(overlay, id, { watch, resumeAt });
+    }
 
-        this.trackPosition(overlay, video, id);
-        this.attachAdSkipping(overlay, id);
+    /** Show a state in the player's status area (hidden when `kind` is null). */
+    playerStatus(overlay, kind, text, action) {
+        const area = overlay.querySelector('.recording-player-status');
+        if (!area) return;
+        area.hidden = !kind;
+        if (kind) UI.setState(area, kind, text, action);
+        else area.innerHTML = '';
+    }
+
+    /** Resolve, then play; any failure is shown with Try again, which starts this again. */
+    async startPlayback(overlay, id, { watch, resumeAt }) {
+        const retry = () => this.startPlayback(overlay, id, { watch, resumeAt });
+        const fail = (title) => this.playerStatus(overlay, 'error', { title, detail: 'Your place in it is kept.' }, { label: 'Try again', run: retry });
+        this.teardownMedia(overlay);
+        this.playerStatus(overlay, 'loading', { title: 'Preparing…', detail: watch ? 'Getting this recording ready to watch while it records.' : 'Getting this recording ready to play. A long one can take a minute.' });
+
+        let target;
+        try {
+            target = await this.resolvePlayback(overlay, id, watch);
+        } catch (err) {
+            if (this._playerOverlay !== overlay) return;
+            fail(UI.errorText(err, watch ? 'This recording could not be opened to watch.' : 'This recording could not be prepared for playback.'));
+            return;
+        }
+        if (!target || this._playerOverlay !== overlay) return; // closed meanwhile
+
+        const video = overlay.querySelector('video');
+        const url = API.withStreamToken(target.url);
+        const hlsUrl = target.container === 'hls';
+        const onFatal = () => { if (this._playerOverlay === overlay) { this.teardownMedia(overlay); fail('This recording stopped playing.'); } };
+
+        if (hlsUrl && window.Hls && window.Hls.isSupported()) {
+            // Follows a growing recording: hls.js reloads the EVENT playlist, and playback starts at its beginning.
+            const hls = new window.Hls({ enableWorker: true, startPosition: 0, maxBufferHole: 1.0, manifestLoadingMaxRetry: 4, fragLoadingMaxRetry: 6 });
+            overlay._hls = hls;
+            overlay._hlsUsed = true;
+            let recovered = false;
+            hls.on(window.Hls.Events.ERROR, (event, data) => {
+                if (!data || !data.fatal) return;
+                if (!recovered && window.Hls.ErrorTypes && data.type === window.Hls.ErrorTypes.MEDIA_ERROR) { recovered = true; hls.recoverMediaError(); return; }
+                console.error('Recording HLS error:', data.details);
+                onFatal();
+            });
+            hls.loadSource(url);
+            hls.attachMedia(video);
+        } else if (hlsUrl && !(video.canPlayType && video.canPlayType('application/vnd.apple.mpegurl'))) {
+            fail('This browser cannot play a recording that is still being made.');
+            return;
+        } else {
+            video.src = url; // an MP4, or HLS in Safari, natively
+        }
+
+        this.playerStatus(overlay, null);
+        if (resumeAt > 0) video.addEventListener('loadedmetadata', () => { video.currentTime = resumeAt; }, { once: true });
+        video.addEventListener('error', onFatal, { once: true });
+        video.autoplay = true;
+        if (video.play) { const started = video.play(); if (started && started.catch) started.catch(() => {}); }
+
+        if (!watch) {
+            this.trackPosition(overlay, video, id);
+            this.attachAdSkipping(overlay, id);
+        }
+    }
+
+    /** Let go of what the player is playing (hls.js, the element's source) and its position saving. */
+    teardownMedia(overlay) {
+        if (this._positionTracker) {
+            clearInterval(this._positionTracker.timer);
+            this._positionTracker.save(); // before the video is torn down
+            this._positionTracker.close();
+            this._positionTracker = null;
+        }
+        if (overlay._hls) { try { overlay._hls.destroy(); } catch (err) { /* already gone */ } overlay._hls = null; }
+        const video = overlay.querySelector('video');
+        if (video && (video.getAttribute?.('src') || video.src || overlay._hlsUsed)) {
+            video.pause?.();
+            video.removeAttribute?.('src');
+            if (video.src) video.src = '';
+            video.load?.();
+        }
+    }
+
+    /**
+     * Ask the server for the playable address, asking again while it says "preparing" (the Apple client's way).
+     * Resolves { url, container }, or null if the player was closed; throws on a failure.
+     */
+    async resolvePlayback(overlay, id, watch) {
+        const maxWaitMs = 15 * 60 * 1000;
+        let waited = 0;
+        let useWatch = watch;
+        for (;;) {
+            let answer;
+            try {
+                answer = useWatch ? await API.recordings.watch(id) : await API.recordings.playback(id);
+            } catch (err) {
+                // It finished since the page was drawn: play the finished recording instead.
+                if (useWatch && err && err.status === 409) { useWatch = false; continue; }
+                throw err;
+            }
+            if (this._playerOverlay !== overlay) return null;
+            if (answer && answer.url) return { url: answer.url, container: answer.container };
+            if (!answer || answer.status !== 'preparing') throw new Error('The server did not say how to play this recording');
+            const delay = Math.min(10, Math.max(1, Number(answer.retryAfterSec) || 3)) * 1000;
+            waited += delay;
+            if (waited > maxWaitMs) throw new Error('Preparing this recording is taking too long');
+            await new Promise(resolve => setTimeout(resolve, delay));
+            if (this._playerOverlay !== overlay) return null;
+        }
     }
 
     /**
@@ -891,16 +1001,9 @@ class RecordingsPage {
 
     closePlayer() {
         if (this._resumePrompt) { const settle = this._resumePrompt; this._resumePrompt = null; settle(); }
-        if (this._positionTracker) {
-            clearInterval(this._positionTracker.timer);
-            this._positionTracker.save(); // before the video is torn down
-            this._positionTracker.close();
-            this._positionTracker = null;
-        }
+        if (this._playerOverlay) this.teardownMedia(this._playerOverlay); // saves the position before the video goes
         if (this._onPlayerKey) { document.removeEventListener('keydown', this._onPlayerKey); this._onPlayerKey = null; }
         if (this._playerOverlay) {
-            const video = this._playerOverlay.querySelector('video');
-            if (video) { video.pause(); video.src = ''; }
             this._playerOverlay.remove();
             this._playerOverlay = null;
             const opener = this._playerOpener;
