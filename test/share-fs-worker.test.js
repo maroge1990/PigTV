@@ -60,3 +60,33 @@ test('#289: a copy into the share is flushed every syncBytes and once at its end
         fs.rmSync(dir, { recursive: true, force: true });
     }
 });
+
+// #289, Opus review of Server 3: in the in-process test mode a long call still honours its abort signal.
+test('#289: in-process long calls reject with an AbortError for a signal aborted before or while they run', async () => {
+    const shareFs = require('../server/services/shareFs');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pigtv-inproc-'));
+    const realOpen = fs.openSync;
+    shareFs._inProcess(true);
+    try {
+        const src = path.join(dir, 'source.ts');
+        fs.writeFileSync(src, Buffer.alloc(1000, 1));
+        const before = new AbortController();
+        before.abort();
+        await assert.rejects(() => shareFs.copyInto(path.join(dir, 'a.partial'), [src], { signal: before.signal }), { name: 'AbortError' });
+        assert.equal(fs.existsSync(path.join(dir, 'a.partial')), false, 'nothing was made');
+        // A deletion that lands while the copy runs (here, as it opens its destination).
+        const during = new AbortController();
+        fs.openSync = function (p, ...rest) { if (String(p).endsWith('b.partial')) during.abort(); return realOpen.call(this, p, ...rest); };
+        await assert.rejects(() => shareFs.copyInto(path.join(dir, 'b.partial'), [src], { signal: during.signal }), { name: 'AbortError' });
+        fs.openSync = realOpen;
+        const compare = new AbortController();
+        fs.openSync = function (p, ...rest) { if (String(p) === src) compare.abort(); return realOpen.call(this, p, ...rest); };
+        await assert.rejects(() => shareFs.sameBytes(path.join(dir, 'b.partial'), [src], { signal: compare.signal }), { name: 'AbortError' });
+        fs.openSync = realOpen;
+        assert.equal(await shareFs.sameBytes(path.join(dir, 'b.partial'), [src]), true, 'without an abort it answers');
+    } finally {
+        fs.openSync = realOpen;
+        shareFs._inProcess(false);
+        fs.rmSync(dir, { recursive: true, force: true });
+    }
+});

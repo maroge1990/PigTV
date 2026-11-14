@@ -146,7 +146,8 @@ const abortError = () => Object.assign(new Error('The operation was aborted'), {
  */
 function long(op, file, extra, { signal = null, stallMs = tuning.copyStallMs } = {}) {
     if (signal && signal.aborted) return Promise.reject(abortError());
-    if (inProcess) return runHere(op, file, extra);
+    // In-process (tests that fake fs here): an abort that came while it ran rejects as the helper's kill would.
+    if (inProcess) return runHere(op, file, extra).then((result) => { if (signal && signal.aborted) throw abortError(); return result; });
     if (stuck.size >= MAX_STUCK) {
         return Promise.reject(unanswered('The recordings share is not answering (earlier calls are still stuck)', null));
     }
