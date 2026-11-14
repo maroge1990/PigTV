@@ -31,6 +31,7 @@ class SportsPage {
         this.leaguePages = {}; // a league's own page (C-T, C-Q), by key: { answer, failed, loaded, stale, updatedAt }
         this.fixtureChoice = {}; // its chosen round, standings view and table group, by key
         this.prefsAnswer = null; // the preferences as read (the followed names per league)
+        this.cancels = new Map(); // Opus review of #327: recordings cancelled while their Undo is open, by schedule id
         this.phoneQuery = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(max-width: 768px)') : null;
         this.phoneQuery?.addEventListener?.('change', () => { this.render(); if (this.active && this.shownLeague()) this.loadLeague(); });
         if (typeof document !== 'undefined' && document.addEventListener) {
@@ -289,6 +290,7 @@ class SportsPage {
         this.heroId = V.resolveHero({ current: this.heroId, front: answer, wentLive, selectedFollow: selected >= 0 ? selected : null, pinned: this.pinned });
         this.front = answer;
         this.received = Date.now();
+        this.hideCancelled();
     }
     selectFollow(index) {
         const f = this.front?.follows?.[index];
@@ -515,9 +517,28 @@ class SportsPage {
         }
     }
     game(id) {
-        if (typeof id === 'string' && id.startsWith('fx:')) return this.fixtureById(id);
-        if (typeof id === 'string' && (id.startsWith('f1s:') || id.startsWith('ck:'))) return this.pageGame(id);
-        return this.front ? SportView.game(this.front, id) : null;
+        let g;
+        if (typeof id === 'string' && id.startsWith('fx:')) g = this.fixtureById(id);
+        else if (typeof id === 'string' && (id.startsWith('f1s:') || id.startsWith('ck:'))) g = this.pageGame(id);
+        else g = this.front ? SportView.game(this.front, id) : null;
+        // a recording whose cancel waits for its Undo is gone from the game at once (iOS: it leaves the lists at once)
+        return g && g.recording && this.cancels.has(g.recording.scheduleId) ? { ...g, recording: null } : g;
+    }
+    /** The front page's games drop a recording whose cancel waits for its Undo (their cards lose the mark at once). */
+    hideCancelled() {
+        for (const g of (this.front && this.front.games) || []) if (g && g.recording && this.cancels.has(g.recording.scheduleId)) g.recording = null;
+    }
+    /**
+     * Before a new action on a game, a cancel of its recording still waiting for its Undo is sent now and awaited (iOS:
+     * commitPendingUndo): Record then makes a new recording, never one that the waiting cancel would remove later.
+     */
+    async settleCancels(gameId) {
+        for (const entry of [...this.cancels.values()]) {
+            if (entry.gameId !== gameId) continue;
+            const sending = entry.send();
+            entry.notice?.close?.(); // its Undo is gone
+            await sending.catch(() => {});
+        }
     }
     /** A league page's game without a C-R card, as a game on its own channels ("fx:<league>:<id>"). */
     fixtureById(id) {
@@ -629,6 +650,7 @@ class SportsPage {
         this.closeMenu();
         const g = this.game(id), ev = g && SportView.event(g);
         if (!ev || SportView.terminal(g)) return;
+        await this.settleCancels(g.id);
         try {
             const c = ev.channel;
             const made = await API.recordings.schedule({ sourceId: Number(c.sourceId), channelItemId: c.id, channelName: c.name,
@@ -1172,10 +1194,33 @@ class SportsPage {
     /** Cancel recording (Stop recording): at once, with the 10 s Undo; the window closes first. */
     cancelRecording(st) {
         if (!st.rec || st.gone) return;
-        const g = st.g, id = st.rec.id;
+        const g = st.g, id = st.rec.id, recording = { scheduleId: id, status: st.rec.status };
         this.closeWindow();
-        UI.undoable(`Recording of ${g.title} cancelled.`, { undo: () => {}, failText: 'The recording could not be cancelled.',
-            commit: ({ keepalive } = {}) => API.request('DELETE', `/recordings/scheduled/${id}`, null, { keepalive }).then(() => this.refresh()) });
+        // Opus review of #327: the card loses its recording at once and keeps it lost through refreshes until the cancel
+        // is sent and a new answer has come; Undo puts it back. The cancel is sent once: when the notice ends, or first
+        // by a new action on the game (settleCancels).
+        const restore = () => {
+            this.cancels.delete(id);
+            const fresh = this.front && SportView.game(this.front, g.id);
+            if (fresh && !fresh.recording) fresh.recording = recording;
+            this.render();
+        };
+        const entry = { id, gameId: g.id, notice: null, sending: null };
+        entry.send = (keepalive = false) => {
+            if (!entry.sending) {
+                entry.sending = API.request('DELETE', `/recordings/scheduled/${id}`, null, { keepalive }).then(
+                    () => { Promise.resolve(this.refresh()).finally(() => this.cancels.delete(id)); },
+                    (err) => { restore(); throw err; });
+            }
+            return entry.sending;
+        };
+        this.cancels.set(id, entry);
+        this.hideCancelled();
+        this.render();
+        entry.notice = UI.undoable(`Recording of ${g.title} ${recording.status === 'recording' ? 'stopped' : 'cancelled'}.`, {
+            undo: () => { if (!entry.sending) restore(); },
+            failText: 'The recording could not be cancelled.',
+            commit: ({ keepalive } = {}) => entry.send(keepalive) });
     }
     /**
      * "Record on B instead": B is scheduled first (with the game's id and A's padding); only once that succeeds is A
@@ -1227,6 +1272,7 @@ class SportsPage {
     }
     /** What the primary button does; answers the notice to show, or null (the page says why); throws a failure. */
     async recordNow(st) {
+        await this.settleCancels(st.g.id);
         const g = st.g, pad = { ...(st.pre != null ? { preBufferMin: st.pre } : {}), ...(st.post != null ? { postBufferMin: st.post } : {}) };
         const plain = (message) => Object.assign(new Error(message), { plain: true });
         const failing = (failText, run) => Promise.resolve().then(run).catch((err) => { if (err && !err.plain && !err.failText) err.failText = failText; throw err; });
