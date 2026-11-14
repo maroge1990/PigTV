@@ -645,3 +645,5 @@
   .ui-dialog.sp-window .ui-dialog-footer .btn { width: 100%; min-height: 44px; }
   .sp-win .dch { flex-wrap: wrap; }
 }
+.sp-win .rmove { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; font-size: 14px; color: var(--color-text-secondary); }
+.sp-win .rmove p { margin: 0; }

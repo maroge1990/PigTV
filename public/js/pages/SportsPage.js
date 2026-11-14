@@ -1026,7 +1026,7 @@ class SportsPage {
         const index = channel ? airings.findIndex(a => a.key === channel) : 0;
         const lost = index < 0 ? (g.channels || []).find(c => SportsPage.channelKey(c) === channel) : null;
         const st = { g, airings, index, what: 0, whats: rec ? [] : this.recordWhats(g),
-            pre: null, post: null, schedule: null, rec, loaded: !rec, gone: false, busy: false,
+            pre: null, post: null, schedule: null, rec, loaded: !rec, gone: false, busy: false, want: channel, move: null,
             error: lost && !rec ? `${lost.name} isn’t showing the game any more. Choose a channel to record on.` : null };
         const w = this.makeWindow({ kind: 'record', id, title: g.title, opener, label: `${rec ? 'Change recording of' : 'Record'} ${g.title}`,
             draw: () => this.recordMarkup(st), act: (name, el) => this.recordAct(name, el, st) });
@@ -1057,6 +1057,10 @@ class SportsPage {
                 }
                 st.pre = Number.isFinite(row.pre_buffer_min) ? row.pre_buffer_min : null;
                 st.post = Number.isFinite(row.post_buffer_min) ? row.post_buffer_min : null;
+                // Opus review of #327: "Record on B" for a game set to record on A: Change recording of A, with a way to
+                // move it to B (never a second recording; not while A records, which a move would stop)
+                const target = st.want ? st.airings.find(x => x.key === st.want) : null;
+                st.move = target && target !== st.airings[st.index] && row.status !== 'recording' ? target : null;
             }
             st.loaded = true;
         } catch (err) {
@@ -1095,6 +1099,11 @@ class SportsPage {
         const two = Array.isArray(g.competitors) && g.competitors.length === 2;
         let html = `<div class="rhead">${two ? `<span class="rbadges" aria-hidden="true">${g.competitors.map(c => V.badge(c.name, c.logo, 40, g.league)).join('')}</span>` : ''}`
             + `<span class="rht"><span class="rk">${e(kicker)}</span><span class="rmeta pig-amount">${e(`${P.day(a.start, now)} · ${P.range(a)}${chosen ? ` · ${chosen.c.name}` : ''}`)}</span></span></div>`;
+        if (changing && st.move && !st.gone) {
+            const on = (st.airings[st.index] && st.airings[st.index].c.name) || st.schedule.channel_name || '';
+            html += `<div class="rmove"><p>${e(on ? `Set to record on ${on}.` : 'Set to record on another channel.')}</p>`
+                + `<button type="button" class="pill" data-act="r-move" data-key="r:move"${st.busy ? ' disabled' : ''}>${V.ICON.rec}${e(`Record on ${st.move.c.name} instead`)}</button></div>`;
+        }
         // What: this game, or a rule (not on Change recording: it is one schedule)
         if (st.whats.length) {
             html += '<h3 class="rsec" id="sp-rec-what">What</h3><div class="rwhat" role="radiogroup" aria-labelledby="sp-rec-what">';
@@ -1155,6 +1164,7 @@ class SportsPage {
             case 'r-on': st.index = Number(el.getAttribute('data-index')) || 0; st.error = null; return w?.redraw();
             case 'r-close': return this.closeWindow();
             case 'r-cancel': return this.cancelRecording(st);
+            case 'r-move': return this.moveRecording(st, w);
             case 'r-save': return this.saveRecord(st, w);
             default: return undefined;
         }
@@ -1166,6 +1176,34 @@ class SportsPage {
         this.closeWindow();
         UI.undoable(`Recording of ${g.title} cancelled.`, { undo: () => {}, failText: 'The recording could not be cancelled.',
             commit: ({ keepalive } = {}) => API.request('DELETE', `/recordings/scheduled/${id}`, null, { keepalive }).then(() => this.refresh()) });
+    }
+    /**
+     * "Record on B instead": B is scheduled first (with the game's id and A's padding); only once that succeeds is A
+     * cancelled. A failed schedule leaves A as it was; a failed cancel says so (both are then set).
+     */
+    async moveRecording(st, w) {
+        const to = st.move, from = st.schedule, g = st.g;
+        if (!to || !from || st.busy) return;
+        st.busy = true; st.error = null; w?.redraw();
+        const was = (st.airings[st.index] && st.airings[st.index].c.name) || from.channel_name || 'the other channel';
+        try {
+            const c = to.c;
+            await API.recordings.schedule({ sourceId: Number(c.sourceId), channelItemId: c.id, channelName: c.name, title: g.title, programStart: to.start, programEnd: to.end,
+                ...(Number.isFinite(from.pre_buffer_min) ? { preBufferMin: from.pre_buffer_min } : {}), ...(Number.isFinite(from.post_buffer_min) ? { postBufferMin: from.post_buffer_min } : {}),
+                ...(g.synthetic ? {} : { gameId: g.id }) });
+        } catch (err) {
+            st.busy = false;
+            st.error = `${UI.errorText(err, `It couldn’t be set to record on ${to.c.name}.`)} It still records on ${was}.`;
+            if (this.window === w) w.redraw(); else UI.toast(st.error, { kind: 'error' });
+            return;
+        }
+        let text = `Now recording on ${to.c.name} instead of ${was}.`, kind;
+        try { await API.request('DELETE', `/recordings/scheduled/${from.id}`); }
+        catch { text = `Set to record on ${to.c.name}, but the recording on ${was} couldn’t be cancelled. Cancel it in Recordings.`; kind = 'error'; }
+        st.busy = false;
+        if (this.window === w) this.closeWindow();
+        UI.toast(text, kind ? { kind } : {});
+        this.refresh();
     }
     /** The primary button: Save changes (PUT), a rule (C-M `team`, or `sport` for a league), or this game on the chosen channel. */
     async saveRecord(st, w) {
