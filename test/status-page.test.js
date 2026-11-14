@@ -338,3 +338,14 @@ test('#129: the recordings banner does not poll while the tab is hidden, and cat
     context.App.prototype.startRecordingWatch.call(app);
     assert.equal(watches().length, 1, 'one listener however often it is started');
 });
+
+test('#61: Status shows "Warming: N channels ready" under Playing now only when warming is on and has channels', () => {
+    const h = pageHarness();
+    const base = { providers: [], sessions: [], recordings: { active: [], upcoming: [] } };
+    const warming = (w) => h.page.render({ ...base, warming: w });
+    assert.ok(warming({ enabled: true, active: 2 }).includes('Warming: 2 channels ready'));
+    assert.ok(warming({ enabled: true, active: 1 }).includes('Warming: 1 channel ready'), 'singular');
+    assert.ok(!warming({ enabled: true, active: 0 }).includes('Warming'), 'on but nothing ready: no line');
+    assert.ok(!warming({ enabled: false, active: 2 }).includes('Warming'), 'off: no line');
+    assert.ok(!h.page.render(base).includes('Warming'), 'no warming field: no line');
+});

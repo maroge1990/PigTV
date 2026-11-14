@@ -244,6 +244,12 @@ class StatusPage {
         return `<div class="settings-section status-section"><h3>${UI.escape(title)}</h3>${body}</div>`;
     }
 
+    /** #61: one line when channel warming is on and has channels ready; nothing when it is off or empty. */
+    renderWarming(warming) {
+        const n = warming && warming.enabled ? Number(warming.active) || 0 : 0;
+        return n > 0 ? `<p class="setting-hint">Warming: ${n} ${n === 1 ? 'channel' : 'channels'} ready</p>` : '';
+    }
+
     table(headers, rows, empty) {
         if (!rows.length) return empty ? UI.stateBlock('empty', empty) : '';
         return `<div class="user-list-container"><table class="user-table status-table">
@@ -401,7 +407,8 @@ class StatusPage {
                 `<button type="button" class="btn btn-sm btn-danger" data-kill-session="${e(s.id)}" title="Stop this stream and free its provider connection">Stop</button>`
             ]),
             'Nothing is playing')
-            + (sessions.length > 1 ? '<p><button type="button" class="btn btn-sm btn-danger" data-kill-all>Stop all streams</button></p>' : '')));
+            + (sessions.length > 1 ? '<p><button type="button" class="btn btn-sm btn-danger" data-kill-all>Stop all streams</button></p>' : '')
+            + this.renderWarming(status.warming)));
 
         const rec = status.recordings || { active: [], upcoming: [] };
         const recRow = (r) => [e(r.title), `${e(r.channel || '–')}${r.provider ? ` <span class="setting-hint">(${e(r.provider)})</span>` : ''}`, e(r.status), `${this.when(r.programStart)} – ${this.timeShort(r.programEnd)}`];
