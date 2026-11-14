@@ -9,11 +9,16 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 - **Released:** server **v0579** (`:release`, 13 Nov; v0577 the day before) and Apple **239** uploaded to TestFlight
   (tvOS and iOS, 14 Nov, after `Tools/test.sh all` in the Mac's clone). A release runs on Mark's go-ahead (D-45). Next
-  builds: server **0612**, Apple **247**. Apple 241 to 246 are pushed (CI green), not uploaded.
+  builds: server **0626**, Apple **247**. Apple 241 to 246 are pushed (CI green), not uploaded.
+- **14 Nov, batch Server 3 pushed, server 0612 to 0625 (#289, #290 items 1 and 2):** the last share calls are off the
+  event loop and the thread pool (the sweep, the routes with a 503, ad detection, copies and the byte check on a helper of
+  their own); stale probes and orphan work folders go; 0617 fixes a crash when a stopped capture's ffmpeg had exited.
+  Reviews: Codex 1 medium, Opus 4 mediums and 4 lows, all fixed but one (#318, filed); sign-off approved. Evidence:
+  `docs/evidence/2026-11-14-server3/`. **Rig checks, 14 Nov:** #260, #246, #193 and #194 passed on staging.
 - **14 Nov, batch Server 4 pushed, server 0602 to 0611 (#309, key-frame join edge cases):** table continuity, the PMT
   in force, a byte budget on every join path (fallback, opener), a PAT split across chunks, `no-pat` after the look-back,
   and high-bitrate feeds keep the key-frame join. Reviews: Opus 2 mediums, 5 lows; Codex 1 high; all fixed; the sign-off's
-  high was fixed by Mark's choice (0611). Evidence: `docs/evidence/2026-11-14-server4/`. Server 3 is next (built, in review).
+  high was fixed by Mark's choice (0611). Evidence: `docs/evidence/2026-11-14-server4/`.
 - **14 Nov, Apple 242 to 246 pushed (#317, Mark's requests from 239):** on iPhone and iPad, sports in Settings › Sport and
   leagues on a sport's page always show the reorder handles (≡), are dragged by them and saved at the drop (no Edit order). Move up / Move down are gone
   everywhere, so the Apple TV can't reorder (Mark's choice). The iPhone carousel reads "1 of 4"; "Your sport" has no "in your order"; the iPad's page beside the Settings menu
@@ -133,24 +138,20 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 Batches regrouped on 12 Nov 2026 after the audit (every open issue read against server 0577 and Apple 218). Each is one
 theme and one review round. Order within a section is the order to take them.
 
-1. **Server 3, the rest of the share:** #289 (segment copies, the owners' sweep, the route's access checks, ad
-   detection) · #290 items 1 and 2. Full review rule.
-2. **Server 4, key-frame join edge cases (#309, full review rule):** the fallback's byte budget, the video PID from
-   complete PMTs, duplicate table packets, high-bitrate feeds.
+1. **Sport 1, matching:** #296 (a listing with no English name), with what #231 left. Full review rule.
 
 ## Next
 
-3. **Sport 1, matching:** #296 (a listing with no English name), with what #231 left. Full review rule.
-4. **Sport 2, one source for the sport pages:** #297 · #282 · #29's re-measure; then #291 (after a read of production's
+2. **Sport 2, one source for the sport pages:** #297 · #282 · #29's re-measure; then #291 (after a read of production's
    settings; its item 2 is partly wrong, see the issue).
-5. **Sport 3, pickers:** #265 step 2 · #266 (server and Apple), once Mark confirms the rows.
-6. **Web 1:** #62 play errors · #63 first run without a Home page · #64 Settings.js and sign-out · #292 · #295.
+3. **Sport 3, pickers:** #265 step 2 · #266 (server and Apple), once Mark confirms the rows.
+4. **Web 1:** #62 play errors · #63 first run without a Home page · #64 Settings.js and sign-out · #292 · #295.
 
 ## Later (each needs a capture, a real provider, a device or a design choice first)
 
 - **A/V sync:** #267 meter · #268 marker, then #3 and #27. **Relay and recovery (released alone, D-25):** #4 · #41's
   transition table and invariant test · #74 · #30. **Start speed:** #240 · #36 · #38.
-- **Operations:** #43 · #44 · #45 · #28. **Recording text:** #314. **Logs:** #315. **Tests:** #26, and the stored replay for #22 to #24 re-run after 0551.
+- **Operations:** #43 · #44 · #45 · #28. **Recording text:** #314. **Logs:** #315. **Recording playback reads:** #318. **Tests:** #26, and the stored replay for #22 to #24 re-run after 0551.
 - **Apple launch and tests:** #54 · #55 · #53 · #283 · #313 (Apple 1's review lows) · #316. **Apple structure:** #50 · #51.
 - **Apple player:** #25 · #35 · #58 · #308 (Start over from live) · #101. **Apple, design first:** #56 · #57 · #232.
   **Brand kit:** #294.
