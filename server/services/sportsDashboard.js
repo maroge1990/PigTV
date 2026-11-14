@@ -12,6 +12,7 @@ const { isTournament } = require('./sportGroups');
 // session and place), a Supercars card the event weekend. #197: a tennis or golf tournament, a UFC night and an IndyCar
 // or NASCAR race are one card each too (sportIndividual.js), joined like a Supercars weekend.
 const individual = require('./sportIndividual');
+const { foldText } = require('./textFold');
 const MOTOR = new Set(['F1', 'MotoGP', 'Supercars', 'IndyCar', 'NASCAR']);
 const SESSIONS = new Set(['F1', 'MotoGP']);
 const WEEKENDS = new Set(['Supercars', ...Object.keys(individual.LEAGUES)]);
@@ -127,6 +128,51 @@ function sameGame(prepared, parsed) {
     return (parsed.pairs || (parsed.pair ? [parsed.pair] : [])).some(pair => {
         const a = pair[0].tokens.join(' '), b = pair[1].tokens.join(' ');
         return (prepared.sides[0].has(a) && prepared.sides[1].has(b)) || (prepared.sides[0].has(b) && prepared.sides[1].has(a));
+    }) || (!isCricket(game.league) && namedByNickname(prepared, parsed));
+}
+// #296: a guide title in another language ("Packers de Green Bay c. Bears de Chicago", RDS) with no listing in ESPN's
+// words names each team by its nickname. Failing the pair above, a title (or one listing's title) joins when it names
+// both teams by a name of theirs no other team of the league's games has, and no other of those teams; never a replay or
+// highlights, never one team alone; the time window above still applies. Abbreviations and bare cities are not names here.
+const ABBR_ALIAS_RE = /^[A-Z0-9]{2,4}$/;
+const nameFold = s => classify.normText(foldText(s));
+const says = (text, key) => text.includes(` ${key} `);
+const teamId = c => String(c.id ?? c.name ?? '');
+function leagueNames(prepared) {
+    const keys = new Map();
+    for (const { game } of prepared) for (const c of game.competitors || []) {
+        if (!keys.has(teamId(c))) keys.set(teamId(c), new Set());
+        for (const a of [c.name, ...(Array.isArray(c.aliases) ? c.aliases : [])]) {
+            const k = typeof a === 'string' && !ABBR_ALIAS_RE.test(a.trim()) ? nameFold(a) : '';
+            if (k && /\p{L}/u.test(k)) keys.get(teamId(c)).add(k);
+        }
+    }
+    const all = [...keys].flatMap(([id, set]) => [...set].map(k => ({ id, k })));
+    // a name that is, or is within, another team's name ("Swans" twice, #281) names neither
+    const distinct = new Map([...keys].map(([id, set]) => [id, [...set].filter(k => !all.some(o => o.id !== id && says(` ${o.k} `, k)))]));
+    return { all, distinct };
+}
+function guideTexts(parsed) {
+    if (!parsed.texts) {
+        const { event } = parsed;
+        parsed.texts = [event.title, ...(Array.isArray(event.aliases) ? event.aliases.slice(0, 20) : [])]
+            .filter(t => typeof t === 'string' && t && !(p => p.replayWord || p.highlightsWord)(classify.parseTitle(t)))
+            .map(t => ` ${nameFold(t)} `);
+    }
+    return parsed.texts;
+}
+function namedByNickname(prepared, parsed) {
+    const names = prepared.names, sides = prepared.game.competitors;
+    if (!names || sides.length !== 2) return false;
+    const ids = sides.map(teamId);
+    const own = ids.map(id => names.distinct.get(id) || []);
+    if (ids[0] === ids[1] || !own[0].length || !own[1].length) return false;
+    const longestFirst = [...own[0], ...own[1]].sort((a, b) => b.length - a.length);
+    return guideTexts(parsed).some(text => {
+        if (!own.every(keys => keys.some(k => says(text, k)))) return false;
+        let rest = text;
+        for (const k of longestFirst) while (says(rest, k)) rest = rest.replace(` ${k} `, ' | ');
+        return !names.all.some(o => !ids.includes(o.id) && says(rest, o.k));
     });
 }
 function matchBroadcasts(games, events, represented = new Set(), unresolved = new Set(), endedAt = new Map()) {
@@ -134,6 +180,10 @@ function matchBroadcasts(games, events, represented = new Set(), unresolved = ne
     for (const game of games) {
         if (!byLeague.has(game.league)) byLeague.set(game.league, []);
         byLeague.get(game.league).push(prepareGame(game));
+    }
+    for (const prepared of byLeague.values()) {
+        const names = leagueNames(prepared);
+        for (const p of prepared) p.names = names;
     }
     for (const event of events) {
         if (event.kind && event.kind !== 'event') continue;
