@@ -1840,3 +1840,23 @@ test('#289: playing or downloading a recording on a hung share answers 503 withi
         shareFs.reset();
     }
 });
+
+test('#289: ad detection on a file of a hung share answers "not responding" within the deadline, without a call from this process', async () => {
+    const adDetect = load('services/adDetect');
+    adDetect._setForTests({ available: true });
+    shareFs.reset();
+    blocked.length = 0;
+    try {
+        const began = Date.now();
+        const { worst, result } = await loopFreeze(() => adDetect.detect(path.join(recordingsPath, 'Ads.mp4')));
+        assert.deepEqual({ ok: result.ok, error: result.error }, { ok: false, error: 'The recordings folder is not responding' });
+        assert.ok(Date.now() - began < 4000);
+        assert.deepEqual(blocked, [], 'no synchronous call on the share');
+        assert.ok(worst() < 300, `the event loop stalled for ${worst()} ms`);
+        const missing = await adDetect.detect(path.join(healthy, 'No-Ads.mp4'));
+        assert.equal(missing.error, 'Recording file is missing', 'a healthy share still says missing');
+    } finally {
+        adDetect._setForTests();
+        shareFs.reset();
+    }
+});

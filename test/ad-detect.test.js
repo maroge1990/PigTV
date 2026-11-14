@@ -74,7 +74,7 @@ test('post-recording runs: timeout scales with the recording, never below 30 min
 
     const r = makeRecording({ status: 'completed' });
     const result = adDetect.detect(r.file_path, { timeoutMs: adDetect.postTimeoutMs(600) });
-    await settle();
+    for (let i = 0; i < 200 && !procs[0]; i++) await new Promise(res => setTimeout(res, 10)); // #289: the file is checked through the share helper first
     assert.ok(procs[0].args.includes('--threads=4'));
     procs[0].exit('1\t2\t0\n');
     const out = await result;

@@ -161,7 +161,12 @@ async function detect(filePath, { iniPath, timeoutMs = postTimeoutMs(0), threads
     if (!(await isAvailable())) {
         return { ok: false, breaks: [], error: 'Comskip is not installed in this image', elapsedSec: 0 };
     }
-    if (!fs.existsSync(filePath)) {
+    // #289: bounded for a file on the recordings share (a helper with a deadline), never a call on the event loop.
+    let there = false;
+    try { there = await require('./recordingSegments').ioFor(filePath).exists(filePath); } catch (e) {
+        if (e && e.code === 'SHARE_UNRESPONSIVE') return { ok: false, breaks: [], error: 'The recordings folder is not responding', elapsedSec: 0 };
+    }
+    if (!there) {
         return { ok: false, breaks: [], error: 'Recording file is missing', elapsedSec: 0 };
     }
 
