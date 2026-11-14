@@ -404,6 +404,8 @@ class VideoPlayer {
             }
         });
 
+        this.initPlayerActions();
+
         this.container.addEventListener('dblclick', () => this.toggleFullscreen());
 
         // Overlay Auto-hide Logic
@@ -414,6 +416,8 @@ class VideoPlayer {
             // Idle player (#320): the "Select a channel" / Resume overlay is showing. The controls overlay would sit on
             // top of its Resume button and take the click, and there is nothing for the controls to control.
             if (this.overlay && !this.overlay.classList.contains('hidden')) return;
+            // #321: the favourite can have changed from the channel list's star meanwhile; read it as the controls appear.
+            if (this.controlsOverlay.classList.contains('hidden')) this.updatePlayerActions();
             this.controlsOverlay.classList.remove('hidden');
             this.container.style.cursor = 'default';
             sidebarExpandBtn?.classList.add('visible');
@@ -453,6 +457,7 @@ class VideoPlayer {
             if (channelNameEl && e.detail) {
                 channelNameEl.textContent = e.detail.name || e.detail.tvgName || 'Live TV';
             }
+            this.updatePlayerActions();
             showOverlay();
         });
 
@@ -1056,6 +1061,10 @@ class VideoPlayer {
      * Play a channel
      */
     async play(channel, streamUrl, options = {}) {
+        // #321: Last channel is the one selected before this one (a retry or a reconnect is the same selection).
+        if (!options.isRetry && channel && this.currentChannel && this.channelKey(channel) !== this.channelKey(this.currentChannel)) {
+            this._previousChannel = this.currentChannel;
+        }
         this.currentChannel = channel;
         this.currentStreamUrl = streamUrl;
         // A fresh selection gets its own single audio-re-encode retry; the retry
@@ -1301,6 +1310,223 @@ class VideoPlayer {
         if (this._reconnectEl) this._reconnectEl.classList.add('hidden');
     }
 
+    // ---- #321: the player's actions (Apple CustomPlayer.swift: Favourite, Record, Audio, Go to live, Last channel) ----
+
+    initPlayerActions() {
+        const on = (id, fn) => {
+            const button = document.getElementById(id);
+            button?.addEventListener('click', (e) => { if (e && e.stopPropagation) e.stopPropagation(); fn(); });
+            return button;
+        };
+        on('btn-favourite', () => this.toggleFavourite());
+        on('btn-record', () => this.recordThis());
+        on('btn-last-channel', () => this.lastChannel());
+        on('btn-audio', () => this.toggleAudioMenu());
+        // Safari plays HLS itself: its audio tracks are the element's.
+        const native = this.video && this.video.audioTracks;
+        if (native && typeof native.addEventListener === 'function') {
+            for (const type of ['addtrack', 'removetrack', 'change']) native.addEventListener(type, () => this.updateAudioTracks());
+        }
+        document.addEventListener('click', (e) => {
+            const wrapper = document.getElementById('player-audio-wrapper');
+            if (this._audioMenuOpen && wrapper && !wrapper.contains(e.target)) this.closeAudioMenu();
+        });
+        this.updatePlayerActions();
+    }
+
+    /** The actions' state for the channel playing now: favourite or not, Last channel shown or not, the audio tracks. */
+    updatePlayerActions() {
+        const channel = this.currentChannel;
+        const fav = document.getElementById('btn-favourite');
+        if (fav) {
+            const list = window.app && window.app.channelList;
+            const isFavourite = !!(channel && list && typeof list.isFavorite === 'function' && list.isFavorite(channel.sourceId, channel.id));
+            const label = isFavourite ? 'Unfavourite' : 'Favourite';
+            fav.setAttribute('aria-pressed', String(isFavourite));
+            fav.setAttribute('aria-label', label);
+            fav.title = label;
+            fav.classList.toggle('active', isFavourite);
+            fav.querySelector('.icon-fav-on')?.classList.toggle('hidden', !isFavourite);
+            fav.querySelector('.icon-fav-off')?.classList.toggle('hidden', isFavourite);
+        }
+        const last = document.getElementById('btn-last-channel');
+        if (last) {
+            const previous = this.previousChannel();
+            last.classList.toggle('hidden', !previous);
+            const name = previous ? (previous.name || previous.tvgName || 'the last channel') : '';
+            last.title = previous ? `Last channel: ${name} (L)` : 'Last channel (L)';
+            last.setAttribute('aria-label', previous ? `Last channel: ${name}` : 'Last channel');
+        }
+        this.updateAudioTracks();
+    }
+
+    /** A short notice inside the player (seen in fullscreen too, as the Apple player's): what an action did. */
+    playerNotice(message, { kind = 'info' } = {}) {
+        const doc = this._document || document;
+        if (!this.container || !doc || typeof doc.createElement !== 'function') return;
+        if (!this._noticeEl) {
+            const el = doc.createElement('div');
+            el.className = 'player-notice';
+            el.setAttribute('role', 'status');
+            el.setAttribute('aria-live', 'polite');
+            this._noticeEl = el;
+        }
+        const el = this._noticeEl;
+        el.textContent = String(message);
+        el.classList.toggle('player-notice-error', kind === 'error');
+        el.classList.remove('hidden');
+        if (!el.parentNode) this.container.appendChild(el);
+        if (this._noticeTimer) clearTimeout(this._noticeTimer);
+        this._noticeTimer = setTimeout(() => { this._noticeTimer = null; el.classList.add('hidden'); }, kind === 'error' ? 8000 : 4000);
+    }
+
+    /** Favourite / Unfavourite the channel playing, through the channel list (its star, the Favourites group and the guide follow). */
+    async toggleFavourite() {
+        const channel = this.currentChannel;
+        const list = window.app && window.app.channelList;
+        if (!channel || !list || this._favouriteBusy) return;
+        const was = list.isFavorite(channel.sourceId, channel.id);
+        this._favouriteBusy = true;
+        try {
+            await list.toggleFavorite(channel.sourceId, channel.id);
+        } catch (err) { /* the list puts its own change back */ } finally { this._favouriteBusy = false; }
+        const now = list.isFavorite(channel.sourceId, channel.id);
+        this.updatePlayerActions();
+        if (now === was) this.playerNotice('Could not update favourites.', { kind: 'error' });
+        else this.playerNotice(now ? 'Added to favourites' : 'Removed from favourites');
+    }
+
+    /** What is on the playing channel now: the guide's loaded window, else the channel row's own now. Null when unknown. */
+    currentProgramme() {
+        const channel = this.currentChannel;
+        if (!channel) return null;
+        const now = Date.now();
+        const guide = window.app && window.app.epgGuide;
+        const p = guide && typeof guide.getCurrentProgramFor === 'function' ? guide.getCurrentProgramFor(channel) : null;
+        if (p && p.startMs <= now && p.stopMs > now) return { title: p.title, description: p.description || '', start: p.startMs, stop: p.stopMs };
+        const n = channel.now;
+        if (n && n.title && n.startTime <= now && n.endTime > now) return { title: n.title, description: n.description || '', start: n.startTime, stop: n.endTime };
+        return null;
+    }
+
+    /**
+     * Record this programme: the programme on air now on the playing channel, through the schedule call the Guide uses,
+     * with the household's default buffers (left out, so the server applies them). Scheduling the same programme twice
+     * gives back the one already scheduled. A clash is said at once (#12).
+     */
+    async recordThis() {
+        const channel = this.currentChannel;
+        if (!channel || this._recordBusy) return;
+        const programme = this.currentProgramme();
+        if (!programme) { this.playerNotice('No programme information to record.'); return; }
+        this._recordBusy = true;
+        try {
+            const made = await API.recordings.schedule({
+                sourceId: Number(channel.sourceId),
+                channelItemId: channel.id,
+                channelName: channel.name || channel.tvgName || '',
+                channelLogo: channel.tvgLogo || '',
+                title: programme.title,
+                description: programme.description,
+                programStart: programme.start,
+                programEnd: programme.stop
+            });
+            const clashes = Array.isArray(made && made.conflictsWith) ? made.conflictsWith.length : 0;
+            this.playerNotice(clashes
+                ? `Recording scheduled: ${programme.title}. It clashes with ${clashes} other recording${clashes === 1 ? '' : 's'} (see Recordings): one will wait or be missed.`
+                : `Recording scheduled: ${programme.title}`);
+        } catch (err) {
+            const words = typeof UI !== 'undefined' && UI.errorText ? UI.errorText(err, 'Could not schedule the recording.') : 'Could not schedule the recording.';
+            this.playerNotice(words, { kind: 'error' });
+        } finally {
+            this._recordBusy = false;
+        }
+    }
+
+    /** The channel selected before this one, when it is another channel. */
+    previousChannel() {
+        const previous = this._previousChannel;
+        if (!previous || this.channelKey(previous) === this.channelKey(this.currentChannel)) return null;
+        return previous;
+    }
+
+    /** Back to the previous channel (selected in the list, so the list and the player agree); the two then swap. */
+    lastChannel() {
+        const previous = this.previousChannel();
+        if (!previous) return;
+        const list = window.app && window.app.channelList;
+        if (list && typeof list.selectChannel === 'function') list.selectChannel({ channelId: previous.id, sourceId: previous.sourceId });
+        else this.play(previous, null);
+    }
+
+    /** The stream's audio tracks: hls.js's, else the element's own (Safari). [{label, selected, select()}] */
+    audioTracks() {
+        const hls = this.hls;
+        if (hls && Array.isArray(hls.audioTracks)) {
+            return hls.audioTracks.map((t, i) => ({
+                label: t.name || t.lang || `Track ${i + 1}`,
+                selected: hls.audioTrack === i,
+                select: () => { hls.audioTrack = i; }
+            }));
+        }
+        const native = this.video && this.video.audioTracks;
+        if (native && typeof native.length === 'number') {
+            const out = [];
+            for (let i = 0; i < native.length; i++) {
+                const t = native[i];
+                out.push({
+                    label: t.label || t.language || `Track ${i + 1}`,
+                    selected: !!t.enabled,
+                    select: () => { for (let j = 0; j < native.length; j++) native[j].enabled = j === i; }
+                });
+            }
+            return out;
+        }
+        return [];
+    }
+
+    /** The Audio button only when there is a choice; its menu lists the tracks, the playing one marked. */
+    updateAudioTracks() {
+        const wrapper = document.getElementById('player-audio-wrapper');
+        if (!wrapper) return;
+        const tracks = this.audioTracks();
+        wrapper.classList.toggle('hidden', tracks.length < 2);
+        if (tracks.length < 2) this.closeAudioMenu();
+        const list = document.getElementById('player-audio-list');
+        if (!list) return;
+        list.replaceChildren();
+        tracks.forEach((track) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = `captions-option${track.selected ? ' active' : ''}`;
+            button.setAttribute('aria-pressed', String(track.selected));
+            button.textContent = track.label;
+            button.addEventListener('click', (e) => {
+                if (e && e.stopPropagation) e.stopPropagation();
+                track.select();
+                this.closeAudioMenu();
+                this.updateAudioTracks();
+            });
+            list.appendChild(button);
+        });
+    }
+
+    toggleAudioMenu() {
+        if (this._audioMenuOpen) { this.closeAudioMenu(); return; }
+        this.updateAudioTracks();
+        const menu = document.getElementById('player-audio-menu');
+        if (!menu) return;
+        this._audioMenuOpen = true;
+        menu.classList.remove('hidden');
+        document.getElementById('btn-audio')?.setAttribute('aria-expanded', 'true');
+    }
+
+    closeAudioMenu() {
+        this._audioMenuOpen = false;
+        document.getElementById('player-audio-menu')?.classList.add('hidden');
+        document.getElementById('btn-audio')?.setAttribute('aria-expanded', 'false');
+    }
+
     /**
      * Helper to play HLS stream (reduces duplication)
      */
@@ -1328,6 +1554,10 @@ class VideoPlayer {
             // The element's text tracks fill in a moment later.
             setTimeout(() => this.updateCaptionsTracks(), 100);
         });
+
+        // #321: the Audio button appears when the stream carries more than one audio track.
+        if (Hls.Events.AUDIO_TRACKS_UPDATED) hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, () => this.updateAudioTracks());
+        if (Hls.Events.AUDIO_TRACK_SWITCHED) hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, () => this.updateAudioTracks());
 
         let mediaRecovered = false;
         hls.on(Hls.Events.ERROR, (event, data) => {
@@ -2096,6 +2326,13 @@ class VideoPlayer {
             case 'ChannelDown':
                 e.preventDefault();
                 this.channelDown();
+                break;
+            case 'l':
+            case 'Backspace':
+                // #321: Last channel (only on Live TV, as every key here)
+                if (!this.previousChannel()) break;
+                e.preventDefault();
+                this.lastChannel();
                 break;
             case 'i':
                 // Show/hide info overlay
