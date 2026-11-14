@@ -82,17 +82,15 @@ function sessionArgs(options) {
 const audioCodecArg = (args) => args[args.indexOf('-c:a') + 1];
 
 test('a stereo AAC source is normally copied ("smart copy") in an HLS session', () => {
-    assert.equal(audioCodecArg(sessionArgs({ audioMixPreset: 'auto' })), 'copy');
+    assert.equal(audioCodecArg(sessionArgs({})), 'copy');
 });
 
 test("audioMode 'encode' re-encodes even a stereo AAC source, which is the audio that failed", () => {
-    for (const preset of ['auto', 'passthrough']) {
-        const args = sessionArgs({ audioMode: 'encode', audioMixPreset: preset });
-        assert.equal(audioCodecArg(args), 'aac', `preset ${preset}`);
-        assert.ok(args.includes('aresample=async=1') || args.join(' ').includes('aresample=async=1'), 'and conceals damaged frames the way a re-encode does');
-    }
+    const args = sessionArgs({ audioMode: 'encode' });
+    assert.equal(audioCodecArg(args), 'aac');
+    assert.ok(args.includes('aresample=async=1') || args.join(' ').includes('aresample=async=1'), 'and conceals damaged frames the way a re-encode does');
 });
 
 test("audioMode 'copy' from the strategy is still honoured when nothing asks for a re-encode", () => {
-    assert.equal(audioCodecArg(sessionArgs({ audioMode: 'copy', audioMixPreset: 'auto' })), 'copy');
+    assert.equal(audioCodecArg(sessionArgs({ audioMode: 'copy' })), 'copy');
 });

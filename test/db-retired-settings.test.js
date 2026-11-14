@@ -24,10 +24,21 @@ after(() => {
 const storedKeys = () => sqlite.getDb().prepare('SELECT key FROM app_settings').all().map(r => r.key);
 
 test('a save that still carries a retired setting does not bring it back', async () => {
-    await quiet(() => db.settings.update({ forceProxy: true, requireStreamAuth: true, quality: 'low' }));
+    await quiet(() => db.settings.update({ forceProxy: true, requireStreamAuth: true, epgRefreshInterval: '12' }));
     assert.equal(storedKeys().includes('forceProxy'), false);
     assert.equal(storedKeys().includes('requireStreamAuth'), false);
-    assert.equal((await db.settings.get()).quality, 'low');
+    assert.equal((await db.settings.get()).epgRefreshInterval, '12');
+});
+
+// #322: a value an older server stored before its key was retired (no start-up delete runs any more, D-57) is not in
+// what settings.get() hands out, so no code and no client can read it back.
+test('a retired setting still stored from before is never handed out', async () => {
+    const put = sqlite.getDb().prepare('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)');
+    for (const k of db.RETIRED_SETTINGS) put.run(k, JSON.stringify('stored-before'));
+    await quiet(() => db.settings.update({ epgRefreshInterval: '6' })); // a write: the next get() reads the store again
+    const s = await db.settings.get();
+    for (const k of db.RETIRED_SETTINGS) assert.equal(k in s, false, k);
+    assert.equal(s.epgRefreshInterval, '6');
 });
 
 test('no retired setting is one the server still has a default for', () => {

@@ -77,6 +77,9 @@ const ROWS = [
     { file: 'index.html', text: 'id="setting-relay-enabled"', why: '0188-0189: interruptions, in-stream recovery and the standby (off by default): Settings has the In-stream recovery switch' },
     { file: 'index.html', text: 'id="setting-standby-enabled"', why: '0188-0189: interruptions, in-stream recovery and the standby (off by default): Settings has the Hot standby switch' },
     { file: 'index.html', text: 'id="setting-warm-next-channel"', why: 'R11: the warming switch is in Settings: Settings has a Warm the next channel switch' },
+    { file: 'index.html', text: 'id="setting-max-resolution"', absent: true, why: '#322: re-encodes are fixed at 1080p, medium quality, audio mix auto: no Max resolution control' },
+    { file: 'index.html', text: 'id="setting-quality"', absent: true, why: '#322: re-encodes are fixed at 1080p, medium quality, audio mix auto: no Quality preset control' },
+    { file: 'index.html', text: 'id="setting-audio-mix"', absent: true, why: '#322: re-encodes are fixed at 1080p, medium quality, audio mix auto: no Audio mix preset control' },
 
     // public/js/api.js
     { file: 'js/api.js', text: 'killAllSessions', why: '0017: settings reorganisation: transcode api group' },

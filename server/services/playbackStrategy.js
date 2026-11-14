@@ -284,9 +284,7 @@ function sessionPlan({ info, caps, settings, userAgent, owner, live, upscale, au
         owner,
         live,
         hwEncoder: settings.hwEncoder || 'software',
-        maxResolution: settings.maxResolution || '1080p',
-        quality: settings.quality || 'medium',
-        audioMixPreset: settings.audioMixPreset || 'auto',
+        // #322: resolution, quality and audio mix are the session's fixed values, not settings.
         upscaleEnabled: upscale || settings.upscaleEnabled || false,
         upscaleMethod: settings.upscaleMethod || 'hardware',
         upscaleTarget: settings.upscaleTarget || '1080p',

@@ -50,9 +50,6 @@ function getDefaultSettings() {
     userAgentCustom: '',          // Custom UA string when preset is 'custom'
     // Transcoding settings
     hwEncoder: 'auto',            // auto | nvenc | amf | qsv | vaapi | software
-    maxResolution: '1080p',       // 4k | 1080p | 720p | 480p
-    quality: 'medium',            // high | medium | low
-    audioMixPreset: 'auto',       // auto | itu | night | cinematic | passthrough
     // Upscaling settings
     upscaleEnabled: false,
     upscaleMethod: 'hardware',    // hardware | software
@@ -309,6 +306,8 @@ function deepFreeze(value) {
 function storedSettings(db) {
   const out = {};
   for (const r of db.prepare('SELECT key, value FROM app_settings').all()) {
+    // #322: a retired setting an older server stored is never handed out (nothing deletes it at start-up, D-57).
+    if (RETIRED_SETTINGS.includes(r.key)) continue;
     try { out[r.key] = JSON.parse(r.value); } catch { /* a corrupt value falls back to its default */ }
   }
   return out;

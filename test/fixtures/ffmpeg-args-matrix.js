@@ -2,7 +2,8 @@
 // through TranscodeSession.buildFFmpegArgs. ffmpeg-args-golden.json holds the
 // arguments the builder produced for each of them BEFORE the tuner refactor (0126),
 // generated from the 0125 code; the test proves the refactored builder still
-// produces exactly those, token for token.
+// produces exactly those, token for token. #322 took out the cases that varied a retired setting (quality, max
+// resolution, audio mix): a 'night' mp2 case became the default mp2 case, generated from the code before #322.
 const URL_ = 'http://provider.invalid/live/u/p/441372.ts';
 
 function matrix() {
@@ -17,9 +18,8 @@ function matrix() {
                 { audioCodec: 'aac', audioChannels: 2, audioProfile: 'HE-AAC', isHeAac: true, heaacCopy: true },
                 { audioCodec: 'ac3', audioChannels: 6 },
                 { audioCodec: 'eac3', audioChannels: 6, audioMode: 'copy' },
-                { audioCodec: 'mp2', audioChannels: 2, audioMixPreset: 'night' },
-                { audioCodec: 'aac', audioChannels: 2, audioMode: 'encode' },
-                { audioCodec: 'aac', audioChannels: 2, audioMixPreset: 'passthrough' }
+                { audioCodec: 'mp2', audioChannels: 2 },
+                { audioCodec: 'aac', audioChannels: 2, audioMode: 'encode' }
             ]) {
                 for (const dtsUneven of [false, true]) {
                     out.push({ ...base, segmentType, videoMode: 'copy', videoCodec, dtsUneven, ...audio });
@@ -34,7 +34,6 @@ function matrix() {
     for (const hwEncoder of ['software', 'nvenc', 'qsv', 'amf', 'vaapi']) {
         for (const extra of [
             {},
-            { quality: 'high', maxResolution: '720p' },
             { upscaleEnabled: true, upscaleTarget: '4k', upscaleMethod: 'software' },
             { upscaleEnabled: true, upscaleTarget: '1080p', upscaleMethod: 'hardware' },
             { vaapiCpuScale: false },

@@ -26,7 +26,7 @@ const saved = (async () => {
     const owner = await db.users.create({ username: 'owner', passwordHash: '$2a$10$hash', role: 'admin' });
     const kid = await db.users.create({ username: 'kid', passwordHash: '$2a$10$other', role: 'viewer', email: 'k@x.invalid' });
     const guide = await db.sources.toggleEnabled((await db.sources.create({ type: 'epg', name: 'Guide', url: 'http://g.invalid/epg.xml' })).id);
-    await db.settings.update({ quality: 'high', recordingsPath: '/mnt/rec', nested: { a: [1, 2] } });
+    await db.settings.update({ epgRefreshInterval: '6', recordingsPath: '/mnt/rec', nested: { a: [1, 2] } });
     return { provider, owner, kid, guide };
 })();
 
@@ -55,7 +55,7 @@ test('what was saved is read back, every field', async () => {
     assert.deepEqual((await db.users.getAll()).map(u => [u.id, u.username, u.passwordHash, u.role, u.email]),
         [[2, 'owner', '$2a$10$hash', 'admin', null], [3, 'kid', '$2a$10$other', 'viewer', 'k@x.invalid']], 'users, password hashes included');
     const settings = await db.settings.get();
-    assert.equal(settings.quality, 'high');
+    assert.equal(settings.epgRefreshInterval, '6');
     assert.equal(settings.recordingsPath, '/mnt/rec');
     assert.deepEqual(settings.nested, { a: [1, 2] });
     assert.equal(settings.maxProviderStreams, 1, 'defaults fill what was not saved');
@@ -65,10 +65,10 @@ test('what was saved is read back, every field', async () => {
 });
 
 test('a db.json beside a database it was moved into before is ignored', () => {
-    fs.writeFileSync(dbFile, JSON.stringify({ sources: [{ id: 99, name: 'Restored' }], settings: { quality: 'low' }, users: [], nextId: 100 }));
+    fs.writeFileSync(dbFile, JSON.stringify({ sources: [{ id: 99, name: 'Restored' }], settings: { epgRefreshInterval: '12' }, users: [], nextId: 100 }));
     try {
         assert.deepEqual(readInChild('db.sources.getAll()').map(s => s.id), [1, 4]);
-        assert.equal(readInChild('db.settings.get()').quality, 'high');
+        assert.equal(readInChild('db.settings.get()').epgRefreshInterval, '6');
     } finally { fs.unlinkSync(dbFile); }
 });
 
@@ -115,8 +115,8 @@ test('users round-trip: create hides the hash, lookups, rename checks, the last 
 });
 
 test('settings round-trip: update returns the stored settings, reset returns the defaults', async () => {
-    const stored = await db.settings.update({ quality: 'low', minFreeSpaceGB: 25 });
-    assert.equal(stored.quality, 'low');
+    const stored = await db.settings.update({ epgRefreshInterval: '12', minFreeSpaceGB: 25 });
+    assert.equal(stored.epgRefreshInterval, '12');
     assert.equal(stored.minFreeSpaceGB, 25);
     assert.equal((await db.settings.get()).minFreeSpaceGB, 25);
     assert.equal(readInChild('db.settings.get()').minFreeSpaceGB, 25, 'persisted');
@@ -131,16 +131,16 @@ test('the hot path: settings.get() hands out one frozen object and never clones 
         for (let i = 0; i < 1000; i++) assert.equal(await db.settings.get(), first, 'the same object every time');
         assert.equal(clones, 0, 'no structuredClone per read');
         assert.ok(Object.isFrozen(first), 'frozen, so no caller can change what the next one reads');
-        assert.throws(() => { 'use strict'; first.quality = 'x'; }, TypeError);
+        assert.throws(() => { 'use strict'; first.epgRefreshInterval = 'x'; }, TypeError);
     } finally { globalThis.structuredClone = realClone; }
 
-    await db.settings.update({ quality: 'medium' });
+    await db.settings.update({ epgRefreshInterval: '24' });
     const before = await db.settings.get();
-    await db.settings.update({ quality: 'high' });
+    await db.settings.update({ epgRefreshInterval: '6' });
     const after = await db.settings.get();
     assert.notEqual(after, before, 'a write replaces the object');
-    assert.equal(before.quality, 'medium', 'an object already handed out does not change under its holder');
-    assert.equal(after.quality, 'high');
+    assert.equal(before.epgRefreshInterval, '24', 'an object already handed out does not change under its holder');
+    assert.equal(after.epgRefreshInterval, '6');
 });
 
 test('a fresh install (no db.json) starts with the default settings and no sources or users', () => {
@@ -150,9 +150,9 @@ test('a fresh install (no db.json) starts with the default settings and no sourc
         fs.symlinkSync(path.resolve(__dirname, '../node_modules'), path.join(fresh, 'node_modules'), 'junction');
         const code = `const db = require(${JSON.stringify(path.join(fresh, 'server', 'db'))});
             (async () => process.stdout.write('\\nRESULT ' + JSON.stringify({ s: await db.sources.getAll(), u: await db.users.count(),
-                q: (await db.settings.get()).quality, id: (await db.sources.create({ name: 'x' })).id })))();`;
+                q: (await db.settings.get()).epgRefreshInterval, id: (await db.sources.create({ name: 'x' })).id })))();`;
         const out = result(execFileSync(process.execPath, ['-e', code], { cwd: fresh, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }));
-        assert.deepEqual(out, { s: [], u: 0, q: 'medium', id: 1 });
+        assert.deepEqual(out, { s: [], u: 0, q: '24', id: 1 });
         assert.ok(!fs.existsSync(path.join(fresh, 'data', 'db.json')), 'no db.json is written any more');
     } finally {
         try { fs.rmdirSync(path.join(fresh, 'node_modules')); } catch { /* gone */ }

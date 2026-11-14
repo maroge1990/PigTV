@@ -34,17 +34,16 @@ function run(binary = 'ffmpeg', softwareOnly = false) {
     const encoders = new Set(invoke(['-hide_banner', '-encoders']).split(/\s+/));
     for (const mode of ['software', ...(softwareOnly ? [] : ['nvenc', 'vaapi', 'qsv', 'amf'])]) {
         if (mode === 'amf' && !encoders.has('h264_amf')) { console.log('AMF unavailable in this build (also absent in the deployed Ubuntu profile); options not checked'); continue; }
-        for (const quality of ['low', 'medium', 'high']) {
-            const session = new TranscodeSession('http://offline.invalid/unused', { hwEncoder: mode, quality, maxResolution: '480p', live: true });
-            const args = []; session.addVideoEncoderArgs(args, mode);
-            const encoder = args[args.indexOf('-c:v') + 1];
-            if (!encoders.has(encoder)) {
-                throw new Error(`Required encoder missing: ${encoder}`);
-            }
-            validate(args, invoke(['-hide_banner', '-h', `encoder=${encoder}`]), encoder);
-            if (mode === 'software') invoke(['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=640x360:rate=25', '-t', '1', ...args, '-an', '-f', 'null', '-']);
+        // #322: one quality and resolution now (medium, up to 1080p), so one set of arguments per encoder.
+        const session = new TranscodeSession('http://offline.invalid/unused', { hwEncoder: mode, live: true });
+        const args = []; session.addVideoEncoderArgs(args, mode);
+        const encoder = args[args.indexOf('-c:v') + 1];
+        if (!encoders.has(encoder)) {
+            throw new Error(`Required encoder missing: ${encoder}`);
         }
-        console.log(`${mode}: builder options checked${mode === 'software' ? ', three real encodes passed' : ''}`);
+        validate(args, invoke(['-hide_banner', '-h', `encoder=${encoder}`]), encoder);
+        if (mode === 'software') invoke(['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=640x360:rate=25', '-t', '1', ...args, '-an', '-f', 'null', '-']);
+        console.log(`${mode}: builder options checked${mode === 'software' ? ', a real encode passed' : ''}`);
     }
 }
 module.exports = { optionNames, privateOptions, validate, run };

@@ -136,6 +136,12 @@ const REFUSED_RETRY_DELAYS_MS = [1500, 3000];
 // starts. PIGTV_READRATE_BURST=0 goes back to plain -re. Read on every use so
 // the env var can be changed in tests.
 const DEFAULT_READRATE_BURST_SEC = 8;
+
+// #322 (Mark, 14 Nov 2026): a re-encode is made at up to 1080p and medium quality, and surround is mixed down by the
+// ITU rule (a stereo AAC source is copied). These were settings (maxResolution, quality, audioMixPreset), now retired:
+// a value an older client sends or an older server stored changes nothing.
+const ENCODE_MAX_HEIGHT = 1080;
+const ENCODE_QP = { nvenc: 24, vaapi: 24, qsv: 24, amf: 24, software: 23 };
 function readrateBurstSec() {
     const raw = process.env.PIGTV_READRATE_BURST;
     if (raw === undefined || raw === '') return DEFAULT_READRATE_BURST_SEC;
@@ -195,8 +201,6 @@ class TranscodeSession extends EventEmitter {
             userAgent: options.userAgent || 'Mozilla/5.0',
             seekOffset: options.seekOffset || 0,
             hwEncoder: options.hwEncoder || 'software',
-            maxResolution: options.maxResolution || '1080p',
-            quality: options.quality || 'medium',
             // Upscaling options
             upscaleEnabled: options.upscaleEnabled || false,
             upscaleMethod: options.upscaleMethod || 'hardware', // 'hardware' or 'software'
@@ -662,7 +666,6 @@ class TranscodeSession extends EventEmitter {
         // Audio: Apply mix preset
         const audioCodec = this.options.audioCodec?.toLowerCase() || 'unknown';
         const audioChannels = this.options.audioChannels || 0;
-        const audioMixPreset = this.options.audioMixPreset || 'auto';
         // HE-AAC cannot be passed through to a browser (see streamProbe), so it is
         // excluded from every copy path here even though it is stereo AAC - unless
         // the client said it decodes HE-AAC (heaacCopy, from capability heaac: 0116),
@@ -675,15 +678,8 @@ class TranscodeSession extends EventEmitter {
         const heAacBlocked = (isHeAac && this.options.heaacCopy !== true) || labelBlocked;
         const isStereoAac = audioCodec.includes('aac') && audioChannels === 2 && !heAacBlocked;
 
-        // Define pan filter presets for 5.1 -> Stereo downmix
-        const AUDIO_MIX_FILTERS = {
-            // ITU-R BS.775 Standard: Mathematically balanced, transparent
-            itu: 'pan=stereo|FL=FL+0.707*FC+0.707*BL+0.5*LFE|FR=FR+0.707*FC+0.707*BR+0.5*LFE',
-            // Night Mode: Heavy dialogue boost, reduced bass/surrounds for quiet viewing
-            night: 'pan=stereo|FL=0.5*FL+1.2*FC+0.3*BL+0.1*LFE|FR=0.5*FR+1.2*FC+0.3*BR+0.1*LFE',
-            // Cinematic: Wide soundstage, immersive (original "dialogue boost" mix)
-            cinematic: 'pan=stereo|FL=FC+0.80*FL+0.60*BL+0.5*LFE|FR=FC+0.80*FR+0.60*BR+0.5*LFE'
-        };
+        // The 5.1 -> stereo downmix: ITU-R BS.775, balanced and transparent (#322: the only mix now).
+        const ITU_DOWNMIX = 'pan=stereo|FL=FL+0.707*FC+0.707*BL+0.5*LFE|FR=FR+0.707*FC+0.707*BR+0.5*LFE';
 
         // Raw ADTS AAC — the framing MPEG-TS/live sources use — carries no
         // Audio Specific Config; MP4-family containers (fMP4/HLS-CMAF, and
@@ -715,35 +711,27 @@ class TranscodeSession extends EventEmitter {
             // capabilities that this audio codec plays as-is and wants it
             // copied through untouched — the same guarantee a plain remux
             // gives, just inside an HLS session instead of a piped
-            // response. This intentionally bypasses audioMixPreset, which
-            // exists to pick a *downmix*, a question that doesn't apply
-            // when nothing needs mixing in the first place.
+            // response. No downmix applies when nothing needs mixing in the
+            // first place.
             console.log(`[TranscodeSession ${this.id}] Audio: Copy (client capabilities confirm ${audioCodec} support)`);
-            pushAudioCopy();
-        } else if (audioMixPreset === 'passthrough' && !heAacBlocked && !forceEncode) {
-            // Passthrough: Always copy audio, no processing
-            console.log(`[TranscodeSession ${this.id}] Audio: Passthrough (copy)`);
             pushAudioCopy();
         } else if (heAacBlocked || (isHeAac && forceEncode)) {
             // Re-encode to AAC-LC. Only the audio is touched, so this stays
             // cheap even when the video is being stream-copied.
             console.log(`[TranscodeSession ${this.id}] Audio: ${isHeAac ? 'HE-AAC' : 'AAC'} source -> AAC-LC (${labelBlocked ? 'its AAC label is not AAC-LC, which no client decodes as a copy' : heAacBlocked ? 'this client cannot decode HE-AAC' : 're-encode requested'})`);
             args.push('-c:a', 'aac', '-profile:a', 'aac_low', '-ar', '48000', '-b:a', '128k');
-        } else if (audioMixPreset === 'auto' && isStereoAac && !forceEncode) {
-            // Auto + Stereo AAC source: Smart copy
+        } else if (isStereoAac && !forceEncode) {
+            // Stereo AAC source: smart copy
             console.log(`[TranscodeSession ${this.id}] Audio: Auto (Smart Copy) - Source is Stereo AAC`);
             pushAudioCopy();
         } else {
-            // Transcode to AAC with selected mix preset (default to ITU for 'auto')
-            const mixPreset = (audioMixPreset === 'auto') ? 'itu' : audioMixPreset;
-            const panFilter = AUDIO_MIX_FILTERS[mixPreset] || AUDIO_MIX_FILTERS.itu;
-
-            console.log(`[TranscodeSession ${this.id}] Audio: ${mixPreset.toUpperCase()} mix (${audioCodec} ${audioChannels}ch -> Stereo AAC)`);
+            // Transcode to stereo AAC with the ITU downmix
+            console.log(`[TranscodeSession ${this.id}] Audio: ITU mix (${audioCodec} ${audioChannels}ch -> Stereo AAC)`);
             args.push(
                 '-c:a', 'aac',
                 '-ar', '48000',
                 '-b:a', '192k',
-                '-af', `${panFilter},aresample=async=1`
+                '-af', `${ITU_DOWNMIX},aresample=async=1`
             );
         }
 
@@ -910,7 +898,6 @@ class TranscodeSession extends EventEmitter {
      */
     addVideoEncoderArgs(args, encoder) {
         const resolution = this.getTargetHeight();
-        const quality = this.options.quality || 'medium';
 
         // Live IPTV streams have irregular timestamps. Without this, ffmpeg
         // forces a constant frame rate and duplicates frames to fill the gaps
@@ -918,13 +905,7 @@ class TranscodeSession extends EventEmitter {
         // and drifts further behind real time the longer the stream runs.
         args.push('-fps_mode', 'passthrough');
 
-        // Quality presets mapping
-        const qualityPresets = {
-            'high': { nvenc: 18, vaapi: 18, qsv: 18, amf: 18, software: 18 },
-            'medium': { nvenc: 24, vaapi: 24, qsv: 24, amf: 24, software: 23 },
-            'low': { nvenc: 30, vaapi: 30, qsv: 30, amf: 30, software: 28 }
-        };
-        const qp = qualityPresets[quality] || qualityPresets.medium;
+        const qp = ENCODE_QP;
 
         switch (encoder) {
             case 'nvenc':
@@ -948,9 +929,7 @@ class TranscodeSession extends EventEmitter {
     }
 
     /**
-     * Get target height based on maxResolution or upscaleTarget setting
-     * When upscaling is enabled, uses the upscaleTarget resolution.
-     * Otherwise, uses maxResolution to cap the output.
+     * The output height: the upscale target when upscaling is on, otherwise the 1080p cap (#322).
      */
     getTargetHeight() {
         const resolutionMap = {
@@ -967,8 +946,7 @@ class TranscodeSession extends EventEmitter {
             return target;
         }
 
-        // Otherwise, use max resolution as the cap
-        return resolutionMap[this.options.maxResolution] || 1080;
+        return ENCODE_MAX_HEIGHT;
     }
 
     /**

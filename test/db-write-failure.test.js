@@ -50,12 +50,12 @@ const onDisk = (key) => {
 };
 
 test('a write that fails is reported to the caller, not passed off as saved', async () => {
-    await db.settings.update({ quality: 'medium' });
-    assert.equal((await db.settings.get()).quality, 'medium', 'saved before the disk fails');
+    await db.settings.update({ epgRefreshInterval: '24' });
+    assert.equal((await db.settings.get()).epgRefreshInterval, '24', 'saved before the disk fails');
     breakDisk();
     try {
         await quietly(async () => {
-            await assert.rejects(db.settings.update({ quality: 'high' }), (err) => {
+            await assert.rejects(db.settings.update({ epgRefreshInterval: '6' }), (err) => {
                 assert.match(err.message, /could not save its data/);
                 assert.ok(!/content\.db|db\.json|\/app\//.test(err.message), 'no file path in what a client may be shown');
                 assert.ok(err.cause, 'the underlying error is kept for the log');
@@ -63,20 +63,20 @@ test('a write that fails is reported to the caller, not passed off as saved', as
             });
         });
     } finally { fixDisk(); }
-    assert.equal(onDisk('quality'), 'medium', 'and the stored value was left as it was');
+    assert.equal(onDisk('epgRefreshInterval'), '24', 'and the stored value was left as it was');
 });
 
 test('the change does not stay live in memory after it failed to save', async () => {
-    assert.equal((await db.settings.get()).quality, 'medium', 'the rejected update is not what the server now uses');
+    assert.equal((await db.settings.get()).epgRefreshInterval, '24', 'the rejected update is not what the server now uses');
 });
 
 test('one failed write does not jam anything: the next save goes through', async () => {
     breakDisk();
-    try { await quietly(() => assert.rejects(db.settings.update({ quality: 'high' }))); } finally { fixDisk(); }
+    try { await quietly(() => assert.rejects(db.settings.update({ epgRefreshInterval: '6' }))); } finally { fixDisk(); }
 
-    await db.settings.update({ quality: 'low' });
-    assert.equal(onDisk('quality'), 'low');
-    assert.equal((await db.settings.get()).quality, 'low');
+    await db.settings.update({ epgRefreshInterval: '12' });
+    assert.equal(onDisk('epgRefreshInterval'), '12');
+    assert.equal((await db.settings.get()).epgRefreshInterval, '12');
 });
 
 test('a source created while the disk is failing is not left half-created, and uses up no id', async () => {
@@ -97,8 +97,8 @@ test('a refusal that is the caller\'s own (a duplicate username) keeps its messa
 });
 
 test('two updates in flight together both land (no read-modify-write of the whole store)', async () => {
-    await Promise.all([db.settings.update({ quality: 'high' }), db.settings.update({ minFreeSpaceGB: 42 })]);
+    await Promise.all([db.settings.update({ epgRefreshInterval: '6' }), db.settings.update({ minFreeSpaceGB: 42 })]);
     const s = await db.settings.get();
-    assert.equal(s.quality, 'high');
+    assert.equal(s.epgRefreshInterval, '6');
     assert.equal(s.minFreeSpaceGB, 42);
 });

@@ -996,8 +996,6 @@ class SettingsPage {
     initTranscodingSettings() {
         // Encoder settings
         const hwEncoderSelect = document.getElementById('setting-hw-encoder');
-        const maxResolutionSelect = document.getElementById('setting-max-resolution');
-        const qualitySelect = document.getElementById('setting-quality');
 
         // User-Agent (Transcoding tab versions)
         const userAgentSelect = document.getElementById('setting-user-agent-tc');
@@ -1009,25 +1007,6 @@ class SettingsPage {
             this.app.player.settings.hwEncoder = hwEncoderSelect.value;
             this.savePlayerSetting('hwEncoder');
         });
-
-        maxResolutionSelect?.addEventListener('change', () => {
-            this.app.player.settings.maxResolution = maxResolutionSelect.value;
-            this.savePlayerSetting('maxResolution');
-        });
-
-        qualitySelect?.addEventListener('change', () => {
-            this.app.player.settings.quality = qualitySelect.value;
-            this.savePlayerSetting('quality');
-        });
-
-        // Audio Mix Preset
-        const audioMixSelect = document.getElementById('setting-audio-mix');
-        if (audioMixSelect) {
-            audioMixSelect.addEventListener('change', () => {
-                this.app.player.settings.audioMixPreset = audioMixSelect.value;
-                this.savePlayerSetting('audioMixPreset');
-            });
-        }
 
         // Upscaling Settings
         const upscaleEnabledToggle = document.getElementById('setting-upscale-enabled');
@@ -1082,11 +1061,8 @@ class SettingsPage {
     applyTranscodeSettings(s) {
         const set = (id, value) => { const el = document.getElementById(id); if (el) el.value = value; };
         set('setting-hw-encoder', s.hwEncoder || 'auto');
-        set('setting-max-resolution', s.maxResolution || '1080p');
-        set('setting-quality', s.quality || 'medium');
         set('setting-user-agent-tc', s.userAgentPreset || 'chrome');
         set('setting-user-agent-custom-tc', s.userAgentCustom || '');
-        set('setting-audio-mix', s.audioMixPreset || 'auto');
         set('setting-upscale-method', s.upscaleMethod || 'hardware');
         set('setting-upscale-target', s.upscaleTarget || '1080p');
         const customUa = document.getElementById('custom-user-agent-container-tc');
