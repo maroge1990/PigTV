@@ -103,3 +103,27 @@ test('a bad buffer opens Options and sends nothing; the description is escaped',
     assert.equal(calls.length, 0);
     assert.equal(button(document, 'record-options').open, true);
 });
+
+test('a recording in progress says Stop recording and waits 10 s behind an Undo before it stops anything', async () => {
+    const { document, guide, calls, context } = browser();
+    const requests = [];
+    context.API.request = async (...a) => { requests.push(a.slice(0, 2)); return {}; };
+    const undoables = [];
+    context.UI.undoable = (message, opts) => { undoables.push({ message, ...opts }); };
+    const p = programme();
+    const row = { id: 41, status: 'recording', source_id: 1, channel_item_id: 'pos_4', program_start: Date.parse(p.start) };
+    guide.schedules = [row];
+    await guide.showProgramDetails(p);
+    const stop = button(document, 'modal-cancel-recording');
+    assert.match(dialogEl(document).querySelector('.ui-dialog-footer').innerHTML, />Stop recording</);
+    stop.onclick({});
+    await new Promise((r) => setImmediate(r));
+    assert.deepEqual(requests, [], 'nothing is sent at once');
+    assert.deepEqual(calls, []);
+    assert.equal(undoables.length, 1);
+    assert.equal(guide.schedules.length, 0);
+    undoables[0].undo();
+    assert.ok(guide.schedules.length === 1 && guide.schedules[0] === row, 'Undo puts it back');
+    await undoables[0].commit();
+    assert.deepEqual(requests, [['DELETE', '/recordings/scheduled/41']]);
+});

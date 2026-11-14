@@ -1074,7 +1074,7 @@ class EpgGuide {
         // One rose button: the first action that applies (Watch now when it is on air, else the record action).
         const actions = [];
         if (onAir) actions.push(['modal-watch', 'Watch now']);
-        if (scheduled) actions.push(['modal-cancel-recording', 'Cancel recording']);
+        if (scheduled) actions.push(['modal-cancel-recording', scheduled.status === 'recording' ? 'Stop recording' : 'Cancel recording']);
         else if (canRecord) actions.push(['modal-record', 'Record']);
         if (canRecord) actions.push(['modal-record-series', 'Record every episode']);
         footer.innerHTML = actions.map(([id, label], i) => `<button class="btn ${i === 0 ? 'btn-primary' : 'btn-secondary'}" id="${id}">${label}</button>`).join('')
@@ -1091,6 +1091,22 @@ class EpgGuide {
         }
         if (scheduled) {
             footer.querySelector('#modal-cancel-recording').onclick = async () => {
+                if (scheduled.status === 'recording') {
+                    // Stopping ends a recording for good: it happens at once with a 10 s Undo (the DELETE waits for it).
+                    const before = this.schedules;
+                    this.schedules = before.filter((r) => r !== scheduled);
+                    this.syncRecordingMarks?.();
+                    close();
+                    UI.undoable(`Recording stopped: ${data.title}`, {
+                        failText: 'Could not stop the recording.',
+                        undo: () => { this.schedules = [...this.schedules, scheduled]; this.syncRecordingMarks?.(); },
+                        commit: async () => {
+                            try { await API.request('DELETE', `/recordings/scheduled/${scheduled.id}`, null, { keepalive: true }); }
+                            finally { await this.loadSchedules(); this.syncRecordingMarks?.(); }
+                        }
+                    });
+                    return;
+                }
                 try {
                     await API.recordings.cancelScheduled(scheduled.id);
                     UI.toast(`Recording cancelled: ${data.title}`);
