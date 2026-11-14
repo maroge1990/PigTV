@@ -1255,6 +1255,19 @@ function captureEndWhy(entry, exitCode) {
  * nothing is deleted and the next run simply appends - until its stop time, however many times (#288). Otherwise the
  * capture is over and the MP4 is made.
  */
+/**
+ * What a capture that ended early is held against (#304, #288, #324): 'channel' (quarantined on its provider only),
+ * 'provider' (quarantined and counted toward the provider's breaker) or null. A stall on a channel's only provider and
+ * a feed repeating the same clip (#324: one channel's feed, the provider is up) are the channel's alone.
+ */
+function heldAgainst(entry, { failover, ranLong }) {
+    const repeating = entry.feedLost?.reason === 'repeating';
+    if (failover && (repeating || (entry.route.oneProvider && entry.stalled))) return 'channel';
+    if (failover) return 'provider';
+    if (entry.route.multi && !ranLong) return 'channel';
+    return null;
+}
+
 async function onSegmentExit(schedule, entry, exitCode) {
     segments.sealEpoch(entry.outputPath);
     if (active.get(schedule.id) === entry) active.delete(schedule.id);
@@ -1290,12 +1303,12 @@ async function onSegmentExit(schedule, entry, exitCode) {
         // also when backups exist but this channel has no link to one (Opus M1): it is only quarantined, so a sibling feed
         // of the same provider is tried next. A play's failed connections still count (routes/playback.js, streamRelay.js),
         // and so does a refused or failed connection here (0595, Codex sign-off): only a stall is kept out.
-        if (failover && entry.route.oneProvider && entry.stalled) providerRouting.quarantine(candidate?.providerId, candidate?.channelKey);
-        else if (failover) providerRouting.noteFailure(candidate, entry.route.primaryKey);
         // #288 (Opus M2): a short run on a multi route that ended without a provider reason (an "account expired" page,
         // a crash) is quarantined too, without a breaker count, so the next try goes to the next provider instead of
         // this one for the rest of the window. A run that lasted a minute is retried where it was, as before.
-        else if (entry.route.multi && !ranLong) providerRouting.quarantine(candidate?.providerId, candidate?.channelKey);
+        const held = heldAgainst(entry, { failover, ranLong });
+        if (held === 'channel') providerRouting.quarantine(candidate?.providerId, candidate?.channelKey);
+        else if (held === 'provider') providerRouting.noteFailure(candidate, entry.route.primaryKey);
         console.warn(`[Recordings] #${entry.recordingId} ended early (${why})` +
             (entry.route.multi && candidate?.providerName ? ` on ${candidate.providerName}` : '') +
             '; it continues in the same recording' + (entry.segmented.resumes ? ` (continued ${entry.segmented.resumes} times so far)` : ''));
@@ -2121,6 +2134,7 @@ module.exports = {
     _reconcileJobsOnStartup: reconcileJobsOnStartup,
     _reconcileOnStartup: reconcileOnStartup, // R3: what a restart does to a recording in progress
     _failoverTuning: failoverTuning,
+    _heldAgainst: heldAgainst,
     _activeEntry: (id) => active.get(Number(id)), // tests: the running capture of a schedule
     _askToStop: askToStop,
     _stallWatchCount: () => stallWatchdogs.size, // #274: no part's watchdog outlives it

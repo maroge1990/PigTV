@@ -200,9 +200,13 @@ function watchSession(session, candidate, primaryKey, label = null) {
     if (!session || typeof session.once !== 'function' || !candidate || candidate.providerId == null) return;
     session.once('lost', ({ how, providerReason } = {}) => {
         if (!providerReason) return;
-        noteFailure(candidate, primaryKey);
+        // #324: a feed repeating the same clip is one channel's feed on a provider that is up: quarantined
+        // for the channel, like a blank picture, and not counted toward the provider's breaker.
+        const repeating = !!session.feedLost && session.feedLost.reason === 'repeating';
+        if (repeating) quarantine(candidate.providerId, candidate.channelKey);
+        else noteFailure(candidate, primaryKey);
         console.warn(`[Playback] ${candidate.providerName} lost ${label ? `"${label}"` : 'a channel'} mid-play ` +
-            `(${session.feedLost && session.feedLost.reason === 'repeating' ? 'kept repeating the same clip'
+            `(${repeating ? 'kept repeating the same clip'
                 : how === 'stall' ? 'stalled' : how === 'timestamps' ? 'timestamps broke after a reconnect' : 'ffmpeg exited'}); ` +
             `not used for it for ${QUARANTINE_MS / MINUTE} min`);
     });

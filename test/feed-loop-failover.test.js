@@ -198,6 +198,9 @@ test('a provider looping a clip with fresh timestamps is found on its payloads, 
         // The channel is quarantined on the looping provider (the next play goes elsewhere), and the
         // interruption the route records for this session is `repeating`.
         assert.equal(routing.isQuarantined(candA.providerId, candA.channelKey), true);
+        // One channel's feed on a provider that is up: not counted toward the provider's breaker.
+        assert.equal(routing._breakers.get(A.id)?.failures.length ?? 0, 0, 'nothing toward Strong8K\'s breaker');
+        assert.equal(routing.providerState(A.id), 'up');
         assert.equal(interruptions.reasonOf('exit', front), 'repeating');
         // Logged by the provider's name, never its address.
         const said = out.lines.join('\n');
@@ -206,6 +209,19 @@ test('a provider looping a clip with fresh timestamps is found on its payloads, 
         assert.ok(!said.includes(base) && !said.includes('/loop.ts'), 'no provider URL in the log');
         assert.equal(connections['/loop.ts'], 1, 'not reconnected: the same clip would come back');
     } finally { out.restore(); releaseGate(); }
+});
+
+test('a recording whose feed repeated the same clip is held against the channel only, like a stall on its only provider', () => {
+    const engine = load('services/recordingEngine');
+    const entry = (extra = {}) => ({ route: { multi: true, oneProvider: false }, stalled: false, feedLost: null, ...extra });
+    const repeating = { reason: 'repeating', providerReason: true, periodSec: 36.2 };
+    assert.equal(engine._heldAgainst(entry({ feedLost: repeating }), { failover: true, ranLong: true }), 'channel');
+    // The rules it sits beside are unchanged (#304, #288).
+    assert.equal(engine._heldAgainst(entry({ feedLost: { reason: 'upstream-lost', providerReason: true } }), { failover: true, ranLong: true }), 'provider');
+    assert.equal(engine._heldAgainst(entry({ stalled: true, route: { multi: true, oneProvider: true } }), { failover: true, ranLong: true }), 'channel');
+    assert.equal(engine._heldAgainst(entry({ stalled: true }), { failover: true, ranLong: true }), 'provider');
+    assert.equal(engine._heldAgainst(entry(), { failover: false, ranLong: false }), 'channel');
+    assert.equal(engine._heldAgainst(entry(), { failover: false, ranLong: true }), null);
 });
 
 test('the route records a lost session\'s interruption with the reason its feed gave', { skip }, () => {
