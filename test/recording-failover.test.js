@@ -444,6 +444,40 @@ test('stop, a viewer taking the stream, and low disk space never start a continu
     assert.ok(!routing.isQuarantined(A.id, 's101'), 'and nothing was held against the provider');
 });
 
+// #286 (Opus L6, L7): the low-disk pass looked only at running captures, so a recording waiting between parts (for hours
+// in an outage, #288) was left to start its next part into a full appdata; and the notice gave the count before the stops.
+test('#286: low disk space also ends a recording waiting between parts, and the notice counts every one stopped', async () => {
+    tuning.endGraceMs = 0;
+    const running = due();
+    await until(() => activeFor(running.id) && captures().length === 1, 'one records');
+    setBehaviour(url.B(5001), 'ends-once'); // the next capture (on Trex: Strong8K's connection is taken) writes, then ends
+    const waits = due();
+    await engine.tick();
+    await settle(() => captures().length === 2 && rowsOf(waits.id).length === 1, 'the other records');
+    assert.equal(inputs()[1], url.B(5001));
+    const [rec] = rowsOf(waits.id);
+    await settle(() => !activeFor(waits.id), 'its capture ended early');
+    for (const p of [A, B, C]) await viewerOn(p.id); // nowhere free to go on: it waits between parts
+    await engine.tick();
+    assert.ok(!activeFor(waits.id) && scheduled.getById(waits.id).status === 'recording', 'waiting for a free provider');
+    await db.settings.update({ minFreeSpaceGB: 1e9 });
+    const notify = load('services/notify');
+    const realNotice = notify.recordingsStoppedLowDisk;
+    const notices = [];
+    notify.recordingsStoppedLowDisk = (...args) => { notices.push(args); };
+    try { await engine.tick(); } finally { notify.recordingsStoppedLowDisk = realNotice; }
+    assert.equal(scheduled.getById(waits.id).status, 'completed', 'the waiting one is ended, with what it has');
+    assert.match(scheduled.getById(waits.id).error, /^Stopped early: free space in appdata ran low \(\d+\.\d GB free\)$/);
+    assert.notEqual(recordings.getById(rec.id).segment_state, 'capturing');
+    assert.equal(scheduled.getById(running.id).status, 'completed');
+    assert.deepEqual(notices.map(a => a[0]), [2], 'one notice, counting both');
+    for (const s of transcodeSession.getAllSessions()) await transcodeSession.removeSession(s.id);
+    const before = captures().length;
+    await engine.tick();
+    await sleep(300);
+    assert.equal(captures().length, before, 'no part started after it');
+});
+
 test('low disk space in appdata stops a recording while the recordings share is down, as with it up', async () => {
     const recordingsPath = path.join(sandbox, 'recordings');
     const c = due();

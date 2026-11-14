@@ -99,7 +99,7 @@ function recordingFailed(schedule, error) {
 function recordingsStoppedLowDisk(count, freeGB) {
     emit('disk-low', {
         title: 'PigTV: recordings stopped, disk nearly full',
-        message: `Free space in appdata ran low (${Number(freeGB).toFixed(1)} GB free); ${count} recording(s) stopped early. What they recorded is kept.`,
+        message: `Free space in appdata ran low (${Number(freeGB).toFixed(1)} GB free); ${count} recording(s) stopped early. Anything they had recorded is kept.`,
         key: 'disk-low'
     });
 }

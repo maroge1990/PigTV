@@ -113,7 +113,9 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   arguments straight onto the share under `.partial`, checked (`checkPrepared`), renamed, `native_status` ready; then the
   work folder goes. Share down: the MP4 waits in the work folder (`segment_state` `moving`, playable) and moves every
   15 min; three failed remuxes deliver the joined `.ts` instead. Appdata gets the health and free-space checks; the share is
-  not needed to start. Measured on ffmpeg 9.0 with synthetic HEVC HDR10 / 50 fps / HE-AAC; **not yet on the reference
+  not needed to start. Appdata below half the minimum free space ends every segmented recording, running or waiting
+  between parts, with what it has (schedule error "Stopped early: free space in appdata ran low (N GB free)"), and one
+  `disk-low` notice counts those stopped (#286). Measured on ffmpeg 9.0 with synthetic HEVC HDR10 / 50 fps / HE-AAC; **not yet on the reference
   feeds or production's 6.x**.
 
 ## Rules

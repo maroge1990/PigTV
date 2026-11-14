@@ -1686,7 +1686,10 @@ function reconcileJobsOnStartup() {
  * is only killed when space is genuinely critical. The partial file is kept.
  */
 async function enforceFreeSpaceDuringRecording() {
-    if (active.size === 0) return;
+    // #286 (Opus L6): a segmented recording waiting between parts (a continuation, for hours in an outage: #288) is
+    // stopped too, or its next part would start into a nearly full appdata.
+    const waitingIds = () => [...continuations.entries()].filter(([, c]) => c.resume).map(([id]) => id);
+    if (active.size === 0 && waitingIds().length === 0) return;
 
     const settings = await getSettings();
     const minFreeGB = Number.isFinite(settings.minFreeSpaceGB) ? settings.minFreeSpaceGB : 10;
@@ -1694,24 +1697,41 @@ async function enforceFreeSpaceDuringRecording() {
 
     // R3: segmented recordings fill appdata, not the share (so a share that is down changes nothing here).
     const segmented = [...active.entries()].filter(([, e]) => e.segmented).map(([id]) => id);
-    if (segmented.length) {
-        const work = hasFreeSpace(segments.workRoot(), minFreeGB, 0.5);
-        if (!work.ok) {
-            console.error(`[Recordings] Free space critical in appdata (${work.freeGB.toFixed(1)} GB); stopping ${segmented.length} segmented recording(s). What they recorded is kept.`);
-            try { require('./notify').recordingsStoppedLowDisk(segmented.length, work.freeGB); } catch (e) { /* best-effort (R11) */ }
-            for (const scheduledId of segmented) {
-                try {
-                    await stopRecording(scheduledId, 'completed');
-                    // #286: say why it ended (as stopForViewer does), so the completed schedule is not left unexplained.
-                    const row = scheduledDb.getById(scheduledId);
-                    if (row && row.status === 'completed' && !row.error) {
-                        setScheduleStatus(row, 'completed', { error: `Stopped early: free space in appdata ran low (${work.freeGB.toFixed(1)} GB free)` });
-                    }
-                } catch (err) {
-                    console.error('[Recordings] Error stopping recording for low disk space:', err.message);
-                }
+    const waiting = waitingIds().filter(id => !segmented.includes(id));
+    if (!segmented.length && !waiting.length) return;
+    const work = hasFreeSpace(segments.workRoot(), minFreeGB, 0.5);
+    if (work.ok) return;
+    const why = `free space in appdata ran low (${work.freeGB.toFixed(1)} GB free)`;
+    console.error(`[Recordings] Free space critical in appdata (${work.freeGB.toFixed(1)} GB); stopping ${segmented.length + waiting.length} segmented recording(s). Anything they recorded is kept.`);
+    let stopped = 0;
+    for (const scheduledId of segmented) {
+        try {
+            await stopRecording(scheduledId, 'completed');
+            stopped++;
+            // #286: say why it ended (as stopForViewer does), so the completed schedule is not left unexplained.
+            const row = scheduledDb.getById(scheduledId);
+            if (row && row.status === 'completed' && !row.error) {
+                setScheduleStatus(row, 'completed', { error: `Stopped early: ${why}` });
             }
+        } catch (err) {
+            console.error('[Recordings] Error stopping recording for low disk space:', err.message);
         }
+    }
+    for (const scheduledId of waiting) {
+        const cont = continuations.get(scheduledId);
+        if (!cont?.resume) continue;
+        continuations.delete(scheduledId); // a start under way gives up (ours() fails)
+        try {
+            endSegmentCapture(scheduledId, cont.resume.recordingId, { why });
+            stopped++;
+        } catch (err) {
+            console.error('[Recordings] Error stopping recording for low disk space:', err.message);
+        }
+    }
+    // #286 (Opus L7): after the stops, with the number really stopped (one with nothing recorded included: the text says
+    // anything recorded is kept, not that each kept something).
+    if (stopped) {
+        try { require('./notify').recordingsStoppedLowDisk(stopped, work.freeGB); } catch (e) { /* best-effort (R11) */ }
     }
 }
 
