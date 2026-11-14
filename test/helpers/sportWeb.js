@@ -62,8 +62,15 @@ function answer(extra = {}) {
 }
 const SCORE_TEXT = ['47', '31', '58', '59', '63', '64', '71', '72', '287/6', '312'];
 const REVEALING = /Penalties|Pens\b|Down 3|8 yards|Yard line|47–31/;
+/**
+ * No score anywhere in the markup, text or attribute: each score as a token of its own (">47<", "47–31", "aria-label=\"… 47\""),
+ * never inside a clock ("10:47 pm", which the page's real "Couldn't update … at" time can be).
+ */
 function assertNoScores(html, where) {
-    for (const s of SCORE_TEXT) assert.ok(!html.includes(s), `${where}: "${s}" is in the markup`);
+    for (const s of SCORE_TEXT) {
+        const token = new RegExp(`(^|[\\s"'>–(])${s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}($|[\\s"'<–),])`);
+        assert.doesNotMatch(html, token, `${where}: "${s}" is in the markup`);
+    }
     assert.doesNotMatch(html, REVEALING, `${where}: a score-revealing word`);
 }
 const ctx = (V, front, o = {}) => ({ front, hide: false, now: NOW, labels: { EPL: 'Premier League' }, phone: false, heroId: 'ars', followIndex: 0, ...o });
