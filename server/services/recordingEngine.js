@@ -1770,49 +1770,55 @@ async function tick() {
         // #12 (D-42): who wins each clash, once per tick (only when something is due).
         let outcome = null;
         for (const schedule of due) {
-            // Skip if its window already fully passed (findMissed handles the log/status)
-            if (recordingWindow(schedule).stopsAt < now) continue;
-            if (active.has(schedule.id)) continue;
+            try {
+                // Skip if its window already fully passed (findMissed handles the log/status)
+                if (recordingWindow(schedule).stopsAt < now) continue;
+                if (active.has(schedule.id)) continue;
 
-            const settings = await getSettings();
-            // #12 (D-28): the cap counts provider connections, not recordings. A recording of a channel that is
-            // already being recorded joins that recording's shared ingest, so the cap never holds it back.
-            // #133: only when the start really reads that recording's ingest (checked again once the feed is had).
-            const joins = await sharedRecordingKey(schedule, settings);
-            // D-42: a schedule that loses its clash waits for the winner, even when a connection is free now (it would
-            // otherwise hold the connection the winner needs later). Joining a running recording costs no connection.
-            const epoch = choiceEpoch;
-            if (!joins) {
-                // 0412 (0411 Codex round 2, high): a choice made during an earlier start of this tick changes who wins
-                if (!outcome || outcome.epoch !== epoch) { outcome = holds(scheduledDb.listUpcoming(), settings); outcome.epoch = epoch; }
-                const winnerId = (outcome.get(schedule.id) || [])[0];
-                const winner = winnerId ? scheduledDb.getById(winnerId) : null;
-                if (winner) { waitForSlot(schedule, clashReason(winner), winner.id); continue; }
-            }
-            const atCap = recordingConnections() >= recordingSlots(settings);
-            if (!joins && atCap) {
-                waitForSlot(schedule);
-                continue;
-            }
-
-            // The provider may allow only one connection, and a viewer may be
-            // using it. The coordinator decides; this loop just respects the
-            // answer and tries again next tick, which is what makes a declined
-            // recording start the moment playback stops.
-            // 0177: with backups, the first provider with a free connection is
-            // used without asking; the prompt is only for when every one is busy.
-            const choice = await chooseProvider(schedule, settings, joins);
-            const verdict = choice.verdict;
-            if (!verdict.allowed) {
-                if (schedule.status !== 'waiting') {
-                    setScheduleStatus(schedule.id, 'waiting', { error: verdict.reason });
+                const settings = await getSettings();
+                // #12 (D-28): the cap counts provider connections, not recordings. A recording of a channel that is
+                // already being recorded joins that recording's shared ingest, so the cap never holds it back.
+                // #133: only when the start really reads that recording's ingest (checked again once the feed is had).
+                const joins = await sharedRecordingKey(schedule, settings);
+                // D-42: a schedule that loses its clash waits for the winner, even when a connection is free now (it would
+                // otherwise hold the connection the winner needs later). Joining a running recording costs no connection.
+                const epoch = choiceEpoch;
+                if (!joins) {
+                    // 0412 (0411 Codex round 2, high): a choice made during an earlier start of this tick changes who wins
+                    if (!outcome || outcome.epoch !== epoch) { outcome = holds(scheduledDb.listUpcoming(), settings); outcome.epoch = epoch; }
+                    const winnerId = (outcome.get(schedule.id) || [])[0];
+                    const winner = winnerId ? scheduledDb.getById(winnerId) : null;
+                    if (winner) { waitForSlot(schedule, clashReason(winner), winner.id); continue; }
                 }
-                continue;
-            }
+                const atCap = recordingConnections() >= recordingSlots(settings);
+                if (!joins && atCap) {
+                    waitForSlot(schedule);
+                    continue;
+                }
 
-            if (joins && atCap) choice.mustJoin = joins; // past the cap only by joining (#133)
-            if (!joins) choice.epoch = epoch; // 0411: re-checked against a choice made while it starts
-            await startRecording(schedule, choice);
+                // The provider may allow only one connection, and a viewer may be
+                // using it. The coordinator decides; this loop just respects the
+                // answer and tries again next tick, which is what makes a declined
+                // recording start the moment playback stops.
+                // 0177: with backups, the first provider with a free connection is
+                // used without asking; the prompt is only for when every one is busy.
+                const choice = await chooseProvider(schedule, settings, joins);
+                const verdict = choice.verdict;
+                if (!verdict.allowed) {
+                    if (schedule.status !== 'waiting') {
+                        setScheduleStatus(schedule.id, 'waiting', { error: verdict.reason });
+                    }
+                    continue;
+                }
+
+                if (joins && atCap) choice.mustJoin = joins; // past the cap only by joining (#133)
+                if (!joins) choice.epoch = epoch; // 0411: re-checked against a choice made while it starts
+                await startRecording(schedule, choice);
+            } catch (err) {
+                // #303: one schedule's failure must not skip the others due in this tick; no status is written, so
+                // it is tried again next tick.
+                console.error(`[Recordings] Schedule #${schedule.id}: ${err.message}; tried again next tick`);
+            }
         }
 
         // 0177: a part whose provider died and that waits for a free one. (A capture that has stopped growing is

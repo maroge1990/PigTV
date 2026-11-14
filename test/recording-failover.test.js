@@ -354,6 +354,24 @@ test('#305: a schedule that waited records without the reason it waited', async 
     assert.equal(row.clash_winner, null);
 });
 
+test('#303: one schedule that throws while starting does not stop the others due in the same tick', async () => {
+    const a = due();
+    const b = due();
+    const real = coordinator.requestForRecording;
+    coordinator.requestForRecording = (schedule, ...rest) => {
+        if (schedule.id === a.id) throw new Error('boom for a');
+        return real.call(coordinator, schedule, ...rest);
+    };
+    try {
+        await engine.tick();
+        await until(() => scheduled.getById(b.id).status === 'recording', 'b records in spite of a');
+    } finally {
+        coordinator.requestForRecording = real;
+    }
+    assert.equal(scheduled.getById(a.id).status, 'scheduled', 'a is left as it was, to be tried again');
+    assert.ok(logLines.some(l => l.includes(`Schedule #${a.id}: boom for a; tried again next tick`)));
+});
+
 // ------------------------------------------------------------ no backup --
 // One provider refusing waits for the next tick each time (not at once): recording-segments.test.js's "#284: a
 // single-provider route that refuses at the start"; one dropping mid-recording continues (0499): its "0499" test.
