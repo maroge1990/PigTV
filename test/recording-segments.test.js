@@ -1185,6 +1185,27 @@ test('server restart mid-recording: the same recording continues in a new epoch,
     assert.equal(scheduled.getById(s.id).status, 'cancelled');
 });
 
+// #302 (Opus L2): a restart during an outage took the gap from the newest epoch's playlist, which a try refused during
+// the outage never writes, so it fell back to the restart time: the outage's time since that try, and the downtime,
+// were left out (and the restart counted as a gap of its own).
+test('#302: a restart during an outage counts from the last try\'s start, as part of the same gap', async () => {
+    tuning.endGraceMs = 0;
+    const { s, rec, workDir } = leftByACrash({ windowMs: 20000 });
+    const t = Date.now();
+    fs.utimesSync(path.join(workDir, 'e1', 'archive.m3u8'), new Date(t - 60000), new Date(t - 60000)); // e1 last grew a minute ago
+    fs.mkdirSync(path.join(workDir, 'e2'));                                                         // a try refused 30 s ago
+    fs.utimesSync(path.join(workDir, 'e2'), new Date(t - 30000), new Date(t - 30000));
+    recordings.markEndedEarly(rec.id, 'Gaps: 1, 30 s in all (the last: the provider dropped out).'); // e1 to e2, noted then
+    engine._reconcileOnStartup();
+    await until(() => captures().length === 1, 'resumed');
+    const args = captures()[0];
+    assert.equal(args[args.length - 1], path.join(workDir, 'e3', 'archive.m3u8'));
+    const m = /^Gaps: (\d+), (\d+) s in all/.exec(recordings.getById(rec.id).error);
+    assert.equal(Number(m[1]), 1, 'the same outage: still one gap');
+    assert.ok(Math.abs(Number(m[2]) - 60) <= 2, `the whole minute missing is counted once (${m[2]} s)`);
+    await engine.cancelScheduled(s.id);
+});
+
 // 0490: on 7 Nov the weekly appdata backup stopped the container (SIGTERM) 6 minutes into a 3-hour F1
 // recording. The shutdown finished it as complete, so the restart 7 minutes later had nothing to resume.
 test('0490: a container stop before the end leaves the recording to resume at the next start, not finished', async () => {

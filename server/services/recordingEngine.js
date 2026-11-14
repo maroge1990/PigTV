@@ -1293,8 +1293,11 @@ async function onSegmentExit(schedule, entry, exitCode) {
         // noticed stallMs after the last growth, and a shared feed may spend its reconnect before it ends the part, and
         // that silent time is inside the part. A chain of parts that never grow then adds up to the whole silent span,
         // each gap ending where the next begins (at a part's spawn).
+        // #302 (Opus L3): a part that wrote nothing is still the same outage, so its gap adds to the current one's total
+        // instead of counting another ("Gaps: 1, N s" for one outage, however many tries it took).
         continuations.set(schedule.id, {
             schedule, nextPart: 1, lostAt: Math.min(now, entry.lastGrowthAt ?? entry.spawnedAt ?? now), starting: false, waitingLogged: false,
+            newGap: segments.epochSegmentCount(entry.outputPath) > 0,
             resume: { recordingId: entry.recordingId, workDir: entry.segmented.workDir, resumes: entry.segmented.resumes + 1, shortRun,
                 why: failover ? 'the provider dropped out' : `the capture ended (${why})` }
         });
@@ -1334,12 +1337,15 @@ function endSegmentCapture(scheduleId, recordingId, { exitCode = null, stderrTai
     console.log(`[Recordings] Recording #${recordingId} finished (failed), nothing recorded`);
 }
 
-/** R3: a note on a segmented recording for each gap a failover or restart left. */
-function noteSegmentGap(recordingId, gapMs, why) {
+/**
+ * R3: a note on a segmented recording for each gap a failover or restart left. #302 (Opus L3): `newGap` false (the part
+ * before wrote nothing: the same outage) adds to the total without counting another gap.
+ */
+function noteSegmentGap(recordingId, gapMs, why, { newGap = true } = {}) {
     const rec = recordingsDb.getById(recordingId);
     if (!rec) return;
     const prior = /^Gaps: (\d+), (\d+) s in all/.exec(rec.error || '');
-    const count = (prior ? Number(prior[1]) : 0) + 1;
+    const count = (prior ? Number(prior[1]) : 0) + (newGap || !prior ? 1 : 0);
     const total = (prior ? Number(prior[2]) : 0) + Math.round(gapMs / 1000);
     recordingsDb.markEndedEarly(recordingId, `Gaps: ${count}, ${total} s in all (the last: ${why}).`);
 }
@@ -1391,7 +1397,7 @@ async function continuePart(scheduleId, now = Date.now()) {
             // ingest's subscribe can spend ~10 s timing out): that wait is missing too, and the next part's gap counts
             // from its spawn, so the gaps touch.
             const gapMs = Date.now() - cont.lostAt;
-            noteSegmentGap(rec.id, gapMs, cont.resume.why || 'the provider dropped out');
+            noteSegmentGap(rec.id, gapMs, cont.resume.why || 'the provider dropped out', { newGap: cont.newGap !== false });
             if (route.candidates[index].providerId !== rec.provider_id) recordingsDb.setProvider(rec.id, route.candidates[index].providerId ?? null);
             console.log(`[Recordings] #${rec.id} continues after ${Math.round(gapMs / 1000)}s` +
                 (route.multi ? ` on ${route.candidates[index].providerName}` : ''));
@@ -1603,19 +1609,24 @@ function reconcileOnStartup() {
 function resumeSegmentedOnStartup(schedule) {
     const rec = schedule.recording_id ? recordingsDb.getById(schedule.recording_id) : null;
     if (!rec || !rec.work_dir || rec.segment_state !== 'capturing') return false;
+    // #302 (Opus L2): where the gap starts, read before sealing (a seal appends to the playlist, moving its mtime). The
+    // newest epoch: its playlist's last write (its last growth); one that wrote nothing (a try refused during an
+    // outage, whose gap up to its start is already noted) from its folder's time, its start, and the same outage.
+    let lostAt = null;
+    let newGap = true;
+    try {
+        const last = segments.epochs(rec.work_dir).pop();
+        if (last && segments.epochSegmentCount(last.dir) > 0) lostAt = fs.statSync(path.join(last.dir, 'archive.m3u8')).mtimeMs;
+        else if (last) { lostAt = fs.statSync(last.dir).mtimeMs; newGap = false; }
+    } catch (e) { lostAt = null; newGap = true; /* the restart time, then */ }
     segments.sealAll(rec.work_dir);
     const now = Date.now();
     // #217 (0440 Codex round 1, high): its game is checked before its stored stop decides whether it resumes.
     if (followEvent(schedule.id, now)) schedule = scheduledDb.getById(schedule.id) || schedule;
     if (now < stopTimeOf(schedule) - failoverTuning.endGraceMs) {
-        let lostAt = now;
-        try {
-            const last = segments.epochs(rec.work_dir).pop();
-            if (last) lostAt = fs.statSync(path.join(last.dir, 'archive.m3u8')).mtimeMs;
-        } catch (e) { /* the restart time, then */ }
         console.warn(`[Recordings] Schedule #${schedule.id} was recording when the server stopped; it continues in the same recording (#${rec.id})`);
         continuations.set(schedule.id, {
-            schedule, nextPart: 1, lostAt, starting: false, waitingLogged: false,
+            schedule, nextPart: 1, lostAt: Math.min(now, lostAt ?? now), starting: false, waitingLogged: false, newGap,
             resume: { recordingId: rec.id, workDir: rec.work_dir, resumes: 0, why: 'the server restarted' }
         });
         return true;

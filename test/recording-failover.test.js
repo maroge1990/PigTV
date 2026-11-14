@@ -327,7 +327,8 @@ test('#302: a chain of parts, one that never grew among them, adds up to the tim
     await until(() => fs.existsSync(path.join(rec.work_dir, 'e3', 'a000000.ts')), 'Dream4K writes');
     const missingS = (firstSegmentAt(rec, 3) - firstSegmentAt(rec, 1)) / 1000;
     const gap = gapTotal(recordings.getById(rec.id));
-    assert.equal(gap.count, 2, 'one gap per continuation');
+    // #302 (Opus L3): one outage, one gap: the part that never grew adds to the total without counting another.
+    assert.equal(gap.count, 1, 'one gap for the one outage, not one per try');
     assert.ok(missingS >= 3, `two stalls took their time (${missingS} s)`);
     assert.ok(Math.abs(gap.total - missingS) <= 1.5, `the note says ${gap.total} s; ${missingS.toFixed(1)} s were missing`);
 });

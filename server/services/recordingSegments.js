@@ -107,6 +107,11 @@ function recordedSeconds(workDir) {
     return epochs(workDir).reduce((t, e) => t + lengthOf(archiveOf(e.dir)), 0);
 }
 
+/** #302 (Opus L3): how many segments one epoch wrote (0 for one refused before its first). */
+function epochSegmentCount(epochDir) {
+    return archiveOf(epochDir).segments.length;
+}
+
 function archiveSegmentCount(workDir) {
     return epochs(workDir).reduce((t, e) => t + archiveOf(e.dir).segments.length, 0);
 }
@@ -1032,7 +1037,7 @@ function status() {
 
 module.exports = {
     SEGMENT_SEC, workRoot, ioFor, workDirFor, isWorkDir, epochs, nextEpoch, captureInput, captureArgs, captureBytes, captureGrowth,
-    sealEpoch, sealAll, stitchArchive, recordedSeconds, archiveSegmentCount,
+    sealEpoch, sealAll, stitchArchive, recordedSeconds, archiveSegmentCount, epochSegmentCount,
     viewArgs, _resetFreeBytes,
     _partInput: partInput,
     _refreshPartInput: refreshPartInput,
