@@ -48,34 +48,74 @@ function sectionOf(buf, i) {
     return { at, end: Math.min(at + 3 + length - 4, limit) }; // less the CRC
 }
 
-/** The program's video PID and codec, from the newest PAT and PMT in `buf`, or a reason. */
-function videoStreamOf(buf) {
-    let pmtPid = null;
-    let video = null;
-    let sawPmt = false;
-    eachPacket(buf, (i) => {
+/** The bytes of a section collected from `packets` (sectionCollector), from its table_id to its end. */
+function sectionBytes(buf, packets) {
+    const parts = packets.map((i, n) => {
+        const p = payloadOf(buf, i);
+        return buf.subarray(n === 0 ? p + 1 + buf[p] : p, i + TS_PACKET);
+    });
+    const all = Buffer.concat(parts);
+    return all.subarray(0, Math.min(all.length, 3 + (((all[1] & 0x0f) << 8) | all[2])));
+}
+
+/** The first video stream of a whole PMT section (from sectionBytes), or null. */
+function videoOfPmt(sec) {
+    const end = sec.length - 4; // less the CRC
+    if (sec[0] !== 0x02 || end < 12) return null;
+    for (let e = 12 + (((sec[10] & 0x0f) << 8) | sec[11]); e + 5 <= end; e += 5 + (((sec[e + 3] & 0x0f) << 8) | sec[e + 4])) {
+        const codec = VIDEO[sec[e]];
+        if (codec) return { pid: ((sec[e + 1] & 0x1f) << 8) | sec[e + 2], codec };
+    }
+    return null;
+}
+
+/**
+ * Follows a stream's PAT and PMT in stream order: `add(i)` takes every packet and says whether it
+ * was a table's. `pat` and `pmt` are the newest complete tables' packets, `video` the PMT's video
+ * stream, read from the whole section (#309: never from a PMT still part-way), and `changing` is
+ * true while a PMT that differs from the current one is part-way.
+ */
+function tableTracker(buf) {
+    const addPat = sectionCollector(buf);
+    let addPmt = sectionCollector(buf);
+    const t = { pmtPid: null, pat: null, pmt: null, video: null, sawPmt: false, changing: false };
+    const sameStart = (i, j) => {
+        const a = sectionOf(buf, i);
+        const b = sectionOf(buf, j);
+        return !!a && !!b && buf.subarray(a.at, i + TS_PACKET).equals(buf.subarray(b.at, j + TS_PACKET));
+    };
+    t.add = (i) => {
         const pid = pidOf(buf, i);
         if (pid === 0) {
-            const s = sectionOf(buf, i);
-            if (!s || buf[s.at] !== 0x00) return;
-            for (let e = s.at + 8; e + 4 <= s.end; e += 4) {
-                const program = (buf[e] << 8) | buf[e + 1];
-                if (program !== 0) { pmtPid = ((buf[e + 2] & 0x1f) << 8) | buf[e + 3]; break; }
-            }
-        } else if (pid === pmtPid) {
-            const s = sectionOf(buf, i);
-            if (!s || buf[s.at] !== 0x02 || s.at + 12 > s.end) return;
-            sawPmt = true;
-            let found = null;
-            let e = s.at + 12 + (((buf[s.at + 10] & 0x0f) << 8) | buf[s.at + 11]);
-            for (; e + 5 <= s.end; e += 5 + (((buf[e + 3] & 0x0f) << 8) | buf[e + 4])) {
-                const codec = VIDEO[buf[e]];
-                if (codec) { found = { pid: ((buf[e + 1] & 0x1f) << 8) | buf[e + 2], codec }; break; }
-            }
-            video = found;
+            const done = addPat(i);
+            if (!done) return true;
+            const next = pmtPidOf(buf, done[0]);
+            if (next === null) return true;
+            t.pat = done;
+            if (next !== t.pmtPid) { t.pmtPid = next; t.pmt = null; t.video = null; t.changing = false; addPmt = sectionCollector(buf); }
+            return true;
         }
-    });
-    if (!sawPmt) return { reason: 'no PMT' };
+        if (pid !== t.pmtPid) return false;
+        const done = addPmt(i);
+        if (done) {
+            const sec = sectionBytes(buf, done);
+            if (sec[0] === 0x02) { t.pmt = done; t.video = videoOfPmt(sec); t.sawPmt = true; }
+            t.changing = false;
+        } else {
+            const start = addPmt.pending();
+            t.changing = start >= 0 && !(t.pmt && sameStart(start, t.pmt[0]));
+        }
+        return true;
+    };
+    return t;
+}
+
+/** The program's video PID and codec, from the newest complete PAT and PMT in `buf`, or a reason. */
+function videoStreamOf(buf) {
+    const t = tableTracker(buf);
+    let video = null;
+    eachPacket(buf, (i) => { if (t.add(i) && t.pmt) video = t.video; });
+    if (!t.sawPmt) return { reason: 'no PMT' };
     if (!video) return { reason: 'no video stream it reads' };
     return video;
 }
@@ -136,7 +176,7 @@ function sectionCollector(buf) {
     let packets = null;
     let need = 0;
     let cc = -1;
-    return (i) => {
+    const add = (i) => {
         if (startsUnit(buf, i)) {
             const p = payloadOf(buf, i);
             if (p < 0) { packets = null; return null; }
@@ -160,6 +200,8 @@ function sectionCollector(buf) {
         packets = null;
         return done;
     };
+    add.pending = () => (packets ? packets[0] : -1);
+    return add;
 }
 
 /**
@@ -174,33 +216,21 @@ function keyframeJoin(buf) {
     try {
         const video = videoStreamOf(buf);
         if (video.reason) return { at: -1, reason: video.reason };
-        const addPat = sectionCollector(buf);
-        let addPmt = sectionCollector(buf);
-        let pmtPid = null;
-        let pat = null;
-        let pmt = null;
+        const t = tableTracker(buf);
         let pick = null;
         let keys = 0;
         eachPacket(buf, (i) => {
+            if (t.add(i)) return;
             const pid = pidOf(buf, i);
-            if (pid === 0) {
-                const done = addPat(i);
-                if (!done) return;
-                const next = pmtPidOf(buf, done[0]);
-                if (next === null) return;
-                pat = done;
-                if (next !== pmtPid) { pmtPid = next; pmt = null; addPmt = sectionCollector(buf); }
-            } else if (pid === pmtPid) {
-                const done = addPmt(i);
-                if (done && buf[sectionOf(buf, done[0]).at] === 0x02) pmt = done;
-            } else if (pid === video.pid && isKeyFrame(buf, i, video.codec)) {
-                keys++;
-                if (pat && pmt) pick = { at: i, tables: [...pat, ...pmt] };
-            }
+            // A key frame on the video PID of the PMT in force at this point (#309: a PMT part-way that
+            // moves the video is not in force yet), and none while a different PMT is part-way.
+            const current = !!t.video && pid === t.video.pid && isKeyFrame(buf, i, t.video.codec);
+            if (current || (pid === video.pid && isKeyFrame(buf, i, video.codec))) keys++;
+            if (current && t.pat && t.pmt && !t.changing) pick = { at: i, tables: [...t.pat, ...t.pmt], codec: t.video.codec };
         });
         if (!keys) return { at: -1, reason: 'no video key frame' };
         if (!pick) return { at: -1, reason: 'no PAT and PMT before the key frame' };
-        return { ...pick, codec: video.codec };
+        return pick;
     } catch (err) {
         return { at: -1, reason: 'the stream could not be read' };
     }

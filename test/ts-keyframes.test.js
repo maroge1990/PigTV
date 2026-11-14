@@ -129,3 +129,36 @@ test('#309: a repeated packet of a three-packet PMT is skipped, not counted towa
     const lost = Buffer.concat([ts.pat(), p1, p3, ...tail]);
     assert.equal(keyframeJoin(lost).at, -1);
 });
+
+test('#309: a key frame is read with the PMT in force where it lies, never with a new PMT that is part-way', () => {
+    // 0579 took the video PID from the newest PMT's first packet but kept the previous complete PMT
+    // as the table to send: a two-packet PMT that moves the video to a new PID, with a key frame on
+    // that PID before its last packet, joined the reader at that key frame with the old PMT, which
+    // does not list it (and the new PMT's first packet is behind the join): no picture until a repeat.
+    const NEW = 0x102;
+    const offsets = (parts) => { let o = 0; return parts.map(p => { const at = o; o += p.length; return at; }); };
+    const a = ts.pmt();
+    const b = ts.pmt({ descriptor: 250, videoPid: NEW });
+    assert.equal(b.length, 2 * 188);
+    const parts = [ts.pat(), a, ts.videoFrame(0, { key: true, rai: true }), ts.audio(), ts.videoFrame(1), ts.audio(),
+        ts.pat(), b.subarray(0, 188), ts.videoFrame(10, { key: true, rai: true, pid: NEW }), ts.audio(), b.subarray(188),
+        ts.videoFrame(11, { pid: NEW }), ts.audio()];
+    const at = offsets(parts);
+    const buf = Buffer.concat(parts);
+    let r = keyframeJoin(buf);
+    assert.deepEqual({ at: r.at, tables: r.tables }, { at: at[2], tables: [at[0], at[1]] },
+        'the key frame on the old PID, with the PAT and PMT that list it');
+    // Once the new PMT is whole, a key frame on the new PID is joined behind it.
+    const more = [ts.pat(), ts.pmt({ descriptor: 250, videoPid: NEW }), ts.videoFrame(20, { key: true, rai: true, pid: NEW }), ts.audio()];
+    const at2 = offsets(more).map(o => o + buf.length);
+    r = keyframeJoin(Buffer.concat([buf, ...more]));
+    assert.deepEqual({ at: r.at, tables: r.tables }, { at: at2[2], tables: [at2[0], at2[1], at2[1] + 188] });
+
+    // A new PMT part-way that keeps the video PID but changes the table: a key frame inside it waits.
+    const c = ts.pmt({ descriptor: 250 });
+    const held = [ts.pat(), ts.pmt(), ts.videoFrame(0, { key: true, rai: true }), ts.audio(),
+        ts.pat(), c.subarray(0, 188), ts.videoFrame(5, { key: true, rai: true }), ts.audio(), c.subarray(188), ts.audio()];
+    const h = offsets(held);
+    r = keyframeJoin(Buffer.concat(held));
+    assert.deepEqual({ at: r.at, tables: r.tables }, { at: h[2], tables: [h[0], h[1]] });
+});

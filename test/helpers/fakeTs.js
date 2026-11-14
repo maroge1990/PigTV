@@ -34,10 +34,10 @@ function pat() {
     return packet(0, { pusi: true, payload: Buffer.concat([Buffer.from([0]), Buffer.from(body), Buffer.from([0xde, 0xad, 0xbe, 0xef])]) });
 }
 
-/** A PMT section; `descriptor` bytes on the audio entry make it span more than one packet. */
-function pmt({ codec = 'h264', video = true, descriptor = 0 } = {}) {
+/** A PMT section; `descriptor` bytes on the audio entry make it span more than one packet; `videoPid` moves the video. */
+function pmt({ codec = 'h264', video = true, descriptor = 0, videoPid = VIDEO_PID } = {}) {
     const streams = [];
-    if (video) streams.push(STREAM_TYPE[codec], 0xe0 | (VIDEO_PID >> 8), VIDEO_PID & 0xff, 0xf0, 0x00);
+    if (video) streams.push(STREAM_TYPE[codec], 0xe0 | (videoPid >> 8), videoPid & 0xff, 0xf0, 0x00);
     streams.push(0x0f, 0xe0 | (AUDIO_PID >> 8), AUDIO_PID & 0xff, 0xf0 | (descriptor >> 8), descriptor & 0xff, ...Buffer.alloc(descriptor, 0x0a));
     const body = [0x02, 0, 0, 0x00, 0x01, 0xc1, 0, 0, 0xe0 | (VIDEO_PID >> 8), VIDEO_PID & 0xff, 0xf0, 0x00, ...streams];
     const length = body.length - 3 + 4;
@@ -57,14 +57,14 @@ const NALS = {
 };
 
 /** A video access unit's first packet (PES start) and `more` continuation packets; `kind` picks a key frame's NAL units. */
-function videoFrame(frame, { key = false, codec = 'h264', rai = null, kind = null, more = 2 } = {}) {
+function videoFrame(frame, { key = false, codec = 'h264', rai = null, kind = null, more = 2, pid = VIDEO_PID } = {}) {
     const es = Buffer.from([0, 0, 0, 1, ...NALS[codec][key ? (kind || 'key') : 'plain']]);
     const tag = Buffer.alloc(8, 0);
     tag.write('FR', 0, 'latin1');
     tag.writeUInt32BE(frame, 2);
     const pes = Buffer.concat([Buffer.from([0, 0, 1, 0xe0, 0, 0, 0x80, 0x80, 0x05, 0x21, 0, 1, 0, 1]), es, Buffer.from([0, 0, 0x03]), tag]);
-    const out = [packet(VIDEO_PID, { pusi: true, rai: rai === null ? null : rai && key, payload: pes })];
-    for (let i = 0; i < more; i++) out.push(packet(VIDEO_PID, { payload: tag }));
+    const out = [packet(pid, { pusi: true, rai: rai === null ? null : rai && key, payload: pes })];
+    for (let i = 0; i < more; i++) out.push(packet(pid, { payload: tag }));
     return Buffer.concat(out);
 }
 
