@@ -448,18 +448,32 @@ class LoopDetector {
         const cc = b[i + 3] & 0x0f;
         if (unitStart) {
             const at = p + 1 + b[p];
+            // The bytes before the pointer_field's target finish the section in progress (Codex check of 0cce183).
+            if (this.pmtPart && at > p + 1 && this.continues(cc)) this.addPmtBytes(b.subarray(p + 1, Math.min(at, end)));
             if (at >= end) { this.pmtPart = null; return; }
-            this.pmtPart = { bytes: [Buffer.from(b.subarray(at, end))], have: end - at, cc };
-        } else {
-            const part = this.pmtPart;
-            if (!part) return;
-            if (cc === part.cc) return;                                  // a repeated packet
-            if (cc !== ((part.cc + 1) & 0x0f)) { this.pmtPart = null; return; } // a lost one
-            part.cc = cc;
-            part.bytes.push(Buffer.from(b.subarray(p, end)));
-            part.have += end - p;
+            this.pmtPart = { bytes: [], have: 0, cc };
+            this.addPmtBytes(b.subarray(at, end));
+            return;
         }
+        if (!this.pmtPart) return;
+        if (cc === this.pmtPart.cc) return;                       // a repeated packet
+        if (!this.continues(cc)) { this.pmtPart = null; return; }  // a lost one
+        this.addPmtBytes(b.subarray(p, end));
+    }
+
+    /** The next continuity counter of the PMT in progress (it moves on); false (and the part dropped) on a gap. */
+    continues(cc) {
+        if (cc !== ((this.pmtPart.cc + 1) & 0x0f)) { this.pmtPart = null; return false; }
+        this.pmtPart.cc = cc;
+        return true;
+    }
+
+    /** Add bytes to the PMT in progress; read it once whole (MAX_SECTION at most). */
+    addPmtBytes(bytes) {
         const part = this.pmtPart;
+        if (!part || !bytes.length) return;
+        part.bytes.push(Buffer.from(bytes));
+        part.have += bytes.length;
         if (part.have < 3) return;
         const head = Buffer.concat(part.bytes);
         const need = 3 + (((head[1] & 0x0f) << 8) | head[2]);

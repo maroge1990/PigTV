@@ -265,3 +265,12 @@ test('a damaged PMT is ignored, never taken as "no sound": a wrong CRC, a corrup
         assert.match(r.detector.notes.join(' | '), /the sound does not/, `${name}: the live sound is still heard`);
     }
 });
+
+// Codex check of 0cce183: on a payload-unit start, the bytes before the pointer_field's target finish the section in
+// progress. A PMT whose second packet is itself a unit start, its pointer_field covering the rest of the section.
+test('a PMT finished by the bytes before the next packet\'s pointer_field is read', { skip }, () => {
+    const r = run([rewritePmt('pointer-pmt.ts', padded, { pointer: true })]);
+    assert.ok(r.detector.sawPmt, 'the PMT was read whole');
+    assert.ok(r.detector.pmtAudioPid !== null, 'its sound found');
+    assert.equal(r.verdict, null);
+});
