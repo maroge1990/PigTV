@@ -529,7 +529,7 @@ test('#303: one schedule that throws while starting does not stop the others due
 // #288 (Mark, 14 Nov): with every provider of a channel down, a recording keeps trying every provider until its end.
 // Once every candidate was quarantined, plan() fell back to the primary alone, so the recording retried only the
 // primary for 10 min (QUARANTINE_MS) even if the backup came back first. A recording's plan (keepTrying) now gives
-// every held-back candidate, the one held back longest ago first; a viewer's play is unchanged.
+// every held-back candidate, the one that failed longest ago first (0589: by when each failed); a viewer's play is unchanged.
 test('#288: with both providers quarantined, the recording\'s retries go to both in turn, not only the primary', async () => {
     await db.sources.update(C.id, { enabled: false });
     tuning.endGraceMs = 0;

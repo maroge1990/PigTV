@@ -168,7 +168,7 @@ async function resolveStreamUrl(sourceId, channelItemId, stableId = null) {
 // is asked about the playlist row that identity names now, so both agree on the
 // channel. With no backup configured the route is the primary alone and every
 // decision below is exactly the one made before. #288: one difference - with every candidate held back (quarantined
-// or down), a recording gets all of them, the longest held first, where a play gets the primary alone.
+// or down), a recording gets all of them, the one that failed longest ago first, where a play gets the primary alone.
 // ---------------------------------------------------------------------------
 
 /**
@@ -197,7 +197,7 @@ async function routeFor(schedule) {
         const source = await sourcesDb.getById(schedule.source_id);
         const itemId = currentItemId(source, schedule);
         if (itemId === null) return single; // its channel has gone: resolveStreamUrl has refused it already
-        // #288: with every candidate held back, all of them in turn (the longest held first), not the primary alone.
+        // #288: with every candidate held back, all of them in turn (the one that failed longest ago first), not the primary alone.
         plan = await providerRouting.plan(schedule.source_id, itemId, Date.now(), { keepTrying: true });
     } catch (e) {
         return single; // nothing to fail over to that plan can name: as before
