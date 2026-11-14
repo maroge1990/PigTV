@@ -1587,6 +1587,9 @@ class VideoPlayer {
      * Handle keyboard shortcuts
      */
     handleKeyboard(e) {
+        // #320: the keys belong to Live TV. On the Guide, Recordings, Settings or Sport the player is hidden, and
+        // its volume and play state are not changed from there.
+        if (window.app && window.app.currentPage !== 'live') return;
         if (document.activeElement.tagName === 'INPUT') return;
         // Space on a focused control is that control's (F4), not play/pause.
         if (e.key === ' ' && e.target?.closest?.('button, [data-key-activate], select, textarea')) return;
