@@ -213,6 +213,27 @@ test('after revocation a late touch writes nothing, nor does a later flush', asy
     assert.deepEqual(row('late1'), before);
 });
 
+test('#300: deleting a user removes their devices, and only theirs; their device token stays refused', async () => {
+    const gone = await db.users.create({ username: 'leaver', passwordHash: await auth.hashPassword('a-long-password'), role: 'viewer' });
+    const stays = await db.users.create({ username: 'stayer', passwordHash: await auth.hashPassword('a-long-password'), role: 'viewer' });
+    addDevice('del1', gone.id);
+    addDevice('del2', gone.id);
+    addDevice('keep1', stays.id);
+    const goneToken = deviceToken(gone, 'del1');
+    const keepToken = deviceToken(stays, 'keep1');
+    assert.equal((await media(goneToken)).status, 200); // leaves a pending last-seen entry
+    assert.equal((await media(keepToken)).status, 200);
+    await db.users.delete(gone.id);
+    const left = handle.prepare('SELECT id FROM devices WHERE user_id = ?');
+    assert.deepEqual(left.all(String(gone.id)), [], 'no device row of the deleted user remains');
+    assert.deepEqual(left.all(String(stays.id)).map(r => r.id), ['keep1'], 'another user\'s device is untouched');
+    assert.equal(deviceAuth.isDeviceValid('del1'), false);
+    assert.equal((await media(goneToken)).status, 401, 'the deleted user\'s device token is refused');
+    assert.equal((await media(keepToken)).status, 200, 'the other user\'s still works');
+    deviceAuth.flushPending();
+    assert.equal(row('del1'), undefined, 'a pending last-seen flush does not bring the row back');
+});
+
 test('flushPending is safe with nothing to do, and at shutdown after the handle closes (runs last)', async () => {
     assert.equal(typeof deviceAuth.flushPending, 'function');
     assert.doesNotThrow(() => deviceAuth.flushPending());

@@ -181,6 +181,18 @@ function revokeDevice(userId, deviceId) {
     return result.changes > 0;
 }
 
+/**
+ * #300: a deleted user's devices go with them. Deletes every device row of the user (so isDeviceValid refuses
+ * their tokens) and drops their pending last-seen entries. Runs inside db.users.delete's transaction.
+ */
+function removeUserDevices(userId) {
+    const db = getDb();
+    const ids = db.prepare('SELECT id FROM devices WHERE user_id = ?').all(String(userId)).map(r => r.id);
+    db.prepare('DELETE FROM devices WHERE user_id = ?').run(String(userId));
+    for (const id of ids) touches.delete(id);
+    return ids.length;
+}
+
 // I-1 (#273): the two statements every request from a paired device runs are prepared once per
 // database handle, and "last seen" is written at most once a minute per device. Nothing about the
 // auth answer is cached: isDeviceValid reads the row on every request, so a revocation (through
@@ -284,6 +296,7 @@ module.exports = {
     pendingPairing,
     listDevices,
     revokeDevice,
+    removeUserDevices,
     isDeviceValid,
     touchDevice,
     flushPending,

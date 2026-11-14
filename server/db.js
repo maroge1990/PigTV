@@ -422,6 +422,8 @@ const users = {
         if (admins <= 1) throw refuse('Cannot delete the last admin user');
       }
       db.prepare('DELETE FROM app_users WHERE id = ?').run(key);
+      // #300: their paired devices go too (rows and pending last-seen entries), so no token of theirs outlives them.
+      require('./services/deviceAuth').removeUserDevices(key);
       return true;
     });
   },
