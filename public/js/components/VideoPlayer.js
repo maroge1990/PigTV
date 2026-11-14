@@ -674,6 +674,7 @@ class VideoPlayer {
         document.addEventListener('keydown', (e) => this.handleKeyboard(e));
 
         this.initMediaSessionHandlers();
+        this.initPageLifecycle();
 
         // Click on video shows overlay
         this.video.addEventListener('click', () => this.showNowPlayingOverlay());
@@ -1018,7 +1019,7 @@ class VideoPlayer {
     /**
      * Stop and cleanup current transcode session
      */
-    async stopTranscodeSession() {
+    async stopTranscodeSession({ keepalive = false } = {}) {
         if (this.currentSessionId) {
             console.log('[Player] Stopping transcode session:', this.currentSessionId);
             try {
@@ -1026,7 +1027,9 @@ class VideoPlayer {
                 fetch(`/api/transcode/${this.currentSessionId}`, {
                     method: 'DELETE',
                     headers: localStorage.getItem('authToken')
-                        ? { Authorization: `Bearer ${localStorage.getItem('authToken')}` } : {}
+                        ? { Authorization: `Bearer ${localStorage.getItem('authToken')}` } : {},
+                    // The page is going (#320): keepalive lets the browser finish this request after it has gone.
+                    ...(keepalive ? { keepalive: true } : {})
                 });
             } catch (err) {
                 console.error('Failed to stop session:', err);
@@ -1668,6 +1671,31 @@ class VideoPlayer {
             const page = app.pages && app.pages[app.currentPage];
             document.title = app.titleFor(app.currentPage, page && page.currentPath ? page.currentPath() : undefined);
         }
+    }
+
+    /**
+     * #320: closing the tab used to leave the stream running until the server's idle timeout, holding the provider's
+     * connection. On pagehide the session is given back at once (keepalive), the player goes idle, and the channel is
+     * offered as Resume: a page restored from the back/forward cache comes back to that, not to a dead player.
+     */
+    initPageLifecycle() {
+        if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return;
+        window.addEventListener('pagehide', () => this.handlePageHide());
+        window.addEventListener('pageshow', (e) => { if (e && e.persisted) this.handlePageRestored(); });
+    }
+
+    handlePageHide() {
+        if (!this._playing && !this.currentSessionId) return;
+        const channel = this.currentChannel;
+        this.stopTranscodeSession({ keepalive: true });
+        this.stop();
+        if (channel) this.offerResumeFor(channel);
+    }
+
+    handlePageRestored() {
+        if (this._playing) return;
+        if (this._resumeChannel) this.renderIdleOverlay();
+        else this.offerResume();
     }
 
     initMediaSessionHandlers() {
