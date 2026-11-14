@@ -5,11 +5,13 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 14 Nov 2026 (batches Server 1, Server 2 and Apple 2; Apple 239 on TestFlight).*
+*Overwritten at the end of every session. 14 Nov 2026, second session (Apple 242 to 246; batches Server 4, Server 3 and Sport 1;
+production on 0632; Apple 246 on TestFlight).*
 
-- **Released:** server **v0579** (`:release`, 13 Nov; v0577 the day before) and Apple **239** uploaded to TestFlight
-  (tvOS and iOS, 14 Nov, after `Tools/test.sh all` in the Mac's clone). A release runs on Mark's go-ahead (D-45). Next
-  builds: server **0633**, Apple **247**. Apple 241 to 246 are pushed (CI green), not uploaded.
+- **Running:** production is on server **0632** (`:latest`, Mark's Force Update on 14 Nov; checked read-only: healthy, the
+  recordings folder writable, a clean start). `:release` is still **v0579** (D-45: release.yml on Mark's go-ahead). Apple
+  **246** was uploaded to TestFlight on 14 Nov (tvOS and iOS, after `Tools/test.sh all` passed on 246). Next builds: server
+  **0633**, Apple **247**.
 - **14 Nov, batch Sport 1 pushed, server 0626 to 0632 (#296):** a game listed only in another language joins its channel by
   the teams' nicknames (front page, league pages, recording rules); review fixes 0627 to 0632. The sign-off's high (squads) was
   filed as #319 by Mark's choice. Evidence: `docs/evidence/2026-11-14-sport1/`.
@@ -160,13 +162,13 @@ theme and one review round. Order within a section is the order to take them.
 
 ## Waiting on Mark (no code is waiting; steps are on each issue)
 
-- **Device passes, on a release that includes 0577 and a TestFlight build from 218 (Apple 1's items need one from 239):**
+- **Device passes, on production 0632 (includes 0577) and a TestFlight build from 218 (Apple 1's items need one from 239):**
   - Playback: #5 · #6 · #7 · #14 · #18 · #19 · #33 · #37 · #46 · #49.
   - Recording day: #12 · #17 · #31 · #32 · #217 · #246 · #260 (P0) · #271 · #274.
   - Sport: #20 · #191 to #199 · #200 to #202 · #204 · #205 · #210 to #216 · #218 · #223 · #230 · #233 · #234 · #261 ·
     #263 · #264; at a real event: #22 to #24 · #206 · #222 · #231 · #235.
   - Layout and brand: #190 · #211 · #225 to #229 · #243 · #277 to #280; from 239: #310 · #311 · #312 · #298 · #293 · #203 ·
-    #278's five · #301; from 241 (not uploaded yet): #262 on an iPadOS 17 iPad.
+    #278's five · #301; from 246 (TestFlight, 14 Nov): #262 on an iPadOS 17 iPad · #317 (sport order by drag).
 - **Read-only checks after a release (Claude runs them):** #273 (busy-period rate) · #29 (Mark's Status figures); #259 at
   the next race.
 - **#21** (the sport rebuild) closes when the sport pass is done: everything under it is built or filed.
