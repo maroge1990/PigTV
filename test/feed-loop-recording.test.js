@@ -141,6 +141,9 @@ test('a recording on a looping provider feed carries on in the same recording on
         const rows = recordings.listBySchedule(s.id);
         assert.equal(rows.length, 1, 'one recording');
         assert.equal(rows[0].provider_id, B.id);
+        // The engine lists a capture as soon as it spawns it; the stand-in ffmpeg logs its arguments once node has
+        // started, which on a loaded machine (CI: every file at once on 2 vCPUs) can come later. Wait for it.
+        await until(() => captures().length >= 2, 'the second part\'s ffmpeg started');
         assert.equal(captures().length, 2, 'a second part, on the backup');
         const closed = ingest.status().recent.find(r => r.repeatingSec !== null);
         assert.ok(closed && Math.abs(closed.repeatingSec - feeds.clipSec) < 0.5, 'the looping feed was ended for repeating');
