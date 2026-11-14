@@ -92,8 +92,7 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
   to 0.08 s after; the rig agrees. Left as #309: three edge cases from Codex's sign-off (Mark: ship and file) and
   high-bitrate feeds keeping the old join. Evidence: `docs/evidence/2026-11-13-avsync-join/`.
 - **Decisions waiting on Mark** (device passes are listed under Waiting on Mark below):
-  - #288: how long a recording keeps trying when every provider is down. #304: should a single-provider stall show
-    the provider as down. #307: the provider's host in three log lines. #232: Top Shelf, snapshot or live.
+  - #307: the provider's host in three log lines. #232: Top Shelf, snapshot or live.
   - The Appdata Backup setting: don't stop PigTV, or move it from Sunday 04:00. #240. #266's rows.
   - #295's colour point (brand kit).
 - **Open investigation:** #3 (sound out of step on the iPad): the relay join measured clean; the device meter (#267)
@@ -106,7 +105,8 @@ Batches regrouped on 12 Nov 2026 after the audit (every open issue read against 
 theme and one review round. Order within a section is the order to take them.
 
 1. **Server 1, recording follow-ups** (full review rule): #302 gap note · #286 low-disk reason · #305 waiting reason ·
-   #303 one schedule per failed read · #306 log text; #304 and #288 join once Mark has answered them.
+   #303 one schedule per failed read · #306 log text · #288 (Mark: keep trying until the scheduled end, backup included) · #304 (Mark: a
+   single-provider stall stays out of the breaker).
 2. **Server 2, Status and sign-in:** #299 provider names · #300 device rows of a deleted user · #61's warming line ·
    #307 once Mark has answered. Codex (sign-in code).
 3. **Apple 2, iPadOS and iOS 17+ (#262):** seven sites need fallbacks, not three; redo the 17.0 trial build.
