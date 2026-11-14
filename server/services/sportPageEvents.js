@@ -280,13 +280,16 @@ async function withState(league, value, now, state) {
 /**
  * #297 (Opus review, medium): an event the page's read has further on than the account's delayed view (over in the read,
  * still on for the account) shows nothing of its results from that read: no tennis `sets` or `winner`, no golf `pos`,
- * `toPar`, `rounds` or `status`, no UFC `winner` or `result` (the race's `lastWinner` is held back by overlay()). The
- * draws, the field, the card and each match's or bout's own status and start stay.
+ * `toPar`, `rounds` or `status`, and the field by name rather than ESPN's finishing order; no UFC `winner` or `result`
+ * (the race's `lastWinner` is held back by overlay()). The draws, the card and each match's or bout's own status and start
+ * stay: matches go by start, bouts by the card's running order, neither by result.
  */
 function withoutResults(e) {
     const out = { ...e };
     if (Array.isArray(e.matches)) out.matches = e.matches.map(m => ({ ...m, sets: null, players: (m.players || []).map(p => ({ ...p, winner: null })) }));
-    if (Array.isArray(e.leaderboard)) out.leaderboard = e.leaderboard.map(r => ({ ...r, pos: null, toPar: null, rounds: (r.rounds || []).map(() => null), status: null }));
+    // Codex sign-off (high): ESPN's order is the finishing order, so the field goes by name (a copy: the cached one stays)
+    if (Array.isArray(e.leaderboard)) out.leaderboard = e.leaderboard.map(r => ({ ...r, pos: null, toPar: null, rounds: (r.rounds || []).map(() => null), status: null }))
+        .sort((a, b) => (a.name === null) - (b.name === null) || String(a.name || '').localeCompare(String(b.name || '')));
     if (Array.isArray(e.bouts)) out.bouts = e.bouts.map(b => ({ ...b, result: null, fighters: (b.fighters || []).map(f => ({ ...f, winner: null })) }));
     return out;
 }

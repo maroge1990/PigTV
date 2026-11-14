@@ -1085,8 +1085,8 @@ on whenever ESPN fixtures are, as the other pages.
   with its score delay, so they change when the front page's do, wherever the collector holds a fresh snapshot; elsewhere
   the page's own read as before. An event the collector has seen finish keeps its previous status until the page's own
   read has it (renewed at once). While the account's delayed view is behind the page's read, the event shows the delayed
-  status without its results from the read: tennis `sets` and every `winner`, golf `pos`, `toPar`, `rounds` and `status`,
-  UFC `winner` and `result` are null, and `lastWinner` is null when it is that race's. Each match's and bout's status stays.
+  status without its results from the read: tennis `sets` and every `winner`, golf `pos`, `toPar`, `rounds` and `status`
+  (the `leaderboard` then by name, not ESPN's order), UFC `winner` and `result` are null, and `lastWinner` is null when it is that race's. Each match's and bout's status stays.
 - A server before 0428 answers 404 to `/api/sports/pages/events`: ask only with this flag.
 
 ### C-W. Live pause. Flag: `livePause` (0468, #37)

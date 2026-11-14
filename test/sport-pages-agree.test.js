@@ -310,6 +310,33 @@ test('Cricket: a snapshot with no score to place and a read newer than the accou
     assert.deepEqual([o.scores, o.line], [[null, null], null]);
 });
 
+// Codex sign-off (high): with the results held back, a golf field still came in ESPN's finishing order (winner first).
+test('Events: a golf event over in the page\'s read, still on for a delayed account: no result fields and no finishing order', async () => {
+    const ev = load('services/sportPageEvents');
+    const individual = load('services/sportIndividual');
+    ev.reset();
+    const at = K + 10 * 24 * 60 * MIN;
+    const golf = { ...scriptedGame({ at, guideMin: 10, finalMin: 25 }), id: '9917009' };
+    const board = (t) => {
+        const { status } = statusAt(golf, t);
+        const date = iso(golf.start);
+        const field = [['21', 'Zed Young', '-12'], ['22', 'Abe Ames', '-9'], ['23', 'Mia Moss', '-7']]; // ESPN's order: the finish
+        return { leagues: [{ id: '1106', calendar: [] }], events: [{ id: golf.id, name: 'Scripted Classic', date, endDate: date, status: { ...status, period: 4 },
+            competitions: [{ id: golf.id, date, endDate: date, status: { ...status, period: 4 },
+                competitors: field.map(([id, name, score], i) => ({ id, order: i + 1, score, athlete: { displayName: name }, linescores: [] })) }] }] };
+    };
+    ev.fetcher.get = async url => (url.includes('golf/pga/scoreboard') ? { ok: true, json: board(at + 26 * MIN) } : { ok: false, error: 'HTTP 404' });
+    const store = dashboard.store();
+    for (let t = at + 20 * MIN; t <= at + 26 * MIN; t += 30000) store.ingest(individual.normalize(board(t), 'PGA Tour', 'golf/pga'), t);
+    const now = at + 26 * MIN;
+    const e = (await ev.page('PGA Tour', now, { event: pageDeps(1, now).event })).events.find(x => x.name === 'Scripted Classic');
+    assert.equal(e.status, 'live');
+    assert.deepEqual(e.leaderboard.map(r => [r.name, r.pos, r.toPar]), [['Abe Ames', null, null], ['Mia Moss', null, null], ['Zed Young', null, null]],
+        'by name: the winner is not first');
+    const own = (await ev.page('PGA Tour', now, { event: pageDeps(2, now).event })).events.find(x => x.name === 'Scripted Classic');
+    assert.deepEqual([own.status, own.leaderboard.map(r => r.name)], ['finished', ['Zed Young', 'Abe Ames', 'Mia Moss']], 'the cached field is untouched');
+});
+
 // Opus review (medium): an event over in the page's read but still on for the account kept the read's winners.
 test('Events: a UFC night over in the page\'s read, still on for a delayed account: no winner or result from the read', async () => {
     const ev = load('services/sportPageEvents');
