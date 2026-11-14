@@ -253,6 +253,45 @@ test('a stalled recording (no new segments) continues in the same recording on t
     assert.equal(routing.snapshot().providers.find(p => p.id === A.id).recentFailures, 1, 'the failover counts toward its breaker');
 });
 
+// #304 (Opus M1): with any backup source configured, a channel with no link to one got a multi route of one candidate,
+// so its stall counted toward its provider's breaker: stalls on two such channels showed it down and sent the notice.
+test('#304: a stall on a channel with no backup link (backups configured) stays out of its provider\'s breaker', async () => {
+    tuning.endGraceMs = 0;
+    tuning.stallMs = 400;
+    tuning.stallCheckMs = 100;
+    const d = sqlite.getDb();
+    d.prepare(`INSERT INTO playlist_items (id, source_id, item_id, type, name, category_id, is_hidden, sort_order, stable_id, stream_url)
+               VALUES (?, ?, 'pos_2', 'live', 'Local News', 'News', 0, 2, 's102', ?)`).run(`${A.id}:pos_2`, A.id, url.A(102));
+    try {
+        setBehaviour(url.A(102), 'stall');
+        const now = Date.now();
+        const s = scheduled.create({ title: `News ${++n}`, description: null, source_id: A.id, channel_item_id: 'pos_2', channel_stable_id: 's102',
+            channel_name: 'Local News', channel_logo: null, program_start: now - 1000, program_end: now + 60000,
+            pre_buffer_min: 0, post_buffer_min: 0, created_by: 1, created_at: now });
+        const stalls = () => logLines.filter(l => l.includes(`#${rowsOf(s.id)[0]?.id} ended early (no data`)).length;
+        await until(() => stalls() >= 2, 'stalled twice', 20000);
+        assert.deepEqual([...new Set(inputs())], [url.A(102)], 'only its own provider');
+        assert.equal(routing.snapshot().providers.find(p => p.id === A.id).recentFailures, 0, 'nothing counted toward its breaker');
+        assert.equal(routing.providerState(A.id), 'up');
+        await engine.cancelScheduled(s.id);
+    } finally {
+        d.prepare("DELETE FROM playlist_items WHERE source_id = ? AND item_id = 'pos_2'").run(A.id);
+    }
+});
+
+test('#304: a linked channel whose backups are held back right now still counts its stall (a real multi route)', async () => {
+    tuning.endGraceMs = 0;
+    tuning.stallMs = 400;
+    tuning.stallCheckMs = 100;
+    routing.quarantine(B.id, '5001');
+    routing.quarantine(C.id, '7001');
+    setBehaviour(url.A(101), 'stall');
+    const s = due();
+    await until(() => logLines.some(l => l.includes(`#${rowsOf(s.id)[0]?.id} ended early (no data`)), 'stalled', 20000);
+    assert.equal(routing.snapshot().providers.find(p => p.id === A.id).recentFailures, 1, 'the stall counts toward its breaker');
+    await engine.cancelScheduled(s.id);
+});
+
 // #302: the gap note counted from the stalled part's exit, but a stall is noticed stallMs after the last growth (and a
 // shared feed may spend its reconnect first): that silent time was inside the part and never counted (rig: "Gaps: 3,
 // 19 s" where ~98 s was missing). The gap now runs from the part's last growth, or its start when it never grew.

@@ -433,8 +433,12 @@ async function plan(sourceId, channelId, now = Date.now(), { keepTrying = false 
         primarySkipped = false;
     }
     const backupsConfigured = [...map.values()].some(s => s.role === 'backup' && s.enabled !== false);
+    // #304 (Opus M1): how many providers this channel can be played on at all, those held back now included (complete
+    // with keepTrying): one is a channel with no backup link, whose recording's stall stays out of the breaker.
+    const channelProviders = new Set([...candidates, ...held].map(c => Number(c.providerId))).size;
     return {
         candidates,
+        channelProviders,
         primaryKey,
         channelName: identity ? identity.name : null,
         primarySkipped,

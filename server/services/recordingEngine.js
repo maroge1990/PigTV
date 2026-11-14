@@ -202,7 +202,9 @@ async function routeFor(schedule) {
     return {
         candidates: plan.candidates.map(c => (c.via === 'primary' ? { ...c, url: primaryUrl } : c)),
         primaryKey: plan.primaryKey,
-        multi: true
+        multi: true,
+        // #304 (Opus M1): backups exist, but this channel has none of its own (no link to another provider).
+        oneProvider: plan.channelProviders <= 1
     };
 }
 
@@ -1274,10 +1276,12 @@ async function onSegmentExit(schedule, entry, exitCode) {
             : null;
         const atOnce = ranLong || (shortRun && shortRun.count < shortRun.of);
         const candidate = entry.route.candidates[entry.index];
-        // #304 (Mark, 14 Nov): only a multi-route failure is held against its provider here. A stall on a channel's only
-        // provider stays out of its breaker (no "down" on Status, no providerDown notice); its failed connections still
-        // count where they are made (the ingest's, a play's).
-        if (failover) providerRouting.noteFailure(candidate, entry.route.primaryKey);
+        // #304 (Mark, 14 Nov): only a failure on a channel with more than one provider is held against its provider here.
+        // A stall on a channel's only provider stays out of its breaker (no "down" on Status, no providerDown notice),
+        // also when backups exist but this channel has no link to one (Opus M1): it is only quarantined, so a sibling feed
+        // of the same provider is tried next. A play's failed connections still count (routes/playback.js, streamRelay.js).
+        if (failover && entry.route.oneProvider) providerRouting.quarantine(candidate?.providerId, candidate?.channelKey);
+        else if (failover) providerRouting.noteFailure(candidate, entry.route.primaryKey);
         console.warn(`[Recordings] #${entry.recordingId} ended early (${why})` +
             (entry.route.multi && candidate?.providerName ? ` on ${candidate.providerName}` : '') +
             '; it continues in the same recording' + (entry.segmented.resumes ? ` (continued ${entry.segmented.resumes} times so far)` : ''));
