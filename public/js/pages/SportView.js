@@ -963,7 +963,7 @@ const SportView = (() => {
      */
     function leaguePage(sport, league, kind, lp, ctx) {
         const word = label(league, ctx.labels), words = leagueWords(word);
-        if (kind !== 'league' && kind !== 'nfl') return gamesGrid(league, ctx);
+        if (!['league', 'nfl', 'f1', 'cricket'].includes(kind)) return gamesGrid(league, ctx);
         const a = lp && lp.answer;
         if (!a) {
             if (lp && lp.failed) return `<div class="sp-state" id="sp-state" data-state="league-error" data-title="${e(words.failed.title)}" data-detail="${e(words.failed.detail)}"></div>`;
@@ -971,11 +971,240 @@ const SportView = (() => {
         }
         if (a.available === false) return `<div class="sp-state" id="sp-state" data-state="league-error" data-title="${e(words.unavailable.title)}" data-detail="${e(words.unavailable.detail)}"></div>`;
         const following = ctx.following || [];
+        if (kind === 'f1') {
+            if (!a.weekend) return (lp.stale ? staleNote(lp.updatedAt) : '') + `<div class="sp-league-empty">${UI.stateBlock('empty', { title: 'No race scheduled', detail: 'The next race weekend shows here once the scores feed lists it.' }, { label: 'Open the TV Guide', href: '#guide' })}</div>`;
+            return (lp.stale ? staleNote(lp.updatedAt) : '') + f1Page(a, ctx);
+        }
+        if (kind === 'cricket') return (lp.stale ? staleNote(lp.updatedAt) : '') + cricketPage(a, league, ctx);
         const fx = kind === 'nfl' ? nflFixture(a, following, ctx.hide) : leagueFixture(a, league, following, ctx.hide);
         const note = lp.stale ? staleNote(lp.updatedAt) : '';
         if (!fx.rounds.length) return note + `<div class="sp-league-empty">${UI.stateBlock('empty', words.empty, { label: 'Open the TV Guide', href: '#guide' })}</div>`;
         const season = a.season && (a.season.label || a.season.year) ? String(a.season.label || a.season.year) : '';
         return note + fixturePage(fx, { ...ctx, season }, word);
+    }
+
+    // ---------- Formula 1 (C-P; SportMotorViews, F1PageText) ----------
+
+    /** A circuit map from the logo cache, at the size the server draws it (`?size=3840`), else null. */
+    const mapPath = (p) => (typeof p === 'string' && /^\/api\/logo\/[A-Za-z0-9_.-]+(\?size=\d+)?$/.test(p) && !p.includes('..') ? p : null);
+    const hex = (c) => (typeof c === 'string' && /^[0-9A-Fa-f]{6}$/.test(c) ? `#${c}` : null);
+    const shortGp = (name) => String(name || '').replace('Grand Prix', 'GP').trim();
+    const surname = (name) => String(name || '').split(' ').pop();
+    /** "Fri 20 Nov · 1:30 pm". */
+    const dayClock = (ms) => `${UI.date(ms)} · ${UI.clock(ms)}`;
+    /** "in 35 min", "in 14 h", "in 2 days". */
+    function countdown(to, now) {
+        const minutes = Math.max(1, Math.ceil((to - now) / 60000));
+        if (minutes < 60) return `in ${minutes} min`;
+        const hours = Math.floor(minutes / 60);
+        return hours < 48 ? `in ${hours} h` : `in ${Math.floor(hours / 24)} days`;
+    }
+    const f1Live = (s, now) => s.status === 'live' || (s.status !== 'done' && s.start <= now && now < s.end);
+    const f1OnAir = (s, now) => s.onAir === true && s.status === 'scheduled' && now < s.start;
+    /** The session the hero speaks about: the live one, else the next to start. */
+    const focusSession = (w, now) => (w.sessions || []).find(s => f1Live(s, now)) || (w.sessions || []).find(s => s.status !== 'done' && s.start > now) || null;
+    /** A session's state: live, on air, next, done (the top driver, or "Finished" with scores hidden), or later. */
+    function sessionPill(s, w, now, hide) {
+        if (f1Live(s, now)) return { state: 'live', line: 'On now' };
+        if (f1OnAir(s, now)) return { state: 'onair', line: `On air · starts ${UI.clock(s.start)}` };
+        if (s.status === 'done' || s.end <= now) {
+            if (hide || !s.top || !s.top.driver) return { state: 'done', line: 'Finished' };
+            return { state: 'done', line: `${({ pole: 'Pole', winner: 'Winner', fastest: 'Fastest' })[s.top.kind] || 'Top'} · ${surname(s.top.driver)}` };
+        }
+        const f = focusSession(w, now);
+        if (f && f.id === s.id) { const c = countdown(s.start, now); return { state: 'next', line: c[0].toUpperCase() + c.slice(1) }; }
+        return { state: 'later', line: '' };
+    }
+    /** A session as a game on its channels' own airing (Watch, Remind me, Record). */
+    function sessionGame(s, w, now) {
+        return { id: `f1s:${s.id}`, synthetic: true, league: 'F1', title: `${shortGp(w.name)} · ${s.name}`, session: s.name,
+            start: s.start, end: s.end, status: s.status === 'done' ? 'finished' : f1Live(s, now) ? 'live' : 'scheduled',
+            competitors: [], channels: s.channels || [], events: [], freshness: 'unavailable', progress: {}, onAir: s.onAir === true };
+    }
+    function f1Hero(page, now, following) {
+        const w = page.weekend, s = focusSession(w, now);
+        const kicker = [!s ? 'Weekend finished' : f1Live(s, now) ? 'Live' : f1OnAir(s, now) ? 'On air' : 'Next', 'Motorsport', 'Formula 1'];
+        if (following.length) kicker.push('Your driver');
+        const line = s ? [s.name, f1OnAir(s, now) ? `On air · starts ${UI.clock(s.start)}` : when(s.start, now), (s.channels || [])[0] ? s.channels[0].name : 'Not in guide yet'] : [`Round ${w.round || ''}`.trim(), w.circuit].filter(Boolean);
+        return { hero: { kicker: kicker.join(' · '), live: !!s && (f1Live(s, now) || f1OnAir(s, now)), title: w.name, line: line.filter(Boolean).join(' · ') }, session: s };
+    }
+    function f1Tiles(page, now, hide) {
+        const w = page.weekend;
+        const tiles = (w.sessions || []).map(s => {
+            const p = sessionPill(s, w, now, hide);
+            const tag = p.state === 'live' ? '<span class="tag live">Live</span>' : p.state === 'onair' ? '<span class="tag live">On air</span>' : p.state === 'next' ? '<span class="tag next">Next</span>' : '';
+            return `<button type="button" class="tile${p.state === 'done' ? ' done' : ''}" data-act="game" data-id="${e(`f1s:${s.id}`)}" data-key="tile:${e(s.id)}"><span class="tt">${e(s.name)}${tag}</span><span class="wh pig-amount">${e(dayClock(s.start))}</span><span class="ln">${e(p.line)}</span><span class="chn">${e((s.channels || [])[0] ? s.channels[0].name : 'Not in guide yet')}</span></button>`;
+        }).join('');
+        return tiles;
+    }
+    function circuitTile(info, dark) {
+        const stats = [['Length', info && info.length], ['Laps', info && info.laps], ['Turns', info && info.turns], ['Lap record', info && info.lapRecord]];
+        const map = mapPath(dark && info && info.mapDark ? info.mapDark : info && info.map);
+        return `<div class="circuit"><dl class="stats">${stats.map(([k, v]) => `<div><dt>${e(k)}</dt><dd class="pig-amount">${e(v ?? '—')}</dd></div>`).join('')}</dl>${map ? `<img src="${e(map)}" alt="" aria-hidden="true" loading="lazy">` : ''}</div>`;
+    }
+    const f1Points = (v) => (v == null || !Number.isFinite(Number(v)) ? '' : Number.isInteger(Number(v)) ? String(v) : Number(v).toFixed(1));
+    function f1Lists(page, following, hide) {
+        const want = following.map(lower);
+        const results = page.results, st = page.standings;
+        const card = (title, note, rows) => `<div class="lcard"><div class="lh"><b>${e(title)}</b>${note ? `<span>${e(note)}</span>` : ''}</div>${rows}</div>`;
+        const hiddenRows = `<p class="hidden-note">${ICON.eyeOff}<span>Results and standings are hidden while Hide scores is on.</span></p>`;
+        const mrow = (pos, name, color, detail, points, followed) => `<div class="mrow${followed ? ' me' : ''}"><span class="ps pig-amount">${e(pos)}</span><span class="bar" style="background:${hex(color) || 'var(--disc)'}"></span>${followed ? star('Your driver') : ''}<span class="nm">${e(name)}</span>${points != null ? `<span class="pt pig-amount">${e(points)}</span>` : detail ? `<span class="dt">${e(detail)}</span>` : ''}</div>`;
+        const lists = [];
+        if (results) lists.push(card(results.kind === 'grid' ? 'Starting grid' : results.title || 'Last race', '',
+            hide ? hiddenRows : (results.rows || []).slice(0, 10).map(r => mrow(r.pos, r.driver, r.teamColor, r.team, null, want.includes(lower(r.driver)))).join('')));
+        if (st) {
+            const note = st.afterRound != null ? `After round ${st.afterRound}` : '';
+            lists.push(card('Drivers', note, hide ? hiddenRows : (st.drivers || []).slice(0, 10).map(r => mrow(r.pos, r.name, r.teamColor, null, f1Points(r.points), want.includes(lower(r.name)))).join('')));
+            lists.push(card('Constructors', note, hide ? hiddenRows : (st.constructors || []).slice(0, 10).map(r => mrow(r.pos, r.name, r.teamColor, null, f1Points(r.points), false)).join('')));
+        }
+        return lists.length ? `<div class="lists3">${lists.join('')}</div>` : '';
+    }
+    /** The Formula 1 page below its header: the banner (computer), the session tiles and the circuit, then the lists. */
+    function f1Page(page, ctx) {
+        const { now, hide, phone } = ctx, w = page.weekend, following = ctx.following || [];
+        const { hero: h, session } = f1Hero(page, now, following);
+        const g = session ? sessionGame(session, w, now) : null;
+        let html = '';
+        if (!phone) {
+            html += banner({ hero: h, items: [], back: 'Back to Motorsport', art: mapPath(w.info && w.info.map) ? { map: mapPath(ctx.dark && w.info.mapDark ? w.info.mapDark : w.info.map) } : null,
+                actions: heroButtons(g, now) });
+            html += `<div class="tiles">${f1Tiles(page, now, hide)}${circuitTile(w.info, ctx.dark)}</div>`;
+        } else {
+            html += `<div class="kicker${h.live ? ' live' : ''}">${h.live ? dot() : ''}<span>${e(h.kicker.split(' · ')[0])} · ${e(w.name)}</span></div>`;
+            if (g && event(g)) html += `<div class="hero-actions">${heroButtons(g, now)}</div>`;
+            html += `<div class="tiles">${f1Tiles(page, now, hide)}</div><div class="circuit-p">${circuitTile(w.info, ctx.dark)}</div>`;
+        }
+        return html + f1Lists(page, following, hide);
+    }
+
+    // ---------- cricket (C-S; CricketPageView, CricketPageModels) ----------
+
+    const INTERNATIONAL = ['Cricket', "Women's Cricket"];
+    /** The followed league a match belongs to (C-S `league`, else its competition's name, else the one International group). */
+    function cricketLeagueOf(id, named, competition, scope) {
+        if (named && String(named).trim()) return String(named).trim();
+        const c = lower(String(competition || '').trim());
+        if (c) {
+            const hit = scope.leagues.find(l => lower(l) === c || lower(label(l, scope.labels)) === c);
+            if (hit) return hit;
+        }
+        const groups = scope.leagues.filter(l => INTERNATIONAL.includes(l));
+        return groups.length === 1 ? groups[0] : null;
+    }
+    const cricketTitle = (teams) => (teams || []).map(t => t.name).join(' v ');
+    /** One team's innings: "329 & 200/5", "406/5d"; nothing when it has not batted. */
+    function innings(list) {
+        const parts = (list || []).filter(i => i.runs != null).map(i => `${i.runs}${i.wickets != null && i.wickets < 10 ? `/${i.wickets}` : ''}${i.declared ? 'd' : ''}`);
+        return parts.length ? parts.join(' & ') : null;
+    }
+    function scoreboard(lead) {
+        const cols = Math.max(1, ...(lead.innings || []).map(l => l.length));
+        const names = ['1st inns', '2nd inns', '3rd inns', '4th inns'];
+        const headers = [...Array.from({ length: cols }, (_, i) => names[i] || `Inns ${i + 1}`), 'Overs'];
+        const rows = (lead.teams || []).map((t, ti) => {
+            const list = (lead.innings || [])[ti] || [];
+            const open = [...list].reverse().find(i => i.current);
+            return [...Array.from({ length: cols }, (_, i) => (i < list.length ? innings([list[i]]) : null)), open ? open.overs : null];
+        });
+        return { headers, rows };
+    }
+    const dayNumber = (lead) => { const n = parseInt(String(lead.day || '').replace(/\D/g, ''), 10); return Number.isFinite(n) ? n : ((lead.days || []).find(d => d.state === 'live') || {}).number ?? null; };
+    const nextDay = (lead) => ((lead.days || []).find(d => d.state === 'next') || {}).number ?? null;
+    /** The pill: "Live"; "Day 5 in 21 h" before the next day; "Starts in 3 h"; "Finished". */
+    function cricketPill(lead, now) {
+        if (lead.status === 'live') return 'Live';
+        if (lead.status === 'done') return 'Finished';
+        const next = lead.nextStart ?? (lead.status === 'scheduled' ? lead.start : null);
+        if (next == null) return lead.breakLabel || 'Break';
+        const word = lead.status === 'break' ? (nextDay(lead) ? `Day ${nextDay(lead)}` : 'Play') : (lead.days || []).length > 1 && nextDay(lead) > 1 ? `Day ${nextDay(lead)}` : 'Starts';
+        return next > now ? `${word} ${countdown(next, now)}` : (lead.breakLabel || 'Soon');
+    }
+    function daySub(day, lead, now) {
+        if (day.state === 'live') return 'Live now';
+        if (day.state === 'next' && lead.nextStart != null) return when(lead.nextStart, now);
+        if (day.state === 'done' && lead.status === 'break' && day.number === dayNumber(lead) && lead.breakLabel) return lead.breakLabel;
+        return day.date != null ? UI.date(day.date) : '';
+    }
+    /** A series match's right-hand words: the lead's state on its own match, the result ("Finished" hidden), else its start. */
+    function seriesResult(m, lead, hide, now) {
+        if (lead && (m.current || m.id === lead.id)) {
+            const day = lead.day ? lead.day.toLowerCase() : null;
+            if (lead.status === 'live') return ['Live', day].filter(Boolean).join(' · ');
+            if (lead.status === 'break') return [lead.breakLabel || 'Break', day].filter(Boolean).join(' · ');
+        }
+        if (m.status === 'done') return hide ? 'Finished' : (m.result || 'Finished');
+        if (m.status === 'live') return 'Live';
+        if (m.status === 'break') return 'Break';
+        return m.start != null ? when(m.start, now) : '';
+    }
+    /** A cricket match as a game on its channels (Watch, Remind me, Record). */
+    function cricketGame(m) {
+        const starts = (m.channels || []).map(c => c.start).filter(Number.isFinite), ends = (m.channels || []).map(c => c.end).filter(Number.isFinite);
+        const start = starts.length ? Math.min(...starts) : m.nextStart ?? m.start ?? 0, end = ends.length ? Math.max(...ends) : start + 8 * 3600000;
+        return { id: `ck:${m.id}`, synthetic: true, league: 'Cricket', title: cricketTitle(m.teams), start, end: Math.max(end, start + 60000),
+            status: m.status === 'done' ? 'finished' : m.status === 'scheduled' ? 'scheduled' : 'live', competitors: (m.teams || []).map(t => ({ name: t.name, logo: t.logo })),
+            channels: m.channels || [], events: [], freshness: 'unavailable', progress: {} };
+    }
+    function otherStatus(o, now) {
+        if (o.status === 'live') return 'Live';
+        if (o.status === 'break') return o.nextStart != null ? `Resumes ${when(o.nextStart, now)}` : 'Break';
+        if (o.status === 'scheduled') { const t = o.nextStart ?? o.start; return t != null ? when(t, now) : 'Upcoming'; }
+        return 'Finished';
+    }
+    function otherCard(o, ctx) {
+        const live = o.status === 'live';
+        const sc = ctx.hide ? [] : (o.scores || []);
+        const rows = (o.teams || []).map((t, i) => `<span class="trow">${badge(t.name, t.logo, 26)}<span class="n">${e(t.name)}</span>${sc[i] ? `<span class="sc pig-amount">${e(sc[i])}</span>` : ''}</span>`).join('');
+        const ch = (o.channels || [])[0];
+        return `<div class="gitem"><button type="button" class="gcard${live ? ' live' : ''}" data-act="game" data-id="${e(`ck:${o.id}`)}" data-key="ck:${e(o.id)}"><span class="sk">${e(o.competition || 'Cricket')}</span>${rows}${!ctx.hide && o.line ? `<span class="sline">${e(o.line)}</span>` : ''}<span class="cbot">${live ? dot() : ''}<span class="${live ? 'clk' : 'when'} pig-amount">${e(otherStatus(o, ctx.now))}</span>${o.status !== 'done' ? `<span class="ch">${e(ch ? ch.name : 'Not in guide yet')}</span>` : ''}</span></button></div>`;
+    }
+    function leadBlock(lead, ctx, leagueLabel) {
+        const { hide, now } = ctx;
+        const g = cricketGame(lead), act = action(g, now), ev = lead.status !== 'done' ? event(g) : null;
+        const pill = cricketPill(lead, now);
+        const kicker = [lead.label || lead.competition || leagueLabel, lead.venue, hide ? null : lead.seriesLine].filter(Boolean).join(' · ');
+        let board;
+        if (hide) {
+            board = `<div class="board"><div class="tms">${(lead.teams || []).map(t => `<div class="tm"><span class="nm">${badge(t.name, t.logo, 34)}${e(t.name)}</span></div>`).join('')}</div></div>`;
+        } else {
+            const b = scoreboard(lead), cols = `grid-template-columns: minmax(0, 1fr) repeat(${b.headers.length}, minmax(64px, auto))`;
+            board = `<div class="board"><div class="hdr" style="${cols}"><span></span>${b.headers.map(h => `<span>${e(h)}</span>`).join('')}</div>`
+                + (lead.teams || []).map((t, i) => `<div class="tm" style="${cols}"><span class="nm">${badge(t.name, t.logo, 34)}${e(t.name)}</span>${b.rows[i].map((v, j) => `<span class="${j === b.rows[i].length - 1 ? 'o' : 'r'} pig-amount">${e(v ?? '')}</span>`).join('')}</div>`).join('')
+                + (lead.summary || (lead.crease && lead.crease.length) ? `<div class="sum">${lead.summary ? `<b>${e(lead.summary)}</b>` : ''}${lead.crease && lead.crease.length ? `<span>${e(lead.crease.map(c => (c.runs != null ? `${surname(c.name)} ${c.runs}*` : surname(c.name))).join(' · '))}</span>` : ''}</div>` : '')
+                + '</div>';
+        }
+        const days = (lead.days || []).length > 1 ? `<div class="days">${lead.days.map(d => `<div class="day ${e(d.state)}"><b>Day ${e(d.number)}</b><small>${e(daySub(d, lead, now))}</small></div>`).join('')}</div>` : '';
+        let actions = '';
+        if (ev) {
+            if (act === 'watch') actions += `<button type="button" class="pill primary" data-act="watch" data-id="${e(g.id)}" data-key="lead:watch">${ICON.play}Watch live</button>`;
+            else if (act === 'remind') actions += `<button type="button" class="pill primary" data-act="remind" data-id="${e(g.id)}" data-key="lead:remind">${ICON.bell}Remind me</button>`;
+            if (act !== 'none' && act !== 'details') actions += `<button type="button" class="pill" data-act="record" data-id="${e(g.id)}" data-key="lead:record">${ICON.rec}Record</button>`;
+        }
+        const chn = ev ? (act === 'remind' ? `${when(ev.start, now)} on ${ev.channel.name}` : `on ${ev.channel.name}`) : lead.status === 'done' ? '' : 'Not in guide yet';
+        return `<div class="lead"><div class="lead-k"><span>${e(kicker)}</span><span class="lpill${lead.status === 'live' ? ' live' : ''}">${e(pill)}</span></div>`
+            + `<h3 class="ltitle">${e(cricketTitle(lead.teams))}</h3>${board}${days}<div class="cact">${actions}${chn ? `<span class="chn">${e(chn)}</span>` : ''}</div></div>`;
+    }
+    function seriesPanel(series, lead, ctx) {
+        return `<section class="series" aria-label="${e(series.name || 'Series')}"><div class="sh"><b>${e(series.name || '')}</b>${series.season ? `<span>${e(series.season)}</span>` : ''}</div>`
+            + (series.matches || []).map(m => `<div class="sm${m.current || (lead && m.id === lead.id) ? ' cur' : ''}"><div class="a"><b>${e(m.label || '')}</b>${m.start != null ? `<span>${e(UI.date(m.start))}</span>` : ''}</div><span class="res">${e(seriesResult(m, lead, ctx.hide, ctx.now))}</span></div>`).join('')
+            + '</section>';
+    }
+    /** The cricket page for one followed league: its lead match (scoreboard, days, actions) beside its tour, then its other matches. */
+    function cricketPage(page, league, ctx) {
+        const scope = { leagues: ctx.leagues || [league], labels: ctx.labels || {} };
+        const mine = (m) => cricketLeagueOf(m.id, m.league, m.competition, scope) === league;
+        const word = label(league, ctx.labels);
+        const lead = page.lead && mine(page.lead) ? page.lead : null;
+        const others = (page.others || []).filter(mine);
+        if (!lead && !others.length) return ctx.front && leagueGames(league, ctx.front).length ? gamesGrid(league, ctx)
+            : `<div class="sp-league-empty">${UI.stateBlock('empty', { title: 'No cricket today or tomorrow', detail: 'Matches show here once the scores feed lists them.' }, { label: 'Open the TV Guide', href: '#guide' })}</div>`;
+        let html = '';
+        if (lead) {
+            const series = page.series && (page.series.matches || []).length ? seriesPanel(page.series, lead, ctx) : '';
+            html += `<div class="cric${series ? '' : ' solo'}">${leadBlock(lead, ctx, word)}${series}</div>`;
+        }
+        if (others.length) html += `<section class="others" aria-label="${e(lead ? `More ${word}` : word)}"><div class="oh"><h3>${e(lead ? `More ${word}` : word)}</h3></div><div class="ogrid">${others.map(o => otherCard(o, ctx)).join('')}</div></section>`;
+        return html;
     }
 
     return {
@@ -987,7 +1216,9 @@ const SportView = (() => {
         railGames, staleNote, scoresNote, star, dot, recordMark, kickerWord, yours, availabilityWord, onAirLine, e, gameCard,
         sportLeagues, sportGames, leagueGames, sportHero, openingLeague, leagueItems, leagueGroups, leagueCards, leagueContent,
         moreTitle, sportPage, EVENT_LEAGUES, groupsHtml, nothingSoon, fixtureDetail, nflFixture, leagueFixture, roundOf, viewOf,
-        tableGroups, fixtureCard, fixtureGame, fixtureCardHtml, standingsHtml, fixturePage, leaguePage, gamesGrid, leagueWords
+        tableGroups, fixtureCard, fixtureGame, fixtureCardHtml, standingsHtml, fixturePage, leaguePage, gamesGrid, leagueWords,
+        mapPath, countdown, focusSession, sessionPill, sessionGame, f1Hero, f1Page, cricketLeagueOf, innings, scoreboard, cricketPill,
+        seriesResult, cricketGame, cricketPage
     };
 })();
 

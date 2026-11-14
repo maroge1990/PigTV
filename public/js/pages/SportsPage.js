@@ -192,7 +192,7 @@ class SportsPage {
     }
     leagueKey() {
         const kind = this.leagueKind(), { league } = this.route;
-        return kind === 'nfl' ? 'nfl' : kind === 'league' ? `league:${league}` : null;
+        return kind === 'nfl' || kind === 'f1' || kind === 'cricket' ? kind : kind === 'league' ? `league:${league}` : null;
     }
     /**
      * The route's league page (C-T or C-Q), asked with every refresh while it is shown (the server keeps ESPN's answer
@@ -208,7 +208,7 @@ class SportsPage {
         return lp.asking;
     }
     async askLeague(key, league, lp) {
-        const url = key === 'nfl' ? '/sports/pages/nfl' : `/sports/pages/league/${encodeURIComponent(league)}`;
+        const url = ['nfl', 'f1', 'cricket'].includes(key) ? `/sports/pages/${key}` : `/sports/pages/league/${encodeURIComponent(league)}`;
         try {
             const answer = await API.request('GET', url);
             if (!answer || typeof answer !== 'object') throw new Error('Invalid league answer');
@@ -228,6 +228,7 @@ class SportsPage {
         const p = this.prefsAnswer || {};
         const names = [...((p.teams && p.teams[league]) || [])];
         if (league === 'NFL' && p.following && p.following.NFL) names.push(p.following.NFL);
+        if (league === 'F1' && p.following && p.following.F1 && !names.includes(p.following.F1)) names.push(p.following.F1);
         return names.filter(n => typeof n === 'string');
     }
     /** The game the banner's hero shows here: the front page's hero, or a sport page's. */
@@ -290,9 +291,17 @@ class SportsPage {
         return { front: this.front, hide: this.hidden, now: this.now(), labels: this.labels, phone: this.phone,
             heroId: this.heroId, followIndex: this.followIndex, map: this.f1Map, stale: this.stale, staleSince: this.updatedAt,
             links: true, features: this.features || {}, pages: SportsPage.PAGES, chosen: this.chosen[this.route.sport] || null,
-            following: this.route.league ? this.followingIn(this.route.league) : [], ...(this.fixtureChoice[this.leagueKey()] || {}) };
+            following: this.route.league ? this.followingIn(this.route.league) : [], dark: this.isDark(),
+            leagues: this.route.sport && this.front ? SportView.sportLeagues(this.route.sport, this.front).map(x => x.league) : [], ...(this.fixtureChoice[this.leagueKey()] || {}) };
     }
 
+    /** Dark pages draw the dark circuit map. */
+    isDark() {
+        if (typeof document === 'undefined') return true;
+        const t = document.documentElement?.getAttribute?.('data-theme');
+        if (t === 'light' || t === 'dark') return t === 'dark';
+        return !!(typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    }
     /** The whole page, keeping the focused control and each rail's scroll across a redraw. */
     render() {
         if (!this.active || !this.root) return;
@@ -317,7 +326,9 @@ class SportsPage {
         if (sport && this.route.league) {
             // a league's own page: "‹ Football" and its name, then its rounds, games and standings
             const league = this.route.league, kind = this.leagueKind();
-            head = V.header({ title: V.label(league, this.labels), now, hide, back: sport });
+            // Formula 1 on a computer keeps the banner (mock 07): its back button is there, the h2 unseen
+            head = kind === 'f1' && !this.phone && !loading && !failed && this.featuresLoaded ? `<h2 class="visually-hidden">${V.e(V.label(league, this.labels))}</h2>`
+                : V.header({ title: V.label(league, this.labels), now, hide, back: sport });
             if (loading || !this.featuresLoaded) body = '<div class="sp-state" id="sp-state" data-state="loading"></div>';
             else if (failed) body = '<div class="sp-state" id="sp-state" data-state="error"></div>';
             else body = V.leaguePage(sport, league, kind, this.leaguePages[this.leagueKey()], this.context());
@@ -412,6 +423,7 @@ class SportsPage {
     }
     game(id) {
         if (typeof id === 'string' && id.startsWith('fx:')) return this.fixtureById(id);
+        if (typeof id === 'string' && (id.startsWith('f1s:') || id.startsWith('ck:'))) return this.pageGame(id);
         return this.front ? SportView.game(this.front, id) : null;
     }
     /** A league page's game without a C-R card, as a game on its own channels ("fx:<league>:<id>"). */
@@ -421,6 +433,17 @@ class SportsPage {
         const fx = kind === 'nfl' ? SportView.nflFixture(lp.answer, [], true) : SportView.leagueFixture(lp.answer, league, [], true);
         for (const r of fx.rounds) for (const g of r.games) if (`fx:${fx.league}:${g.id}` === id) return SportView.fixtureGame(g, fx);
         return null;
+    }
+    /** A Formula 1 session ("f1s:<id>") or a cricket match ("ck:<id>") on the page shown, as a game on its channels. */
+    pageGame(id) {
+        const lp = this.leaguePages[this.leagueKey()], a = lp && lp.answer;
+        if (!a) return null;
+        if (id.startsWith('f1s:') && a.weekend) {
+            const s = (a.weekend.sessions || []).find(x => `f1s:${x.id}` === id);
+            return s ? SportView.sessionGame(s, a.weekend, this.now()) : null;
+        }
+        const m = [a.lead, ...(a.others || [])].find(x => x && `ck:${x.id}` === id);
+        return m ? SportView.cricketGame(m) : null;
     }
     /** A round, a standings view or a table group chosen on a league page. */
     chooseFixture(choice) {
@@ -597,6 +620,6 @@ class SportsPage {
 }
 
 /** The league pages built so far (#323 steps 3-5); a league whose page is not here shows no "Rounds and standings ›". */
-SportsPage.PAGES = ['league', 'nfl'];
+SportsPage.PAGES = ['league', 'nfl', 'f1', 'cricket'];
 
 if (typeof window !== 'undefined') window.SportsPage = SportsPage;

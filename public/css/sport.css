@@ -258,6 +258,88 @@
   .sp .rounds { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-right: calc(-1 * var(--gutter)); padding-right: var(--gutter); }
 }
 
+/* ---------- Formula 1 (SportMotorViews) ---------- */
+.sp .tiles { display: flex; gap: 14px; align-items: stretch; margin-top: 18px; overflow-x: auto; scrollbar-width: none; padding: 3px; margin-left: -3px; }
+.sp .tiles::-webkit-scrollbar { display: none; }
+.sp .tile { flex: 1 1 0; min-width: 160px; max-width: 210px; min-height: 132px; display: flex; flex-direction: column; gap: 3px; padding: 12px 14px;
+  border-radius: 16px; background: var(--surface); border: 1px solid var(--color-border); text-align: left; }
+.sp .tile:hover { background: var(--raised); }
+.sp .tile .tt { display: flex; align-items: center; gap: 6px; font-size: 16px; font-weight: 800; white-space: nowrap; }
+.sp .tile .wh { font-size: 13px; color: var(--color-text-secondary); white-space: nowrap; }
+.sp .tile .ln { margin-top: auto; font-size: 13px; font-weight: 700; }
+.sp .tile .chn { font-size: 13px; color: var(--color-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sp .tag { margin-left: auto; font-size: 12px; font-weight: 800; letter-spacing: 1px; padding: 2px 8px; border-radius: 999px; text-transform: uppercase; }
+.sp .tag.next { color: var(--color-accent-text); box-shadow: inset 0 0 0 2px var(--color-accent); }
+.sp .tag.live { background: var(--live); color: #fff; }
+.sp .circuit { flex: 0 0 320px; display: flex; gap: 12px; padding: 12px 14px; border-radius: 16px; background: var(--raised); }
+.sp .circuit .stats { flex: 1; display: flex; flex-direction: column; gap: 6px; margin: 0; font-size: 14px; }
+.sp .circuit .stats div { display: flex; gap: 6px; }
+.sp .circuit .stats dt { color: var(--color-text-secondary); }
+.sp .circuit .stats dd { margin: 0 0 0 auto; font-weight: 700; white-space: nowrap; }
+.sp .circuit img { flex: 0 0 110px; width: 110px; height: 80px; object-fit: contain; align-self: center; }
+.sp .circuit-p { margin-top: 12px; }
+.sp .hero-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 0; }
+.sp .lists3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-top: 18px; }
+.sp .mrow { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 6px; border-radius: 10px; font-size: 14px; }
+.sp .mrow .ps { width: 22px; text-align: right; color: var(--color-text-secondary); }
+.sp .mrow .bar { flex: 0 0 6px; width: 6px; height: 22px; border-radius: 3px; }
+.sp .mrow .nm { font-weight: 600; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sp .mrow .dt { color: var(--color-text-secondary); font-size: 13px; white-space: nowrap; }
+.sp .mrow .pt { font-weight: 800; }
+.sp .mrow.me { background: color-mix(in srgb, var(--color-accent) 16%, transparent); }
+@media (max-width: 1100px) { .sp .lists3 { grid-template-columns: 1fr; } }
+@media (max-width: 768px) {
+  .sp .tiles { margin-right: calc(-1 * var(--gutter)); padding-right: var(--gutter); }
+  .sp .tile { flex: 0 0 176px; max-width: none; min-height: 120px; }
+  .sp .circuit { flex: none; }
+}
+
+/* ---------- cricket (CricketPageView) ---------- */
+.sp .cric { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 28px; align-items: start; }
+.sp .cric.solo { grid-template-columns: minmax(0, 1fr); }
+.sp .lead-k { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; font-size: 13px; font-weight: 700; letter-spacing: 1px; color: var(--color-text-secondary); text-transform: uppercase; }
+.sp .lpill { font-size: 12px; font-weight: 800; letter-spacing: 1px; padding: 3px 10px; border-radius: 999px; background: var(--raised); color: var(--color-text-primary); text-transform: uppercase; }
+.sp .lpill.live { background: var(--live); color: #fff; }
+.sp .ltitle { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; margin: 6px 0 12px; }
+.sp .board { background: var(--raised); border-radius: 18px; padding: 14px 16px; }
+.sp .board .hdr, .sp .board .tm { display: grid; align-items: center; gap: 0 8px; }
+.sp .board .hdr { font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--color-text-secondary); text-align: right; margin-bottom: 4px; text-transform: uppercase; }
+.sp .board .tm { min-height: 46px; padding: 0 8px; border-radius: 12px; }
+.sp .board .tm .nm { display: flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 700; min-width: 0; }
+.sp .board .tm .r { text-align: right; font-size: 19px; font-weight: 800; }
+.sp .board .tm .o { text-align: right; font-size: 13px; color: var(--color-text-secondary); }
+.sp .board .sum { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; border-top: 1px solid var(--color-border); margin-top: 8px; padding-top: 10px; font-size: 14px; }
+.sp .board .sum span { margin-left: auto; color: var(--color-text-secondary); }
+.sp .days { display: flex; gap: 8px; margin: 14px 0; overflow-x: auto; scrollbar-width: none; }
+.sp .day { flex: 0 0 auto; min-width: 104px; padding: 8px 12px; border-radius: 14px; font-size: 14px; background: var(--surface); }
+.sp .day small { display: block; font-size: 12px; color: var(--color-text-secondary); }
+.sp .day.done { background: var(--raised); }
+.sp .day.live { background: var(--live); color: #fff; }
+.sp .day.live small { color: #fff; }
+.sp .day.next { box-shadow: inset 0 0 0 2px var(--color-accent-text); }
+.sp .cact { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 4px; }
+.sp .cact .chn { margin-left: 6px; font-size: 14px; color: var(--color-text-secondary); }
+.sp .series { background: var(--raised); border-radius: 20px; padding: 16px 18px; }
+.sp .series .sh { display: flex; align-items: baseline; margin-bottom: 6px; gap: 8px; }
+.sp .series .sh b { font-size: 17px; font-weight: 800; }
+.sp .series .sh span { margin-left: auto; font-size: 13px; color: var(--color-text-secondary); }
+.sp .sm { display: flex; align-items: center; gap: 12px; padding: 9px 6px; border-bottom: 1px solid var(--color-border); }
+.sp .sm:last-child { border-bottom: 0; }
+.sp .sm.cur { background: color-mix(in srgb, var(--live) 8%, transparent); }
+.sp .sm .a b { display: block; font-size: 14px; }
+.sp .sm .a span { font-size: 12px; color: var(--color-text-secondary); }
+.sp .sm .res { margin-left: auto; font-size: 13px; font-weight: 600; color: var(--color-text-secondary); text-align: right; }
+.sp .others { margin-top: 26px; }
+.sp .others .oh h3 { margin: 0 0 10px; font-size: 19px; font-weight: 800; }
+.sp .ogrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+@media (max-width: 1100px) { .sp .cric { grid-template-columns: minmax(0, 1fr); gap: 20px; } }
+@media (max-width: 768px) {
+  .sp .ltitle { font-size: 24px; }
+  .sp .board { padding: 12px; }
+  .sp .board .tm .nm { font-size: 15px; gap: 8px; }
+  .sp .board .tm .r { font-size: 16px; }
+}
+
 /* ---------- states: nothing followed (the pig), loading, the error ---------- */
 .sp .state-block.sp-empty { padding: 72px 24px 56px; background: none; border: 0; gap: 12px; }
 .sp .state-block.sp-empty .state-block-title { font-size: 26px; font-weight: 800; }
