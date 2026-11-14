@@ -539,6 +539,37 @@ test('#288: everything quarantined: a viewer\'s plan is still the primary alone;
     assert.deepEqual((await routing.plan(A.id, 'pos_1', Date.now(), { keepTrying: true })).candidates.map(c => c.providerId), [B.id]);
 });
 
+// #288 (Opus M2): a try that ended without a provider reason was not quarantined again, so the same candidate stayed the
+// earliest held (or, once its hold lapsed, the only free one) and every retry went to it: B was never tried.
+test('#288: retries that fail without a provider reason still go round the providers: A, B, A, B', async () => {
+    await db.sources.update(C.id, { enabled: false });
+    tuning.endGraceMs = 0;
+    setBehaviour(url.A(101), 'fails');
+    setBehaviour(url.B(5001), 'fails');
+    const s = due({ windowMs: 120000 });
+    await engine.tick();
+    await settle(() => captures().length === 1 && !activeFor(s.id), 'the first try');
+    for (let k = 2; k <= 5; k++) {
+        await engine.tick();
+        await settle(() => captures().length === k && !activeFor(s.id), `retry ${k - 1}`);
+    }
+    assert.deepEqual(inputs(), [url.A(101), url.B(5001), url.A(101), url.B(5001), url.A(101)], 'they alternate');
+    assert.equal(routing.snapshot().providers.find(p => p.id === A.id).recentFailures, 0, 'not the provider\'s fault: no breaker count');
+    assert.equal(scheduled.getById(s.id).status, 'recording');
+    await engine.cancelScheduled(s.id);
+});
+
+test('#288: a provider down for longer than a quarantine is ordered by when it failed, not by when its cooldown ends', async () => {
+    const t0 = Date.now();
+    routing.noteProviderFailure(A.id, 'x', t0 - 60000);
+    routing.noteProviderFailure(A.id, 'y', t0 - 60000); // down, failed a minute ago
+    routing._breakers.get(A.id).until = t0 + 14 * 60000; // a long cooldown (it has failed again after earlier ones)
+    routing.quarantine(B.id, '5001', t0 - 1000);         // failed a second ago: its hold ends sooner
+    routing.quarantine(C.id, '7001', t0);
+    const recording = await routing.plan(A.id, 'pos_1', t0, { keepTrying: true });
+    assert.deepEqual(recording.candidates.map(c => c.providerId), [A.id, B.id, C.id], 'the one that failed longest ago first');
+});
+
 // ------------------------------------------------------------ no backup --
 // One provider refusing waits for the next tick each time (not at once): recording-segments.test.js's "#284: a
 // single-provider route that refuses at the start"; one dropping mid-recording continues (0499): its "0499" test.

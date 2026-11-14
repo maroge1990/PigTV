@@ -12,8 +12,8 @@
  *      quarantined links.
  * When everything is skipped the primary is tried anyway, as it always was: with no
  * backup configured the list is the primary alone and nothing changes. A recording asks
- * for `keepTrying` instead (#288): then every skipped candidate is tried, the one held
- * back longest ago first, so its retries go round the providers.
+ * for `keepTrying` instead (#288): then every skipped candidate is tried, the one that failed
+ * longest ago first, so its retries go round the providers.
  *
  * The route (routes/playback.js) walks the list: admission, start, and on a failure for
  * a provider reason, note it here and try the next. P7 (recordings) uses the same list.
@@ -60,6 +60,7 @@ const EARLY_RETRY_DELAYS_MS = [1000];
 
 const breakers = new Map();   // providerId -> { state, failures: [{ channel, at }], cooldownMs, until }
 const quarantined = new Map(); // `${providerId}|${channelKey}` -> until (ms)
+const quarantinedAt = new Map(); // #288 (Opus M2): the same key -> when it was last quarantined (it last failed)
 
 // ------------------------------------------------------------------ providers --
 
@@ -130,6 +131,7 @@ function noteProviderFailure(id, channel, now = Date.now()) {
     const b = breakerOf(id);
     b.failures = b.failures.filter(f => now - f.at < BREAKER_WINDOW_MS);
     b.failures.push({ channel: String(channel), at: now });
+    b.lastFailedAt = now; // #288 (Opus M2): a recording's rotation orders a down provider by this, not by its cooldown
     if (state === 'half-open') {
         trip(id, b, Math.min(b.cooldownMs * 2, COOLDOWN_CAP_MS), 'failed again after its cooldown', now);
     } else if (state === 'up') {
@@ -158,13 +160,14 @@ const qKey = (id, channelKey) => `${Number(id)}|${String(channelKey)}`;
 function quarantine(id, channelKey, now = Date.now()) {
     if (id === null || id === undefined || channelKey === null || channelKey === undefined) return;
     quarantined.set(qKey(id, channelKey), now + QUARANTINE_MS);
+    quarantinedAt.set(qKey(id, channelKey), now);
 }
 
 function isQuarantined(id, channelKey, now = Date.now()) {
     const k = qKey(id, channelKey);
     const until = quarantined.get(k);
     if (!until) return false;
-    if (now >= until) { quarantined.delete(k); return false; }
+    if (now >= until) { quarantined.delete(k); quarantinedAt.delete(k); return false; }
     return true;
 }
 
@@ -349,14 +352,16 @@ function backupUrl(source, streamId) {
 }
 
 /**
- * #288: until when a candidate is held back (quarantined for its channel, or its provider down), or 0.
- * Earliest first is the one that failed longest ago.
+ * #288: when a held-back candidate last failed: its quarantine for this channel, or the last failure of its provider
+ * while that is down, whichever is later. Earliest first is the one that failed longest ago (Opus M2: not by when the
+ * hold ends, since a breaker's cooldown can run longer than a quarantine and would put a later failure first).
  */
-function heldUntil(candidate, now) {
-    const q = quarantined.get(qKey(candidate.providerId, candidate.channelKey)) || 0;
+function lastFailedAt(candidate, now) {
+    const k = qKey(candidate.providerId, candidate.channelKey);
+    const q = (quarantined.get(k) || 0) > now ? (quarantinedAt.get(k) || 0) : 0;
     const b = breakers.get(Number(candidate.providerId));
-    const down = b && b.state === 'down' && now < b.until ? b.until : 0;
-    return Math.max(q > now ? q : 0, down);
+    const down = b && b.state === 'down' && now < b.until ? (b.lastFailedAt || 0) : 0;
+    return Math.max(q, down);
 }
 
 /**
@@ -367,8 +372,8 @@ function heldUntil(candidate, now) {
  *
  * `keepTrying` (#288, recordings only; a viewer's play never sets it): when every candidate is skipped because it is
  * quarantined or its provider down, all of them are returned instead of the primary alone - never an expired,
- * disabled, non-backup or address-less one - ordered by when each is held back until, earliest first, so successive
- * retries (each failure quarantines its candidate again) go round the providers: A, B, A, B.
+ * disabled, non-backup or address-less one - ordered by when each last failed, longest ago first, so successive
+ * retries (each failed try quarantines its candidate again) go round the providers: A, B, A, B.
  */
 async function plan(sourceId, channelId, now = Date.now(), { keepTrying = false } = {}) {
     const primaryId = Number(sourceId);
@@ -423,10 +428,10 @@ async function plan(sourceId, channelId, now = Date.now(), { keepTrying = false 
     }
 
     // Nowhere else to go: the primary, as it always was - or (#288, a recording) every one held back, the one held
-    // back longest ago first (a stable sort: route order breaks a tie).
+    // back longest ago first, by when each last failed (a stable sort: route order breaks a tie).
     if (!candidates.length && keepTrying && held.length) {
-        candidates.push(...held.map((c, i) => ({ c, i, until: heldUntil(c, now) }))
-            .sort((a, b) => a.until - b.until || a.i - b.i).map(x => x.c));
+        candidates.push(...held.map((c, i) => ({ c, i, at: lastFailedAt(c, now) }))
+            .sort((a, b) => a.at - b.at || a.i - b.i).map(x => x.c));
         primarySkipped = candidates[0] !== primary;
     } else if (!candidates.length) {
         candidates.push(primary);
@@ -477,6 +482,7 @@ function snapshot(now = Date.now()) {
 function reset() {
     breakers.clear();
     quarantined.clear();
+    quarantinedAt.clear();
 }
 
 module.exports = {

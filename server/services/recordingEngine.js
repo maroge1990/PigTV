@@ -1282,6 +1282,10 @@ async function onSegmentExit(schedule, entry, exitCode) {
         // of the same provider is tried next. A play's failed connections still count (routes/playback.js, streamRelay.js).
         if (failover && entry.route.oneProvider) providerRouting.quarantine(candidate?.providerId, candidate?.channelKey);
         else if (failover) providerRouting.noteFailure(candidate, entry.route.primaryKey);
+        // #288 (Opus M2): a short run on a multi route that ended without a provider reason (an "account expired" page,
+        // a crash) is quarantined too, without a breaker count, so the next try goes to the next provider instead of
+        // this one for the rest of the window. A run that lasted a minute is retried where it was, as before.
+        else if (entry.route.multi && !ranLong) providerRouting.quarantine(candidate?.providerId, candidate?.channelKey);
         console.warn(`[Recordings] #${entry.recordingId} ended early (${why})` +
             (entry.route.multi && candidate?.providerName ? ` on ${candidate.providerName}` : '') +
             '; it continues in the same recording' + (entry.segmented.resumes ? ` (continued ${entry.segmented.resumes} times so far)` : ''));

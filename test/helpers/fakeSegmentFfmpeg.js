@@ -23,6 +23,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
  *   path             the executable, for engine.init({ ffmpegPath })
  *   setBehaviour     (inputUrl, kind): 'ok' | 'dies' (reset by peer after 400 ms) | 'ends-once' (first capture ends by itself after 400 ms)
  *                    | 'refuses' (#284: exits 1 at once with an HTTP 502, writing nothing)
+ *                    | 'fails' (#288: exits 1 at once with nothing that looks like the provider's fault, writing nothing)
  *                    | 'stall' (one segment, then nothing until "q")
  *                    | 'stall-deaf' (#274: one segment, then nothing, and "q" is ignored: only a kill ends it)
  *                    | 'silent' (#302: connects and writes nothing at all until "q")
@@ -83,6 +84,11 @@ const kind = map[input] || 'ok';
 // #284: the provider refuses at the start (an HTTP 502): nothing is written.
 if (kind === 'refuses') {
   process.stderr.write('[http @ 0x1] HTTP error 502 Bad Gateway\\nError opening input: Server returned 502 Bad Gateway\\n');
+  process.exit(1);
+}
+// #288 (Opus M2): an exit that providerFailureIn does not take for the provider's.
+if (kind === 'fails') {
+  process.stderr.write('Conversion failed!\\n');
   process.exit(1);
 }
 if (args.includes('hls')) {
