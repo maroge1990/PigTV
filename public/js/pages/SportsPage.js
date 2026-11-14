@@ -575,8 +575,10 @@ class SportsPage {
     async watch(id, channelKey = null) {
         this.closeMenu();
         const g = this.game(id), ev = g && SportView.event(g);
-        // a chosen channel is judged on its own airing (#327: a details row), the best channel on the game's action
-        if (!ev || (!channelKey && SportView.action(g, this.now()) !== 'watch')) { UI.toast('This game isn’t on your channels right now.'); return; }
+        // a chosen channel is judged on its own airing (#327: a details row), the best channel on the game's action; a
+        // result or a next round plays nothing on any channel (Opus review of #327: the same check on both paths)
+        const over = !ev || SportView.terminal(g) || SportView.isNextRound(g);
+        if (over || (!channelKey && SportView.action(g, this.now()) !== 'watch')) { UI.toast('This game isn’t on your channels right now.'); return; }
         const key = (c) => `${c.sourceId}:${c.stableId || c.id}`;
         // "Watch on…": the chosen channel, while it still shows the game now
         const chosen = channelKey ? this.channelsOnAir(g).find(c => key(c) === channelKey) : ev.channel;
@@ -659,7 +661,9 @@ class SportsPage {
     /** The channels airing a game now (its own times), for "Watch on…". */
     channelsOnAir(g) {
         const now = this.now();
-        return (g.channels || []).filter(c => (Number.isFinite(c.start) ? c.start <= now : true) && (Number.isFinite(c.end) ? now < c.end : true));
+        if (!SportView.event(g)) return [];
+        // each on its own airing; a channel without times on the game's (never "always on air": Opus review of #327)
+        return (g.channels || []).filter(c => { const a = this.airing(g, c); return a.start <= now && now < a.end; });
     }
     /**
      * The items: Remind me before a game; "Watch on… (n channels)" when several channels show it now; RECORD: Record this
