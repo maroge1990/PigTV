@@ -96,3 +96,21 @@ test('an events league with nothing this week says so', () => {
     const { V } = browser();
     assert.match(V.leaguePage('Golf', 'LPGA', 'events', { answer: { available: true, kind: 'golf', events: [] } }, ctx(V, answer())), /Nothing in LPGA this week[\s\S]*Its next events show here once the scores feed lists them\./);
 });
+
+// #323 Codex review of step 5 (medium): with scores hidden, several followed golfers in the leaderboard's order would
+// reveal who leads; they go in the follow order (else by name), so swapping their places changes nothing in the markup.
+test('golf with scores hidden: your players in the follow order, the same whatever the leaderboard says', () => {
+    const { V } = browser();
+    const page = (swap) => {
+        const p = golf();
+        p.events[0].followed = ['Matthieu Pavon', 'Andrew Novak'];
+        if (swap) { const lb = p.events[0].leaderboard; [lb[0], lb[1]] = [lb[1], lb[0]]; lb[0].pos = '1'; lb[1].pos = '2'; }
+        return p;
+    };
+    for (const phone of [false, true]) {
+        const html = (swap) => V.leaguePage('Golf', 'PGA Tour', 'events', { answer: page(swap), loaded: true }, ctx(V, answer(), { hide: true, phone }));
+        assert.equal(html(false), html(true), 'a swap of places leaves the hidden page unchanged');
+        const players = html(false).slice(html(false).indexOf('Your players'));
+        assert.ok(players.indexOf('Matthieu Pavon') < players.indexOf('Andrew Novak'), 'the follow order');
+    }
+});

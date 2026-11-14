@@ -1238,7 +1238,12 @@ const SportView = (() => {
             : `<div class="lcard"><div class="lh"><b>Leaderboard</b><span>Top ${Math.min(11, lb.length)}</span></div><table class="lb"><thead><tr><th scope="col" class="tl">Pos</th><th scope="col" class="tl">Player</th><th scope="col">To par</th>${phone ? '' : '<th scope="col">R1</th><th scope="col">R2</th><th scope="col">R3</th>'}</tr></thead><tbody>`
                 + lb.slice(0, 11).map(r => `<tr${evFollowed(r.name, focus) ? ' class="me"' : ''}><td class="pos">${e(r.pos ?? (r.status ? r.status.toUpperCase() : '–'))}</td><td class="nm">${evFollowed(r.name, focus) ? star('Your player') : ''}${e(r.name)}</td><td class="tp pig-amount">${e(r.toPar ?? '–')}</td>${phone ? '' : [0, 1, 2].map(i => `<td class="r pig-amount">${e((r.rounds || [])[i] ?? '–')}</td>`).join('')}</tr>`).join('')
                 + '</tbody></table></div>';
-        const mine = lb.filter(r => evFollowed(r.name, focus));
+        let mine = lb.filter(r => evFollowed(r.name, focus));
+        // #323 review: hidden, the leaderboard's order would rank your players: they go in the follow order, else by name
+        if (hide) {
+            const order = (n) => { const i = (focus.followed || []).findIndex(f => f === n || String(n).split(' / ').includes(f)); return i < 0 ? Infinity : i; };
+            mine = [...mine].sort((a, b) => order(a.name) - order(b.name) || String(a.name).localeCompare(String(b.name)));
+        }
         const players = mine.length ? `<div><h4>Your players</h4>${mine.map(r => {
             if (hide) return `<div class="pcard"><div class="t">${star('Your player')}${e(r.name)}</div></div>`;
             const mineP = parOf(r.toPar), lead = parOf(leader && leader.toPar);
