@@ -16,6 +16,9 @@ class SportsPage {
         this.serial = 0;
         this.front = null; this.loaded = false; this.failed = false; this.stale = false; this.updatedAt = null; this.received = 0;
         this.prefs = { known: false, spoilerFree: true };
+        // #323 review (high): scores are disclosed only by a refresh whose preference read said shown and whose answer has
+        // come; a read that hides, fails or has not answered yet takes them off the page at once (cached answer included).
+        this.mayShow = false;
         this.labels = {}; this.labelsLoaded = false;
         this.heroId = null; this.selectedFollowKey = null; this.pinned = null;
         this.f1Map = null; this.f1Asked = false;
@@ -58,7 +61,7 @@ class SportsPage {
         this.active = true;
         this.path = sub || '';
         this.stack = [];
-        this.prefs.known = false; // Apple 90: the choice is forgotten until it is read again
+        this.prefs.known = false; this.mayShow = false; // Apple 90: the choice is forgotten until it is read again
         if (this.watchCancelled) { this.watchCancelled = false; UI.toast('Remind me was cancelled because Sport was closed.'); }
         this.render();
         await this.refresh();
@@ -98,7 +101,7 @@ class SportsPage {
     // ---------- data ----------
 
     get phone() { return !!this.phoneQuery?.matches; }
-    get hidden() { return SportView.hidden({ known: this.prefs.known, preference: this.prefs.spoilerFree, answer: this.front?.spoilerFree === true }); }
+    get hidden() { return !this.mayShow || SportView.hidden({ known: this.prefs.known, preference: this.prefs.spoilerFree, answer: this.front?.spoilerFree === true }); }
     /** The server's now, moved on by the time since its answer came. */
     now() { return this.front ? this.front.now + Math.max(0, Date.now() - this.received) : Date.now(); }
 
@@ -107,6 +110,8 @@ class SportsPage {
         if (!this.active) return;
         clearTimeout(this.timer);
         const serial = ++this.serial;
+        // the choice not known (a first visit, a return, the tab shown again): what is on the page is hidden now
+        if (!this.prefs.known) this.conceal();
         try {
             const prefs = await API.request('GET', '/sports/pages/preferences');
             if (serial !== this.serial) return;
@@ -115,6 +120,8 @@ class SportsPage {
             if (serial !== this.serial) return;
             this.prefs = { known: false, spoilerFree: true };
         }
+        // hidden or unread: off the page before the answer is waited for (it may be slow, or never come)
+        if (!this.prefs.known || this.prefs.spoilerFree) this.conceal();
         this.loadLabels();
         this.loadFeatures();
         try {
@@ -129,9 +136,16 @@ class SportsPage {
             if (this.front) this.stale = true; else this.failed = true;
         }
         this.loaded = true;
+        this.mayShow = this.prefs.known && !this.prefs.spoilerFree;
         this.loadMap();
         this.render();
         this.schedule();
+    }
+    /** Take every score off the page now: the cached answer is redrawn hidden until a refresh discloses again. */
+    conceal() {
+        if (!this.mayShow) return;
+        this.mayShow = false;
+        this.render();
     }
     schedule() {
         clearTimeout(this.timer);
