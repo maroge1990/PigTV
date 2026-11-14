@@ -608,32 +608,18 @@ so it cannot tune. The catalog final's retention/removal is unchanged. Only the 
 never a current raw final or an endDate envelope. Actual airing eligibility is recomputed from start/end at request time:
 C-I's per-minute `live` bit is not authoritative at a boundary. These airing bounds do not establish LIVE sport play.
 
-#### Web 0317 C-O consumption (local, device/browser acceptance pending)
+#### Web Sport section (#323, Web 3): the Apple apps' pages on C-R, C-P, C-Q, C-S, C-T and C-V
 
-- Sport is a separate navigation page. Capability absence or dashboard 404 uses the C-I rolling 72h ordinary schedule.
-  Canonical league chips in the dashboard retain the C-O rolling 72h view; chips come only from the response's
-  `leagues` (guide-only non-canonical leagues keep a shelf but no filter, which the route would refuse with 400). All server-supplied followed leagues have
-  shelves even without games. No new endpoint or response shape is introduced.
-- A visible online C-O page refreshes whole snapshots every 20s after the prior request finishes. Unknown preferences,
-  request failure, background, offline and identity changes hide card/detail scores. Nothing is persisted in browser
-  storage beyond existing authentication. Resume rechecks capability/settings; no score clock is extrapolated.
-- Settings submit the revision the user saw. Conflicts reread settings and ask for a new choice. The client does not
-  retry a write with a newer revision. Spoiler hiding covers card/details/accessibility and masks raw titles in the shared recording banner before Sport
-  opens and on every banner refresh; only cached logo paths load.
-- Cards share a fixed geometry within each sport, with visible More options and native context-menu access. Keyboard
-  buttons retain identity/order; a focused expired card becomes neutral until focus leaves, including removed shelves.
-- Select reloads library metadata, then revalidates the current airing and preferred stable identity. No fallback from
-  a missing stable ID to a positional ID/name. Finals do not tune. Record/sport-rule confirmation revalidates C-I airing
-  bounds/channel association and the preference revision; captured title comes only from C-O. Sport rules offer the
-  neutral league and league-qualified team names, rechecked before submission. The web Sport page offers no
-  series rule (since 0320): C-O and C-I display titles are normalised and merged across channels, so they never equal
-  the exact guide title a series rule matches. A sport rule's confirmation reports how many it scheduled, including none. Recording indicators
-  are labelled and keyed by source/stable channel from the existing active-recording route. No provider probes occur
-  during render, focus, refresh or channel-library loading. Explicit Watch uses the existing admission/takeover flow.
-- An explicit scheduled Watch is cancelled on leaving/background/offline and has a visible cancel button. At its
-  timer it reloads state and eligibility; it never infers that the sport has started from wall time alone. If the
-  server's `now` is still before the airing's start (the local estimate includes the request round trip), it re-arms
-  rather than consuming the scheduled watch.
+- The web Sport section reads the same endpoints as the Apple apps: `sports/front` (C-R) for the front page and each
+  sport's page, `sports/pages/league/:l` (C-T, C-Q), `sports/pages/f1` (C-P), `sports/pages/cricket` (C-S) and
+  `sports/pages/events` (C-V), and `sports/pages/preferences` for Hide scores and Score delay. It no longer reads C-O
+  (the web app always runs against its own server, so it needs no fallback). No new endpoint or response shape.
+- Hidden scores: hidden is the OR of the preference's `spoilerFree` and the answer's; an unknown or failed read counts
+  as hidden. With scores hidden no score, result, standing, position or result word is put in the page or its
+  accessibility tree; a refresh redraws the cached answer hidden as soon as its preference read says hidden, fails or is
+  unknown, and shows scores only from a refresh whose own answers both arrived.
+- Recording from Sport uses the record menu (game, team and listing rules through the existing routes); nothing new on
+  the server.
 
 #### Apple 60 mobile adaptation (local checks pass; device acceptance pending)
 

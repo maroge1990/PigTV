@@ -32,8 +32,8 @@ exists, not built).
 | Segmented recordings | Watch a recording from the start while it records; survives restarts and failover | — | ✓ | ✓ | always on (D-48) |
 | Recording rules | Sport follow and series rules, de-duplicated | ✓ | ✓ | ✓ | shipped |
 | Sport events (C-I) | Sport recognised per programme across every channel, with a follow list, replays and a 72-hour horizon, checked against ESPN's free fixtures | ✓ | ✓ | ✓ | shipped |
-| Live now dashboard (C-O) | Live and upcoming games with scores, Hide scores and delay settings | ✓ | ✓ | ✓ | gated (`sportsDashboard`) |
-| Sport pages | A page per sport (see Sport below) | later | first | then | F1: server data built (0340, C-P); Apple page next (#21) |
+| Live now dashboard (C-O) | Live and upcoming games with scores, Hide scores and delay settings | — (the web reads C-R since Web 3) | ✓ | ✓ | gated (`sportsDashboard`) |
+| Sport pages | The front page, a page per sport and league, F1, cricket and events, with the record menu (see Sport below) | ✓ (Web 3, the Apple look) | ✓ | ✓ | shipped |
 | Status page | What is playing and recording, providers, the last 7 days, "Needs attention", details on demand | admin | — | — | shipped |
 | Top Shelf | Favourites as rendered cards with play links | — | ✓ | — | shipped |
 | Device pairing | Pair an Apple device by approving a code in the web app | admin | ✓ | ✓ | shipped |
