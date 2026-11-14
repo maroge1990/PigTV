@@ -980,6 +980,35 @@ async function recoverLegacyOriginals() {
 let legacyChecked = false;
 
 /** One step of the queue: finish the oldest capture that has ended, else retry one waiting move. */
+// #290: a recording deleted while its publish was stalled leaves its (empty) rec-<id> folder in appdata. A folder whose
+// recording row is gone is removed; a younger one (a recording being started: its row exists first) is left for a later pass.
+const ORPHAN_PASS_MS = 10 * 60 * 1000;
+const ORPHAN_MIN_AGE_MS = 2 * 60 * 1000;
+let lastOrphanPass = 0;
+let orphanErrorLogged = false;
+async function removeOrphanWork(now = Date.now()) {
+    let names = [];
+    try { names = await fsp.readdir(workRoot()); } catch (e) { return 0; }
+    let removed = 0;
+    for (const name of names) {
+        const m = /^rec-(\d+)$/.exec(name);
+        if (!m) continue;
+        const dir = path.join(workRoot(), name);
+        try {
+            if (recordingsDb.getById(Number(m[1]))) continue;
+            const st = await fsp.stat(dir);
+            if (!st.isDirectory() || now - st.mtimeMs < ORPHAN_MIN_AGE_MS) continue;
+            if (recordingsDb.getById(Number(m[1]))) continue; // looked at again: a row may have come since
+            await fsp.rm(dir, { recursive: true, force: true });
+            removed++;
+        } catch (err) {
+            if (!orphanErrorLogged) { orphanErrorLogged = true; console.warn(`[Recordings] Could not remove the work folder ${name} of a deleted recording: ${err.message}`); }
+        }
+    }
+    if (removed) console.log(`[Recordings] Removed ${removed} work folder(s) of deleted recordings`);
+    return removed;
+}
+
 async function processQueue(now = Date.now()) {
     // #287: claimed before the first await, so two calls never run their bodies at once (the legacy check included).
     if (finishing) return;
@@ -993,6 +1022,10 @@ async function processQueue(now = Date.now()) {
                 if (err.code === 'SHARE_UNRESPONSIVE') legacyChecked = false; // #287: checked again (inside this guard) once the share answers
                 console.error('[Recordings] Checking kept originals failed:', err.message);
             }
+        }
+        if (now - lastOrphanPass >= ORPHAN_PASS_MS) {
+            lastOrphanPass = now;
+            await removeOrphanWork(now);
         }
         const pending = recordingsDb.findSegmentWork();
         next = pending.find(r => r.segment_state === 'finishing')
@@ -1042,7 +1075,7 @@ module.exports = {
     _partInput: partInput,
     _refreshPartInput: refreshPartInput,
     _nextPart: nextPart, ensureView, stopFollowers, viewPlaylist, probeVideoInfo, isWatchable,
-    configure, processQueue, finishOne, moveOne, removeWork, status, keptOriginalPath, recoverLegacyOriginals,
+    configure, processQueue, removeOrphanWork, finishOne, moveOne, removeWork, status, keptOriginalPath, recoverLegacyOriginals,
     _publishNoReplace: publishNoReplace,
     _setWorkRoot, _followers: followers
 };

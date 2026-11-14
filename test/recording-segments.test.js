@@ -2245,3 +2245,37 @@ test('Q1b: a replacement that reuses the journalled file\'s inode number (as Lin
     fs.unlinkSync(mp4);
     recordings.setSegmentFields(rec.id, { status: 'failed', segment_state: 'failed' });
 });
+
+// ---- #290: the work folder a deleted recording left behind ----
+
+test('#290: the queue removes the rec-<id> folder of a recording that no longer exists, and nothing else', async () => {
+    const rec = recordings.create({ scheduled_id: null, title: 'Kept folder', channel_name: 'Fox Sports 505', channel_logo: null,
+        source_id: A.id, channel_item_id: 'pos_1', file_path: '', started_at: Date.now() - 60000 });
+    recordings.finish(rec.id, { status: 'completed', ended_at: Date.now(), file_size_bytes: 1, duration_sec: 1, error: null }); // its row exists: its folder must stay
+    fs.mkdirSync(path.join(segments.workDirFor(rec.id), 'e1'), { recursive: true });
+    fs.utimesSync(segments.workDirFor(rec.id), new Date(Date.now() - 10 * 60 * 1000), new Date(Date.now() - 10 * 60 * 1000));
+    const old = new Date(Date.now() - 10 * 60 * 1000);
+    const orphan = segments.workDirFor(9000290);
+    const young = segments.workDirFor(9000291);
+    const stranger = path.join(workRoot, 'not-a-recording-folder');
+    for (const d of [orphan, young, stranger]) fs.mkdirSync(path.join(d, 'e1'), { recursive: true });
+    fs.utimesSync(orphan, old, old);
+    fs.utimesSync(stranger, old, old);
+    try {
+        assert.equal(await segments.removeOrphanWork(Date.now()), 1);
+        assert.equal(fs.existsSync(orphan), false, 'the folder of a deleted recording is removed');
+        assert.equal(fs.existsSync(young), true, 'one made in the last minutes may belong to a recording being started');
+        assert.equal(fs.existsSync(stranger), true, 'a folder that is not rec-<n> is never touched');
+        assert.equal(fs.existsSync(segments.workDirFor(rec.id)), true, 'a folder whose recording exists is never touched');
+        // and the finishing queue runs the pass (a call is skipped while another is running: the engine's own tick may be)
+        fs.mkdirSync(path.join(orphan, 'e1'), { recursive: true });
+        fs.utimesSync(orphan, old, old);
+        for (let i = 0; i < 100 && fs.existsSync(orphan); i++) { await segments.processQueue(Date.now() + 60 * 60 * 1000 * (i + 1)); await sleep(25); }
+        assert.equal(fs.existsSync(orphan), false, 'the queue removes it');
+        assert.equal(fs.existsSync(segments.workDirFor(rec.id)), true);
+    } finally {
+        fs.rmSync(young, { recursive: true, force: true });
+        fs.rmSync(stranger, { recursive: true, force: true });
+        fs.rmSync(segments.workDirFor(rec.id), { recursive: true, force: true });
+    }
+});
