@@ -81,8 +81,9 @@ function providerName(providerId) {
     if (providerId === null || providerId === undefined) return null;
     try {
         const id = Number(providerId);
-        const row = getDb().prepare('SELECT name FROM app_sources WHERE id = ?').get(id);
-        return row?.name || null;
+        // #299: the name lives in the row's JSON data; read it from the cached parsed list.
+        const src = require('../db').sources.listParsed().find(x => Number(x.id) === id);
+        return src?.name || null;
     } catch (e) {
         return null;
     }

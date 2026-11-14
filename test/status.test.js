@@ -292,3 +292,19 @@ test('#129: ?details=0 leaves out (and does not read) what only the details draw
         raw.archiveSummary = real;
     }
 });
+
+test('#299: a session\'s provider is named from the source list, and no app_sources name query runs', async () => {
+    const d = sqlite.getDb();
+    const prepared = [];
+    const orig = d.prepare;
+    d.prepare = function (sql) { prepared.push(String(sql)); return orig.call(this, sql); };
+    session.options.providerId = source.id;
+    try {
+        const { body } = await get('/api/status', adminToken);
+        assert.equal(body.sessions[0].provider, 'Household', 'the provider\'s name, not null');
+        assert.ok(!prepared.some(sql => /SELECT\s+name\s+FROM\s+app_sources/i.test(sql)), 'no failing name query on app_sources');
+    } finally {
+        d.prepare = orig;
+        delete session.options.providerId;
+    }
+});
