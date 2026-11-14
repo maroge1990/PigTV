@@ -18,10 +18,11 @@
  *     minDistinct of its units distinct (a re-encoded slate repeats every group of pictures or two),
  *     at least minKeyframes key frames in it (P spans several groups of pictures), and its timestamps
  *     rise evenly across it (a provider's resend of old content with its old clock is not a loop).
- *   - Sound confirms it, or does not contradict it: with no audio, or audio repeating with the same
- *     period (within 1 s), or audio that is silence (few distinct frames) it is a loop. Audio that is
- *     live (distinct, not repeating) means a looping picture over live sound (a radio channel's
- *     background video): never a loop. Audio alone never counts.
+ *   - Sound confirms it: the sound the programme's PMT declares (read whole, CRC intact) repeating with
+ *     the same period (within 1 s), or silence (few distinct frames). Live sound (a radio channel's
+ *     looping background video) is never a loop. Sound not known - no sound in the programme, a PMT
+ *     unread, damaged or changing, a declared sound that sends nothing - is never a verdict: a feed
+ *     without sound is not checked. Audio alone never counts.
  *
  * Detected after two periods plus max(minRunSec, a quarter period) of media (82 s for the 36 s loop). Bounded: two tracks of
  * `capacity` units (17 bytes each in typed arrays) and a Map of their hashes: at most ~1.4 MB per feed.
@@ -434,7 +435,18 @@ class LoopDetector {
         const length = ((b[at + 1] & 0x0f) << 8) | b[at + 2];
         const stop = Math.min(at + 3 + length - 4, end);
         for (let e = at + 8; e + 4 <= stop; e += 4) {
-            if (((b[e] << 8) | b[e + 1]) !== 0) { this.pmtPid = ((b[e + 2] & 0x1f) << 8) | b[e + 3]; return; }
+            if (((b[e] << 8) | b[e + 1]) !== 0) {
+                const pid = ((b[e + 2] & 0x1f) << 8) | b[e + 3];
+                // Another PMT PID: what was read from the old one no longer says anything (sound unknown until it is read).
+                if (pid !== this.pmtPid) {
+                    this.pmtPid = pid;
+                    this.pmtPart = null;
+                    this.sawPmt = false;
+                    this.pmtAudioPid = null;
+                    this.sound = new Track('audio');
+                }
+                return;
+            }
         }
     }
 
@@ -550,18 +562,18 @@ class LoopDetector {
             distinct: Math.round(j.distinct * 1000) / 1000, keyframes: j.keyframes, audio: sound };
     }
 
-    /** 'repeats' | 'silent' | 'none' to confirm, false when the sound is live, null to wait. */
+    /** 'repeats' | 'silent' to confirm, false when the sound is live or never known, null to wait. */
     soundVerdict(period, run, need) {
         const a = this.sound;
         const v = this.video;
         const settle = (value) => { v.judged.settled = true; return value; };
-        if (!a.count || Math.abs(v.time - a.time) > 5) {
-            // No sound in the programme: the picture decides. Sound declared but quiet: wait for it, and after the
-            // confirmation window leave the run alone (Opus #324: never take a quiet sound PID as "no sound").
-            // A PMT is known (from the PAT) but not yet read whole: the sound is unknown, so wait.
-            if (this.pmtAudioPid === null && !(this.pmtPid !== null && !this.sawPmt)) return 'none';
+        // Mark's decision (#324, after Codex's PMT findings): a loop needs its sound KNOWN - a PMT read whole and intact
+        // that declares it, and its frames arriving. No sound in the programme, a PMT unread, damaged or changing, or a
+        // declared sound that sends nothing: never a verdict. A looping feed without sound is not detected.
+        const known = this.sawPmt && this.pmtAudioPid !== null && a.pid === this.pmtAudioPid;
+        if (!known || !a.count || Math.abs(v.time - a.time) > 5) {
             if (run >= need + tuning.confirmWithinSec) {
-                this.note(`video repeats every ${period.toFixed(1)} s but the declared sound sent nothing: not judged`);
+                this.note(`video repeats every ${period.toFixed(1)} s but its sound is not known: not judged`);
                 return settle(false);
             }
             return null;

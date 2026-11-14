@@ -129,14 +129,21 @@ test('an audio PES that never ends is bounded: by its declared length, else by t
 
 // Opus #324: a run must outlast its period, so with a long period at a high frame rate the run's first units leave the
 // 8,192-unit ring before it is judged (at 60 fps, any period over ~109 s); its start time and clock span are kept as
-// values. A 115 s loop at 60 fps (6,900 pictures a pass, a key frame a second, no sound) is found at 2 x 115 + 28.75 s.
+// values. A 115 s loop at 60 fps (6,900 pictures a pass, a key frame a second; its declared sound, 31.25 frames a second,
+// loops with it) is found at 2 x 115 + 28.75 s.
 test('a 115 s loop at 60 fps is found, although its run outlasts the ring of units', () => {
     const d = new LoopDetector();
+    d.sawPmt = true; d.pmtAudioPid = 0x101; d.sound.pid = 0x101; // a PMT read whole that declares the sound
     const fps = 60;
     const pass = 115 * fps;
     let found = null;
+    let sound = 0;
     for (let i = 0; i < 3 * pass && !found; i++) {
         const n = i % pass; // the picture within the clip: the same hash every pass, timestamps rising
+        for (; sound / 31.25 <= i / fps; sound++) {
+            const m = sound % (115 * 31.25);
+            d.sound.add(Math.imul(m + 3, 0x27d4eb2d), Math.imul(m + 9, 0x165667b1), sound / 31.25, false);
+        }
         d.video.add(Math.imul(n + 1, 0x9e3779b1), Math.imul(n + 7, 0x85ebca6b), i / fps, n % fps === 0);
         d.judge();
         if (d.verdict) found = { ...d.verdict, at: i / fps };
@@ -144,7 +151,7 @@ test('a 115 s loop at 60 fps is found, although its run outlasts the ring of uni
     assert.ok(found, 'found');
     assert.ok(Math.abs(found.periodSec - 115) < 0.1, `period ${found.periodSec} s`);
     assert.ok(Math.abs(found.at - 258.75) < 1, `found ${found.at} s in`);
-    assert.equal(found.audio, 'none');
+    assert.equal(found.audio, 'repeats');
 });
 
 // Opus #324: the sound was the first PES with stream id 0xbd or 0xc0-0xdf, but DVB subtitles and teletext use 0xbd too.
@@ -241,7 +248,8 @@ test('a PMT split over two packets, the sound in the second: a looping picture o
 });
 
 // Codex check of 0cce183: section_length bytes collected do not prove a PMT intact. Each of these, read as it stands,
-// says "no sound" (so a looping picture over live sound would be a loop); each is now ignored and the sound found.
+// says "no sound" (so a looping picture over live sound would be a loop); each is now ignored, the sound stays unknown,
+// and nothing is judged.
 test('a damaged PMT is ignored, never taken as "no sound": a wrong CRC, a corrupted length, a truncated section', { skip }, () => {
     const noAudio = (sec) => { const [, a] = entriesOf(sec); sec[a] = 0x06; sec[a + 3] &= 0xf0; sec[a + 4] = 0; return sec; }; // not sound
     const cases = {
@@ -262,7 +270,7 @@ test('a damaged PMT is ignored, never taken as "no sound": a wrong CRC, a corrup
         const r = run([file]);
         assert.equal(r.verdict, null, `${name}: ${JSON.stringify(r.verdict)}`);
         assert.equal(r.detector.sawPmt, false, `${name}: the damaged PMT was not used`);
-        assert.match(r.detector.notes.join(' | '), /the sound does not/, `${name}: the live sound is still heard`);
+        assert.match(r.detector.notes.join(' | '), /its sound is not known: not judged/, `${name}: no verdict without a PMT it can trust`);
     }
 });
 
@@ -273,4 +281,68 @@ test('a PMT finished by the bytes before the next packet\'s pointer_field is rea
     assert.ok(r.detector.sawPmt, 'the PMT was read whole');
     assert.ok(r.detector.pmtAudioPid !== null, 'its sound found');
     assert.equal(r.verdict, null);
+});
+
+// Mark's decision (#324): a loop needs its sound known. A feed with no sound in its programme is not checked, and a PMT
+// that changes (a PAT naming another PMT PID) forgets what the old one said until the new one is read whole and intact.
+test('a looping picture with no sound in its programme is never a loop (feeds without sound are not checked)', { skip }, () => {
+    const r = run([feeds.loopNoSound]);
+    assert.equal(r.verdict, null, JSON.stringify(r.verdict));
+    assert.equal(r.detector.pmtAudioPid, null, 'its PMT declares no sound');
+    assert.match(r.detector.notes.join(' | '), /its sound is not known: not judged/);
+});
+
+test('a PAT that moves the PMT forgets the old one: a video-only PMT then a damaged replacement never fires', { skip }, () => {
+    const data = fs.readFileSync(feeds.loop); // a loop whose sound repeats too: found when its PMT is read
+    const sectionAt = (at) => at + 5 + data[at + 4];
+    const fixCrc = (pkt, from, total) => { const c = crc32(pkt.subarray(from, from + total - 4)); pkt.writeUInt32BE(c, from + total - 4); };
+    const out = [];
+    let pmtPid = null, pats = 0, pmts = 0;
+    for (let at = 0; at + 188 <= data.length; at += 188) {
+        const pid = ((data[at + 1] & 0x1f) << 8) | data[at + 2];
+        const pkt = Buffer.from(data.subarray(at, at + 188));
+        if (pid === 0 && (data[at + 1] & 0x40)) {
+            const sec = sectionAt(at);
+            if (pmtPid === null) pmtPid = ((data[sec + 10] & 0x1f) << 8) | data[sec + 11];
+            if (++pats > 3) { // from the fourth PAT on, the PMT is on 0x1fe0
+                pkt[sec - at + 10] = (pkt[sec - at + 10] & 0xe0) | 0x1f; pkt[sec - at + 11] = 0xe0;
+                fixCrc(pkt, sec - at, 3 + (((data[sec + 1] & 0x0f) << 8) | data[sec + 2]));
+            }
+        } else if (pid === pmtPid && (data[at + 1] & 0x40)) {
+            const from = sectionAt(at) - at;
+            const len = ((pkt[from + 1] & 0x0f) << 8) | pkt[from + 2];
+            if (++pmts <= 3) {
+                // The first PMTs: video only (the sound's entry dropped, lengths and CRC made right).
+                const sec = pkt.subarray(from, from + 3 + len);
+                const [, a] = entriesOf(sec);
+                const aEnd = a + 5 + (((sec[a + 3] & 0x0f) << 8) | sec[a + 4]);
+                const body = Buffer.concat([sec.subarray(0, a), sec.subarray(aEnd, 3 + len - 4)]);
+                const nl = body.length - 3 + 4;
+                body[1] = (body[1] & 0xf0) | ((nl >> 8) & 0x0f); body[2] = nl & 0xff;
+                const whole = withCrc(body);
+                pkt.fill(0xff, from); whole.copy(pkt, from);
+            } else {
+                // Later: on the new PID, and damaged (its CRC wrong).
+                pkt[1] = (pkt[1] & 0xe0) | 0x1f; pkt[2] = 0xe0;
+                pkt[from + 3 + len - 1] ^= 0xff;
+            }
+        }
+        out.push(pkt);
+    }
+    const file = path.join(dir, 'pmt-moves.ts');
+    fs.writeFileSync(file, Buffer.concat(out));
+    const r = run([file]);
+    assert.equal(r.detector.pmtPid, 0x1fe0, 'the PAT moved the PMT');
+    assert.equal(r.detector.sawPmt, false, 'the damaged new PMT was never taken');
+    assert.equal(r.verdict, null, JSON.stringify(r.verdict));
+});
+
+// T2, where the FOX Footy capture is at hand (PIGTV_LOOP_SAMPLE=<path to pos_1183.ts>): still a loop of 36.22 s.
+const sample = process.env.PIGTV_LOOP_SAMPLE;
+test('the FOX Footy capture is still a loop of 36.22 s, its sound repeating too', { skip: !(sample && fs.existsSync(sample)) && 'PIGTV_LOOP_SAMPLE is not set' }, () => {
+    const r = require('../scripts/feed-loop-check').check(sample);
+    assert.ok(r.verdict, 'found');
+    assert.ok(Math.abs(r.verdict.periodSec - 36.22) < 0.05, `period ${r.verdict.periodSec} s`);
+    assert.equal(r.verdict.audio, 'repeats');
+    assert.ok(r.foundAtSec < 90, `found ${r.foundAtSec.toFixed(1)} s in`);
 });
