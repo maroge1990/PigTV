@@ -32,7 +32,7 @@ class SportsPage {
         this.fixtureChoice = {}; // its chosen round, standings view and table group, by key
         this.prefsAnswer = null; // the preferences as read (the followed names per league)
         this.phoneQuery = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(max-width: 768px)') : null;
-        this.phoneQuery?.addEventListener?.('change', () => this.render());
+        this.phoneQuery?.addEventListener?.('change', () => { this.render(); if (this.active && this.shownLeague()) this.loadLeague(); });
         if (typeof document !== 'undefined' && document.addEventListener) {
             document.addEventListener('visibilitychange', () => {
                 if (!this.active) return;
@@ -89,7 +89,7 @@ class SportsPage {
         this.closeMenu();
         this.render();
         this.loadMap();
-        if (this.route.league && this.active) this.loadLeague();
+        if (this.shownLeague() && this.active) this.loadLeague();
         if (this.root?.scrollTo && history !== 'none') this.root.scrollTo(0, 0);
     }
     /** A place in Sport: a new history entry, so Back returns. */
@@ -148,7 +148,7 @@ class SportsPage {
         this.loadMap();
         this.render();
         this.schedule();
-        if (this.route.league) this.loadLeague();
+        if (this.shownLeague()) this.loadLeague();
     }
     /** Take every score off the page now: the cached answer is redrawn hidden until a refresh discloses again. */
     conceal() {
@@ -185,13 +185,23 @@ class SportsPage {
         })();
         return this.featuresAsked;
     }
-    /** What the route's league page is: 'league', 'nfl', … ('games': its C-R games only). */
-    leagueKind() {
+    /**
+     * The league whose own page is shown: the route's; on a wide window a sport page's chosen (or opening) league too,
+     * embedded under the banner as on iPad (#326). A phone's sport page links the league page instead.
+     */
+    shownLeague() {
         const { sport, league } = this.route;
+        if (league) return league;
+        if (!sport || this.phone || !this.front) return null;
+        return SportView.openingLeague(sport, this.front, this.chosen[sport] || null);
+    }
+    /** What the shown league's page is: 'league', 'nfl', … ('games': its C-R games only). */
+    leagueKind() {
+        const { sport } = this.route, league = this.shownLeague();
         return league ? SportView.leagueContent(league, sport, this.features || {}) : null;
     }
     leagueKey() {
-        const kind = this.leagueKind(), { league } = this.route;
+        const kind = this.leagueKind(), league = this.shownLeague();
         return kind === 'nfl' || kind === 'f1' || kind === 'cricket' ? kind : kind === 'league' || kind === 'events' ? `${kind}:${league}` : null;
     }
     /**
@@ -200,7 +210,7 @@ class SportsPage {
      */
     async loadLeague() {
         await this.loadFeatures();
-        const key = this.leagueKey(), { league } = this.route;
+        const key = this.leagueKey(), league = this.shownLeague();
         if (!key || !this.active) return;
         const lp = this.leaguePages[key] || (this.leaguePages[key] = { answer: null, failed: false, loaded: false, stale: false, updatedAt: null });
         if (lp.asking) return lp.asking;
@@ -292,7 +302,8 @@ class SportsPage {
         return { front: this.front, hide: this.hidden, now: this.now(), labels: this.labels, phone: this.phone,
             heroId: this.heroId, followIndex: this.followIndex, map: this.f1Map, stale: this.stale, staleSince: this.updatedAt,
             links: true, features: this.features || {}, pages: SportsPage.PAGES, chosen: this.chosen[this.route.sport] || null,
-            following: this.route.league ? this.followingIn(this.route.league) : [], dark: this.isDark(),
+            following: this.shownLeague() ? this.followingIn(this.shownLeague()) : [], dark: this.isDark(),
+            leaguePage: this.leaguePages[this.leagueKey()] || null, featuresLoaded: !!this.featuresLoaded,
             leagues: this.route.sport && this.front ? SportView.sportLeagues(this.route.sport, this.front).map(x => x.league) : [], ...(this.fixtureChoice[this.leagueKey()] || {}) };
     }
 
@@ -451,7 +462,7 @@ class SportsPage {
     }
     /** A league page's game without a C-R card, as a game on its own channels ("fx:<league>:<id>"). */
     fixtureById(id) {
-        const kind = this.leagueKind(), lp = this.leaguePages[this.leagueKey()], { league } = this.route;
+        const kind = this.leagueKind(), lp = this.leaguePages[this.leagueKey()], league = this.shownLeague();
         if (!lp || !lp.answer || (kind !== 'league' && kind !== 'nfl')) return null;
         const fx = kind === 'nfl' ? SportView.nflFixture(lp.answer, [], true) : SportView.leagueFixture(lp.answer, league, [], true);
         for (const r of fx.rounds) for (const g of r.games) if (`fx:${fx.league}:${g.id}` === id) return SportView.fixtureGame(g, fx);
@@ -484,6 +495,7 @@ class SportsPage {
         if (!league) return;
         this.chosen[sport] = league;
         this.render();
+        this.loadLeague();
     }
 
     /** A card pressed: Watch while its channel airs it (checked now, not when drawn), else its menu. */

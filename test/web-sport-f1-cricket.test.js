@@ -108,10 +108,10 @@ test('cricket: another league\'s matches are not on this league\'s page; with no
 });
 function eq(a, b) { assert.deepEqual(JSON.parse(JSON.stringify(a)), b); }
 
-test('the sport pages link Formula 1 and cricket: "Weekend and standings ›", "Scoreboard and tour ›"', () => {
+test('the sport pages on a phone link Formula 1 and cricket: "Weekend and standings ›", "Scoreboard and tour ›"', () => {
     const { V } = browser();
     const features = { sportPages: true, sportPageCricket: true };
     const pages = ['league', 'nfl', 'f1', 'cricket'];
-    assert.match(V.sportPage('Motorsport', ctx(V, answer(), { links: true, features, pages })), /data-act="open-league" data-sport="Motorsport" data-league="F1"[^>]*><span class="s">Weekend and standings<\/span>/);
-    assert.match(V.sportPage('Cricket', ctx(V, answer(), { links: true, features, pages })), /data-league="Cricket"[^>]*><span class="s">Scoreboard and tour<\/span>/);
+    assert.match(V.sportPage('Motorsport', ctx(V, answer(), { phone: true, links: true, features, pages })), /data-act="open-league" data-sport="Motorsport" data-league="F1"[^>]*><span class="s">Weekend and standings<\/span>/);
+    assert.match(V.sportPage('Cricket', ctx(V, answer(), { phone: true, links: true, features, pages })), /data-league="Cricket"[^>]*><span class="s">Scoreboard and tour<\/span>/);
 });

@@ -249,8 +249,10 @@ Proposed availability markers reuse existing visual vocabulary but need explicit
 - Recording retains its existing red recording indicator **with a recording label/icon**. Color alone cannot distinguish
   recording from an unavailable feed. Do not probe/tune channels just to populate these markers.
 
-On iPhone/iPad: touch-and-hold plus a visible more-options action; web: a 44 × 44 "⋯" button in the card's top corner
-("More options for …", after the card in keyboard order; right-click opens the same details).
+On iPhone/iPad: touch-and-hold opens the card's menu; web (#326): a 44 × 44 "⋯" button in the card's corner ("More
+options for …", after the card in keyboard order), shown with a mouse only while the card is hovered or focused and
+always on touch; right-click opens the same menu. On a wide window a sport's page is iPad's: the banner, then the
+shown league's own page embedded under it; under 768 px the iPhone layout.
 Apple TV: remote select/long press, native focus, readable team names and distinct focused card styling. Screen readers
 must receive the same spoiler-safe fields as sighted users. Real graphics should use cached source team/league or driver/
 constructor assets with name/initial fallback; validate availability, attribution and permitted use before shipping.

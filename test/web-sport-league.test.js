@@ -113,9 +113,10 @@ test('#sports/Football/EPL asks for the league\'s page, draws it under "‹ Foot
     assert.match(p.root.innerHTML, /data-round="3:5" aria-pressed="true"/);
     p.act('round', { getAttribute: (k) => ({ 'data-round': '3:4' })[k] });
     assert.match(p.root.innerHTML, /data-round="3:4" aria-pressed="true"/);
-    // the sport page now links the league page
+    // #326: on a computer the sport page embeds the league's page under its banner (iPad's SportLeagueContent)
     p.openPath('Football', 'none');
-    assert.match(p.root.innerHTML, /<button type="button" class="more-row" data-act="open-league" data-sport="Football" data-league="EPL"[^>]*><span class="s">Rounds and standings<\/span>/);
+    assert.match(p.root.innerHTML, /<\/section><div class="sp-embed" data-league="EPL"><div class="league">[\s\S]*?data-act="round"/);
+    assert.doesNotMatch(p.root.innerHTML, /class="more-row"/);
 });
 
 test('a fixture with no front-page card plays and records on its own channels, with no game id', async () => {

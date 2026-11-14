@@ -769,9 +769,10 @@ const SportView = (() => {
             html += banner({ hero: words, items: leagueItems(sport, f, now, labels), listTitle: `<span class="up">${e(sport)} · Your leagues</span>`,
                 selected: leagues.findIndex(x => x.league === league), art: backdrop(g, f, h.followIndex, map), back: 'Back to Sport',
                 actions: heroButtons(g, now), listAct: 'league' });
-            if (!league || !groups.length) return html + nothingSoon(leagueLabel);
-            const col = (titles) => groupsHtml(groups.filter(x => titles.includes(x.title)), ctx);
-            return html + `<div class="groups2"><div>${col(['Live', 'Later today'])}</div><div>${col(['Coming up', 'Earlier'])}</div></div>` + moreRow(sport, league, ctx);
+            // #326: iPad's SportLeagueContent: the shown league's own page under the banner (rounds and standings, the F1
+            // weekend, cricket, events), else its games as cards
+            if (!league) return html + nothingSoon(leagueLabel);
+            return html + `<div class="sp-embed" data-league="${e(league)}">${embeddedLeague(sport, league, ctx)}</div>`;
         }
         if (leagues.length > 1) {
             html += `<div class="chips" role="group" aria-label="${e(sport)} leagues">${leagues.map(x => `<button type="button" class="lchip${x.league === league ? ' on' : ''}" data-act="league" data-league="${e(x.league)}" aria-pressed="${x.league === league}" data-key="chip:${e(x.league)}">${e(label(x.league, labels))}</button>`).join('')}</div>`;
@@ -961,6 +962,23 @@ const SportView = (() => {
         return `<div class="cardgrid">${games.map(g => card(g, ctx)).join('')}</div>`;
     }
 
+    /** iPad's SportLeagueContent.games: the league's name and its C-R games as cards, or "Nothing in the next three days". */
+    function leagueGamesHtml(league, ctx) {
+        const word = label(league, ctx.labels), games = leagueGames(league, ctx.front);
+        return `<section class="lgames" aria-label="${e(word)}"><h3 class="sec-title"><span class="sec-h"><span class="s">${e(word)}</span></span></h3>`
+            + (games.length ? `<div class="cardgrid">${games.map(g => card(g, ctx)).join('')}</div>` : nothingSoon(word)) + '</section>';
+    }
+    /**
+     * #326: what a sport page shows under its banner on a wide window (iPad's SportLeagueContent): the league's own page
+     * where the server has one (its state `ctx.leaguePage`, without a banner of its own), else its games as cards.
+     */
+    function embeddedLeague(sport, league, ctx) {
+        const kind = leagueContent(league, sport, ctx.features || {});
+        if (ctx.featuresLoaded === false) return '<div class="sp-state" id="sp-state" data-state="loading"></div>';
+        if (kind !== 'games' && (ctx.pages || []).includes(kind)) return leaguePage(sport, league, kind, ctx.leaguePage || null, { ...ctx, embedded: true });
+        return leagueGamesHtml(league, ctx);
+    }
+
     /**
      * A league's own page below its header. `lp`: the league page's state from the controller ({ answer, failed,
      * loaded, stale, updatedAt }); `kind`: leagueContent(). Fixture leagues (C-T, C-Q) draw their rounds and standings;
@@ -1072,7 +1090,7 @@ const SportView = (() => {
         const g = session ? sessionGame(session, w, now) : null;
         let html = '';
         if (!phone) {
-            html += banner({ hero: h, items: [], back: 'Back to Motorsport', art: mapPath(w.info && w.info.map) ? { map: mapPath(ctx.dark && w.info.mapDark ? w.info.mapDark : w.info.map) } : null,
+            if (!ctx.embedded) html += banner({ hero: h, items: [], back: 'Back to Motorsport', art: mapPath(w.info && w.info.map) ? { map: mapPath(ctx.dark && w.info.mapDark ? w.info.mapDark : w.info.map) } : null,
                 actions: heroButtons(g, now) });
             html += `<div class="tiles">${f1Tiles(page, now, hide)}${circuitTile(w.info, ctx.dark)}</div>`;
         } else {
@@ -1329,7 +1347,7 @@ const SportView = (() => {
         const focus = evFocus(evs);
         const g = f ? game(f, focus.id) : null;
         let html = '';
-        if (!phone) {
+        if (!phone && !ctx.embedded) {
             const leagues = f ? sportLeagues(sport, f) : [];
             const words = g ? hero(g, f, hide, now, labels) : { kicker: `${sport} · ${word}`, live: EV_ONGOING.includes(focus.status), title: focus.name, line: focus.venue && focus.venue.name ? focus.venue.name : '' };
             html += banner({ hero: words, items: f ? leagueItems(sport, f, now, labels) : [], listTitle: `<span class="up">${e(sport)} · Your leagues</span>`,
@@ -1352,7 +1370,7 @@ const SportView = (() => {
         followItems, front, frontDesktop, frontPhone, row, rowHtml, phoneCard, dots, position, isEmpty, game, sportOf, label,
         railGames, staleNote, scoresNote, star, dot, recordMark, kickerWord, yours, availabilityWord, onAirLine, e, gameCard,
         sportLeagues, sportGames, leagueGames, sportHero, openingLeague, leagueItems, leagueGroups, leagueCards, leagueContent,
-        moreTitle, sportPage, EVENT_LEAGUES, moreButton, groupsHtml, nothingSoon, fixtureDetail, nflFixture, leagueFixture, roundOf, viewOf,
+        moreTitle, sportPage, embeddedLeague, leagueGamesHtml, EVENT_LEAGUES, moreButton, groupsHtml, nothingSoon, fixtureDetail, nflFixture, leagueFixture, roundOf, viewOf,
         tableGroups, fixtureCard, fixtureGame, fixtureCardHtml, standingsHtml, fixturePage, leaguePage, gamesGrid, leagueWords,
         mapPath, countdown, focusSession, sessionPill, sessionGame, f1Hero, f1Page, cricketLeagueOf, innings, scoreboard, cricketPill,
         seriesResult, cricketGame, cricketPage, evFollowed, evFocus, golfHtml, tennisHtml, fightHtml, raceHtml, eventsPage

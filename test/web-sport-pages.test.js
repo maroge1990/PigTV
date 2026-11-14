@@ -24,7 +24,7 @@ test('the sport\'s leagues, hero and groups follow Apple\'s rules', () => {
     eq(items.map(i => [i.title, i.trailing, i.live]), [['Premier League', '2 live', true]]);
 });
 
-test('the sport page on a computer: the banner with the back button and the leagues list, the groups in two columns', () => {
+test('the sport page on a computer: the banner with the back button and the leagues list, the league embedded under it', () => {
     const { V } = browser();
     const front = answer({ sports: [...answer().sports, { league: 'A-League', sport: 'Football', live: 0, next: { gameId: 'x', start: NOW + 86400000 }, line: 'next' }] });
     const html = V.sportPage('Football', ctx(V, front, { links: true }));
@@ -32,7 +32,8 @@ test('the sport page on a computer: the banner with the back button and the leag
     assert.match(html, /<span class="up">Football · Your leagues<\/span>/);
     assert.match(html, /class="brow sel" data-act="league" data-index="0"[\s\S]*?<span class="t">Premier League<\/span><span class="tr live">2 live<\/span>/);
     assert.match(html, /data-act="league" data-index="1"[\s\S]*?<span class="t">A-League<\/span><span class="tr">[^<]+<\/span>/);
-    assert.match(html, /<div class="groups2"><div><section class="grp" aria-label="Live">[\s\S]*?<section class="grp" aria-label="Later today">[\s\S]*?<\/div><div><section class="grp" aria-label="Earlier">/);
+    assert.match(html, /<div class="sp-embed" data-league="EPL"><section class="lgames" aria-label="Premier League">[\s\S]*?<div class="cardgrid"><div class="gitem[^"]*" data-game="ars">/);
+    assert.doesNotMatch(html, /groups2/);
     assert.equal((html.match(/pill primary/g) || []).length, 1, 'one rose button');
 });
 

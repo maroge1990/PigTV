@@ -188,9 +188,6 @@
 
 /* ---------- a sport's page (SportPageView on a computer, SportPhonePage on a phone) ---------- */
 .sp .grp-h.plain { display: flex; }
-.sp .groups2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 28px; margin-top: 4px; }
-.sp .groups2 .grp-h .s { font-size: 21px; }
-.sp .groups2 .row { padding: 12px 18px; }
 .sp .more-row { display: flex; align-items: baseline; gap: 8px; width: 100%; min-height: 44px; margin-top: 22px; padding: 10px 8px; border: 0;
   border-radius: 12px; background: none; text-align: left; }
 .sp .more-row:hover { background: var(--raised); }
@@ -206,7 +203,6 @@
 .sp .sp-league-empty { margin-top: 24px; }
 .sp .sp-league-empty .state-block { background: none; border: 0; padding: 40px 24px; }
 .sp .sp-league-empty .state-block-title { font-size: 20px; font-weight: 800; }
-@media (max-width: 1100px) { .sp .groups2 { grid-template-columns: 1fr; } }
 
 /* ---------- a league's page: rounds, fixtures, standings (SportFixtureView) ---------- */
 .sp .rounds { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
@@ -252,10 +248,17 @@
   text-align: center; color: var(--color-text-secondary); font-size: 14px; padding: 12px; }
 .sp .hidden-note svg { width: 26px; height: 26px; }
 .sp .sp-muted { color: var(--color-text-secondary); }
-.sp .cardgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
-@media (max-width: 1100px) { .sp .league { grid-template-columns: minmax(0, 1fr); gap: 24px; } }
+.sp .cardgrid { display: grid; grid-template-columns: repeat(auto-fill, 260px); gap: 12px; }
+/* #326: a sport page's league, embedded under the banner on a wide window (iPad's SportLeagueContent) */
+.sp .sp-embed { margin-top: 18px; }
+.sp .sp-embed .lgames .sec-h { margin-bottom: 4px; }
+.sp .sp-embed > .sp-state { min-height: 240px; }
+/* standings under the games when the window is narrower: the games three across (iPad portrait), adaptive 300 */
+@media (max-width: 1100px) { .sp .league { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .sp .fxgrid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); } }
 @media (max-width: 768px) {
   .sp .fxgrid { grid-template-columns: 1fr; gap: 10px; }
+  .sp .cardgrid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
   .sp .fx { min-height: 0; }
   .sp table.st td { padding: 0 4px; height: 32px; font-size: 13px; }
   .sp table.st th { padding: 2px 4px 6px; }
