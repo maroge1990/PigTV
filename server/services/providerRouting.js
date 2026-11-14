@@ -46,6 +46,10 @@ const BREAKER_CHANNELS = 2;
 const COOLDOWN_MS = 3 * MINUTE;
 const COOLDOWN_CAP_MS = 15 * MINUTE;
 const QUARANTINE_MS = 10 * MINUTE;
+// #324 (Opus): a (provider, channel) found repeating the same clip is not somewhere to go for this long, so two
+// looping providers of one channel never hand the play back and forth.
+const REPEATING_MS = 60 * MINUTE;
+const repeating = new Map(); // qKey -> until
 
 // The resolve's own budget when there is somewhere to fail over to: the Apple
 // client's request timeout is 35 s. A candidate is not started with less than
@@ -196,9 +200,25 @@ function isProviderFailure(err) {
  * feed `ingestKey` now, or null: a candidate of the channel's plan (so not quarantined, not on a provider that is
  * down) that is a different feed and that the coordinator would admit for `owner` without disturbing anybody (a
  * free connection, a standby or other abandoned stream, the viewer's own stream, or a live ingest to join), and
- * that `usable(candidate)` accepts (what the readers of the looping feed would really switch to). The plan is read
+ * that `usable(candidate)` accepts (what the readers of the looping feed would really switch to), and that was not
+ * itself found repeating in the last hour (noteRepeating). The plan is read
  * through the module so a test's stand-in is used.
  */
+/** #324: this provider's feed of this channel was found repeating the same clip (remembered REPEATING_MS). */
+function noteRepeating(providerId, channelKey, now = Date.now()) {
+    if (providerId === null || providerId === undefined) return;
+    repeating.set(qKey(providerId, channelKey), now + REPEATING_MS);
+}
+
+function isRepeating(providerId, channelKey, now = Date.now()) {
+    const k = qKey(providerId, channelKey);
+    const until = repeating.get(k);
+    if (until === undefined) return false;
+    if (until > now) return true;
+    repeating.delete(k);
+    return false;
+}
+
 async function otherFeedFor({ channelRef, ingestKey, owner = null, usable = null }, settings = {}) {
     if (!channelRef || channelRef.sourceId === undefined || channelRef.channelId === undefined) return null;
     const { candidates } = await module.exports.plan(channelRef.sourceId, channelRef.channelId);
@@ -206,6 +226,7 @@ async function otherFeedFor({ channelRef, ingestKey, owner = null, usable = null
     const ingest = require('./ingest');
     for (const c of candidates || []) {
         if (!c || !isStreamUrl(c.url) || isQuarantined(c.providerId, c.channelKey)) continue;
+        if (isRepeating(c.providerId, c.channelKey)) continue; // found looping too in the last hour
         let key = null;
         try { key = ingest.keyOf(coordinator.poolOf(c.providerId), c.url); } catch { continue; }
         if (key === ingestKey) continue; // the looping feed itself
@@ -510,6 +531,7 @@ function snapshot(now = Date.now()) {
 }
 
 function reset() {
+    repeating.clear();
     breakers.clear();
     quarantined.clear();
     quarantinedAt.clear();
@@ -534,6 +556,9 @@ module.exports = {
     isProviderFailure,
     watchSession,
     otherFeedFor,
+    noteRepeating,
+    isRepeating,
+    REPEATING_MS,
     snapshot,
     reset,
     DEADLINE_MS,

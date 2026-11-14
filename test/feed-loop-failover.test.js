@@ -353,3 +353,20 @@ test('a recording would move only to a candidate of its own multi-provider route
     assert.equal(engine._recordingWouldUse(route, candB, settings), false, 'no connection for it');
     coordinator.releaseLease(lease);
 });
+
+// Opus #324: when every provider of a channel loops, each was "somewhere to go" for the other, so the play went back
+// and forth. A (provider, channel) found repeating is remembered for an hour and is not somewhere to go.
+test('two looping providers do not hand the play back and forth: one found repeating is not somewhere to go', { skip }, async () => {
+    gate = Promise.resolve();
+    routing.noteRepeating(B.id, '504'); // Dream 4K's feed of the channel was found looping a moment ago
+    const out = captureLog();
+    try {
+        const feed = await ingest.subscribe({ ...ingest.sourceFor(candA, await settingsNow(), channelRef), purpose: 'viewer', owner: 'device:tv' });
+        feed.resume();
+        await until(() => out.lines.some(l => l.includes('no other provider for this channel: it plays on')), 'kept', 20000);
+        assert.equal(feed.endReason, null, 'not handed to the other looping provider');
+        assert.equal(routing.isRepeating(A.id, candA.channelKey), true, 'Strong8K\'s loop is remembered for the other side');
+        assert.ok(routing.REPEATING_MS >= 60 * 60 * 1000);
+        feed.leave();
+    } finally { out.restore(); }
+});

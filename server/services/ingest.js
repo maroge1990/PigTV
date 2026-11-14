@@ -364,6 +364,8 @@ class Ingest extends EventEmitter {
     onLoop(found) {
         if (this.closed || this.loopDeciding) return;
         this.loopDeciding = true;
+        // Remembered whatever happens next: another provider's loop check must not send its play here.
+        try { require('./providerRouting').noteRepeating(this.providerId, this.channelKey); } catch (e) { /* observation only */ }
         const viewer = [...this.subs].find(s => s.info.purpose === 'viewer' && s.info.owner);
         this.otherFeed(viewer ? viewer.info.owner : null).then((other) => {
             this.loopDeciding = false;
