@@ -1,0 +1,86 @@
+'use strict';
+// #327 with #217 (Mark, 15 Nov 2026): a recording made from the web's Sport section follows the game's end as iOS's
+// does. Every way to record a game there sends the C-R card's `id` as `gameId` (C-M since 0440: the server keeps
+// recording while the game is in play past the guide end, stops at the final + Finish late, the guide end + Finish late
+// the floor and fallback); Change recording keeps the link (it sends only padding). A page game without a card sends none.
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const { browser, answer, page } = require('./helpers/sportWeb');
+
+const H = 3600000;
+async function harness({ phone = false, scheduled = [] } = {}) {
+    const calls = [];
+    const f = answer();
+    const nxt = f.games.find(g => g.id === 'nxt');
+    delete nxt.recording;
+    nxt.channels.push({ sourceId: 2, stableId: 'k5', id: '505', name: 'Kayo 5', start: nxt.start, end: nxt.start + 2 * H });
+    const b = browser({ request: async (m, url, body) => {
+        calls.push([m, url, body]);
+        return url === '/sports/front' ? f : url === '/sports/pages/preferences' ? { spoilerFree: false } : url === '/recordings/scheduled' ? scheduled : {};
+    }, recordings: { schedule: async (d) => { calls.push(['schedule', d]); return {}; }, addRule: async (r) => { calls.push(['rule', r]); return {}; } } });
+    b.context.matchMedia = (q) => ({ matches: phone && /max-width/.test(q), addEventListener() {} });
+    b.context.window.matchMedia = b.context.matchMedia;
+    const p = page(b, { setLocation() {}, navigateTo() {} });
+    await p.show('');
+    const el = (attrs) => { const x = b.document.createElement('button'); for (const [k, v] of Object.entries(attrs)) x.setAttribute(k, v); b.document.body.appendChild(x); return x; };
+    const inDialog = (attrs) => { const x = el(attrs); b.document.body.querySelector('dialog .ui-dialog-body').appendChild(x); x.click(); };
+    const save = () => b.document.body.querySelector('dialog [data-act="r-save"]').click();
+    const scheduledBodies = () => calls.filter(c => c[0] === 'schedule').map(c => c[1]);
+    return { b, p, f, calls, el, inDialog, save, scheduledBodies, settle: () => new Promise(setImmediate) };
+}
+
+const paths = {
+    'a card\'s ⋯ menu, Record this game': async (h) => { h.p.act('more', h.el({ 'data-id': 'nxt' })); h.p.act('record', h.el({ 'data-id': 'nxt' })); },
+    'the banner\'s Record (the hero), then Record this game': async (h) => {
+        h.p.pin('nxt');
+        assert.match(h.p.root.innerHTML, /data-act="record-menu" aria-haspopup="menu" data-id="nxt" data-key="hero:record"/);
+        h.p.act('record-menu', h.el({ 'data-id': 'nxt' }));
+        assert.ok(h.b.document.body.querySelector('.sp-menu'));
+        h.p.act('record', h.el({ 'data-id': 'nxt' }));
+    },
+    'More options…, Record game': async (h) => { h.p.act('record-options', h.el({ 'data-id': 'nxt' })); h.save(); },
+    'the details\' Record, Record game': async (h) => { h.p.select('nxt', h.el({})); h.inDialog({ 'data-act': 'd-record' }); h.save(); },
+    'the details\' Record on another channel, Record game': async (h) => { h.p.openDetails('nxt'); h.inDialog({ 'data-act': 'd-record-on', 'data-channel': '2:k5' }); h.save(); }
+};
+for (const [name, run] of Object.entries(paths)) {
+    test(`${name}: the recording is linked to the game (gameId), so it stops when the game ends`, async () => {
+        const h = await harness();
+        await run(h);
+        await h.settle();
+        const sent = h.scheduledBodies();
+        assert.equal(sent.length, 1);
+        assert.equal(sent[0].gameId, 'nxt');
+    });
+}
+
+test('the phone carousel\'s Record (a sheet), then Record this game: linked to the game', async () => {
+    const h = await harness({ phone: true });
+    assert.match(h.p.root.innerHTML, /data-act="record-menu" aria-haspopup="menu" data-id="ars" data-key="[^"]+:record"/, 'the carousel card has Record');
+    h.p.act('record-menu', h.el({ 'data-id': 'ars' }));
+    assert.match(h.b.document.body.querySelector('.sp-menu').className, /\bsheet\b/);
+    h.p.act('record', h.el({ 'data-id': 'ars' }));
+    await h.settle();
+    assert.equal(h.scheduledBodies()[0].gameId, 'ars');
+});
+
+test('Change recording keeps the link: it sends only padding, with PUT, and says it stops when the game ends', async () => {
+    const h = await harness({ scheduled: [{ id: 4, status: 'scheduled', pre_buffer_min: 2, post_buffer_min: 15, endsWith: 'event', source_id: 1, channel_stable_id: 's2', channel_item_id: '102', channel_name: 'Stan Sport 2' }] });
+    h.f.games.find(g => g.id === 'nxt').recording = { scheduleId: 4, status: 'scheduled' };
+    h.p.act('change-recording', h.el({ 'data-id': 'nxt' }));
+    await h.settle();
+    assert.match(h.b.document.body.querySelector('dialog .ui-dialog-body').innerHTML, /<b>When the game ends \(ESPN\)<\/b><span class="pig-amount">Else the guide end, [^<]+, \+ Finish late<\/span>/);
+    const post = h.b.document.getElementById('sp-rec-post');
+    post.value = '30'; post.dispatchEvent(new (require('./helpers/fakeDom').FakeEvent)('change'));
+    h.save();
+    await h.settle();
+    assert.deepEqual(JSON.parse(JSON.stringify(h.calls.find(c => c[0] === 'PUT'))), ['PUT', '/recordings/scheduled/4', { postBufferMin: 30 }]);
+    assert.equal(h.scheduledBodies().length, 0);
+});
+
+test('a schedule the server does not link to a game says it stops at the guide\'s end', async () => {
+    const h = await harness({ scheduled: [{ id: 4, status: 'scheduled', pre_buffer_min: 2, post_buffer_min: 15, endsWith: 'guide' }] });
+    h.f.games.find(g => g.id === 'nxt').recording = { scheduleId: 4, status: 'scheduled' };
+    h.p.openRecord('nxt');
+    await h.settle();
+    assert.match(h.b.document.body.querySelector('dialog .ui-dialog-body').innerHTML, /<b>When the guide says it ends<\/b><span class="pig-amount">[^<]+ \+ Finish late<\/span>/);
+});
