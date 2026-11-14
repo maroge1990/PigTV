@@ -19,9 +19,14 @@ function harness() {
     document.body.appendChild(overlay);
     const listeners = {};
     const fetched = [];
+    const resolves = [];
     const context = vm.createContext({
-        document, navigator: {}, console: { ...console, log() {}, warn() {}, error() {} },
-        fetch: (url, init) => { fetched.push([url, init]); return Promise.resolve({ ok: true }); },
+        document, navigator: {}, AbortController, console: { ...console, log() {}, warn() {}, error() {} },
+        fetch: (url, init) => {
+            fetched.push([url, init]);
+            if (url === '/api/playback/resolve') return new Promise((resolve) => resolves.push((json) => resolve({ ok: true, status: 200, json: async () => json })));
+            return Promise.resolve({ ok: true });
+        },
         localStorage: { getItem: (k) => (k === 'authToken' ? 'tok' : null), setItem() {}, removeItem() {} },
         addEventListener: (t, fn) => { (listeners[t] ||= []).push(fn); }
     });
@@ -37,7 +42,7 @@ function harness() {
     });
     player.initPageLifecycle();
     const fire = (type, ev = {}) => (listeners[type] || []).forEach(fn => fn({ type, ...ev }));
-    return { player, fire, fetched, content };
+    return { player, fire, fetched, content, resolves };
 }
 
 test('on pagehide the session is given back at once, with keepalive and the sign-in', () => {
@@ -77,4 +82,26 @@ test('restored from the back/forward cache: a Resume prompt, not a dead player a
     const button = content.querySelector('.player-resume-btn');
     assert.ok(button, 'Resume is showing');
     assert.match(content.textContent, /Seven News/);
+});
+
+test('pagehide while a play is still resolving: the late answer, after the page is restored, plays nothing and gives its session back; Resume is offered', async () => {
+    const { player, fire, fetched, content, resolves } = harness();
+    const played = [];
+    Object.assign(player, {
+        _playing: false, currentSessionId: null, _playGeneration: 1,
+        beginPlayMeasurement() {}, updateTranscodeStatus() {}, getCodecCapabilities: () => ({}), needsAudioEncode: () => false,
+        playDecision: async (d, c) => { played.push(c.id); }
+    });
+    player.video.canPlayType = () => '';
+    player.overlay.classList = { add() {}, remove() {} };
+    const pending = player.play(SEVEN, null);
+    await new Promise(r => setImmediate(r));
+    assert.equal(resolves.length, 1, 'the resolve is out');
+    fire('pagehide');
+    fire('pageshow', { persisted: true });
+    resolves[0]({ strategy: 'transcode', url: '/api/transcode/late/master.m3u8', sessionId: 'late' });
+    await pending;
+    assert.deepEqual(played, [], 'nothing plays');
+    assert.ok(fetched.some(([url, init]) => url === '/api/transcode/late' && init.method === 'DELETE'), 'the late session is given back');
+    assert.ok(content.querySelector('.player-resume-btn'), 'Resume is offered');
 });

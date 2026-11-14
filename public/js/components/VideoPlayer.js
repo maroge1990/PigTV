@@ -1755,7 +1755,10 @@ class VideoPlayer {
     }
 
     handlePageHide() {
-        if (!this._playing && !this.currentSessionId) return;
+        // A play still resolving has no session yet: it is invalidated like a newer play would, so an answer that
+        // arrives later (after a back/forward restore) plays nothing and its session is given back (releaseSession).
+        const pending = !!this._resolveAbort;
+        if (!this._playing && !this.currentSessionId && !pending) return;
         const channel = this.currentChannel;
         this.stopTranscodeSession({ keepalive: true });
         this.stop();
