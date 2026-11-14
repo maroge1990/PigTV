@@ -727,9 +727,8 @@ h4 {
   object-fit: contain;
 }
 
-/* 0121: channel numbers (library rows carry `number`) */
-.channel-number,
-.epg-channel-number {
+/* 0121: channel numbers: only the Settings channel tree shows them now (#320: Live TV and the Guide give the room to the name) */
+.channel-number {
   min-width: 2.2em;
   font-size: var(--text-xs);
   font-weight: 600;

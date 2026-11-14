@@ -284,8 +284,6 @@ class ChannelList {
      */
     channelItemHtml(channel, { isActive = false, isNavActive = false, renderId = '', renderGroup = '' } = {}) {
         const isFavorite = this.favoriteKeys.has(this.favKey(channel));
-        const number = channel.number !== null && channel.number !== undefined
-            ? `<span class="channel-number pig-amount">${UI.escape(channel.number)}</span>` : '';
         return `
           <div class="channel-item ${isActive ? 'active' : ''} ${isNavActive ? 'nav-active' : ''}"
                data-channel-id="${UI.escape(channel.id)}"
@@ -293,7 +291,6 @@ class ChannelList {
                data-fav-key="${UI.escape(this.favKey(channel))}"
                data-render-id="${renderId}"
                data-render-group="${UI.escape(renderGroup)}">
-            ${number}
             <img class="channel-logo" src="${UI.escape(this.logoUrl(channel.tvgLogo))}"
                  alt="" onerror="this.onerror=null;this.src='/img/placeholder.png'">
             <div class="channel-info" role="button" tabindex="0" data-key-activate

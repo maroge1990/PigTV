@@ -667,16 +667,12 @@ class EpgGuide {
         row.style.right = '0';
         row.style.height = `${this.rowHeight}px`;
 
-        const number = channel.number !== null && channel.number !== undefined
-            ? `<span class="epg-channel-number pig-amount">${UI.escape(channel.number)}</span>` : '';
-
         row.innerHTML = `
           <div class="epg-channel-info">
             <button class="favorite-btn ${isFavorite ? 'active' : ''}" title="${isFavorite ? 'Remove from favourites' : 'Add to favourites'}"
                     aria-label="Favourite ${UI.escape(channel.name)}" aria-pressed="${isFavorite}">
               ${isFavorite ? Icons.favorite : Icons.favoriteOutline}
             </button>
-            ${number}
             <img class="epg-channel-logo" src="${UI.escape(this.logoUrl(channel.tvgLogo))}"
                  alt="" onerror="this.onerror=null;this.src='/img/placeholder.png'">
             <span class="epg-channel-name" role="button" tabindex="0" data-key-activate
