@@ -133,6 +133,29 @@ const SportView = (() => {
         return g.scores.map(String);
     }
 
+    /**
+     * #326 (iOS SportScoreText, #254): a long score split into what fits between two names and the rest: cricket keeps
+     * runs/wickets and moves the overs ("245/6 (45.2)" -> "245/6", "45.2 ov"); AFL shows its points and moves
+     * goals.behinds ("9.6 (60)" -> "60", "9.6"); anything else whole. Only ever given a score that may be shown.
+     */
+    function splitScore(score) {
+        const text = String(score).trim();
+        const open = text.lastIndexOf('(');
+        if (!text.endsWith(')') || open < 0) return { main: text, detail: null };
+        const head = text.slice(0, open).trim(), inner = text.slice(open + 1, -1).trim();
+        if (!head || !inner) return { main: text, detail: null };
+        const num = (s) => /^\d+$/.test(s), gb = head.split('.');
+        if (gb.length === 2 && gb.every(num) && num(inner)) return { main: inner, detail: head };
+        if (inner.endsWith('ov')) return { main: head, detail: inner };
+        if (/^[\d.]+$/.test(inner)) return { main: head, detail: `${inner} ov` };
+        return { main: head, detail: inner };
+    }
+    /** Two sides' scores: the short score "245/6–180/3" and its detail "45.2 ov – 31.4 ov" (null when nothing moved). */
+    function shortScore(pair) {
+        const parts = pair.map(splitScore), details = parts.map(p => p.detail).filter(Boolean);
+        return { main: parts.map(p => p.main).join('–'), detail: details.length ? details.join(' – ') : null };
+    }
+
     function situation(g, front, hide) {
         if (front && front.scores === 'unavailable') return '';
         return [progressLabel(g, hide), situationLabel(g, hide)].filter(Boolean).join(' · ');
@@ -580,7 +603,8 @@ const SportView = (() => {
         const live = isOnAir(g) ? clock : ongoing ? ['LIVE', clock === statusWord(g) ? null : clock].filter(Boolean).join(' ') : null;
         const channel = channelLine(g);
         const sub = ongoing ? channel : terminal(g) ? capitalized(statusWord(g)) : [startLine(g, now), channel].filter(Boolean).join(' · ');
-        return { two, stars, score: sc ? sc.join('–') : null, live, sub };
+        const short = sc ? shortScore(sc) : null;
+        return { two, stars, score: sc ? sc.join('–') : null, short: short ? short.main : null, detail: short ? short.detail : null, live, sub };
     }
     function rowHtml(g, ctx) {
         const r = row(g, ctx);
@@ -591,7 +615,9 @@ const SportView = (() => {
         } else {
             l1 = `${leagueBadge(g.league)}<span class="t">${g.followed === true ? star() : ''}${e(g.session ? `${g.title}` : g.title)}</span>`;
         }
-        if (r.score) l1 += `<span class="sc pig-amount">${e(r.score)}</span>`;
+        // iPhone: the short score; a screen reader hears the whole one
+        if (r.score) l1 += r.short === r.score ? `<span class="sc pig-amount">${e(r.score)}</span>`
+            : `<span class="sc pig-amount"><span aria-hidden="true">${e(r.short)}</span><span class="visually-hidden">${e(r.score)}</span></span>`;
         const l2 = [r.live ? `<span class="lv">${dot()}${e(r.live)}</span>` : '', r.sub ? `<span>${e(r.sub)}</span>` : ''].filter(Boolean).join('<span aria-hidden="true"> · </span>');
         return `<button type="button" class="row" data-act="game" data-id="${e(g.id)}" data-key="row:${e(g.id)}"><span class="l1">${l1}</span><span class="l2 pig-amount">${l2}</span>${recordMark(g)}</button>`;
     }
@@ -626,7 +652,12 @@ const SportView = (() => {
         let mid;
         if (r.two) {
             const side = (c, i) => `<span class="fside"><span class="bw">${badge(c.name, c.logo, 48)}${r.stars.includes(i) ? '<span class="st" aria-hidden="true">★</span>' : ''}</span><span class="fn">${r.stars.includes(i) ? '<span class="visually-hidden">Your team, </span>' : ''}${e(c.name)}</span></span>`;
-            mid = `<span class="fsides">${side(g.competitors[0], 0)}<span class="fscore${r.score ? '' : ' v'} pig-amount">${r.score ? e(r.score) : 'v'}</span>${side(g.competitors[1], 1)}</span>`;
+            // the short score in the middle, as large as fits, the overs or goals.behinds small under it (iOS #254)
+            const size = !r.short ? '' : r.short.length <= 5 ? '' : r.short.length <= 9 ? ' mid' : ' small';
+            const score = !r.score ? '<span class="fscore v pig-amount">v</span>'
+                : `<span class="fscore${size} pig-amount">${r.short === r.score ? e(r.score) : `<span aria-hidden="true">${e(r.short)}</span><span class="visually-hidden">${e(r.score)}</span>`}</span>`
+                + (r.detail ? `<span class="fdetail pig-amount" aria-hidden="true">${e(r.detail)}</span>` : '');
+            mid = `<span class="fsides">${side(g.competitors[0], 0)}<span class="fmid">${score}</span>${side(g.competitors[1], 1)}</span>`;
         } else {
             const who = solo ? badge(solo.name, solo.logo, 48) : leagueBadge(g.league);
             mid = `<span class="fsolo">${who}<span class="ft">${e(g.title)}${g.session ? `<small>${e(g.session)}</small>` : ''}</span></span>`;
@@ -1392,7 +1423,7 @@ const SportView = (() => {
     }
 
     return {
-        ICON, hidden, family, terminal, underWay, isOnAir, showsLive, isNextRound, logo, statusWord, capitalized, progressLabel, situationLabel,
+        ICON, splitScore, shortScore, hidden, family, terminal, underWay, isOnAir, showsLive, isNextRound, logo, statusWord, capitalized, progressLabel, situationLabel,
         scores, situation, when, headerDate, startLine, channelLine, cardClock, event, action, actionLabel, followedSides,
         followedSide, sections, alsoInYourSports, headerLine, followTrailing, hero, NO_HERO, followKey, followsGoneLive,
         resolveHero, heroFollowIndex, fastRefresh, monogram, badge, leagueBadge, header, scoresChip, card, banner, heroButtons,
