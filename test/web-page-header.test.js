@@ -28,10 +28,12 @@ test('Guide, Recordings, Status and Settings open with the one page header and a
 });
 
 test('Sport draws the one header; no page title is an h1', () => {
-    const sports = read('public/js/pages/SportsPage.js');
-    // #276: built as elements, the h2 title first and the page's quiet controls beside it.
-    assert.match(sports, /const header=el\('div','page-header'\)[\s\S]{0,120}header\.append\(el\('h2',null,'Sport'\),this\.actions\)/);
-    assert.doesNotMatch(sports, /<h1>/);
+    // #323: the Sport pages' header (SportView.header, the Apple SportTabHeader): the h2 title, the date, the scores chip.
+    global.window = {}; global.UI = require('../public/js/ui.js');
+    const V = require('../public/js/pages/SportView.js');
+    const head = V.header({ title: 'Sport', now: Date.UTC(2026, 10, 14), hide: true });
+    assert.match(head, /^<div class="sp-head"><div class="titles"><h2>Sport<\/h2><span class="date">/);
+    for (const f of ['public/js/pages/SportsPage.js', 'public/js/pages/SportView.js']) assert.doesNotMatch(read(f), /<h1[ >]/);
 });
 
 test('the header has no bar, and the old per-page header rules are gone', () => {

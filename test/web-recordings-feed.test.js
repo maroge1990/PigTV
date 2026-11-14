@@ -66,9 +66,9 @@ test('the last subscriber leaving stops the poll; a late subscriber gets the lat
 });
 
 test('the Sport page and the banner ask through the feed, never on a timer of their own', () => {
+    // #323: the Sport page's record marks come with its answer (C-R `recording`); it asks for no recordings itself.
     const sports = js('pages/SportsPage.js');
-    assert.doesNotMatch(sports, /API\.recordings\.getActive/);
-    assert.match(sports, /const feed=this\.app\.recordingsFeed[\s\S]{0,600}feed\.subscribe\(/);
+    assert.doesNotMatch(sports, /API\.recordings\.getActive|recordings\/active/);
     // the player's conflict check asks nothing while paused or in a hidden tab
     assert.match(js('components/VideoPlayer.js'), /async checkConflict\(\) \{[\s\S]{0,200}if \(this\.video\.paused \|\| document\.hidden/);
     const app = js('app.js');
@@ -76,33 +76,4 @@ test('the Sport page and the banner ask through the feed, never on a timer of th
     assert.match(fs.readFileSync(path.join(__dirname, '../public/index.html'), 'utf8'), /<script src="\/js\/recordingsFeed\.js[^"]*"><\/script>\s*<script src="\/js\/app\.js/);
 });
 
-test("the Sport page keeps taking the feed's rows across dashboard reloads, and stops on another account or after leaving (0485 Codex round 1)", () => {
-    let token = 'account-a';
-    const root = { replaceChildren() {}, querySelector: () => null, textContent: '' };
-    const context = vm.createContext({ console, setTimeout, clearTimeout, performance: { now: () => 0 }, localStorage: { getItem: () => token },
-        window: { addEventListener() {} }, document: { hidden: false, addEventListener() {}, getElementById: () => root },
-        API: { sports: {}, request: async () => ({}) } });
-    vm.runInContext(js('pages/SportsPage.js') + '\nglobalThis.SportsPage = SportsPage;', context);
-    const feed = { fn: null, subscribe(fn) { this.fn = fn; return () => { this.fn = null; }; } };
-    const page = new context.SportsPage({ recordingsFeed: feed, currentPage: 'sports' });
-    let renders = 0;
-    page.render = () => { renders++; };
-    page.state.active = true;
-    page.watchRecordings();
-    feed.fn([{ id: 1 }]);
-    assert.deepEqual(page.recordings.map(r => r.id), [1]);
-    page.state.serial += 3; // three dashboard loads (each 20 s) between two feed updates
-    feed.fn([{ id: 1 }, { id: 2 }]);
-    assert.deepEqual(page.recordings.map(r => r.id), [1, 2], 'still current after the dashboard reloads');
-    const keep = feed.fn;
-    token = 'account-b';
-    keep([{ id: 9 }]);
-    assert.deepEqual(page.recordings.map(r => r.id), [1, 2], 'another account: ignored');
-    token = 'account-a';
-    page.suspend();
-    assert.equal(feed.fn, null, 'leaving Sport unsubscribes');
-    keep([{ id: 7 }]);
-    assert.ok(!page.recordings.some(r => r.id === 7), 'a late answer after leaving is ignored');
-    assert.ok(renders >= 2);
-});
 

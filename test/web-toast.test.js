@@ -210,25 +210,21 @@ test('Undo whose show request is still pending when the provider is switched end
     assert.deepEqual(list.channels.map(c => c.id), ['z']);
 });
 
-test('Sport: a scheduled watch cancelled by closing the page is told once, when Sport is next shown, and only then', async () => {
-    const b = browser(['pages/SportsPage.js'], { API: { request: async () => ({ features: { sportsDashboard: true } }), sports: {} } });
-    const page = Object.create(b.context.window.SportsPage.prototype);
-    Object.assign(page, {
-        cards: new Map(), shelves: new Map(), orders: new Map(), recordings: [], recordingsVisit: 0, root: null,
-        state: { active: false, serial: 1, identity: () => 'me', valid: () => true, clear() {}, load: async () => true },
-        setup() {}, watchRecordings() {}, poll() {}, closeDialog() {}
-    });
+test('Sport: a Remind me cancelled by closing the page is told once, when Sport is next shown, and only then', async () => {
+    // #323: the C-R page keeps the old rule: a pending "Remind me" (play when it starts) needs Sport open.
+    const b = browser(['pages/SportView.js', 'pages/SportsPage.js'], { API: { request: async () => { throw new Error('offline'); } } });
+    const page = new b.context.window.SportsPage({});
     await page.show();
-    assert.deepEqual(b.text(), [], 'nothing to tell when no watch was scheduled');
+    assert.deepEqual(b.text(), [], 'nothing to tell when nothing was waiting');
     page.hide(); await page.show();
-    assert.deepEqual(b.text(), [], 'closing and reopening with no pending watch says nothing');
+    assert.deepEqual(b.text(), [], 'closing and reopening with nothing waiting says nothing');
 
-    page.waiting = setTimeout(() => {}, 60000); // a scheduled "watch when it starts"
+    page.waiting = { id: 'g', timer: setTimeout(() => {}, 60000) }; // a "Remind me"
     page.hide();
-    assert.equal(page.waiting, null, 'the cancelling itself is unchanged');
+    assert.equal(page.waiting, null, 'leaving cancels it');
     assert.deepEqual(b.text(), [], 'nothing while Sport is closed');
     await page.show();
-    assert.deepEqual(b.text(), ['Scheduled watch cancelled because Sport was closed']);
+    assert.deepEqual(b.text(), ['Remind me was cancelled because Sport was closed.']);
     b.UI.toast('later');
     page.hide(); await page.show();
     assert.deepEqual(b.text(), ['later'], 'told once');

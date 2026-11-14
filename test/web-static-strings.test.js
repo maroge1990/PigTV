@@ -493,7 +493,8 @@ test('#276 one rose button (btn-primary) per screen; a per-row action is never r
     // Scripts that draw buttons: at most this many btn-primary in the file, and why (each is its own screen or exclusive with the others).
     const SCRIPT_PRIMARIES = {
         'pages/RecordingsPage.js': [2, 'Play on the page (one recording at a time); Resume in the player dialog'],
-        'pages/SportsPage.js': [3, 'the empty page\'s one button; two separate dialogs (score settings, Record)'],
+        'pages/SportsPage.js': [0, 'the empty page\'s one button is a state block\'s primary: true'],
+        'pages/SportView.js': [0, 'the Sport pages\' rose button is the hero\'s Watch or Remind me (.pill.primary)'],
         'pages/ProvidersSettings.js': [1, 'Add provider on the one new card; a saved card\'s Save is secondary'],
         'pages/SportSettings.js': [1, 'Follow this sport'],
         'components/EpgGuide.js': [1, 'Record in the programme dialog'],

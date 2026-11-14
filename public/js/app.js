@@ -407,6 +407,8 @@ class App {
         if (!controller?.openPath) sub = undefined; // only a page with places inside it (Settings) has a sub-address
         // Already on this page: a place inside it (a Settings tab named by Back or a link) is still opened.
         if (this.currentPage === pageName && historyMode !== 'replace') {
+            // #323: Sport's places (#sports, #sports/Football) include its front page: Back and the nav link reach it too.
+            if (controller?.opensRoot) { controller.openPath(sub, historyMode); return; }
             if (sub !== undefined && controller?.openPath) controller.openPath(sub);
             return;
         }

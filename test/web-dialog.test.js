@@ -183,25 +183,6 @@ test('Edit user still saves the same payload, closes, and reloads the list; a fa
     assert.deepEqual(bad.context.toasts.map(t => t[0]), ['Could not save the user.'], 'a server fault is not printed to the person (its detail is in the console)');
 });
 
-test('The Sport dialog opens through UI.dialog: Escape and the backdrop close it and focus returns to the card', () => {
-    const { context, document } = browser(['pages/SportsPage.js']);
-    const page = Object.create(context.window.SportsPage.prototype);
-    page.root = document.createElement('div'); document.body.appendChild(page.root);
-    page.dialog = null; page.selection = null;
-    const card = opener(document, 'card');
-    const el = page.openDialog('settings');
-    context.UI.dialog.attach(el).open();
-    assert.equal(el.open, true);
-    assert.equal(el.getAttribute('aria-label'), 'Sport account settings');
-    el.escape();
-    assert.equal(page.dialog, null, 'the page forgets it');
-    assert.equal(document.activeElement, card);
-    const el2 = page.openDialog('x');
-    context.UI.dialog.attach(el2).open();
-    el2.backdropClick();
-    assert.equal(page.dialog, null);
-});
-
 function recordingPlayer() {
     const { context, document } = browser(['pages/RecordingsPage.js'], { API: { recordings: {
         getPosition: async () => ({ position_sec: 0 }), streamUrl: (id) => `/s/${id}`, setPosition: async () => {}, getMarkers: async () => ({ markers: [] })
@@ -265,11 +246,12 @@ test('index.html has no .modal-overlay and no #modal; its Edit user dialog is a 
 // The global reset (`* { margin: 0 }`) removes a <dialog>'s native centring, so the dialog's own rule must restore it.
 // A CSS-text check: the vm tests have no layout. The real proof is a browser (Chromium, 1280x800 and 390x844: the
 // Edit user dialog was at [0,0] before and is centred after).
-test('.ui-dialog centres itself (margin: auto, outside any media query); a Sport dialog is not a flex column', () => {
+test('.ui-dialog centres itself (margin: auto, outside any media query)', () => {
     const css = fs.readFileSync(path.join(root, 'public/css/main.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
     const topLevel = css.replace(/@media[^{]*\{(?:[^{}]|\{[^{}]*\})*\}/g, '').replace(/@keyframes[^{]*\{(?:[^{}]|\{[^{}]*\})*\}/g, '');
     const rule = topLevel.match(/(?:^|\})\s*\.ui-dialog\s*\{([^}]*)\}/);
     assert.ok(rule, 'a top-level .ui-dialog rule');
     assert.match(rule[1], /(^|;|\s)margin:\s*auto\s*;/);
-    assert.match(topLevel, /\.sports-dialog\[open\]\s*\{\s*display:\s*block;/);
+    // #323: the Sport page's dialog is gone (its menu is .sp-menu, in sport.css).
+    assert.doesNotMatch(css, /\.sports-dialog/);
 });

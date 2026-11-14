@@ -71,19 +71,18 @@ test('UI.date, UI.dateParts and the year option: the same words as UI.dateTime, 
     assert.doesNotMatch(UI.dateTime(at, o), /:\d\d:\d\d/, 'never seconds');
 });
 
-test('the Sport page\'s start time keeps the server\'s time zone and its honesty rule, in the app\'s one format', () => {
-    const c = sandbox({ document: { hidden: false, addEventListener() {} }, API: {}, performance: { now: () => 0 }, localStorage: { getItem: () => 't' } });
-    vm.runInContext(read('public/js/pages/SportsPage.js'), c);
-    const P = c.window.SportsDashboardPolicy;
+test('the Sport pages\' times are the app\'s one format: "5:30 pm" today, "Sat 5:30 pm" another day, never a made-up one', () => {
+    // #323 (SportFrontText.when): the viewer's zone, through UI.clock and UI.date.
+    const c = sandbox({ document: { hidden: false, addEventListener() {} }, API: {} });
+    vm.runInContext(read('public/js/pages/SportView.js'), c);
+    const V = c.window.SportView;
     const UI = vm.runInContext('UI', c);
     const at = Date.UTC(2026, 10, 6, 16, 50);
-    assert.equal(P.time(at, 'Australia/Melbourne'), UI.dateTime(at, { timeZone: 'Australia/Melbourne' }));
-    assert.notEqual(P.time(at, 'Australia/Melbourne'), P.time(at, 'America/New_York'), 'the server\'s zone decides the clock');
-    assert.deepEqual(plain(P.timeParts(at, 'UTC')), plain(UI.dateParts(at, { timeZone: 'UTC' })));
-    assert.equal(P.time(NaN, 'UTC'), 'Start time unavailable');
-    assert.equal(P.time(undefined, 'UTC'), 'Start time unavailable');
-    assert.equal(P.time(at, 'Not/AZone'), 'Start time unavailable', 'a zone that does not exist shows no time, never a wrong one');
-    assert.doesNotMatch(read('public/js/pages/SportsPage.js'), /toLocale(Date|Time)?String/);
+    assert.equal(V.when(at, at), UI.clock(at), 'today: the time alone');
+    assert.equal(V.when(at, at + 3 * 86400000), `${UI.date(at).split(' ')[0]} ${UI.clock(at)}`, 'another day: its weekday and the time');
+    assert.equal(V.when(NaN, at), '', 'no time, never a wrong one');
+    assert.equal(V.when(undefined, at), '');
+    for (const f of ['SportsPage.js', 'SportView.js']) assert.doesNotMatch(read(`public/js/pages/${f}`), /toLocale(Date|Time)?String/);
 });
 
 test('Status shows no seconds in a time; providers and reminders use the one date', () => {

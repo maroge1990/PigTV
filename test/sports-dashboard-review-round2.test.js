@@ -32,7 +32,7 @@ const shootout=(state,completed,name,at)=>({events:[{date:new Date(at-3*H).toISO
     competitors:[{team:{id:'1',displayName:'Arsenal'},score:'1'},{team:{id:'2',displayName:'Chelsea'},score:'1'}]}]}]});
 test('hidden football never projects the penalties period, live or final',()=>{
     const NOW=Date.parse('2026-10-29T10:00Z');
-    global.window={};require('./helpers/webUi').globalUi();require('../public/js/pages/SportsPage.js');
+    global.window={};require('./helpers/webUi').globalUi();const V=require('../public/js/pages/SportView.js');
     for(const [state,completed,name] of [['in',false,'STATUS_SHOOTOUT'],['post',true,'STATUS_FINAL_PEN']]) {
         const s=store();
         s.ingest(espn.normalize(shootout('in',false,'STATUS_IN_PROGRESS',NOW),'EPL','soccer/eng.1'),NOW-200000);
@@ -41,7 +41,10 @@ test('hidden football never projects the penalties period, live or final',()=>{
         const hidden=dashboard.buildDashboard(s,{now:NOW,userId:'1',league:'EPL',timezone:'UTC'});
         assert.equal(hidden.games[0].progress.period,undefined,`${name} reveals penalties`);
         assert.equal(hidden.games[0].progress.clock,"120'",'extra time stays visible progress');
-        assert.doesNotMatch(window.SportsDashboardPolicy.card(hidden.games[0],hidden.preferences,'UTC'),/Penalties/);
+        // #323: the web's card says no penalties with scores hidden, even from a period 5 it was sent.
+        const g={...hidden.games[0],progress:{period:5,clock:"120'"}},front={games:[g],follows:[],scores:'fresh'};
+        assert.doesNotMatch(V.card(g,{front,hide:true,now:NOW}),/Penalties|Pens/);
+        assert.match(V.card(g,{front,hide:false,now:NOW}),/Pens|FT|Final/,'shown, the card may say it');
         s.updatePreferences('2',{avoidSpoilers:false,scoreDelaySeconds:0,revision:0});
         assert.equal(dashboard.buildDashboard(s,{now:NOW,userId:'2',league:'EPL',timezone:'UTC'}).games[0].progress.period,5);
     }

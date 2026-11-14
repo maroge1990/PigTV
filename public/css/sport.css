@@ -1,0 +1,220 @@
+/* #323: the web Sport section (public/js/pages/SportView.js, SportsPage.js), ported from the Apple apps' Sport views
+   (SportBanner, SportGameCard, SportFrontTVPage, SportFrontPhonePage) to the mocks Mark approved on 14 Nov 2026.
+   Every rule is under .sp (the page's root), so nothing here reaches another page. Brand 1.8 tokens from main.css;
+   text 16 px (secondary 14 or 12, never under 12), targets 44 px, the one focus ring, reduced motion. */
+
+.sp { --live: var(--color-error); --raised: var(--color-bg-tertiary); --surface: var(--color-bg-secondary);
+  --sel: var(--color-accent-dim); --gutter: 32px; --disc: #5A5466;
+  padding: 20px var(--gutter) 56px; max-width: 1440px; font-size: 16px; }
+[data-theme="light"] .sp { --raised: #F2ECF0; }
+@media (max-width: 768px) { .sp { --gutter: 16px; padding-top: 16px; } }
+:where(.sp) button { font: inherit; color: inherit; cursor: pointer; }
+.sp .pig-amount { font-variant-numeric: tabular-nums; }
+
+/* ---------- the page header (SportTabHeader) ---------- */
+.sp .sp-head { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
+.sp .sp-head .titles { display: flex; align-items: baseline; gap: 14px; flex: 1; min-width: 0; flex-wrap: wrap; }
+.sp .sp-head h2 { margin: 0; font-size: 32px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; white-space: nowrap; }
+.sp .sp-head .date { font-size: 16px; color: var(--color-text-secondary); }
+.sp .back-link { display: inline-flex; align-items: center; gap: 2px; min-height: 44px; padding: 0 8px 0 0; margin: -8px 0 -6px;
+  border: 0; background: none; font-size: 16px; font-weight: 600; color: var(--color-accent-text); flex-basis: 100%; }
+.sp .back-link svg { width: 18px; height: 18px; }
+.sp .chip-state { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 14px; border-radius: 999px;
+  background: var(--raised); color: var(--color-text-secondary); font-size: 14px; white-space: nowrap; }
+.sp .chip-state svg { width: 16px; height: 16px; }
+@media (max-width: 768px) {
+  .sp .sp-head { align-items: flex-end; margin-bottom: 12px; }
+  .sp .sp-head .titles { flex-direction: column; gap: 0; align-items: flex-start; }
+  .sp .sp-head h2 { font-size: 26px; }
+  .sp .sp-head .date { font-size: 14px; }
+}
+
+/* ---------- notices: no scores feed, an out-of-date page ---------- */
+.sp .sp-note { display: flex; align-items: center; gap: 10px; margin: 0 0 16px; padding: 10px 14px; border-radius: 12px;
+  background: var(--raised); color: var(--color-text-secondary); font-size: 14px; }
+.sp .sp-note svg { flex: 0 0 auto; width: 18px; height: 18px; }
+.sp .sp-stale svg { color: var(--color-warning); }
+.sp .sp-stale .btn { margin-left: auto; min-height: 44px; }
+
+/* ---------- buttons ---------- */
+.sp .pill { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 18px;
+  border-radius: 999px; font-size: 16px; font-weight: 600; white-space: nowrap; border: 1px solid var(--color-border);
+  background: var(--raised); color: var(--color-text-primary); }
+.sp .pill:hover { background: var(--color-hover-raised); }
+.sp .pill.primary { background: var(--color-accent); color: var(--color-on-accent); border-color: transparent; }
+.sp .pill.primary:hover { background: var(--color-accent-hover); }
+.sp .pill svg { width: 16px; height: 16px; }
+
+/* ---------- the banner (SportBanner: hero left, list right) ---------- */
+.sp .banner { position: relative; display: flex; align-items: center; gap: 20px; min-height: 252px; padding: 18px 18px 18px 26px;
+  background: var(--surface); border: 1px solid var(--color-border); border-radius: 24px; overflow: hidden; }
+.sp .banner .art { position: absolute; top: 50%; right: 410px; width: 230px; height: 230px; transform: translateY(-50%);
+  object-fit: contain; opacity: .16; pointer-events: none; }
+.sp .banner.full .art { right: 70px; opacity: .22; }
+.sp .banner .art.map { width: 360px; height: 200px; opacity: .45; right: 60px; }
+.sp .banner:not(.full) .art.map { right: 410px; opacity: .22; }
+.sp .banner .backbtn { position: relative; z-index: 1; flex: 0 0 auto; width: 44px; height: 44px; border-radius: 12px; background: var(--raised);
+  border: 1px solid var(--color-border); display: grid; place-items: center; align-self: center; }
+.sp .banner .backbtn svg { width: 22px; height: 22px; }
+.sp .hero { position: relative; z-index: 1; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.sp .kicker { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+  color: var(--color-accent-text); white-space: nowrap; overflow: hidden; }
+.sp .kicker span { overflow: hidden; text-overflow: ellipsis; }
+.sp .kicker.live { color: var(--live); }
+.sp .dot { display: inline-block; flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%; background: var(--live); }
+.sp .hero .htitle { margin: 0; font-size: 32px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
+.sp .hero .line { font-size: 16px; color: var(--color-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sp .hero .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.sp .blist { position: relative; z-index: 1; flex: 0 0 340px; width: 340px; min-width: 0; align-self: stretch; display: flex; flex-direction: column;
+  justify-content: center; gap: 4px; padding-left: 16px; border-left: 1px solid var(--color-border); }
+.sp .blist-title { font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--color-text-secondary); margin-bottom: 2px; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
+.sp .blist-title .up { text-transform: uppercase; }
+.sp .brows { position: relative; display: flex; flex-direction: column; gap: 4px; max-height: 188px; overflow-y: auto; scrollbar-width: none; padding: 3px; margin: -3px; }
+.sp .brow { position: relative; flex: 0 0 auto; display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; border-radius: 10px;
+  background: var(--raised); border: 0; text-align: left; width: 100%; }
+.sp .brow:hover { background: var(--color-hover-raised); }
+.sp .brow.sel::before { content: ""; position: absolute; left: 3px; top: 10px; bottom: 10px; width: 4px; border-radius: 2px; background: var(--color-accent); }
+.sp .brow .t { flex: 1; min-width: 0; font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sp .brow.sel .t { color: var(--color-accent-text); }
+.sp .brow .tr { font-size: 12px; font-weight: 600; color: var(--color-text-secondary); white-space: nowrap; }
+.sp .brow .tr.live { color: var(--live); }
+.sp .bmore { min-height: 18px; font-size: 12px; color: var(--color-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+
+/* ---------- a sport's section: "Football ›", league rails of cards ---------- */
+.sp .sec { margin-top: 26px; }
+.sp .sec-title { margin: 0; font-size: inherit; }
+.sp .sec-h { display: inline-flex; align-items: baseline; gap: 8px; min-height: 44px; padding: 6px 8px; margin: 0 -8px; border: 0; border-radius: 12px;
+  background: none; text-align: left; }
+.sp button.sec-h:hover, .sp button.grp-h:hover { background: var(--raised); }
+.sp .sec-h .s { font-size: 21px; font-weight: 800; letter-spacing: -0.01em; }
+.sp .sec-h .chev, .sp .grp-h .chev { font-size: 21px; font-weight: 800; color: var(--color-text-secondary); }
+.sp .sec-h .note { font-size: 14px; color: var(--color-text-secondary); margin-left: 4px; }
+.sp .rail-k { margin: 8px 0 6px; font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--color-text-secondary); }
+.sp .rail { position: relative; display: flex; gap: 16px; overflow-x: auto; scrollbar-width: none; padding: 4px; margin: 0 calc(-1 * var(--gutter)) 0 -4px;
+  padding-right: var(--gutter); scroll-snap-type: x proximity; }
+.sp .rail::-webkit-scrollbar, .sp .carousel::-webkit-scrollbar, .sp .brows::-webkit-scrollbar { display: none; }
+
+/* the game card (SportGameCard, the iPad's 260 x 112) */
+.sp .gitem { position: relative; flex: 0 0 272px; display: flex; scroll-snap-align: start; }
+.sp .gcard { position: relative; flex: 1; min-width: 0; min-height: 116px; display: flex; flex-direction: column; gap: 2px; padding: 10px 14px;
+  border-radius: 16px; background: var(--surface); border: 1px solid var(--color-border); text-align: left; }
+.sp .gcard:hover { background: var(--raised); }
+.sp .gcard.fol { border-color: transparent; box-shadow: inset 0 0 0 3px var(--color-accent); }
+.sp .gcard.live { border-color: transparent; box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--live) 80%, transparent); }
+.sp .trow { display: flex; align-items: center; gap: 8px; min-height: 32px; }
+.sp .trow .n { flex: 1; min-width: 0; font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sp .trow .sc { font-size: 18px; font-weight: 800; }
+.sp .trow.reserve, .sp .sk.reserve { padding-right: 24px; }
+.sp .star { color: var(--color-accent-text); font-size: 12px; line-height: 1; }
+.sp .row .star { margin-right: 4px; }
+.sp .cbot { display: flex; align-items: center; gap: 8px; margin-top: auto; padding-top: 4px; font-size: 13px; white-space: nowrap; min-width: 0; }
+.sp .cbot .clk { font-weight: 700; color: var(--live); overflow: hidden; text-overflow: ellipsis; }
+.sp .cbot .when { font-weight: 700; }
+.sp .cbot .res { font-weight: 600; color: var(--color-text-secondary); }
+.sp .cbot .ch { margin-left: auto; color: var(--color-text-secondary); overflow: hidden; text-overflow: ellipsis; }
+.sp .cbot .act { margin-left: auto; font-weight: 700; color: var(--color-accent-text); }
+.sp .cbot .dot { width: 9px; height: 9px; }
+.sp .gcard .sk { font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--color-text-secondary); text-transform: uppercase;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sp .gcard .stitle { display: flex; gap: 6px; align-items: center; font-size: 16px; font-weight: 700; margin-top: 2px; min-width: 0; }
+.sp .gcard .stitle .t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sp .gcard .sline { font-size: 13px; color: var(--color-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* #310: the record mark, an icon in the card's top corner */
+.sp .rmark { position: absolute; top: 18px; right: 14px; width: 16px; height: 16px; border-radius: 50%; border: 2.5px solid var(--live); }
+.sp .rmark.rec { background: var(--live); }
+.sp .rmark.wait { border-style: dashed; }
+.sp .rmark.clash { border-color: var(--color-warning); }
+.sp .rmark.rec.clash { background: var(--color-warning); }
+
+.sp .also { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 28px; font-size: 14px; color: var(--color-text-secondary); }
+.sp .also .b { display: inline-flex; gap: 8px; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 999px; border: 0;
+  background: var(--raised); color: var(--color-text-primary); font-size: 16px; font-weight: 700; }
+.sp button.b:hover { background: var(--color-hover-raised); }
+.sp .also .b span { color: var(--color-text-secondary); font-weight: 600; font-size: 14px; }
+
+/* badges and discs */
+.sp .badge { flex: 0 0 auto; display: block; object-fit: contain; }
+.sp .disc { flex: 0 0 auto; display: grid; place-items: center; border-radius: 50%; background: var(--disc); color: #fff; font-weight: 800; line-height: 1; }
+.sp .lbadge { flex: 0 0 auto; display: grid; place-items: center; min-width: 26px; height: 24px; padding: 0 4px; border-radius: 6px;
+  background: var(--disc); color: #fff; font-size: 12px; font-weight: 800; }
+
+/* ---------- phone: the follow carousel and fixture rows (SportFrontPhonePage) ---------- */
+.sp .carousel { position: relative; display: flex; gap: 12px; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x mandatory;
+  margin: 0 calc(-1 * var(--gutter)); padding: 0 var(--gutter); scroll-padding: 0 var(--gutter); }
+.sp .fcard { flex: 0 0 min(330px, calc(100% - 28px)); min-height: 212px; display: flex; flex-direction: column; gap: 10px; padding: 16px;
+  border-radius: 24px; background: var(--raised); scroll-snap-align: start; }
+.sp .fcard.dim { opacity: .6; }
+.sp .fbody { display: flex; flex-direction: column; gap: 8px; border: 0; background: none; padding: 0; border-radius: 12px; text-align: center; }
+.sp .fsides { display: grid; grid-template-columns: 1fr minmax(64px, 100px) 1fr; align-items: center; }
+.sp .fside { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; font-size: 14px; font-weight: 700; line-height: 1.2; }
+.sp .fside .bw { position: relative; }
+.sp .fside .bw .st { position: absolute; top: -6px; right: -10px; width: 22px; height: 22px; display: grid; place-items: center;
+  border-radius: 50%; background: var(--raised); color: var(--color-accent-text); font-size: 14px; }
+.sp .fscore { text-align: center; font-size: 30px; font-weight: 800; line-height: 1; }
+.sp .fscore.v { font-size: 20px; font-weight: 600; color: var(--color-text-secondary); }
+.sp .fsolo { display: flex; align-items: center; gap: 14px; text-align: left; }
+.sp .fsolo .ft { font-size: 17px; font-weight: 700; }
+.sp .fsolo .ft small { display: block; font-size: 14px; font-weight: 500; color: var(--color-text-secondary); }
+.sp .fline { text-align: center; font-size: 14px; color: var(--color-text-secondary); }
+.sp .factions { display: flex; gap: 8px; margin-top: auto; }
+.sp .factions .pill { flex: 1; }
+.sp .dots { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 12px; font-size: 12px; color: var(--color-text-secondary); }
+.sp .dots i { display: block; width: 6px; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--color-text-secondary) 60%, transparent); }
+.sp .dots i.on { width: 18px; background: var(--color-accent); }
+.sp .dots span { margin-left: 6px; }
+
+.sp .grp { margin-top: 24px; }
+.sp .grp-h { display: flex; align-items: baseline; gap: 8px; width: 100%; min-height: 44px; padding: 6px 4px; margin-bottom: 4px; border: 0;
+  border-radius: 12px; background: none; text-align: left; }
+.sp .grp-h .s { font-size: 20px; font-weight: 800; }
+.sp .grp-h .note { margin-left: auto; font-size: 13px; color: var(--color-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sp .rows { background: var(--raised); border-radius: 16px; overflow: hidden; }
+.sp .row { position: relative; display: block; width: 100%; min-height: 44px; padding: 11px 16px; border: 0; border-top: 1px solid var(--color-border);
+  background: none; text-align: left; }
+.sp .row:first-child { border-top: 0; }
+.sp .row:hover { background: var(--color-hover-raised); }
+.sp .row .l1 { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.sp .row .l1 .t { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.sp .row .l1 .sc { margin-left: auto; padding-left: 10px; font-size: 16px; font-weight: 800; white-space: nowrap; }
+.sp .row .l2 { display: block; padding-left: 30px; margin-top: 2px; font-size: 13px; color: var(--color-text-secondary); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
+.sp .row .l2 .lv { color: var(--live); font-weight: 700; }
+.sp .row .l2 .lv .dot { width: 7px; height: 7px; margin-right: 4px; vertical-align: 1px; }
+.sp .row .rmark { top: 14px; right: 12px; }
+
+/* ---------- states: nothing followed (the pig), loading, the error ---------- */
+.sp .state-block.sp-empty { padding: 72px 24px 56px; background: none; border: 0; gap: 12px; }
+.sp .state-block.sp-empty .state-block-title { font-size: 26px; font-weight: 800; }
+.sp .state-block.sp-empty .state-block-detail { max-width: 440px; font-size: 16px; color: var(--color-text-secondary); }
+.sp .state-block.sp-empty .state-block-action { min-height: 44px; padding: 0 22px; margin-top: 8px; }
+.sp .state-block.sp-empty::before { content: ""; display: block; width: 96px; height: 96px; margin: 0 auto 8px;
+  background: url('/img/brand/mark.svg') center / contain no-repeat; }
+
+/* ---------- the game's menu (ProgrammeMenu / SportRecordMenu) ---------- */
+.rmenu.sp-menu { position: fixed; z-index: 300; width: 360px; max-width: calc(100vw - 16px); padding: 6px; border-radius: 16px;
+  background: var(--color-bg-tertiary); border: 1px solid var(--color-control-border); box-shadow: var(--shadow-lg); color: var(--color-text-primary); }
+[data-theme="light"] .rmenu.sp-menu { background: #F2ECF0; }
+.sp-menu .mh { padding: 10px 12px; border-bottom: 1px solid var(--color-border); margin-bottom: 4px; }
+.sp-menu .mh b { display: block; font-size: 17px; font-weight: 800; }
+.sp-menu .mh span { font-size: 14px; color: var(--color-text-secondary); }
+.sp-menu .ms { padding: 8px 12px 4px; font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--color-text-secondary); }
+.sp-menu .mi { display: flex; align-items: flex-start; gap: 12px; width: 100%; min-height: 44px; padding: 9px 12px; border: 0; border-radius: 10px;
+  background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.sp-menu .mi:hover, .sp-menu .mi:focus-visible { background: var(--color-hover-raised); }
+.sp-menu .mi:focus-visible { outline: var(--focus-ring); outline-offset: -3px; }
+.sp-menu .mi svg.red { color: var(--color-error); }
+.sp-menu .mi svg { flex: 0 0 20px; width: 20px; height: 20px; margin-top: 2px; }
+.sp-menu .mi b { display: block; font-size: 16px; font-weight: 600; }
+.sp-menu .mi span span { display: block; font-size: 13px; color: var(--color-text-secondary); }
+.sp-menu .mdiv { height: 1px; background: var(--color-border); margin: 4px 6px; }
+.sp-menu .mempty { margin: 8px 12px; font-size: 14px; color: var(--color-text-secondary); }
+
+@media (max-width: 1100px) {
+  .sp .blist { flex-basis: 300px; width: 300px; }
+  .sp .banner .art { right: 340px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sp .rail, .sp .carousel, .sp .brows { scroll-behavior: auto; }
+}
