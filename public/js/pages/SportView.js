@@ -1329,14 +1329,15 @@ const SportView = (() => {
         return events.find(x => EV_ONGOING.includes(x.status)) || events.filter(x => x.status === 'scheduled').sort((a, b) => a.start - b.start)[0]
             || [...events].sort((a, b) => b.start - a.start)[0] || null;
     }
-    const evHiddenNote = (text) => `<p class="hidden-note">${ICON.eyeOff}<span>${e(text)}</span></p>`;
+    /** iOS's SportHiddenNote: the eye, its title, its words. */
+    const evHiddenNote = (text, title = null) => `<p class="hidden-note">${ICON.eyeOff}${title ? `<b>${e(title)}</b>` : ''}<span>${e(text)}</span></p>`;
 
     /** Golf: the leaderboard (top 11; hidden: none), your players beside it, the week's other events. */
     function golfHtml(evs, focus, ctx) {
         const { hide, phone, now } = ctx;
         const parOf = (t) => { if (t == null) return null; const s = String(t).trim().replace('−', '-').replace('+', ''); return s.toUpperCase() === 'E' ? 0 : Number.isFinite(Number(s)) && s !== '' ? Number(s) : null; };
         const lb = focus.leaderboard || [], leader = lb.find(r => r.pos != null);
-        const board = hide ? `<div class="lcard"><div class="lh"><b>Leaderboard</b></div>${evHiddenNote('The leaderboard is hidden while Hide scores is on.')}</div>`
+        const board = hide ? `<div class="lcard"><div class="lh"><b>Leaderboard</b></div>${evHiddenNote('Hide scores is on. Positions and scores reveal the result; the field and its round stay visible.', 'Leaderboard hidden')}</div>`
             : `<div class="lcard"><div class="lh"><b>Leaderboard</b><span>Top ${Math.min(11, lb.length)}</span></div><table class="lb"><thead><tr><th scope="col" class="tl">Pos</th><th scope="col" class="tl">Player</th><th scope="col">To par</th>${phone ? '' : '<th scope="col">R1</th><th scope="col">R2</th><th scope="col">R3</th>'}</tr></thead><tbody>`
                 + lb.slice(0, 11).map(r => `<tr${evFollowed(r.name, focus) ? ' class="me"' : ''}><td class="pos">${e(r.pos ?? (r.status ? r.status.toUpperCase() : '–'))}</td><td class="nm">${evFollowed(r.name, focus) ? star('Your player') : ''}${e(r.name)}</td><td class="tp pig-amount">${e(r.toPar ?? '–')}</td>${phone ? '' : [0, 1, 2].map(i => `<td class="r pig-amount">${e((r.rounds || [])[i] ?? '–')}</td>`).join('')}</tr>`).join('')
                 + '</tbody></table></div>';
@@ -1347,11 +1348,11 @@ const SportView = (() => {
             mine = [...mine].sort((a, b) => order(a.name) - order(b.name) || String(a.name).localeCompare(String(b.name)));
         }
         const players = mine.length ? `<div><h4>Your players</h4>${mine.map(r => {
-            if (hide) return `<div class="pcard"><div class="t">${star('Your player')}${e(r.name)}</div></div>`;
+            if (hide) return `<div class="pcard"><div class="t">${star('Your player')}${e(r.name)}</div><div class="rd">${e(['In the field', focus.round ? `round ${focus.round} in play` : null].filter(Boolean).join(' · '))}</div></div>`;
             const mineP = parOf(r.toPar), lead = parOf(leader && leader.toPar);
             const gap = mineP != null && lead != null ? (mineP - lead <= 0 ? 'Leader' : `${mineP - lead} behind`) : null;
             return `<div class="pcard"><div class="t">${star('Your player')}${e(r.name)}<span class="ps">${e(r.pos ?? (r.status || '').toUpperCase())}</span><span class="tp pig-amount">${e(r.toPar ?? '')}</span></div>`
-                + `<div class="rd pig-amount">${[0, 1, 2].map(i => `<span>R${i + 1} ${e((r.rounds || [])[i] ?? '–')}</span>`).join('')}${gap ? `<span class="gap">${e(gap)}</span>` : ''}</div></div>`;
+                + `<div class="rd pig-amount">${[0, 1, 2].map(i => `<span>R${i + 1} ${e((r.rounds || [])[i] ?? '–')}</span>`).join('')}${gap ? `<span class="gk">To the lead</span><span class="gap">${e(gap)}</span>` : ''}</div></div>`;
         }).join('')}</div>` : '';
         const also = evs.filter(x => x !== focus);
         const alsoLine = (x) => {
@@ -1377,18 +1378,27 @@ const SportView = (() => {
         const tonight = all.filter(x => x.m.status === 'scheduled' && sameDay(x.m.start, now) && x.m.start >= now - 3600000).sort((a, b) => a.m.start - b.m.start);
         const results = all.filter(x => EV_DONE.includes(x.m.status) && sameDay(x.m.start, now)).sort((a, b) => b.m.start - a.m.start);
         const matchCard = ({ ev, m }) => {
-            const state = EV_ONGOING.includes(m.status) ? 'Live' : m.status === 'scheduled' ? when(m.start, now) : hide ? 'Finished' : 'Final';
+            const ongoing = EV_ONGOING.includes(m.status);
+            const state = ongoing ? 'LIVE' : m.status === 'scheduled' ? when(m.start, now) : hide ? 'Finished' : 'Final';
+            const followed = (m.players || []).some(p => evFollowed(p.name, ev));
+            const card = ctx.front ? game(ctx.front, ev.id) : null;
             const rows = (m.players || []).map((p, i) => {
                 const name = p.name ? (p.seed ? `${p.name} [${p.seed}]` : p.name) : 'TBD';
                 const sets = hide || !m.sets ? [] : m.sets.map(s => s[i]).filter(v => v != null);
                 const won = !hide && p.winner === true;
                 return `<span class="trow${won ? ' won' : ''}">${evFollowed(p.name, ev) ? star('Your player') : ''}<span class="n">${e(name)}</span>${sets.length ? `<span class="sets pig-amount">${sets.map(v => `<span>${e(v)}</span>`).join('')}</span>` : ''}</span>`;
             }).join('');
-            return `<div class="gitem"><div class="gcard${EV_ONGOING.includes(m.status) ? ' live' : ''}"><span class="sk">${e([m.draw, m.round].filter(Boolean).join(' · '))}</span>${rows}<span class="cbot">${EV_ONGOING.includes(m.status) ? dot() : ''}<span class="${EV_ONGOING.includes(m.status) ? 'clk' : 'when'} pig-amount">${e(state)}</span>${m.court ? `<span class="ch">${e(m.court)}</span>` : ''}</span></div></div>`;
+            // iOS: the state beside the kicker (red "LIVE", no dot, no live outline); a followed match the pink outline
+            const inner = `<span class="tk"><span class="sk">${e([m.draw, m.round].filter(Boolean).join(' · '))}</span><span class="tst${ongoing ? ' live' : ''} pig-amount">${e(state)}</span></span>${rows}${m.court ? `<span class="court">${e(m.court)}</span>` : ''}`;
+            const cls = `gcard tcard${followed ? ' fol' : ''}`;
+            return `<div class="gitem titem">${card ? `<button type="button" class="${cls}" data-act="game" data-id="${e(card.id)}" data-key="tm:${e(m.id)}">${inner}</button>` : `<div class="${cls}">${inner}</div>`}</div>`;
         };
-        const rail = (title, list) => (list.length ? `<section class="sec" aria-label="${e(title)}"><h3 class="sec-title"><span class="sec-h"><span class="s">${e(title)}</span></span></h3><div class="rail">${list.slice(0, 20).map(matchCard).join('')}</div></section>` : '');
-        const html = rail('Your players', yours) + rail('Live now', live) + rail('Tonight', tonight) + rail('Results today', results);
-        return html || '<p class="sp-muted">No matches today.</p>';
+        const rail = (title, list, empty = null, note = null) => (list.length || empty
+            ? `<section class="sec" aria-label="${e(title)}"><h3 class="sec-title"><span class="sec-h"><span class="s">${e(title)}</span>${note ? `<span class="note">${e(note)}</span>` : ''}</span></h3>`
+                + (list.length ? `<div class="rail">${list.slice(0, 20).map(matchCard).join('')}</div>` : `<p class="sp-muted rail-empty">${e(empty)}</p>`) + '</section>'
+            : '');
+        return rail('Your players', yours) + rail('Live now', live, 'No match in play right now.') + rail('Tonight', tonight, 'Nothing more today.')
+            + rail('Results today', results, 'No results yet today.', hide ? 'Hidden while Hide scores is on' : null);
     }
 
     /** UFC: the main card and the prelims, the main event last; with scores hidden "Finished", no winner. */
@@ -1406,7 +1416,7 @@ const SportView = (() => {
             if (EV_ONGOING.includes(b.status)) return 'Live';
             return b === mainEvent ? 'Main event' : 'Up next';
         };
-        const row = (b) => `<div class="bout${b === mainEvent ? ' main' : ''}"><span class="wc">${e(b.weightClass || '')}</span><span class="f">${(b.fighters || []).map(f => `<span class="${!hide && f.winner === true ? 'won' : ''}">${evFollowed(f.name, focus) ? star('Your fighter') : ''}${e(f.name)}</span>`).join('<span class="vs" aria-hidden="true"> v </span>')}</span><span class="bl">${e(line(b))}</span></div>`;
+        const row = (b) => `<div class="bout${b === mainEvent ? ' main' : ''}${(b.fighters || []).some(f => evFollowed(f.name, focus)) ? ' me' : ''}${EV_ONGOING.includes(b.status) ? ' live' : ''}"><span class="wc">${e(b.weightClass || '')}</span><span class="f">${(b.fighters || []).map(f => `<span class="${!hide && f.winner === true ? 'won' : ''}">${evFollowed(f.name, focus) ? star('Your fighter') : ''}${e(f.name)}</span>`).join('<span class="vs" aria-hidden="true"> v </span>')}</span><span class="bl">${e(line(b))}</span></div>`;
         const list = (title, items) => (items.length ? `<div class="lcard"><div class="lh"><b>${e(title)}</b></div>${items.map(row).join('')}</div>` : '');
         return `<div class="fights">${list('Main card', main)}${list('Prelims', prelims)}</div>`;
     }
@@ -1414,9 +1424,11 @@ const SportView = (() => {
     /** IndyCar and NASCAR: the entry list (alphabetical), the last winner (hidden: none) and the next race. */
     function raceHtml(page, focus, ctx) {
         const entries = ((focus && focus.entryList) || []).map(x => x.name).filter(Boolean).sort((a, b) => a.localeCompare(b));
-        const last = !ctx.hide && page.lastWinner && page.lastWinner.name ? `<div class="slim"><b>Last winner</b><span class="w">${e(page.lastWinner.name)}${page.lastWinner.race ? ` · ${e(page.lastWinner.race)}` : ''}</span></div>` : '';
+        const last = !page.lastWinner || !page.lastWinner.name ? ''
+            : ctx.hide ? `<div class="slim"><b>Last winner</b><span class="w">${ICON.eyeOff}Winner hidden</span></div>`
+            : `<div class="slim"><b>Last winner</b><span class="w">${e(page.lastWinner.name)}${page.lastWinner.race ? ` · ${e(page.lastWinner.race)}` : ''}</span></div>`;
         const next = page.next && page.next.start != null ? `<div class="slim"><b>Next race</b><span class="w">${e(page.next.name || '')} · ${e(dayClock(page.next.start))}</span></div>` : '';
-        return `<div class="golf"><div class="lcard"><div class="lh"><b>Entry list</b><span>${e(entries.length)} drivers</span></div><ul class="entries">${entries.map(n => `<li>${focus && evFollowed(n, focus) ? star('Your driver') : ''}${e(n)}</li>`).join('')}</ul></div><div class="sidecol">${last}${next}</div></div>`;
+        return `<div class="golf"><div class="lcard"><div class="lh"><b>Entry list</b>${entries.length ? `<span>${e(entries.length)} drivers · alphabetical, not a running order</span>` : ''}</div><ul class="entries">${entries.map(n => `<li${focus && evFollowed(n, focus) ? ' class="me"' : ''}>${focus && evFollowed(n, focus) ? star('Your driver') : ''}${e(n)}</li>`).join('')}</ul></div><div class="sidecol">${last}${next}</div></div>`;
     }
 
     /**
