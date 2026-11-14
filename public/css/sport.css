@@ -13,6 +13,8 @@
 @media (max-width: 768px) { .sp { --gutter: 16px; padding-top: 16px; } }
 :where(.sp) button { font: inherit; color: inherit; cursor: pointer; }
 .sp .pig-amount { font-variant-numeric: tabular-nums; }
+/* iOS draws scores in SF Rounded (pigFigures): the same on Apple browsers, Inter elsewhere */
+.sp .sc, .sp .fscore, .sp .tp, .sp .pt, .sp .sets { font-family: ui-rounded, 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
 
 /* ---------- the page header (SportTabHeader) ---------- */
 .sp .sp-head { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
@@ -36,15 +38,24 @@
 .sp .sp-note { display: flex; align-items: center; gap: 10px; margin: 0 0 16px; padding: 10px 14px; border-radius: 12px;
   background: var(--raised); color: var(--color-text-secondary); font-size: 14px; }
 .sp .sp-note svg { flex: 0 0 auto; width: 18px; height: 18px; }
+.sp .sp-stale { border-radius: 16px; box-shadow: inset 0 0 0 1px var(--color-warning); }
 .sp .sp-stale svg { color: var(--color-warning); }
 .sp .sp-stale .btn { margin-left: auto; min-height: 44px; }
 
 /* ---------- buttons ---------- */
+/* #326: iOS's PigSecondaryButtonStyle (15/600, secondary text, raised, a 1 pt border) and, for Watch and Remind me, the
+   nearest web form of Liquid Glass prominent: the accent with a light top edge and a soft shadow */
 .sp .pill { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 18px;
-  border-radius: 999px; font-size: 16px; font-weight: 600; white-space: nowrap; border: 1px solid var(--color-border);
-  background: var(--raised); color: var(--color-text-primary); }
-.sp .pill:hover { background: var(--color-hover-raised); }
-.sp .pill.primary { background: var(--color-accent); color: var(--color-on-accent); border-color: transparent; }
+  border-radius: 999px; font-size: 15px; font-weight: 600; white-space: nowrap; border: 1px solid var(--color-border);
+  background: var(--raised); color: var(--color-text-secondary); }
+.sp .pill:hover { background: var(--color-hover-raised); color: var(--color-text-primary); }
+.sp .pill:active { opacity: .6; }
+.sp .pill.primary { background: var(--color-accent); color: var(--color-on-accent); border-color: transparent;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25), 0 2px 8px rgba(0, 0, 0, .25); }
+/* the carousel's Record: iOS's Liquid Glass, translucent */
+.sp .factions .pill:not(.primary) { color: var(--color-text-primary); background: color-mix(in srgb, var(--color-text-primary) 8%, transparent);
+  border-color: rgba(255, 255, 255, .12); }
+@supports (backdrop-filter: blur(1px)) { .sp .factions .pill:not(.primary) { backdrop-filter: blur(12px) saturate(1.4); } }
 .sp .pill.primary:hover { background: var(--color-accent-hover); }
 .sp .pill svg { width: 16px; height: 16px; }
 
@@ -65,10 +76,10 @@
   color: var(--color-accent-text); white-space: nowrap; overflow: hidden; }
 .sp .kicker span { overflow: hidden; text-overflow: ellipsis; }
 .sp .kicker.live { color: var(--live); }
-.sp .dot { display: inline-block; flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%; background: var(--live); }
-.sp .hero .htitle { margin: 0; font-size: 32px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; white-space: nowrap;
+.sp .dot { display: inline-block; flex: 0 0 auto; width: 12px; height: 12px; border-radius: 50%; background: var(--live); }
+.sp .hero .htitle { margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis; }
-.sp .hero .line { font-size: 16px; color: var(--color-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sp .hero .line { font-size: 15px; color: var(--color-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sp .hero .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .sp .blist { position: relative; z-index: 1; flex: 0 0 340px; width: 340px; min-width: 0; align-self: stretch; display: flex; flex-direction: column;
   justify-content: center; gap: 4px; padding-left: 16px; border-left: 1px solid var(--color-border); }
@@ -138,6 +149,9 @@
   background: var(--raised); color: var(--color-text-primary); font-size: 16px; font-weight: 700; }
 .sp button.b:hover { background: var(--color-hover-raised); }
 .sp .also .b span { color: var(--color-text-secondary); font-weight: 600; font-size: 14px; }
+.sp:not(.is-phone) .also button.b { background: none; padding: 0 10px; color: var(--color-accent-text); }
+.sp:not(.is-phone) .also button.b:hover { background: var(--raised); }
+.sp.is-phone .also .b { min-height: 36px; font-size: 15px; }
 
 /* badges and discs */
 .sp .badge { flex: 0 0 auto; display: block; object-fit: contain; }
@@ -194,6 +208,7 @@
   background: none; text-align: left; }
 .sp .row:first-child { border-top: 0; }
 .sp .row:hover { background: var(--color-hover-raised); }
+.sp .row:active { opacity: .6; }
 .sp .row .l1 { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .sp .row .l1 .t { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .sp .row .l1 .sc { margin-left: auto; padding-left: 10px; font-size: 16px; font-weight: 800; white-space: nowrap; }
@@ -254,15 +269,16 @@
 .sp table.st { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 14px; }
 .sp table.st th { font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--color-text-secondary); text-align: right; padding: 2px 6px 6px; white-space: nowrap; }
 .sp table.st th.tl { text-align: left; }
-.sp table.st td { padding: 0 6px; height: 32px; text-align: right; white-space: nowrap; }
-.sp table.st td.pos { color: var(--color-text-secondary); width: 24px; }
-.sp table.st td.nm { text-align: left; font-weight: 600; width: 100%; max-width: 0; }
+.sp table.st td { padding: 0 6px; height: 28px; text-align: right; white-space: nowrap; font-size: 12px; }
+.sp table.st td.pos { color: var(--color-text-secondary); width: 24px; font-size: 15px; font-weight: 700; }
+.sp table.st td.nm { text-align: left; font-weight: 600; width: 100%; max-width: 0; font-size: 15px; }
 .sp table.st td.nm > div { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .sp table.st td.nm span { overflow: hidden; text-overflow: ellipsis; }
 .sp table.st tr.me td { background: color-mix(in srgb, var(--color-accent) 16%, transparent); }
 .sp table.st tr.me td:first-child { border-radius: 10px 0 0 10px; }
 .sp table.st tr.me td:last-child { border-radius: 0 10px 10px 0; }
-.sp table.st td.pts { font-weight: 800; }
+.sp table.st td.pts { font-weight: 400; }
+.sp .lcard .lh b { font-weight: 600; }
 .sp .hidden-note { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 150px; margin: 0;
   text-align: center; color: var(--color-text-secondary); font-size: 14px; padding: 12px; }
 .sp .hidden-note svg { width: 26px; height: 26px; }
@@ -471,6 +487,7 @@
   .sp .gitem .more-btn span { background: var(--color-bg-secondary); }
 }
 .sp-scrim { position: fixed; inset: 0; z-index: 290; background: rgba(0, 0, 0, .55); }
+@supports (backdrop-filter: blur(1px)) { .sp-scrim { backdrop-filter: blur(20px); } }
 .rmenu.sp-menu.sheet { left: 0; right: 0; bottom: 0; top: auto; width: auto; max-width: none; max-height: 85vh; overflow-y: auto;
   padding: 8px 12px calc(20px + env(safe-area-inset-bottom, 0px)); border-radius: 24px 24px 0 0; box-shadow: 0 -8px 30px rgba(0, 0, 0, .4); }
 .sp-menu.sheet .grab { width: 40px; height: 5px; border-radius: 3px; background: var(--color-control-border); margin: 4px auto 10px; }

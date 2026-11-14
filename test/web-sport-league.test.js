@@ -41,12 +41,12 @@ test('a C-T league page as drawn: the rounds, the current one\'s games, the stan
     assert.match(html, /<div class="rounds" role="group" aria-label="Rounds"><button type="button" class="fchip" data-act="round" data-round="3:4" aria-pressed="false"[^>]*>Preliminary Finals<\/button><button type="button" class="fchip on" data-act="round" data-round="3:5" aria-pressed="true"[^>]*>Grand Final<\/button><span class="rnote">1 game<\/span>/);
     assert.match(html, /<span class="sc pig-amount">9131<\/span>/);
     assert.match(html, /<span class="clk pig-amount">Q3 5:21<\/span>/);
-    assert.match(html, /<thead><tr><th scope="col"><span class="visually-hidden">Position<\/span><\/th><th scope="col" class="tl">Team<\/th><th scope="col">P<\/th><th scope="col">W<\/th><th scope="col">%<\/th><th scope="col">Pts<\/th><\/tr><\/thead>/);
+    assert.match(html, /<thead class="visually-hidden"><tr><th scope="col"><span class="visually-hidden">Position<\/span><\/th><th scope="col" class="tl">Team<\/th><th scope="col">P<\/th><th scope="col">W<\/th><th scope="col">%<\/th><th scope="col">Pts<\/th><\/tr><\/thead>/);
     assert.match(html, /<td class="pig-amount">137\.2<\/td>/, 'a percentage to one decimal');
     assert.match(html, /<img class="badge" src="\/api\/logo\/fre"/);
     const followed = html.match(/<tr class="me">[\s\S]*?<\/tr>/);
     assert.ok(followed, 'the followed team\'s row (C-T `following`) is marked');
-    assert.match(html, /<div class="lh"><b>AFL<\/b><span>2026<\/span><\/div>/);
+    assert.match(html, /<div class="lh"><b>AFL<\/b><span>P · W · % · Pts<\/span><\/div>/, "#326: the columns as the card's note, as iOS");
     const earlier = V.leaguePage('Australian football', 'AFL', 'league', { answer: afl(), loaded: true }, ctx(V, answer(), { round: '3:4' }));
     assert.match(earlier, /<span class="sc pig-amount">7373<\/span>/, 'the chosen round');
     assert.match(earlier, /Final · /, 'a result with its day');

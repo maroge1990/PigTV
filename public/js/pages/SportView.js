@@ -1004,8 +1004,8 @@ const SportView = (() => {
         } else {
             const groups = tableGroups(view), group = groups.find(g => g.name === ctx.tableGroup) || groups[0];
             const groupChips = groups.length > 1 ? `<div class="rounds">${groups.map(g => `<button type="button" class="fchip${g === group ? ' on' : ''}" data-act="table-group" data-group="${e(g.name)}" aria-pressed="${g === group}" data-key="tg:${e(g.name)}">${e(g.name)}</button>`).join('')}</div>` : '';
-            body = groupChips + group.tables.map(t => `<div class="lcard"><div class="lh"><b>${e(t.title || label_)}</b>${ctx.season ? `<span>${e(ctx.season)}</span>` : ''}</div>`
-                + `<table class="st"><thead><tr><th scope="col"><span class="visually-hidden">Position</span></th><th scope="col" class="tl">Team</th>${t.columns.map(c => `<th scope="col">${e(c)}</th>`).join('')}</tr></thead><tbody>`
+            body = groupChips + group.tables.map(t => `<div class="lcard"><div class="lh"><b>${e(t.title || label_)}</b>${t.columns.length ? `<span>${e(t.columns.join(' · '))}</span>` : ''}</div>`
+                + `<table class="st"><thead class="visually-hidden"><tr><th scope="col"><span class="visually-hidden">Position</span></th><th scope="col" class="tl">Team</th>${t.columns.map(c => `<th scope="col">${e(c)}</th>`).join('')}</tr></thead><tbody>`
                 + t.rows.map((r, i) => `<tr${r.followed ? ' class="me"' : ''}><td class="pos pig-amount">${e(r.rank ?? i + 1)}</td><td class="nm"><div>${badge(r.name, r.logo, ctx.phone ? 20 : 24, null, r)}${r.followed ? star() : ''}<span>${e(r.name)}</span></div></td>${r.values.map((v, j) => `<td class="pig-amount${j === r.values.length - 1 ? ' pts' : ''}">${e(v ?? '–')}</td>`).join('')}</tr>`).join('')
                 + '</tbody></table></div>').join('');
         }
@@ -1144,7 +1144,7 @@ const SportView = (() => {
         const want = following.map(lower);
         const results = page.results, st = page.standings;
         const card = (title, note, rows) => `<div class="lcard"><div class="lh"><b>${e(title)}</b>${note ? `<span>${e(note)}</span>` : ''}</div>${rows}</div>`;
-        const hiddenRows = `<p class="hidden-note">${ICON.eyeOff}<span>Results and standings are hidden while Hide scores is on.</span></p>`;
+        const hiddenRows = evHiddenNote('Hide scores is on. Grids, finishing orders and points stay hidden until it is turned off in Settings.', 'Results hidden');
         const mrow = (pos, name, color, detail, points, followed) => `<div class="mrow${followed ? ' me' : ''}"><span class="ps pig-amount">${e(pos)}</span><span class="bar" style="background:${hex(color) || 'var(--disc)'}"></span>${followed ? star('Your driver') : ''}<span class="nm">${e(name)}</span>${points != null ? `<span class="pt pig-amount">${e(points)}</span>` : detail ? `<span class="dt">${e(detail)}</span>` : ''}</div>`;
         const lists = [];
         if (results) lists.push(card(results.kind === 'grid' ? 'Starting grid' : results.title || 'Last race', '',
@@ -1167,8 +1167,6 @@ const SportView = (() => {
                 actions: heroButtons(g, now) });
             html += `<div class="tiles">${f1Tiles(page, now, hide)}${circuitTile(w.info, ctx.dark)}</div>`;
         } else {
-            html += `<div class="kicker${h.live ? ' live' : ''}">${h.live ? dot() : ''}<span>${e(h.kicker.split(' · ')[0])} · ${e(w.name)}</span></div>`;
-            if (g && event(g)) html += `<div class="hero-actions">${heroButtons(g, now)}</div>`;
             html += `<div class="tiles">${f1Tiles(page, now, hide)}</div><div class="circuit-p">${circuitTile(w.info, ctx.dark)}</div>`;
         }
         return html + f1Lists(page, following, hide);

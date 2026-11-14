@@ -44,7 +44,7 @@ for (const phone of [false, true]) {
         const html = V.leaguePage('Motorsport', 'F1', 'f1', { answer: f1(), loaded: true }, ctx(V, answer(), { hide: true, phone, following: ['Lando Norris'] }));
         for (const s of F1_SECRETS) assert.ok(!html.includes(s), `"${s}" is in the markup`);
         assert.match(html, /<span class="ln">Finished<\/span>/);
-        assert.equal((html.match(/Results and standings are hidden while Hide scores is on\./g) || []).length, 3);
+        assert.equal((html.match(/<b>Results hidden<\/b><span>Hide scores is on\. Grids, finishing orders and points stay hidden until it is turned off in Settings\.<\/span>/g) || []).length, 3);
     });
 }
 
