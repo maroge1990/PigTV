@@ -187,6 +187,8 @@ test('a provider looping a clip with fresh timestamps is found on its payloads, 
         followed.standbyAt = 0;
         await until(() => followed.standbyReady(), 'the standby on Dream 4K is ready');
         assert.equal(followed.standby.candidate.providerName, 'Dream 4K');
+        // The relay's legs tell their shared feed the channel they play (channelRef), from the relay's own.
+        assert.deepEqual(followed.standby.session.feed.ingest.channelRef, { sourceId: A.id, channelId: 'pos_504' });
 
         releaseGate(); // the provider sends the rest: the clip again, twice, with fresh timestamps
         await until(() => followed.active.candidate.providerName === 'Dream 4K', 'the relay plays the standby');
@@ -232,9 +234,9 @@ test('a recording whose feed repeated the same clip is held against the channel 
     assert.equal(engine._heldAgainst(entry(), { failover: false, ranLong: true }), null);
 });
 
-test('the route records a lost session\'s interruption with the reason its feed gave', { skip }, () => {
-    const route = fs.readFileSync(path.join(sandbox, 'server/routes/playback.js'), 'utf8');
-    assert.match(route, /reason: interruptions\.reasonOf\(how, played\)/);
+// The route's use of it is tested by behaviour in ingest-playback.test.js (#324).
+test('a lost session\'s interruption reason follows the reason its feed gave', { skip }, () => {
+    assert.equal(interruptions.reasonOf('exit', { feedLost: { reason: 'repeating', providerReason: true } }), 'repeating');
     assert.equal(interruptions.reasonOf('exit', { feedLost: { reason: 'upstream-lost', providerReason: true } }), 'lost');
     assert.equal(interruptions.reasonOf('stall', null), 'stalled');
 });

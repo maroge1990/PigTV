@@ -652,6 +652,18 @@ class Ingest extends EventEmitter {
     }
 }
 
+// #324 (Opus review): the channel a stream plays, by ingest key, as the route and the relay last named it. The session's
+// ingestSource is rebuilt field by field in playbackStrategy (a probe from a stored profile never passes ours on), so
+// the channel reaches the ingest from here too. Bounded: the oldest is forgotten past CHANNEL_REFS.
+const CHANNEL_REFS = 500;
+const channelRefs = new Map(); // ingest key -> { sourceId, channelId }
+function rememberChannel(key, ref) {
+    if (!ref) return;
+    channelRefs.delete(key);
+    channelRefs.set(key, ref);
+    while (channelRefs.size > CHANNEL_REFS) channelRefs.delete(channelRefs.keys().next().value);
+}
+
 /**
  * Subscribe to (pool, url): joins a live ingest, or starts one. Resolves with the Subscription
  * once the stream is confirmed MPEG-TS; rejects (`ingestRefused`) when it is not, or the provider
@@ -659,6 +671,7 @@ class Ingest extends EventEmitter {
  */
 async function subscribe({ pool, url, userAgent, providerId = null, purpose = null, owner = null, channel = null, providerName = null, channelKey = null, channelRef = null }) {
     const key = keyOf(pool, url);
+    channelRef = channelRef || channelRefs.get(key) || null;
     let ingest = registry.get(key);
     let opened = false;
     if (!ingest || ingest.closed) {
@@ -685,6 +698,7 @@ async function subscribe({ pool, url, userAgent, providerId = null, purpose = nu
 function sourceFor(candidate, settings, channelRef = null) {
     if (!enabled(settings) || !candidate || !/^https?:/i.test(String(candidate.url || ''))) return null;
     const pool = require('./streamCoordinator').poolOf(candidate.providerId);
+    rememberChannel(keyOf(pool, candidate.url), channelRef || candidate.channelRef || null);
     return { pool, url: candidate.url, userAgent: require('../db').getUserAgent(settings), providerId: candidate.providerId ?? null,
         key: keyOf(pool, candidate.url), channelKey: candidate.channelKey ?? null, channel: candidate.channelName ?? null, providerName: candidate.providerName ?? null,
         channelRef: channelRef || candidate.channelRef || null };

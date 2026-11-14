@@ -527,3 +527,21 @@ test('review L3: resolve removes a pre-ready reconnect epoch whose process hangs
         await until(() => child.exitCode !== null || child.signalCode !== null, 'hung process killed', 5000);
     } finally { transcodeSession.createSession = create; }
 });
+
+// #324 (Opus review): the play route hands the channel it plays (channelRef) to the shared feed, so a looping feed can
+// look for another provider of it; and when that feed is ended for repeating the same clip, the route records the
+// interruption as `repeating` and the channel is quarantined on the provider without counting toward its breaker.
+test('#324: a play tells its shared feed the channel; a feed ended for repeating is recorded as such, channel-only', async () => {
+    const r = await play('pos_1', 'device:tv');
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    const session = transcodeSession.getSession(r.body.sessionId);
+    assert.ok(session && session.feed, 'the session reads the shared feed');
+    assert.deepEqual(session.feed.ingest.channelRef, { sourceId: A.id, channelId: 'pos_1' });
+    session.feed.ingest.close('Strong8K kept repeating the same 24 s clip', { providerReason: true, reason: 'repeating', periodSec: 24 });
+    await until(() => interruptions.summary().recent.length > 0, 'the interruption is recorded');
+    const [ix] = interruptions.summary().recent;
+    assert.equal(ix.reason, 'repeating');
+    assert.equal(ix.providerReason, true);
+    assert.equal(routing.isQuarantined(A.id, 's1'), true, 'quarantined for the channel');
+    assert.equal(routing._breakers.get(A.id)?.failures.length ?? 0, 0, 'not counted toward the provider');
+});
