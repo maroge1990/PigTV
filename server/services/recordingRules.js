@@ -223,12 +223,14 @@ async function teamCandidates(rule, now, { games = null, events = null, only = n
     const dashboard = require('./sportsDashboard');
     const person = require('./textFold').personKey;
     const wanted = person(rule.match);
-    const mine = only ? (games || []).filter(g => g.start > now - 12 * 3600 * 1000)
-        : (games || dashboard.store().catalog()).filter(g => leagues.includes(g.league) && g.start > now - 12 * 3600 * 1000 &&
+    const catalogue = games || (only ? [] : dashboard.store().catalog());
+    const mine = only ? catalogue.filter(g => g.start > now - 12 * 3600 * 1000)
+        : catalogue.filter(g => leagues.includes(g.league) && g.start > now - 12 * 3600 * 1000 &&
             (g.competitors || []).some(c => [c.name, ...(c.aliases || [])].some(a => person(a) === wanted)));
     if (!mine.length) return [];
     const airings = events || (await require('./sportsEvents').eventsFor({ hours: SPORT_HOURS, now })).events;
-    const joined = dashboard.matchBroadcasts(mine, airings);
+    // Codex review of #296 (high): the nickname join sees the whole catalogue's teams, not only this team's games
+    const joined = dashboard.matchBroadcasts(mine, airings, undefined, undefined, undefined, catalogue);
     const out = [];
     for (const g of only ? mine.filter(x => x.id === only) : mine) {
         // 0417 (0416 Codex round 2, high): each channel by its own airing (C-I merges overlapping broadcasts into one

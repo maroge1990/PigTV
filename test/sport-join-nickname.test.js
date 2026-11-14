@@ -125,3 +125,42 @@ test('#296: a "Record every game" rule finds a channel for its team\'s game list
     const found = await rules.teamCandidates(rule, now, { games: catalog, events: [airing] });
     assert.deepEqual(found.map(c => [c.gameId, c.channelId]), [[game.id, 'pos_4']]);
 });
+
+// Codex review of #296 (high): a team rule joins only its own team's games, a recording's link only the games near it; the
+// nickname join must still see the rest of the league's catalogue, or a title naming another game's teams (or a name two
+// clubs share) joins the part it was given.
+const byAbbr = (away, home) => pairs.find(p => p.page.away.abbr === away && p.page.home.abbr === home);
+const AFL_AT = Date.parse('2026-12-01T09:30:00Z');
+const aflClub = (id, name, nick, abbr) => ({ id, name, aliases: [name, nick, abbr], logo: null });
+const aflGames = (secondAt) => [
+    { id: 'afl:1', league: 'AFL', title: 'Sydney Swans v Geelong Cats', start: AFL_AT, competitors: [aflClub('1', 'Sydney Swans', 'Swans', 'SYD'), aflClub('2', 'Geelong Cats', 'Cats', 'GEEL')] },
+    { id: 'afl:2', league: 'AFL', title: 'Sydney Swans v Carlton Blues', start: secondAt, competitors: [aflClub('3', 'Sydney Swans', 'Swans', 'GCS'), aflClub('4', 'Carlton Blues', 'Blues', 'CARL')] }
+];
+
+test('#296 review: a team rule does not schedule a listing that also names another game, nor one by a shared nickname', async () => {
+    const rules = require('../server/services/recordingRules');
+    const { page: g, game } = byAbbr('GB', 'DET'), { page: other } = byAbbr('LAR', 'LV');
+    assert.equal(other.start, g.start, 'the two games kick off together');
+    const now = game.start - 6 * 3600e3;
+    const listing = (title) => ({ ...event(title, g, 0), channels: [{ sourceId: 1, id: 'pos_4', name: 'RDS' }] });
+    const lions = { sport: 'American football', match: 'Detroit Lions', created_by: null };
+    assert.equal((await rules.teamCandidates(lions, now, { games: catalog, events: [listing(french(g))] })).length, 1, 'its own French listing');
+    assert.deepEqual(await rules.teamCandidates(lions, now, { games: catalog, events: [listing(`${french(g)} et ${french(other)}`)] }), [],
+        'a listing that also names the Rams and the Raiders');
+
+    const cats = { sport: 'Australian football', match: 'Geelong Cats', created_by: null };
+    const swans = { id: 'x', league: 'AFL', kind: 'event', title: 'Les Swans de Sydney c. les Cats de Geelong', start: AFL_AT - 15 * M,
+        end: AFL_AT + 3 * 3600e3, channels: [{ sourceId: 1, id: 'pos_5', name: 'Fox Footy' }] };
+    assert.deepEqual(await rules.teamCandidates(cats, AFL_AT - 6 * 3600e3, { games: aflGames(AFL_AT + 24 * 3600e3), events: [swans] }), [],
+        '"Swans" names two clubs, though the other plays tomorrow');
+});
+
+test('#296 review: a recording\'s game link does not take a title that also names a later game, nor a shared nickname', () => {
+    const guideEnd = require('../server/services/recordingGuideEnd');
+    const { page: g, game } = byAbbr('GB', 'DET'), { page: later } = byAbbr('KC', 'SEA');
+    assert.ok(later.start - g.start > 3 * 3600e3, 'the other game is not near the recording');
+    const schedule = (title, start) => ({ id: 7, title, program_start: start, program_end: start + 3 * 3600e3, status: 'scheduled' });
+    assert.equal(guideEnd.gameFor(schedule(french(g), g.start), catalog)?.id, game.id, 'its own French title');
+    assert.equal(guideEnd.gameFor(schedule(`${french(g)}, puis ${french(later)}`, g.start), catalog), null);
+    assert.equal(guideEnd.gameFor(schedule('Les Swans de Sydney c. les Cats de Geelong', AFL_AT), aflGames(AFL_AT + 4 * 3600e3)), null);
+});

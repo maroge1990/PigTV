@@ -154,7 +154,9 @@ function gameFor(schedule, catalog) {
     for (const league of new Set(near.map(g => g.league))) {
         const airing = { id: `schedule:${schedule.id}`, kind: 'event', league, title: schedule.title,
             start: schedule.program_start, end: schedule.program_end, channels: [] };
-        for (const [id, on] of matchBroadcasts(near.filter(g => g.league === league), [airing])) if (on.length) hits.add(id);
+        // Codex review of #296 (high): the nickname join sees the league's whole catalogue, not only the nearby games
+        for (const [id, on] of matchBroadcasts(near.filter(g => g.league === league), [airing], undefined, undefined, undefined,
+            catalog.filter(g => g?.league === league))) if (on.length) hits.add(id);
     }
     return hits.size === 1 ? near.find(g => hits.has(g.id)) : null;
 }

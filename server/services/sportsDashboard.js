@@ -138,9 +138,9 @@ const ABBR_ALIAS_RE = /^[A-Z0-9]{2,4}$/;
 const nameFold = s => classify.normText(foldText(s));
 const says = (text, key) => text.includes(` ${key} `);
 const teamId = c => String(c.id ?? c.name ?? '');
-function leagueNames(prepared) {
+function leagueNames(games) {
     const keys = new Map();
-    for (const { game } of prepared) for (const c of game.competitors || []) {
+    for (const game of games) for (const c of (Array.isArray(game?.competitors) ? game.competitors : [])) {
         if (!keys.has(teamId(c))) keys.set(teamId(c), new Set());
         for (const a of [c.name, ...(Array.isArray(c.aliases) ? c.aliases : [])]) {
             const k = typeof a === 'string' && !ABBR_ALIAS_RE.test(a.trim()) ? nameFold(a) : '';
@@ -175,14 +175,17 @@ function namedByNickname(prepared, parsed) {
         return !names.all.some(o => !ids.includes(o.id) && says(rest, o.k));
     });
 }
-function matchBroadcasts(games, events, represented = new Set(), unresolved = new Set(), endedAt = new Map()) {
+// `known` (Codex review of #296, high): more games whose teams the nickname join must see, the league's whole catalogue
+// where `games` is a part of it (a team rule's own games, a recording's nearby ones): a name another team shares, or a
+// title that also names another game's teams, must not join just because that game was left out.
+function matchBroadcasts(games, events, represented = new Set(), unresolved = new Set(), endedAt = new Map(), known = []) {
     const found = new Map(games.map(g => [g.id, []])), byLeague = new Map();
     for (const game of games) {
         if (!byLeague.has(game.league)) byLeague.set(game.league, []);
         byLeague.get(game.league).push(prepareGame(game));
     }
-    for (const prepared of byLeague.values()) {
-        const names = leagueNames(prepared);
+    for (const [league, prepared] of byLeague) {
+        const names = leagueNames([...prepared.map(p => p.game), ...(Array.isArray(known) ? known.filter(g => g?.league === league) : [])]);
         for (const p of prepared) p.names = names;
     }
     for (const event of events) {
