@@ -572,7 +572,7 @@ class Relay {
             });
         } catch (err) {
             if (routing().isProviderFailure(err)) {
-                try { routing().noteFailure(candidate, ctx.primaryKey); } catch (e) { /* observation only */ }
+                try { routing().noteStartFailure(candidate, ctx.primaryKey); } catch (e) { /* observation only */ }
             }
             this.log(`${candidate.providerName} could not start: ${redact(err && err.message).split('. ')[0]}`);
             return null;

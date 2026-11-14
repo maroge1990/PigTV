@@ -392,3 +392,20 @@ test('the looping feed is ended only if every viewer on it can be admitted elsew
         tv.leave(); phone.leave();
     } finally { out.restore(); coordinator.releaseLease(lease); }
 });
+
+// Opus #324: a start in flight on the looping feed (a probe, a relay leg, the route's first start) fails with a provider
+// reason as the feed is ended, and was counted toward the breaker. It is quarantined only, like the loop itself.
+test('a start that fails on a feed just found repeating is held against the channel only', { skip }, () => {
+    routing.noteRepeating(A.id, candA.channelKey);
+    routing.noteStartFailure(candA, 'fox-footy');
+    assert.equal(routing.isQuarantined(A.id, candA.channelKey), true);
+    assert.equal(routing._breakers.get(A.id)?.failures.length ?? 0, 0, 'not counted');
+    routing.noteStartFailure(candB, 'fox-footy');
+    assert.equal(routing._breakers.get(B.id)?.failures.length ?? 0, 1, 'any other start failure still counts');
+    // The play route's two start paths and the relay's legs note start failures this way.
+    const route = fs.readFileSync(path.join(sandbox, 'server/routes/playback.js'), 'utf8');
+    const relaySrc = fs.readFileSync(path.join(sandbox, 'server/services/streamRelay.js'), 'utf8');
+    assert.equal((route.match(/providerRouting\.noteStartFailure\(/g) || []).length, 2);
+    assert.ok(!/providerRouting\.noteFailure\((candidate|first), routing\.primaryKey\)/.test(route));
+    assert.match(relaySrc, /routing\(\)\.noteStartFailure\(candidate, ctx\.primaryKey\)/);
+});

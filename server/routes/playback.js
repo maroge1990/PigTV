@@ -219,7 +219,7 @@ router.post('/resolve', requireToken, async (req, res) => {
                     if (err.superseded || !routing || !providerRouting.isProviderFailure(err)) throw err;
                     lastError = err;
                     failedOver = true;
-                    providerRouting.noteFailure(candidate, routing.primaryKey);
+                    providerRouting.noteStartFailure(candidate, routing.primaryKey);
                     const next = candidates.slice(i + 1)[0];
                     if (failoverPossible) console.warn(`[Playback] failover: ${candidate.providerName} (${candidate.via}) failed for "${eventChannel || routing.channelName || 'channel'}"` +
                         ` - ${clientSafe(redact(err.message)).split('. ')[0]}; ${next ? `trying ${next.providerName} (${next.via})` : 'no provider left'}`);
@@ -282,7 +282,7 @@ router.post('/resolve', requireToken, async (req, res) => {
                     ...(showProvider ? { timingNote: `, provider ${first.providerName} (${first.via})` } : {})
                 });
             } catch (err) {
-                if (!err.superseded && routing && providerRouting.isProviderFailure(err)) providerRouting.noteFailure(first, routing.primaryKey);
+                if (!err.superseded && routing && providerRouting.isProviderFailure(err)) providerRouting.noteStartFailure(first, routing.primaryKey);
                 throw err;
             } finally {
                 coordinator.releaseUnbound(verdict.lease);

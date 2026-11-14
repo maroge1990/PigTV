@@ -220,6 +220,17 @@ function isRepeating(providerId, channelKey, now = Date.now()) {
     return false;
 }
 
+/**
+ * A start on this candidate failed for a provider reason. Counted toward the breaker (noteFailure), except when the
+ * channel's feed there was just found repeating the same clip (#324, Opus): a start in flight on that feed fails as
+ * it is ended, and a loop is the channel's alone - quarantined only.
+ */
+function noteStartFailure(candidate, primaryKey) {
+    if (!candidate) return;
+    if (isRepeating(candidate.providerId, candidate.channelKey)) quarantine(candidate.providerId, candidate.channelKey);
+    else noteFailure(candidate, primaryKey);
+}
+
 async function otherFeedFor({ channelRef, ingestKey, owner = null, owners = null, usable = null }, settings = {}) {
     // Every viewer reading the looping feed (each distinct owner) must be admitted there: ending the feed ends them all.
     const who = Array.isArray(owners) && owners.length ? owners : [owner];
@@ -561,6 +572,7 @@ module.exports = {
     otherFeedFor,
     noteRepeating,
     isRepeating,
+    noteStartFailure,
     REPEATING_MS,
     snapshot,
     reset,
