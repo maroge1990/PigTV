@@ -34,8 +34,8 @@ test('a fixture league is embedded under the sport\'s banner: rounds, game cards
 
 test('while the league page loads, its place is held; a league without a page shows its name and its cards', () => {
     const { V } = browser();
-    assert.match(V.sportPage('Australian football', ctx(V, answer(), { features, pages, leaguePage: null })), /<div class="sp-embed" data-league="AFL"><div class="sp-state" id="sp-state" data-state="loading"><\/div><\/div>$/);
-    assert.match(V.sportPage('Australian football', ctx(V, answer(), { features, pages, featuresLoaded: false })), /data-league="AFL"><div class="sp-state" id="sp-state" data-state="loading">/, 'the server\'s flags not read yet');
+    assert.match(V.sportPage('Australian football', ctx(V, answer(), { features, pages, leaguePage: null })), /<div class="sp-embed" data-league="AFL"><div class="sp-ph" role="status" aria-busy="true" data-ph="league">/);
+    assert.match(V.sportPage('Australian football', ctx(V, answer(), { features, pages, featuresLoaded: false })), /data-league="AFL"><div class="sp-ph" role="status" aria-busy="true" data-ph="league">/, 'the server\'s flags not read yet');
     const games = V.sportPage('Football', ctx(V, answer(), { features: {}, pages }));
     assert.match(games, /<div class="sp-embed" data-league="EPL"><section class="lgames" aria-label="Premier League"><h3 class="sec-title"><span class="sec-h"><span class="s">Premier League<\/span><\/span><\/h3><div class="cardgrid">/);
 });

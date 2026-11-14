@@ -86,7 +86,7 @@ test('the NFL page: away team first, the byes, Division / Conference / Overall s
 test('the league page\'s states: loading, the failure with Try again, not available, no rounds', async () => {
     const { V } = browser();
     const c = ctx(V, answer(), { labels: { EPL: 'Premier League' } });
-    assert.match(V.leaguePage('Football', 'EPL', 'league', null, c), /data-state="loading"/);
+    assert.match(V.leaguePage('Football', 'EPL', 'league', null, c), /<div class="sp-ph" role="status" aria-busy="true" data-ph="league">/);
     assert.match(V.leaguePage('Football', 'EPL', 'league', { failed: true }, c), /data-state="league-error" data-title="Premier League didn’t load"/);
     assert.match(V.leaguePage('Football', 'EPL', 'league', { answer: { available: false } }, c), /data-title="Premier League isn’t available right now"/);
     assert.match(V.leaguePage('Football', 'EPL', 'league', { answer: { available: true, rounds: [] } }, c), /No Premier League games listed[\s\S]*href="#guide">Open the TV Guide/);

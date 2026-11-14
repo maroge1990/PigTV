@@ -405,6 +405,32 @@ const SportView = (() => {
         return `<div class="sp-note sp-stale" role="status">${ICON.warn}<span>${e(text)}</span><button type="button" class="btn btn-secondary btn-sm" data-act="retry">Try again</button></div>`;
     }
 
+    // ---------- loading: placeholders shaped like what comes (SportPlaceholders, PageStateViews) ----------
+
+    const bar = (w, cls = '') => `<i class="ph-bar${cls ? ` ${cls}` : ''}" style="width:${w}"></i>`;
+    const phCard = (cls = 'ph-card') => `<div class="ph-block ${cls}">${bar('42%', 'sm')}${bar('90%', 'lg')}${bar('62%')}</div>`;
+    const phRail = (n) => `<div class="ph-sec">${bar('260px', 'lg')}<div class="ph-rail">${Array.from({ length: n }, () => phCard()).join('')}</div></div>`;
+    const phBanner = (list) => `<div class="ph-block ph-banner"><div class="ph-hero">${bar('34%', 'sm')}${bar('46%', 'xl')}${bar('16%')}<div class="ph-btns"><i class="ph-pill"></i><i class="ph-pill wide"></i></div></div>`
+        + (list ? `<div class="ph-list">${bar('100%', 'sm')}${[0, 1, 2].map(() => `<div class="ph-lrow"><i class="ph-disc"></i>${bar('48%')}${bar('24%')}</div>`).join('')}</div>` : '') + '</div>';
+    const phRows = (n) => `<div class="ph-sec">${bar('180px', 'lg')}<div class="ph-block ph-rows">${Array.from({ length: n }, () => `<div class="ph-row"><i class="ph-disc"></i><span>${bar('70%')}${bar('40%', 'sm')}</span></div>`).join('')}</div></div>`;
+    const phCarousel = () => `<div class="ph-block ph-fcard"><div>${bar('40%', 'sm')}</div><div class="ph-sides"><i class="ph-disc big"></i>${bar('20px', 'lg')}<i class="ph-disc big"></i></div>${bar('50%')}<div class="ph-btns"><i class="ph-pill"></i><i class="ph-pill"></i></div></div>`;
+    const phFixture = () => `<div class="league ph-league"><div>${`<div class="ph-chips">${[0, 1, 2].map(() => '<i class="ph-pill sm"></i>').join('')}</div>`}<div class="fxgrid">${Array.from({ length: 6 }, () => phCard('ph-fx')).join('')}</div></div>`
+        + `<div class="ph-block ph-table">${bar('40%', 'lg')}${Array.from({ length: 8 }, () => `<div class="ph-lrow"><i class="ph-disc"></i>${bar('52%')}${bar('18%')}</div>`).join('')}</div></div>`;
+    /**
+     * #326: what loads is drawn as neutral blocks the shape and size of the real cards (iOS SportPlaceholders), pulsing,
+     * with "Loading…" for screen readers; never a spinner. `kind`: front, sport, league (fixture), f1, cricket, events.
+     */
+    function placeholder(kind, phone = false) {
+        let body;
+        if (kind === 'front') body = phone ? phCarousel() + phRows(3) + phRows(3) : phBanner(true) + phRail(3) + phRail(4);
+        else if (kind === 'sport') body = phone ? phCarousel() + phRows(3) : phBanner(false) + phFixture();
+        else if (kind === 'f1') body = `<div class="tiles">${Array.from({ length: 5 }, () => phCard('ph-tile')).join('')}</div>`
+            + `<div class="lists3">${[0, 1, 2].map(() => `<div class="ph-block ph-table">${bar('50%', 'lg')}${Array.from({ length: 6 }, () => `<div class="ph-lrow">${bar('10%')}${bar('60%')}</div>`).join('')}</div>`).join('')}</div>`;
+        else if (kind === 'cricket' || kind === 'events') body = `<div class="ph-block ph-board">${bar('30%', 'sm')}${bar('50%', 'xl')}${bar('80%')}${bar('80%')}</div>${phRail(3)}`;
+        else body = phFixture();
+        return `<div class="sp-ph" role="status" aria-busy="true" data-ph="${e(kind)}"><span class="visually-hidden">Loading…</span><div class="ph-in" aria-hidden="true">${body}</div></div>`;
+    }
+
     // ---------- markup: the game card (SportGameCard, the iPad's 260 x 112) ----------
 
     /** #310: the record mark in the card's top corner; its words for screen readers. */
@@ -974,7 +1000,7 @@ const SportView = (() => {
      */
     function embeddedLeague(sport, league, ctx) {
         const kind = leagueContent(league, sport, ctx.features || {});
-        if (ctx.featuresLoaded === false) return '<div class="sp-state" id="sp-state" data-state="loading"></div>';
+        if (ctx.featuresLoaded === false) return placeholder('league');
         if (kind !== 'games' && (ctx.pages || []).includes(kind)) return leaguePage(sport, league, kind, ctx.leaguePage || null, { ...ctx, embedded: true });
         return leagueGamesHtml(league, ctx);
     }
@@ -990,7 +1016,7 @@ const SportView = (() => {
         const a = lp && lp.answer;
         if (!a) {
             if (lp && lp.failed) return `<div class="sp-state" id="sp-state" data-state="league-error" data-title="${e(words.failed.title)}" data-detail="${e(words.failed.detail)}"></div>`;
-            return '<div class="sp-state" id="sp-state" data-state="loading"></div>';
+            return placeholder(kind === 'nfl' ? 'league' : kind, ctx.phone);
         }
         if (a.available === false) return `<div class="sp-state" id="sp-state" data-state="league-error" data-title="${e(words.unavailable.title)}" data-detail="${e(words.unavailable.detail)}"></div>`;
         const following = ctx.following || [];
@@ -1367,7 +1393,7 @@ const SportView = (() => {
         scores, situation, when, headerDate, startLine, channelLine, cardClock, event, action, actionLabel, followedSides,
         followedSide, sections, alsoInYourSports, headerLine, followTrailing, hero, NO_HERO, followKey, followsGoneLive,
         resolveHero, heroFollowIndex, fastRefresh, monogram, badge, leagueBadge, header, scoresChip, card, banner, heroButtons,
-        followItems, front, frontDesktop, frontPhone, row, rowHtml, phoneCard, dots, position, isEmpty, game, sportOf, label,
+        followItems, front, frontDesktop, placeholder, frontPhone, row, rowHtml, phoneCard, dots, position, isEmpty, game, sportOf, label,
         railGames, staleNote, scoresNote, star, dot, recordMark, kickerWord, yours, availabilityWord, onAirLine, e, gameCard,
         sportLeagues, sportGames, leagueGames, sportHero, openingLeague, leagueItems, leagueGroups, leagueCards, leagueContent,
         moreTitle, sportPage, embeddedLeague, leagueGamesHtml, EVENT_LEAGUES, moreButton, groupsHtml, nothingSoon, fixtureDetail, nflFixture, leagueFixture, roundOf, viewOf,

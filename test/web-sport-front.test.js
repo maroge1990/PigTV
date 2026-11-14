@@ -147,7 +147,7 @@ test('states: loading, the error with Try again, nothing followed (Choose your s
     const page = new b.context.window.SportsPage({ currentUser: { role: 'admin' }, navigateTo: (...a) => { page.went = a; } });
     page.root = b.document.createElement('div'); b.document.body.appendChild(page.root); page.wire(page.root);
     page.active = true; page.render();
-    assert.match(page.root.querySelector('.sp-state').innerHTML, /state-loading/);
+    assert.match(page.root.innerHTML, /<div class="sp-ph" role="status" aria-busy="true" data-ph="front">/, '#326: placeholders, not a spinner');
     await page.show();
     assert.match(page.root.querySelector('.sp-state').innerHTML, /role="alert"[\s\S]*Sport didn’t load[\s\S]*Try again/);
     front = () => answer({ sports: [], follows: [], rails: [], games: [] });

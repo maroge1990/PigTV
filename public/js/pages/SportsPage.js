@@ -341,19 +341,19 @@ class SportsPage {
             // Formula 1 on a computer keeps the banner (mock 07): its back button is there, the h2 unseen
             head = (kind === 'f1' || kind === 'events') && !this.phone && !loading && !failed && this.featuresLoaded ? `<h2 class="visually-hidden">${V.e(V.label(league, this.labels))}</h2>`
                 : V.header({ title: V.label(league, this.labels), now, hide, back: sport });
-            if (loading || !this.featuresLoaded) body = '<div class="sp-state" id="sp-state" data-state="loading"></div>';
+            if (loading || !this.featuresLoaded) body = V.placeholder(['f1', 'cricket', 'events'].includes(kind) ? kind : 'league', this.phone);
             else if (failed) body = '<div class="sp-state" id="sp-state" data-state="error"></div>';
             else body = V.leaguePage(sport, league, kind, this.leaguePages[this.leagueKey()], this.context());
         } else if (sport) {
             // a sport's page: on a phone the "‹ Sport" header; on a computer the banner holds the back button (its h2 unseen)
             head = this.phone || loading || failed ? V.header({ title: sport, now, hide, back: 'Sport' })
                 : `<h2 class="visually-hidden">${V.e(sport)}</h2>`;
-            if (loading) body = '<div class="sp-state" id="sp-state" data-state="loading"></div>';
+            if (loading) body = V.placeholder('sport', this.phone);
             else if (failed) body = '<div class="sp-state" id="sp-state" data-state="error"></div>';
             else body = V.sportPage(sport, this.context());
         } else {
             head = V.header({ title: 'Sport', now, hide });
-            if (loading) body = '<div class="sp-state" id="sp-state" data-state="loading"></div>';
+            if (loading) body = V.placeholder('front', this.phone);
             else if (failed) body = '<div class="sp-state" id="sp-state" data-state="error"></div>';
             else if (V.isEmpty(this.front)) body = (this.front.scores === 'unavailable' ? V.scoresNote() : '') + '<div class="sp-state" id="sp-state" data-state="empty"></div>';
             else body = V.front(this.context());
