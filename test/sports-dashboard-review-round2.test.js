@@ -44,7 +44,7 @@ test('hidden football never projects the penalties period, live or final',()=>{
         // #323: the web's card says no penalties with scores hidden, even from a period 5 it was sent.
         const g={...hidden.games[0],progress:{period:5,clock:"120'"}},front={games:[g],follows:[],scores:'fresh'};
         assert.doesNotMatch(V.card(g,{front,hide:true,now:NOW}),/Penalties|Pens/);
-        assert.match(V.card(g,{front,hide:false,now:NOW}),/Pens|FT|Final/,'shown, the card may say it');
+        assert.match(V.card(g,{front,hide:false,now:NOW}),/Pens|FINAL/,'shown, the card may say it');
         s.updatePreferences('2',{avoidSpoilers:false,scoreDelaySeconds:0,revision:0});
         assert.equal(dashboard.buildDashboard(s,{now:NOW,userId:'2',league:'EPL',timezone:'UTC'}).games[0].progress.period,5);
     }
