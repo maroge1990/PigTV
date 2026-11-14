@@ -337,6 +337,65 @@ test('a PAT that moves the PMT forgets the old one: a video-only PMT then a dama
     assert.equal(r.verdict, null, JSON.stringify(r.verdict));
 });
 
+// Codex sign-off of 73fd79b: a valid PMT selects sound A (repeating with the picture); A stops two seconds before the
+// picture's run is due, and a replacement PMT on the same PID that would select live sound B is damaged or unfinished.
+// A's last frames must not confirm a loop: a changing PMT makes the sound ineligible until a whole valid one is accepted,
+// and the confirming sound must be arriving now (within 1 s of the picture).
+test('a sound that stopped, and a damaged or unfinished PMT replacing it, never confirm a loop', { skip }, () => {
+    const data = fs.readFileSync(feeds.twoSounds);
+    const pidOf = (at) => ((data[at + 1] & 0x1f) << 8) | data[at + 2];
+    const probe = new LoopDetector();
+    probe.push(data.subarray(0, 188 * 4000));
+    assert.equal(probe.pmtAudioPid, 0x101, 'the PMT selects the repeating sound first');
+    const start = probe.video.times[0];
+    const cutAt = start + 2 * feeds.clipSec + Math.max(10, feeds.clipSec / 4) - 2; // A stops 2 s before the run is due
+    const ptsOf = (at) => { // the PTS of a PES starting in this packet, in seconds, else null
+        const afc = (data[at + 3] >> 4) & 3;
+        const p = afc & 2 ? at + 5 + data[at + 4] : at + 4;
+        if (!(data[at + 1] & 0x40) || data[p] !== 0 || data[p + 1] !== 0 || data[p + 2] !== 1 || !(data[p + 7] & 0x80)) return null;
+        const b = data.subarray(p + 9);
+        return ((b[0] & 0x0e) * 536870912 + b[1] * 4194304 + (b[2] >> 1) * 32768 + b[3] * 128 + (b[4] >> 1)) / 90000;
+    };
+    for (const kind of ['damaged', 'unfinished']) {
+        const out = [];
+        let cut = false, dropA = false, pmtPid = null;
+        for (let at = 0; at + 188 <= data.length; at += 188) {
+            const pid = pidOf(at);
+            if (pid === 0 && pmtPid === null) { const sec = at + 5 + data[at + 4]; pmtPid = ((data[sec + 10] & 0x1f) << 8) | data[sec + 11]; }
+            if (pid === 0x100) { const t = ptsOf(at); if (t !== null && t >= cutAt) cut = true; }
+            if (pid === 0x101) { const t = ptsOf(at); if (t !== null) dropA = t >= cutAt; if (dropA) continue; }
+            if (cut && pid === pmtPid && (data[at + 1] & 0x40)) {
+                // The replacement: version + 1, A's entry gone (B first), then damaged (CRC) or unfinished (two packets, the second lost).
+                const from = at + 5 + data[at + 4];
+                const len = ((data[from + 1] & 0x0f) << 8) | data[from + 2];
+                const sec = Buffer.from(data.subarray(from, from + 3 + len - 4));
+                const [, a] = entriesOf(sec);
+                const aEnd = a + 5 + (((sec[a + 3] & 0x0f) << 8) | sec[a + 4]);
+                let body = Buffer.concat([sec.subarray(0, a), sec.subarray(aEnd)]);
+                body[5] = (body[5] & 0xc1) | ((((body[5] >> 1) + 1) & 0x1f) << 1);
+                if (kind === 'unfinished') body = padded(body);
+                const nl = body.length - 3 + 4;
+                body[1] = (body[1] & 0xf0) | ((nl >> 8) & 0x0f); body[2] = nl & 0xff;
+                const whole = withCrc(body);
+                if (kind === 'damaged') whole[whole.length - 1] ^= 0xff;
+                const pkt = Buffer.alloc(188, 0xff);
+                data.copy(pkt, 0, at, at + 5);
+                whole.copy(pkt, 5, 0, Math.min(whole.length, 183));
+                out.push(pkt); // 'unfinished': its continuation packet never comes
+                continue;
+            }
+            out.push(data.subarray(at, at + 188));
+        }
+        const file = path.join(dir, `two-sounds-${kind}.ts`);
+        fs.writeFileSync(file, Buffer.concat(out));
+        const r = run([file]);
+        assert.equal(r.verdict, null, `${kind}: ${JSON.stringify(r.verdict)}`);
+        assert.equal(r.detector.pmtChanging, true, `${kind}: the replacement keeps the sound ineligible`);
+    }
+    // The same feed untouched (A repeating throughout) is a loop: the regression is the stop and the replacement.
+    assert.equal(run([feeds.twoSounds]).verdict?.audio, 'repeats');
+});
+
 // T2, where the FOX Footy capture is at hand (PIGTV_LOOP_SAMPLE=<path to pos_1183.ts>): still a loop of 36.22 s.
 const sample = process.env.PIGTV_LOOP_SAMPLE;
 test('the FOX Footy capture is still a loop of 36.22 s, its sound repeating too', { skip: !(sample && fs.existsSync(sample)) && 'PIGTV_LOOP_SAMPLE is not set' }, () => {

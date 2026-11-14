@@ -42,6 +42,8 @@ const HEAD = 256;
 const STRIDE = 8;
 // Audio: the most of one PES assembled to be split into frames (a PES holds a few frames of ~0.2-4 kB).
 const MAX_AUDIO_UNIT = 64 * 1024;
+// The confirming sound must be arriving: its newest frame at most this far from the picture's, in media seconds.
+const FRESH_SEC = 1;
 // A PSI section is at most 1,024 bytes (ISO 13818-1: section_length up to 1,021).
 const MAX_SECTION = 1024;
 
@@ -351,6 +353,8 @@ class LoopDetector {
         this.codec = null;
         this.sawPmt = false;
         this.pmtPart = null;
+        this.acceptedPmt = null;   // the PMT in force, as accepted (whole, CRC intact)
+        this.pmtChanging = false;  // a different PMT is on its way and not yet accepted: the sound is ineligible
         this.pmtAudioPid = null; // the programme's sound, as its PMT declares it (Opus #324)
         this.video = new Track('video');
         this.sound = new Track('audio');
@@ -442,6 +446,8 @@ class LoopDetector {
                     this.pmtPid = pid;
                     this.pmtPart = null;
                     this.sawPmt = false;
+                    this.acceptedPmt = null;
+                    this.pmtChanging = false;
                     this.pmtAudioPid = null;
                     this.sound = new Track('audio');
                 }
@@ -486,9 +492,16 @@ class LoopDetector {
         if (!part || !bytes.length) return;
         part.bytes.push(Buffer.from(bytes));
         part.have += bytes.length;
-        if (part.have < 3) return;
         const head = Buffer.concat(part.bytes);
-        const need = 3 + (((head[1] & 0x0f) << 8) | head[2]);
+        const need = head.length >= 3 ? 3 + (((head[1] & 0x0f) << 8) | head[2]) : null;
+        // A section unlike the PMT in force (a new version, other bytes) makes the sound ineligible from its first bytes
+        // until a whole valid PMT is accepted (Codex sign-off of #324): a damaged or unfinished replacement never lets
+        // the old selection confirm a loop.
+        if (this.acceptedPmt) {
+            const upto = Math.min(head.length, need ?? head.length);
+            if ((need !== null && need !== this.acceptedPmt.length) || !head.subarray(0, upto).equals(this.acceptedPmt.subarray(0, upto))) this.pmtChanging = true;
+        }
+        if (need === null) { part.bytes = [head]; return; }
         if (need > MAX_SECTION) { this.pmtPart = null; return; }
         if (head.length < need) { part.bytes = [head]; return; }
         this.pmtPart = null;
@@ -521,6 +534,8 @@ class LoopDetector {
             else if (audio === null && isAudioEntry(sec, at, stop)) audio = pid;
         }
         this.sawPmt = true;
+        this.acceptedPmt = Buffer.from(sec);
+        this.pmtChanging = false;
         if (video) this.codec = video;
         this.pmtAudioPid = audio;
         // The sound followed is the PMT's: a stream taken before it (or before a PMT change) is dropped.
@@ -570,8 +585,9 @@ class LoopDetector {
         // Mark's decision (#324, after Codex's PMT findings): a loop needs its sound KNOWN - a PMT read whole and intact
         // that declares it, and its frames arriving. No sound in the programme, a PMT unread, damaged or changing, or a
         // declared sound that sends nothing: never a verdict. A looping feed without sound is not detected.
-        const known = this.sawPmt && this.pmtAudioPid !== null && a.pid === this.pmtAudioPid;
-        if (!known || !a.count || Math.abs(v.time - a.time) > 5) {
+        // ...and arriving now: its newest frame within FRESH_SEC of the picture's (stale frames never confirm).
+        const known = this.sawPmt && !this.pmtChanging && this.pmtAudioPid !== null && a.pid === this.pmtAudioPid;
+        if (!known || !a.count || Math.abs(v.time - a.time) > FRESH_SEC) {
             if (run >= need + tuning.confirmWithinSec) {
                 this.note(`video repeats every ${period.toFixed(1)} s but its sound is not known: not judged`);
                 return settle(false);

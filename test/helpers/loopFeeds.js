@@ -27,9 +27,9 @@ function makeFeeds(dir, { clipSec = 24, passes = 4 } = {}) {
     const total = clipSec * passes;
     const feeds = {
         clip: f('clip.ts'), loop: f('loop.ts'), live: f('live.ts'), slate: f('slate.ts'), slateLongGop: f('slate-long-gop.ts'),
-        loopLiveSound: f('loop-live-sound.ts'), loopSilent: f('loop-silent.ts'), clipVideo: f('clip-video.ts'), shifted: f('shifted.ts'), shifted2: f('shifted2.ts'), after4: f('after4.ts'), loopNoSound: f('loop-no-sound.ts'), twiceThenLive: f('twice-then-live.ts'), clipSec, total
+        loopLiveSound: f('loop-live-sound.ts'), loopSilent: f('loop-silent.ts'), clipVideo: f('clip-video.ts'), shifted: f('shifted.ts'), shifted2: f('shifted2.ts'), after4: f('after4.ts'), loopNoSound: f('loop-no-sound.ts'), twoSounds: f('two-sounds.ts'), twiceThenLive: f('twice-then-live.ts'), clipSec, total
     };
-    if ([feeds.twiceThenLive, feeds.after4, feeds.loopNoSound].every(x => fs.existsSync(x))) return feeds;
+    if ([feeds.twiceThenLive, feeds.after4, feeds.loopNoSound, feeds.twoSounds].every(x => fs.existsSync(x))) return feeds;
     ffmpeg([...moving(clipSec), ...noise(clipSec, 1), ...VIDEO, ...AUDIO, '-f', 'mpegts', feeds.clip]);
     ffmpeg(['-stream_loop', String(passes - 1), '-i', feeds.clip, '-c', 'copy', '-f', 'mpegts', feeds.loop]);
     // The clip again as its next pass would come: the same payloads, timestamps one period later.
@@ -56,6 +56,10 @@ function makeFeeds(dir, { clipSec = 24, passes = 4 } = {}) {
         '-f', 'mpegts', feeds.loopSilent]);
     // The clip's picture looped with no sound in the programme at all.
     ffmpeg(['-stream_loop', String(passes - 1), '-i', feeds.clipVideo, '-c', 'copy', '-f', 'mpegts', feeds.loopNoSound]);
+    // The looping picture with two sounds: the first (PID 0x101) the clip's own, repeating with it; the second (0x102) live.
+    ffmpeg(['-stream_loop', String(passes - 1), '-i', feeds.clipVideo, '-stream_loop', String(passes - 1), '-i', feeds.clip, ...noise(total, 6),
+        '-map', '0:v', '-map', '1:a', '-map', '2:a', '-c:v', 'copy', '-c:a:0', 'copy', '-c:a:1', 'aac', '-b:a:1', '64k', '-ar:a:1', '48000',
+        '-t', String(total), '-f', 'mpegts', feeds.twoSounds]);
     return feeds;
 }
 
