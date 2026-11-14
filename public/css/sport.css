@@ -340,6 +340,55 @@
   .sp .board .tm .r { font-size: 16px; }
 }
 
+/* ---------- events: golf, tennis, UFC, racing (SportEventsViews) ---------- */
+.sp .evhead { display: flex; align-items: center; gap: 16px; margin: 22px 0 16px; }
+.sp .evhead .gitem { flex: 0 0 272px; }
+.sp .evhead h3 { margin: 0; font-size: 21px; font-weight: 800; }
+.sp .evhead .sub { font-size: 14px; color: var(--color-text-secondary); }
+.sp .golf { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 28px; align-items: start; }
+.sp .golf.solo { grid-template-columns: minmax(0, 1fr); }
+.sp table.lb { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 15px; }
+.sp table.lb th { font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--color-text-secondary); text-align: right; padding: 0 8px 8px; text-transform: uppercase; white-space: nowrap; }
+.sp table.lb th.tl { text-align: left; }
+.sp table.lb td { height: 38px; padding: 0 8px; text-align: right; }
+.sp table.lb td.pos { text-align: left; color: var(--color-text-secondary); font-weight: 700; width: 50px; }
+.sp table.lb td.nm { text-align: left; font-weight: 600; width: 100%; }
+.sp table.lb td.tp { font-weight: 800; width: 80px; }
+.sp table.lb td.r { color: var(--color-text-secondary); width: 56px; }
+.sp table.lb tr.me td { background: color-mix(in srgb, var(--color-accent) 16%, transparent); }
+.sp table.lb tr.me td:first-child { border-radius: 10px 0 0 10px; }
+.sp table.lb tr.me td:last-child { border-radius: 0 10px 10px 0; }
+.sp .sidecol { display: flex; flex-direction: column; gap: 22px; }
+.sp .sidecol h4 { margin: 0 0 10px; font-size: 19px; font-weight: 800; }
+.sp .pcard { padding: 14px 16px; border-radius: 16px; background: var(--raised); box-shadow: inset 0 0 0 3px var(--color-accent); margin-bottom: 8px; }
+.sp .pcard .t { display: flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 800; }
+.sp .pcard .t .ps { margin-left: auto; font-size: 15px; color: var(--color-text-secondary); }
+.sp .pcard .t .tp { font-size: 20px; font-weight: 800; }
+.sp .pcard .rd { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; font-size: 13px; }
+.sp .pcard .rd .gap { margin-left: auto; font-weight: 700; }
+.sp .slim { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; min-height: 48px; padding: 6px 14px; border-radius: 14px; background: var(--raised); margin-bottom: 8px; }
+.sp .slim b { font-size: 14px; }
+.sp .slim .w { margin-left: auto; font-size: 13px; font-weight: 600; color: var(--color-text-secondary); }
+.sp .sets { display: inline-flex; gap: 10px; font-weight: 800; }
+.sp .trow.won .n { font-weight: 800; }
+.sp .fights { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 18px; }
+.sp .bout { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; padding: 10px 6px; border-top: 1px solid var(--color-border); }
+.sp .lcard .bout:first-of-type { border-top: 0; }
+.sp .bout .wc { grid-column: 1 / -1; font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--color-text-secondary); text-transform: uppercase; }
+.sp .bout .f { font-size: 15px; font-weight: 600; }
+.sp .bout .f .won { font-weight: 800; }
+.sp .bout .vs { color: var(--color-text-secondary); }
+.sp .bout .bl { font-size: 13px; color: var(--color-text-secondary); align-self: center; }
+.sp .bout.main .f { font-size: 17px; font-weight: 800; }
+.sp .entries { columns: 2; margin: 0; padding: 0 4px; list-style: none; font-size: 15px; }
+.sp .entries li { padding: 4px 0; break-inside: avoid; }
+@media (max-width: 1100px) { .sp .golf { grid-template-columns: minmax(0, 1fr); gap: 22px; } }
+@media (max-width: 768px) {
+  .sp .evhead { flex-direction: column; align-items: stretch; gap: 10px; margin-top: 4px; }
+  .sp .evhead .gitem { flex: none; }
+  .sp .entries { columns: 1; }
+}
+
 /* ---------- states: nothing followed (the pig), loading, the error ---------- */
 .sp .state-block.sp-empty { padding: 72px 24px 56px; background: none; border: 0; gap: 12px; }
 .sp .state-block.sp-empty .state-block-title { font-size: 26px; font-weight: 800; }

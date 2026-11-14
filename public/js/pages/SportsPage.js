@@ -192,7 +192,7 @@ class SportsPage {
     }
     leagueKey() {
         const kind = this.leagueKind(), { league } = this.route;
-        return kind === 'nfl' || kind === 'f1' || kind === 'cricket' ? kind : kind === 'league' ? `league:${league}` : null;
+        return kind === 'nfl' || kind === 'f1' || kind === 'cricket' ? kind : kind === 'league' || kind === 'events' ? `${kind}:${league}` : null;
     }
     /**
      * The route's league page (C-T or C-Q), asked with every refresh while it is shown (the server keeps ESPN's answer
@@ -208,7 +208,8 @@ class SportsPage {
         return lp.asking;
     }
     async askLeague(key, league, lp) {
-        const url = ['nfl', 'f1', 'cricket'].includes(key) ? `/sports/pages/${key}` : `/sports/pages/league/${encodeURIComponent(league)}`;
+        const url = ['nfl', 'f1', 'cricket'].includes(key) ? `/sports/pages/${key}`
+            : key.startsWith('events:') ? `/sports/pages/events?league=${encodeURIComponent(league)}` : `/sports/pages/league/${encodeURIComponent(league)}`;
         try {
             const answer = await API.request('GET', url);
             if (!answer || typeof answer !== 'object') throw new Error('Invalid league answer');
@@ -327,7 +328,7 @@ class SportsPage {
             // a league's own page: "‹ Football" and its name, then its rounds, games and standings
             const league = this.route.league, kind = this.leagueKind();
             // Formula 1 on a computer keeps the banner (mock 07): its back button is there, the h2 unseen
-            head = kind === 'f1' && !this.phone && !loading && !failed && this.featuresLoaded ? `<h2 class="visually-hidden">${V.e(V.label(league, this.labels))}</h2>`
+            head = (kind === 'f1' || kind === 'events') && !this.phone && !loading && !failed && this.featuresLoaded ? `<h2 class="visually-hidden">${V.e(V.label(league, this.labels))}</h2>`
                 : V.header({ title: V.label(league, this.labels), now, hide, back: sport });
             if (loading || !this.featuresLoaded) body = '<div class="sp-state" id="sp-state" data-state="loading"></div>';
             else if (failed) body = '<div class="sp-state" id="sp-state" data-state="error"></div>';
@@ -415,6 +416,11 @@ class SportsPage {
             case 'open-sport': return this.go(SportsPage.path(el.getAttribute('data-sport')));
             case 'open-league': return this.go(SportsPage.path(el.getAttribute('data-sport'), el.getAttribute('data-league')));
             case 'league': return this.chooseLeague(el);
+            case 'league-page': {
+                // an events page's banner list: another of the sport's leagues, in place
+                const { sport } = this.route, l = this.front && SportView.sportLeagues(sport, this.front)[Number(el.getAttribute('data-index'))];
+                return l ? this.openPath(SportsPage.path(sport, l.league), 'replace') : undefined;
+            }
             case 'round': return this.chooseFixture({ round: el.getAttribute('data-round') });
             case 'standings-view': return this.chooseFixture({ standingsView: el.getAttribute('data-view'), tableGroup: null });
             case 'table-group': return this.chooseFixture({ tableGroup: el.getAttribute('data-group') });
@@ -620,6 +626,6 @@ class SportsPage {
 }
 
 /** The league pages built so far (#323 steps 3-5); a league whose page is not here shows no "Rounds and standings ›". */
-SportsPage.PAGES = ['league', 'nfl', 'f1', 'cricket'];
+SportsPage.PAGES = ['league', 'nfl', 'f1', 'cricket', 'events'];
 
 if (typeof window !== 'undefined') window.SportsPage = SportsPage;
