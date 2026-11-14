@@ -19,7 +19,7 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
   Codex; lows filed as #313. Evidence: `docs/evidence/2026-11-14-apple1/`. Not uploaded to TestFlight (Mark away).
 - **Read-only checks after v0579 (14 Nov):** #237 and #247 closed on their figures; #273 partly read (no busy-period
   rate, no baseline); #29 needs the Status page's figures from Mark (admin sign-in). Production's container runs the
-  `:latest` image, not `:release` (D-45): to raise with Mark before the next server push.
+  `:latest` image, not `:release`: Mark chose to keep it (D-58), so a green server push reaches production at his next Force Update.
 - **The 10 Nov audit** was filed as batch issues #269–#280; each issue's first comment holds the detail and later
   comments Mark's decisions. Pushed: A (#269), I (#277), C (#271), B (#270), G (#275), K (#279), H (#276), L (#280),
   D (#272, with #281), E (#273), J (#278), F (#274). The audit's batches are all pushed.
@@ -95,7 +95,7 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
   - #288: how long a recording keeps trying when every provider is down. #304: should a single-provider stall show
     the provider as down. #307: the provider's host in three log lines. #232: Top Shelf, snapshot or live.
   - The Appdata Backup setting: don't stop PigTV, or move it from Sunday 04:00. #240. #266's rows.
-  - #295's colour point (brand kit). Production on `:latest` rather than `:release`: switch it back, or record why.
+  - #295's colour point (brand kit).
 - **Open investigation:** #3 (sound out of step on the iPad): the relay join measured clean; the device meter (#267)
   and the marker (#268) are filed, not built (Mark).
 - **Next:** the batches under Now, regrouped on 12 Nov after every open issue was read against 0577 and 218.

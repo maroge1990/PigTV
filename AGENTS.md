@@ -55,9 +55,9 @@ goes in its commit message, not the docs.
    D-52; web-only pushes skip 8 ffmpeg test files, D-50) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass**:
    watch it; if red, fix or `git revert` at once (`gh run view <id> --log-failed`). Docs-only pushes skip CI (D-38).
 5. Tell Mark what is committed, the build number, and numbered T5 steps ([`docs/TESTING.md`](docs/TESTING.md)) for
-   anything that needs the real feed or a device. Nothing is *Verified* until he reports back. CI's `:latest` is the rig's;
-   production follows `:release`, which moves only by `release.yml` and only on Mark's go-ahead each time (D-45,
-   [`docs/OPERATIONS.md`](docs/OPERATIONS.md) › Deployment).
+   anything that needs the real feed or a device. Nothing is *Verified* until he reports back. Production runs `:latest` by Mark's
+   choice (D-58), so a green push reaches it at his next Force Update; `release.yml` still tags `:release` on his go-ahead
+   (D-45, [`docs/OPERATIONS.md`](docs/OPERATIONS.md) › Deployment).
 
 ## Work in batches (D-35)
 

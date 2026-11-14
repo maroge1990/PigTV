@@ -630,3 +630,12 @@ reviews.
   fix: the stable-id, favourite and history backfills, and the favourite id clean-up.
 - **Consequence:** no upgrade straight from before 0476, and no restore of a backup older than 0476 without v0502 first;
   `services/dbMinimum.js`; [`OPERATIONS.md`](OPERATIONS.md) › Restore.
+
+### D-58. Production stays on `:latest` (14 Nov 2026; Mark)
+
+- **Context:** the 14 Nov read-only check found production's container on `ghcr.io/maroge1990/pigtv:latest`, not
+  `:release` as D-45 says; both pointed at 0579, so nothing had shipped unreleased yet.
+- **Choice:** Mark: keep `:latest`. Amends D-45: `release.yml` and `:release` stay (a named version to roll back to),
+  but production no longer waits for them.
+- **Consequence:** every green push to `main` reaches production at Mark's next Force Update, so a server push is
+  treated as a deploy: its T1–T3 checks and reviews pass first, and Mark is told what a Force Update would bring in.
