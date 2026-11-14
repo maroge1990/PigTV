@@ -450,6 +450,25 @@ test('the coordinator treats a standby as abandoned: a viewer and a recording ta
     assert.equal(coordinator._prompts.has(42), false);
 });
 
+test('#306: the reclaim log says "a shared feed with no viewer", never "Infinitys silent"', async () => {
+    assert.equal(coordinator.silentText(12400), '12s silent');
+    assert.equal(coordinator.silentText(Infinity), 'a shared feed with no viewer');
+    // A lingering shared ingest (nobody reads it) holds a connection and reports idleMs Infinity.
+    const ingest = load('services/ingest');
+    const realIdle = ingest.idleInPool, realClose = ingest.closeKey;
+    ingest.idleInPool = () => [{ id: 'x1', key: 'k-61', startedAt: Date.now(), providerId: null }];
+    ingest.closeKey = () => {};
+    const lines = [];
+    const log = console.log;
+    console.log = (...a) => { lines.push(a.join(' ')); };
+    try { await coordinator.requestForRecording({ id: 61, title: 'Feed' }, { maxProviderStreams: 1 }); }
+    finally { console.log = log; ingest.idleInPool = realIdle; ingest.closeKey = realClose; }
+    const line = lines.find(l => l.includes('Reclaiming'));
+    assert.ok(line, 'the reclaim is logged');
+    assert.ok(!/Infinity|NaN/.test(line), line);
+    assert.match(line, /\(a shared feed with no viewer\)/);
+});
+
 test('the session routes: a relay answers for its id, later legs\' names are allowed, DELETE ends it', () => {
     const route = fs.readFileSync(path.join(sandbox, 'server/routes/transcode.js'), 'utf8');
     assert.match(route, /return relay\.get\(sessionId\) \|\| transcodeSession\.getSession\(sessionId\);/);

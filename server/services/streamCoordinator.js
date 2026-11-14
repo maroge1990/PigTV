@@ -217,6 +217,8 @@ function activeStreams() {
 /** Abandoned: silent for the idle timeout, or a standby (0189) or a warm session (R12), which never have a viewer. */
 // #37: for a recording a paused play's stream is as good as abandoned (Mark: a recording that needs it takes it). A
 // shared ingest's group is, when every reader is paused or idle (recordIdleMs).
+/** #306: how long a reclaimed stream was silent, for the log; a shared ingest feed has no viewer, so no idle time. */
+const silentText = (idleMs) => (Number.isFinite(idleMs) ? `${Math.round(idleMs / 1000)}s silent` : 'a shared feed with no viewer');
 const recordIdle = (s) => (typeof s.recordIdleMs === 'number' ? s.recordIdleMs : s.paused === true ? Infinity : s.idleMs);
 const isStale = (s, cutoffMs) => s.standby === true || s.warm === true || recordIdle(s) >= cutoffMs;
 const idleText = (s) => (s.warm ? 'a warm session' : s.standby ? 'a standby' : `${Math.round(s.idleMs / 1000)}s idle`);
@@ -760,7 +762,7 @@ async function requestForRecording(schedule, settings = {}, providerId = undefin
         const verdict = leased({ allowed: true, reason: 'Reclaimed an abandoned stream' });
         const going = live.length === 0 ? stale : stale.slice().sort((a, b) => recordIdle(b) - recordIdle(a)).slice(0, needed);
         for (const s of going) {
-            console.log(`[Coordinator] Reclaiming ${s.paused ? 'paused' : 'idle'} stream ${s.id} (${Math.round(s.idleMs / 1000)}s silent) for recording #${schedule.id}`);
+            console.log(`[Coordinator] Reclaiming ${s.paused ? 'paused' : 'idle'} stream ${s.id} (${silentText(s.idleMs)}) for recording #${schedule.id}`);
             await releaseStream(s);
         }
         prompts.delete(schedule.id);
@@ -1089,6 +1091,7 @@ module.exports = {
     poolOf,
     activeStreams,
     releaseStream,
+    silentText,
     requestForRecording,
     requestForViewer,
     admitViewer,
