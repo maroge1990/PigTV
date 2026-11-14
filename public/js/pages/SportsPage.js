@@ -1021,8 +1021,13 @@ class SportsPage {
         let airings = (g.channels || []).map(c => ({ c, key: SportsPage.channelKey(c), ...this.airing(g, c) })).filter(a => a.end > now);
         if (!airings.length) airings = [{ c: ev.channel, key: SportsPage.channelKey(ev.channel), start: ev.start, end: ev.end }];
         const rec = SportsPage.recordingOf(g);
-        const st = { g, airings, index: Math.max(0, channel ? airings.findIndex(a => a.key === channel) : 0), what: 0, whats: rec ? [] : this.recordWhats(g),
-            pre: null, post: null, schedule: null, rec, loaded: !rec, gone: false, busy: false, error: null };
+        // Opus review of #327: the chosen channel is never switched silently: one whose airing has ended by now leaves
+        // the choice to the person
+        const index = channel ? airings.findIndex(a => a.key === channel) : 0;
+        const lost = index < 0 ? (g.channels || []).find(c => SportsPage.channelKey(c) === channel) : null;
+        const st = { g, airings, index, what: 0, whats: rec ? [] : this.recordWhats(g),
+            pre: null, post: null, schedule: null, rec, loaded: !rec, gone: false, busy: false,
+            error: lost && !rec ? `${lost.name} isn’t showing the game any more. Choose a channel to record on.` : null };
         const w = this.makeWindow({ kind: 'record', id, title: g.title, opener, label: `${rec ? 'Change recording of' : 'Record'} ${g.title}`,
             draw: () => this.recordMarkup(st), act: (name, el) => this.recordAct(name, el, st) });
         w.st = st;
@@ -1084,12 +1089,12 @@ class SportsPage {
     /** The record page's content (no score: title, league, times and channels only) and its buttons. */
     recordMarkup(st) {
         const V = SportView, e = V.e, P = SportsPage, now = this.now(), g = st.g, changing = !!st.rec;
-        const a = st.airings[st.index] || st.airings[0], leagueName = V.label(g.league, this.labels);
+        const chosen = st.airings[st.index] || null, a = chosen || st.airings[0], leagueName = V.label(g.league, this.labels);
         const status = changing ? (st.gone ? 'ENDED' : P.statusWord(st.schedule ? st.schedule.status : st.rec.status).toUpperCase()) : null;
         const kicker = [changing ? 'CHANGE RECORDING' : 'RECORD', status, leagueName ? String(leagueName).toUpperCase() : null].filter(Boolean).join(' · ');
         const two = Array.isArray(g.competitors) && g.competitors.length === 2;
         let html = `<div class="rhead">${two ? `<span class="rbadges" aria-hidden="true">${g.competitors.map(c => V.badge(c.name, c.logo, 40, g.league)).join('')}</span>` : ''}`
-            + `<span class="rht"><span class="rk">${e(kicker)}</span><span class="rmeta pig-amount">${e(`${P.day(a.start, now)} · ${P.range(a)} · ${a.c.name}`)}</span></span></div>`;
+            + `<span class="rht"><span class="rk">${e(kicker)}</span><span class="rmeta pig-amount">${e(`${P.day(a.start, now)} · ${P.range(a)}${chosen ? ` · ${chosen.c.name}` : ''}`)}</span></span></div>`;
         // What: this game, or a rule (not on Change recording: it is one schedule)
         if (st.whats.length) {
             html += '<h3 class="rsec" id="sp-rec-what">What</h3><div class="rwhat" role="radiogroup" aria-labelledby="sp-rec-what">';
@@ -1111,7 +1116,7 @@ class SportsPage {
         html += select('sp-rec-pre', 'Start early', P.chips(P.START_EARLY, st.schedule && st.schedule.pre_buffer_min, changing), st.pre, startLocked);
         html += select('sp-rec-post', 'Finish late', P.chips(P.FINISH_LATE, st.schedule && st.schedule.post_buffer_min, changing), st.post, endLocked);
         // Record on: when several channels carry it, each on its own airing
-        if (!changing && st.airings.length > 1) {
+        if (!changing && (st.airings.length > 1 || !chosen)) {
             html += `<div class="rsech"><h3 class="rsec" id="sp-rec-on">Record on</h3><span>${st.airings.length} channels in your guide carry it</span></div><div class="ron" role="radiogroup" aria-labelledby="sp-rec-on">`;
             const first = st.airings[0];
             st.airings.forEach((x, i) => {
@@ -1137,7 +1142,7 @@ class SportsPage {
         };
         const what = st.whats[st.what];
         const primary = changing ? 'Save changes' : what && what.kind !== 'this' ? 'Record every game' : 'Record game';
-        const off = st.busy || (changing && (!st.loaded || st.gone || !P.change(st)));
+        const off = st.busy || (changing && (!st.loaded || st.gone || !P.change(st))) || (!changing && !chosen && (!what || what.kind === 'this'));
         const footer = [button(changing ? 'Close' : 'Cancel', 'btn btn-secondary', 'r-close', st.busy)];
         if (changing) footer.push(button((st.schedule ? st.schedule.status : st.rec.status) === 'recording' ? 'Stop recording' : 'Cancel recording', 'btn btn-danger', 'r-cancel', st.busy || st.gone));
         footer.push(button(primary, 'btn btn-primary', 'r-save', off));
@@ -1147,7 +1152,7 @@ class SportsPage {
         const w = this.window;
         switch (name) {
             case 'r-what': st.what = Number(el.getAttribute('data-index')) || 0; return w?.redraw();
-            case 'r-on': st.index = Number(el.getAttribute('data-index')) || 0; return w?.redraw();
+            case 'r-on': st.index = Number(el.getAttribute('data-index')) || 0; st.error = null; return w?.redraw();
             case 'r-close': return this.closeWindow();
             case 'r-cancel': return this.cancelRecording(st);
             case 'r-save': return this.saveRecord(st, w);
@@ -1226,7 +1231,9 @@ class SportsPage {
             if (body) await failing('The recording could not be changed.', () => API.request('PUT', `/recordings/scheduled/${row.id}`, body));
             return body ? 'This game was already set to record, so your changes went to that recording.' : 'This game is already set to record.';
         }
-        const a = st.airings[st.index] || st.airings[0], c = a.c;
+        const a = st.airings[st.index];
+        if (!a) throw plain('Choose a channel to record on.');
+        const c = a.c;
         const made = await failing('The recording could not be scheduled.', () => API.recordings.schedule({ sourceId: Number(c.sourceId), channelItemId: c.id,
             channelName: c.name, title: g.title, programStart: a.start, programEnd: a.end, ...pad, ...(g.synthetic ? {} : { gameId: g.id }) }));
         const clash = Array.isArray(made?.conflictsWith) && made.conflictsWith.length;
