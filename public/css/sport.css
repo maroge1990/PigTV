@@ -194,7 +194,6 @@
   overflow: hidden; text-overflow: ellipsis; }
 .sp .row .l2 .lv { color: var(--live); font-weight: 700; }
 .sp .row .l2 .lv .dot { width: 7px; height: 7px; margin-right: 4px; vertical-align: 1px; }
-.sp .row .rmark { top: 14px; right: 12px; }
 
 /* ---------- a sport's page (SportPageView on a computer, SportPhonePage on a phone) ---------- */
 .sp .grp-h.plain { display: flex; }

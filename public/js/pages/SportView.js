@@ -622,13 +622,15 @@ const SportView = (() => {
             const title = g.competitors.map((c, i) => `${r.stars.includes(i) ? star() : ''}${e(c.name)}`).join(' v ');
             l1 = `${badge(g.competitors[0].name, g.competitors[0].logo, 22, g.league)}<span class="t">${title}</span>${badge(g.competitors[1].name, g.competitors[1].logo, 22, g.league)}`;
         } else {
-            l1 = `${leagueBadge(g.league)}<span class="t">${g.followed === true ? star() : ''}${e(g.session ? `${g.title}` : g.title)}</span>`;
+            // iOS: a session's row is titled by the session ("Race"); its event is read after it
+            l1 = `${leagueBadge(g.league)}<span class="t">${g.followed === true ? star() : ''}${e(g.session || g.title)}${g.session ? `<span class="visually-hidden">, ${e(g.title)}</span>` : ''}</span>`;
         }
         // iPhone: the short score; a screen reader hears the whole one
         if (r.score) l1 += r.short === r.score ? `<span class="sc pig-amount">${e(r.score)}</span>`
             : `<span class="sc pig-amount"><span aria-hidden="true">${e(r.short)}</span><span class="visually-hidden">${e(r.score)}</span></span>`;
         const l2 = [r.live ? `<span class="lv">${dot()}${e(r.live)}</span>` : '', r.sub ? `<span>${e(r.sub)}</span>` : ''].filter(Boolean).join('<span aria-hidden="true"> · </span>');
-        return `<button type="button" class="row" data-act="game" data-id="${e(g.id)}" data-key="row:${e(g.id)}"><span class="l1">${l1}</span><span class="l2 pig-amount">${l2}</span>${recordMark(g)}</button>`;
+        // iOS draws no record mark on a row (the menu says it)
+        return `<button type="button" class="row" data-act="game" data-id="${e(g.id)}" data-key="row:${e(g.id)}"><span class="l1">${l1}</span><span class="l2 pig-amount">${l2}</span></button>`;
     }
 
     /** A follow's carousel card (SportPhoneLayout.card): its game's card, or the follow with nothing in three days. */
@@ -689,7 +691,8 @@ const SportView = (() => {
         return `<div class="dots" aria-hidden="true">${Array.from({ length: n }, (_, i) => `<i${i === at ? ' class="on"' : ''}></i>`).join('')}<span>${e(word(at, count))}</span></div>`;
     }
 
-    const ROWS_PER_SPORT = 5;
+    /** iOS SportPhoneLayout.rowsPerSport: the rows a sport's card shows on the front page; its header opens the rest. */
+    const ROWS_PER_SPORT = 3;
     function frontPhone(ctx) {
         const { front, now, labels, links = false } = ctx;
         let html = '';
