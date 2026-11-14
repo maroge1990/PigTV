@@ -37,7 +37,7 @@ function makePlayer({ confirmAnswer = () => true, honourAbort = true } = {}) {
     const player = Object.create(context.window.VideoPlayer.prototype);
     Object.assign(player, {
         video: { canPlayType: () => '', pause() {}, load() {}, src: '' },
-        overlay: { classList: cls() }, controlsOverlay: { classList: cls() }, loadingSpinner: { classList: cls() },
+        overlay: { classList: cls(), querySelector: () => null }, controlsOverlay: { classList: cls() }, loadingSpinner: { classList: cls() },
         nowPlaying: { classList: cls() },
         settings: {},
         getCodecCapabilities: () => ({}),

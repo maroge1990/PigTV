@@ -874,9 +874,9 @@ class ChannelList {
     }
 
     /**
-     * Select and play a channel
+     * Select and play a channel (`play: false` only selects it and scrolls it into view: the Resume offer)
      */
-    async selectChannel(dataset) {
+    async selectChannel(dataset, { play = true } = {}) {
         const channel = this.findChannel(dataset.sourceId, dataset.channelId);
         if (!channel) return;
 
@@ -957,7 +957,7 @@ class ChannelList {
 
         // Play: the player asks the server to resolve this channel by its source and
         // bare id (POST /api/playback/resolve). The web never holds a stream URL.
-        if (window.app?.player) {
+        if (play && window.app?.player) {
             window.app.player.play(channel, null);
         }
     }

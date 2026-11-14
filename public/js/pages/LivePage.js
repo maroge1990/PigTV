@@ -73,6 +73,7 @@ class LivePage {
 
     async show() {
         document.addEventListener('keydown', this.handleKeydown);
+        if (this.app.player && this.app.player.updateTabTitle) this.app.player.updateTabTitle();
         this.app.channelList.setEpgRefreshActive(true);
 
         // Only reload if channels aren't already loaded
@@ -80,6 +81,8 @@ class LivePage {
             await this.app.channelList.loadSources();
             await this.app.channelList.loadChannels();
         }
+        // The channel last watched, selected and one click from playing (never played unasked).
+        if (this.app.player && this.app.player.offerResume) this.app.player.offerResume();
         // Now/next in the list (F7: loaded here, not at start-up), then a refresh check if one is due.
         try {
             const first = !this.app.epgGuide.loaded;

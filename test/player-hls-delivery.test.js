@@ -47,7 +47,7 @@ function makePlayer({ stored = {}, storageThrows = false } = {}) {
         getCodecCapabilities: () => ({ hevc: false }),
         getHlsConfig: () => ({}),
         loadingSpinner: null,
-        overlay: { classList: { add() {}, remove() {} } },
+        overlay: { classList: { add() {}, remove() {} }, querySelector: () => null },
         controlsOverlay: null,
         nowPlaying: { classList: { add() {}, remove() {} } },
         stopTranscodeSession() {}

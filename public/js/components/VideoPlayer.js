@@ -673,6 +673,8 @@ class VideoPlayer {
         // Keyboard controls
         document.addEventListener('keydown', (e) => this.handleKeyboard(e));
 
+        this.initMediaSessionHandlers();
+
         // Click on video shows overlay
         this.video.addEventListener('click', () => this.showNowPlayingOverlay());
     }
@@ -950,6 +952,10 @@ class VideoPlayer {
             });
         }
 
+        this._playing = true;
+        this._resumeChannel = null;
+        this.rememberChannel(channel);
+        this.updateTabTitle();
         this.updateNowPlaying(channel);
         this.showNowPlayingOverlay();
         this.fetchEpgData(channel);
@@ -1525,7 +1531,11 @@ class VideoPlayer {
         this.video.load();
 
         // Reset UI to idle state
-        this.overlay.classList.remove('hidden'); // Show "Select a channel"
+        this._playing = false;
+        this.updateTabTitle();
+        this.updateMediaSession(null);
+        this.renderIdleOverlay(); // "Select a channel", or the one-click Resume
+        this.overlay.classList.remove('hidden');
         this.controlsOverlay?.classList.add('hidden'); // Hide controls
         this.loadingSpinner?.classList.remove('show');
         this.nowPlaying.classList.add('hidden');
@@ -1568,6 +1578,123 @@ class VideoPlayer {
                 upNextList.appendChild(li);
             });
         }
+        this.updateMediaSession(channel, epgData);
+    }
+
+    // ---- #320: remember the last channel, the tab title, Media Session ----
+
+    /** Where this browser keeps the last channel: per signed-in user, so two people on one browser do not share it. */
+    lastChannelKey() {
+        const user = window.app && window.app.currentUser;
+        const who = user && (user.id ?? user.username);
+        return who === undefined || who === null ? null : `pigtv_last_channel:${who}`;
+    }
+
+    rememberChannel(channel) {
+        const key = this.lastChannelKey();
+        if (!key || !channel) return;
+        try {
+            localStorage.setItem(key, JSON.stringify({ sourceId: channel.sourceId, id: channel.id }));
+        } catch (err) { /* storage may be blocked: the channel is simply not remembered */ }
+    }
+
+    recallChannel() {
+        const key = this.lastChannelKey();
+        if (!key) return null;
+        try {
+            const saved = JSON.parse(localStorage.getItem(key));
+            return saved && saved.id !== undefined && saved.sourceId !== undefined ? saved : null;
+        } catch (err) { return null; }
+    }
+
+    /**
+     * Live TV opened with nothing playing: select the channel last watched (scrolled into view, not played) and offer a
+     * one-click Resume. Never plays by itself: that would open a provider connection nobody asked for.
+     */
+    offerResume() {
+        if (this._playing) return;
+        const saved = this.recallChannel();
+        const list = window.app && window.app.channelList;
+        const channel = saved && list && list.findChannel(saved.sourceId, saved.id);
+        if (!channel) return;
+        this.offerResumeFor(channel);
+        list.selectChannel({ channelId: channel.id, sourceId: channel.sourceId }, { play: false });
+    }
+
+    offerResumeFor(channel) {
+        this._resumeChannel = channel;
+        this.renderIdleOverlay();
+    }
+
+    /** What the player area says while nothing plays. */
+    renderIdleOverlay() {
+        const content = this.overlay && this.overlay.querySelector('.overlay-content');
+        if (!content) return;
+        const p = document.createElement('p');
+        const channel = this._resumeChannel;
+        if (!channel) {
+            p.textContent = 'Select a channel to start watching';
+            content.replaceChildren();
+            content.appendChild(p);
+            return;
+        }
+        p.textContent = `Last watched: ${channel.name || channel.tvgName || 'Unknown channel'}`;
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'btn btn-primary player-resume-btn';
+        button.textContent = 'Resume';
+        button.setAttribute('aria-label', `Resume ${channel.name || channel.tvgName || 'the last channel'}`);
+        button.addEventListener('click', () => this.resume());
+        content.replaceChildren();
+        content.appendChild(p);
+        content.appendChild(button);
+    }
+
+    resume() {
+        const channel = this._resumeChannel;
+        this._resumeChannel = null;
+        if (!channel) return;
+        const list = window.app && window.app.channelList;
+        if (list) list.selectChannel({ channelId: channel.id, sourceId: channel.sourceId });
+        else this.play(channel, null);
+    }
+
+    /** The tab says what is playing ("Seven News · PigTV") while Live TV shows; every other page names itself. */
+    updateTabTitle() {
+        const app = window.app;
+        if (this._playing && this.currentChannel && (!app || app.currentPage === 'live')) {
+            document.title = `${this.currentChannel.name || this.currentChannel.tvgName || 'Live TV'} \u00b7 PigTV`;
+        } else if (app && typeof app.titleFor === 'function') {
+            const page = app.pages && app.pages[app.currentPage];
+            document.title = app.titleFor(app.currentPage, page && page.currentPath ? page.currentPath() : undefined);
+        }
+    }
+
+    initMediaSessionHandlers() {
+        if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+        const set = (action, fn) => { try { navigator.mediaSession.setActionHandler(action, fn); } catch (err) { /* this browser lacks the action */ } };
+        set('play', () => { this.video.play().catch(() => { }); });
+        set('pause', () => { this.video.pause(); });
+        set('previoustrack', () => this.channelUp());
+        set('nexttrack', () => this.channelDown());
+    }
+
+    /** OS media keys and the lock-screen card: the programme (else the channel) as title, the channel as artist. */
+    updateMediaSession(channel, epgData = null) {
+        if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+        try {
+            if (!channel || !this._playing) {
+                navigator.mediaSession.metadata = null;
+                return;
+            }
+            const name = channel.name || channel.tvgName || 'Live TV';
+            const programme = epgData && epgData.current && epgData.current.title;
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: programme || name,
+                artist: name,
+                ...(channel.tvgLogo ? { artwork: [{ src: channel.tvgLogo }] } : {})
+            });
+        } catch (err) { /* a lock-screen card is never worth an error */ }
     }
 
     /**
