@@ -5,11 +5,16 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 14 Nov 2026 (batch Server 1, server 0580 to 0595).*
+*Overwritten at the end of every session. 14 Nov 2026 (batches Server 1 and Server 2, server 0580 to 0601).*
 
 - **Released:** server **v0579** (`:release`, 13 Nov; v0577 the day before) and Apple **218** uploaded to TestFlight
-  (tvOS and iOS, 12 Nov). A release runs on Mark's go-ahead (D-45). Next builds: server **0596**, Apple **240**. Apple 239 is pushed, not uploaded. Production runs `:latest` (D-58), so
-  Server 1 reaches it at Mark's next Force Update.
+  (tvOS and iOS, 12 Nov). A release runs on Mark's go-ahead (D-45). Next builds: server **0602**, Apple **240**. Apple 239 is pushed, not uploaded. Production runs `:latest` (D-58), so
+  Server 1 and 2 reach it at Mark's next Force Update.
+- **14 Nov, batch Server 2 pushed, server 0596 to 0601 (Status and sign-in):** Status names each session's and
+  recording's provider again (#299, broken since 0175); deleting a user removes their paired devices (#300); log lines
+  name the provider, not its host (#307, Mark's pick; a failed probe logs a class of failure); Status shows "Warming: N
+  channels ready" (#61, Mark's pick). Codex: 2 mediums, fixed (0600, 0601) and signed off. Rig: all four seen, with
+  before/after screenshots. Evidence: `docs/evidence/2026-11-14-server2/`. Filed: #315 (other lines that can print a host).
 - **14 Nov, batch Server 1 pushed, server 0580 to 0595 (recording follow-ups):** with every provider down a recording
   keeps trying every provider in turn until its end, every 15 s and after 10 minutes once a minute (#288, D-59); a stall
   on a channel's only provider stays out of its breaker, refused connections still count (#304, D-60); the gap note
@@ -101,7 +106,7 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
   to 0.08 s after; the rig agrees. Left as #309: three edge cases from Codex's sign-off (Mark: ship and file) and
   high-bitrate feeds keeping the old join. Evidence: `docs/evidence/2026-11-13-avsync-join/`.
 - **Decisions waiting on Mark** (device passes are listed under Waiting on Mark below):
-  - #307: the provider's host in three log lines. #232: Top Shelf, snapshot or live.
+  - #232: Top Shelf, snapshot or live.
   - The Appdata Backup setting: don't stop PigTV, or move it from Sunday 04:00. #240. #266's rows.
   - #295's colour point (brand kit).
 - **Open investigation:** #3 (sound out of step on the iPad): the relay join measured clean; the device meter (#267)
@@ -113,27 +118,25 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 Batches regrouped on 12 Nov 2026 after the audit (every open issue read against server 0577 and Apple 218). Each is one
 theme and one review round. Order within a section is the order to take them.
 
-1. **Server 2, Status and sign-in:** #299 provider names · #300 device rows of a deleted user · #61's warming line ·
-   #307 once Mark has answered. Codex (sign-in code).
-2. **Apple 2, iPadOS and iOS 17+ (#262):** seven sites need fallbacks, not three; redo the 17.0 trial build.
+1. **Apple 2, iPadOS and iOS 17+ (#262):** seven sites need fallbacks, not three; redo the 17.0 trial build.
 
 ## Next
 
-3. **Server 3, the rest of the share:** #289 (segment copies, the owners' sweep, the route's access checks, ad
+2. **Server 3, the rest of the share:** #289 (segment copies, the owners' sweep, the route's access checks, ad
    detection) · #290 items 1 and 2. Full review rule.
-4. **Server 4, key-frame join edge cases (#309, full review rule):** the fallback's byte budget, the video PID from
+3. **Server 4, key-frame join edge cases (#309, full review rule):** the fallback's byte budget, the video PID from
    complete PMTs, duplicate table packets, high-bitrate feeds.
-5. **Sport 1, matching:** #296 (a listing with no English name), with what #231 left. Full review rule.
-6. **Sport 2, one source for the sport pages:** #297 · #282 · #29's re-measure; then #291 (after a read of production's
+4. **Sport 1, matching:** #296 (a listing with no English name), with what #231 left. Full review rule.
+5. **Sport 2, one source for the sport pages:** #297 · #282 · #29's re-measure; then #291 (after a read of production's
    settings; its item 2 is partly wrong, see the issue).
-7. **Sport 3, pickers:** #265 step 2 · #266 (server and Apple), once Mark confirms the rows.
-8. **Web 1:** #62 play errors · #63 first run without a Home page · #64 Settings.js and sign-out · #292 · #295.
+6. **Sport 3, pickers:** #265 step 2 · #266 (server and Apple), once Mark confirms the rows.
+7. **Web 1:** #62 play errors · #63 first run without a Home page · #64 Settings.js and sign-out · #292 · #295.
 
 ## Later (each needs a capture, a real provider, a device or a design choice first)
 
 - **A/V sync:** #267 meter · #268 marker, then #3 and #27. **Relay and recovery (released alone, D-25):** #4 · #41's
   transition table and invariant test · #74 · #30. **Start speed:** #240 · #36 · #38.
-- **Operations:** #43 · #44 · #45 · #28. **Recording text:** #314. **Tests:** #26, and the stored replay for #22 to #24 re-run after 0551.
+- **Operations:** #43 · #44 · #45 · #28. **Recording text:** #314. **Logs:** #315. **Tests:** #26, and the stored replay for #22 to #24 re-run after 0551.
 - **Apple launch and tests:** #54 · #55 · #53 · #283 · #313 (Apple 1's review lows). **Apple structure:** #50 · #51.
 - **Apple player:** #25 · #35 · #58 · #308 (Start over from live) · #101. **Apple, design first:** #56 · #57 · #232.
   **Brand kit:** #294.

@@ -1,0 +1,17 @@
+T3 rig run, 14 Nov 2026, fake providers only (Fake A/B), staging only. Times AEDT ~14:00-14:06.
+BEFORE 0595 (1e17957): /api/status sessions[0].provider = null; Status 'Playing now' row 'UK| BBC ONE HD' with no provider name (status-before.png).
+  before's session-start log: Starting session for: http://<host:port>/live/***/***/1016.ts (host and port shown)
+AFTER 0601 (dc4600a): sessions[0].provider = "Fake A"; row reads 'UK| BBC ONE HD (Fake A)' (status-after.png).
+Warming: warmNextChannel false -> true; POST /api/playback/warm -> 200 {warm:true,ttlSec:90,refreshed:false}; /api/status warming {enabled:true,active:1}; Status shows 'Warming: 1 channel ready' (warming-after.png). Setting put back to false (read back false).
+AFTER log lines (staging, no host/IP/port):
+[Sync] Fetching the guide for provider "Fake A"
+[TranscodeSession eb01d09e2a0c4d89] Starting session for provider "Fake A"
+[TranscodeSession 65c0483900d5515b] Starting session for provider "Fake A"
+[TranscodeSession c66921b5ba72119d] Starting session for "AU| ABC NEWS HD" on provider "Fake A"
+[Warm] c66921b5ba72119d is warm on Fake A for 90s
+[Sync] Fetching the guide for provider "Fake A"
+[Devices] Paired "throwaway device" (test) for zz-throwaway-300
+Failed-probe line (#307/0600): not triggered (no probe failure on the fakes).
+#300: throwaway viewer 'zz-throwaway-300' (id 12) created; device paired via /api/devices/pair/{start,approve,poll}: GET /api/devices -> 1 device; device token GET /api/devices -> 200.
+  DELETE /api/auth/users/12 -> 200; device token afterwards -> 401; user token -> 401; users left: rig-admin; devices table rows for user_id 12: 0.
+Screenshots are page viewport only (no address bar).
