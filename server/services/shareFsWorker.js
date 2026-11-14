@@ -17,15 +17,21 @@ const STALL_AFTER = Number(process.env.PIGTV_TEST_SHARE_STALL_AFTER) || 0;
 const SLOW_CHUNK_MS = Number(process.env.PIGTV_TEST_SHARE_SLOW_CHUNK_MS) || 0;
 
 // #290: a probe killed on a stalled share can still create its file later, and nothing removes it. After a probe that
-// worked, the folder's earlier ones (not this one, and older than a minute, so one still being written is left) go.
+// worked, the folder's earlier ones (not this one, and a minute or more older, so one still being written is left) go.
+// Their age is the time in their names (".pigtv-write-test-<pid>-<ms>", this server's clock) against this probe's own,
+// never the share's file times (a NAS clock that is behind would make a fresh probe look old); one listing, no stat.
 const STALE_PROBE_MS = 60 * 1000;
+const PROBE_NAME = /^\.pigtv-write-test-\d+-(\d+)$/;
 function removeStaleProbes(dir, own) {
+    const mine = PROBE_NAME.exec(path.basename(own));
+    if (!mine) return;
+    const at = Number(mine[1]);
     try {
         for (const name of fs.readdirSync(dir)) {
-            if (!name.startsWith('.pigtv-write-test-')) continue;
-            const old = path.join(dir, name);
-            if (old === own) continue;
-            try { if (Date.now() - fs.statSync(old).mtimeMs > STALE_PROBE_MS) fs.unlinkSync(old); } catch (e) { /* best effort */ }
+            const probe = PROBE_NAME.exec(name);
+            if (!probe || name === path.basename(own)) continue;
+            if (at - Number(probe[1]) < STALE_PROBE_MS) continue;
+            try { fs.unlinkSync(path.join(dir, name)); } catch (e) { /* best effort */ }
         }
     } catch (e) { /* best effort */ }
 }

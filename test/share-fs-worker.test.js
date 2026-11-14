@@ -9,17 +9,41 @@ const { run } = require('../server/services/shareFsWorker');
 test('#290: a successful write probe removes stale probe files, and keeps a fresh one and any other file', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pigtv-probe-'));
     try {
-        const stale = path.join(dir, '.pigtv-write-test-111-1700000000000');
-        const fresh = path.join(dir, '.pigtv-write-test-222-1700000000001');
+        const now = Date.now();
+        const stale = path.join(dir, `.pigtv-write-test-111-${now - 5 * 60 * 1000}`);
+        const fresh = path.join(dir, `.pigtv-write-test-222-${now}`);
         const other = path.join(dir, 'Recording.mp4');
-        for (const f of [stale, fresh, other]) fs.writeFileSync(f, '');
-        const old = new Date(Date.now() - 5 * 60 * 1000);
-        fs.utimesSync(stale, old, old);
+        const oddName = path.join(dir, '.pigtv-write-test-notes');
+        for (const f of [stale, fresh, other, oddName]) fs.writeFileSync(f, '');
         assert.equal(run('writeProbe', dir), true);
         assert.equal(fs.existsSync(stale), false, 'the stale probe is gone');
         assert.equal(fs.existsSync(fresh), true, 'one under a minute old may still be in flight');
         assert.equal(fs.existsSync(other), true, 'no other file is touched');
-        assert.deepEqual(fs.readdirSync(dir).filter(n => n.startsWith('.pigtv-write-test-') && n !== path.basename(fresh)), [], 'and its own is removed');
+        assert.equal(fs.existsSync(oddName), true, 'nor a name that is not a probe\'s');
+        assert.deepEqual(fs.readdirSync(dir).filter(n => n.startsWith('.pigtv-write-test-') && ![fresh, oddName].map(f => path.basename(f)).includes(n)), [], 'and its own is removed');
+    } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+// Opus review of Server 3: a probe's age is the time in its name (this server's clock), not the share's file time.
+test('#290: a NAS clock behind or ahead never decides which probe is stale', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pigtv-probe-'));
+    try {
+        const now = Date.now();
+        // Made a moment ago by another server's probe, on a NAS whose clock is ten minutes behind.
+        const fresh = path.join(dir, `.pigtv-write-test-333-${now - 1000}`);
+        // Left by a probe five minutes ago, its file time set by a NAS whose clock is ahead.
+        const stale = path.join(dir, `.pigtv-write-test-444-${now - 5 * 60 * 1000}`);
+        fs.writeFileSync(fresh, '');
+        fs.writeFileSync(stale, '');
+        const behind = new Date(now - 10 * 60 * 1000);
+        const ahead = new Date(now + 10 * 60 * 1000);
+        fs.utimesSync(fresh, behind, behind);
+        fs.utimesSync(stale, ahead, ahead);
+        assert.equal(run('writeProbe', dir), true);
+        assert.equal(fs.existsSync(fresh), true, 'a fresh probe stays, whatever its file time');
+        assert.equal(fs.existsSync(stale), false, 'a stale one goes, whatever its file time');
     } finally {
         fs.rmSync(dir, { recursive: true, force: true });
     }
