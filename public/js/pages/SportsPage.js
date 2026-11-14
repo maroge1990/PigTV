@@ -1034,6 +1034,19 @@ class SportsPage {
         }
         if (this.window === w) w.redraw();
     }
+    /**
+     * The game's active schedule in `GET /recordings/scheduled` rows: the one C-R names for it now, else one on any of its
+     * channels (its identity) whose times overlap that channel's airing of the game. Rows do not carry the game's id.
+     */
+    scheduleOf(g, rows) {
+        const active = (r) => r && ['scheduled', 'waiting', 'recording'].includes(r.status);
+        const named = SportsPage.recordingOf(this.game(g.id) || g);
+        const byId = named && rows.find(r => active(r) && r.id === named.id);
+        if (byId) return byId;
+        const airings = (g.channels || []).map(c => ({ keys: [SportsPage.channelKey(c), `${c.sourceId}:${c.id}`], ...this.airing(g, c) }));
+        return rows.find(r => active(r) && airings.some(a => (a.keys.includes(`${r.source_id}:${r.channel_stable_id || r.channel_item_id}`) || a.keys.includes(`${r.source_id}:${r.channel_item_id}`))
+            && r.program_start < a.end && r.program_end > a.start)) || null;
+    }
     /** What Save changes sends (RecordPlan.change): only what changed, Start early not once it records; null when nothing has. */
     static change(st) {
         const row = st.schedule;
@@ -1150,15 +1163,29 @@ class SportsPage {
                     await API.recordings.addRule({ kind: 'sport', match: what.league, ...pad });
                     toast = `Recording every ${SportView.label(what.league, this.labels)} game.`;
                 } else {
-                    const a = st.airings[st.index] || st.airings[0], c = a.c;
-                    const made = await API.recordings.schedule({ sourceId: Number(c.sourceId), channelItemId: c.id, channelName: c.name, title: g.title,
-                        programStart: a.start, programEnd: a.end, ...pad, ...(g.synthetic ? {} : { gameId: g.id }) });
-                    const clash = Array.isArray(made?.conflictsWith) && made.conflictsWith.length;
-                    toast = clash ? `Set to record on ${c.name}. It clashes with ${made.conflictsWith.map(x => x.title || x).join(', ')}.` : `Set to record on ${c.name}: ${g.title}.`;
+                    // Codex #327 (high): set to record meanwhile (another tab, person or rule)? Then the person's padding goes
+                    // to that recording (0662: never a second schedule); a list that cannot be read records nothing.
+                    failText = SportsPage.UNCHECKED;
+                    const rows = await API.request('GET', '/recordings/scheduled');
+                    const row = this.scheduleOf(st.g, Array.isArray(rows) ? rows : []);
+                    if (row) {
+                        failText = 'The recording could not be changed.';
+                        const body = SportsPage.change({ schedule: row, pre: st.pre, post: st.post });
+                        if (body) await API.request('PUT', `/recordings/scheduled/${row.id}`, body);
+                        toast = body ? 'This game was already set to record, so your changes went to that recording.' : 'This game is already set to record.';
+                    } else {
+                        failText = 'The recording could not be scheduled.';
+                        const a = st.airings[st.index] || st.airings[0], c = a.c;
+                        const made = await API.recordings.schedule({ sourceId: Number(c.sourceId), channelItemId: c.id, channelName: c.name, title: g.title,
+                            programStart: a.start, programEnd: a.end, ...pad, ...(g.synthetic ? {} : { gameId: g.id }) });
+                        const clash = Array.isArray(made?.conflictsWith) && made.conflictsWith.length;
+                        toast = clash ? `Set to record on ${c.name}. It clashes with ${made.conflictsWith.map(x => x.title || x).join(', ')}.` : `Set to record on ${c.name}: ${g.title}.`;
+                    }
                 }
             }
         } catch (err) {
-            st.error = UI.errorText(err, failText);
+            // a list that could not be read says so in plain words (the server's own error text is for the others)
+            st.error = failText === SportsPage.UNCHECKED ? failText : UI.errorText(err, failText);
         }
         st.busy = false;
         if (toast) {
@@ -1172,6 +1199,7 @@ class SportsPage {
 /** RecordPlan's Start early and Finish late, in minutes; null is the server's usual padding. */
 SportsPage.START_EARLY = [null, 0, 1, 2, 5, 10];
 SportsPage.FINISH_LATE = [null, 0, 2, 5, 10, 15, 30];
+SportsPage.UNCHECKED = 'PigTV couldn’t check whether this game is already set to record, so nothing was recorded. Try again.';
 SportsPage.GONE = 'This recording has finished or no longer exists, so it cannot be changed.';
 
 /** The league pages built so far (#323 steps 3-5); a league whose page is not here shows no "Rounds and standings ›". */
