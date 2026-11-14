@@ -167,9 +167,12 @@ function detectLeague(text) {
 
 const PLACEHOLDER_RE = words(['no events?', 'no games?', 'off air', 'event ends', 'events? ended', 'coming up', 'stay tuned',
     'no stream(?:ing)?', 'channel guide', '24 7']);
-const HIGHLIGHTS_RE = words(['highlights?', 'hls', 'bitesize', 'plays of']);
+// Opus review of #296: other languages' words too (French, Spanish, Portuguese), with and without their accents.
+const HIGHLIGHTS_RE = words(['highlights?', 'hls', 'bitesize', 'plays of', 'faits saillants', 'r[eé]sum[eé]', 'resumen',
+    'melhores momentos']);
 const REPLAY_RE = words(['replays?', 're ?airs?', 're ?airing', 'classics?', 'throwback', 'playback', 'mini', 'condensed',
-    'rerun', 'repeat', 'encore', 'full game', 'full match', 'full race', 'rewind']);
+    'rerun', 'repeat', 'encore', 'full game', 'full match', 'full race', 'rewind', 'rediffusion', 'en diff[eé]r[eé]', 'reprise',
+    'repetici[oó]n']);
 const SHOW_RE = words(['world series in [0-9]+', 'tonight', 'daily', 'report', 'blitz', 'gameday', 'game ?day', 'films?', 'presents', 'network',
     'fantasy', 'total access', 'pro', '360', 'bounce', 'action', 'today', 'documentar[a-z]*', 'draft', 'plays of', 'explained',
     'academy', 'notebook', 'pre ?game', 'post ?game', 'pre ?show', 'post ?show', 'pre ?race', 'post ?race', 'pre qualifying',

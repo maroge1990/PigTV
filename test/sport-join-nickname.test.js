@@ -126,6 +126,26 @@ test('#296: a "Record every game" rule finds a channel for its team\'s game list
     assert.deepEqual(found.map(c => [c.gameId, c.channelId]), [[game.id, 'pos_4']]);
 });
 
+// Opus review of #296: a replay or highlights in another language ("Rediffusion", "Faits saillants") is not the game;
+// English titles are read as before.
+test('#296 review: replays and highlights named in French, Spanish or Portuguese never join; English is unchanged', () => {
+    const classify = require('../server/services/sportsClassify');
+    const { page: g, game } = pairs[0];
+    const own = (title) => matchBroadcasts(catalog, [event(title, g, 0)]).get(game.id).length;
+    assert.equal(own(french(g)), 1);
+    for (const word of ['Rediffusion', 'En différé', 'En differe', 'Reprise', 'Repetición', 'Repeticion', 'Faits saillants', 'Résumé',
+        'Resume', 'Resumen', 'Melhores momentos']) {
+        const title = `${word} : ${french(g)}`;
+        assert.equal(own(title), 0, title);
+        assert.notEqual(classify.classifyKind({ title }).kind, 'event', title);
+    }
+    const a = teams.get(g.away.abbr), h = teams.get(g.home.abbr);
+    assert.equal(classify.classifyKind({ title: `${a.full} at ${h.full}` }).kind, 'event');
+    assert.equal(classify.classifyKind({ title: `${a.full} at ${h.full} (Replay)` }).kind, 'replay');
+    assert.equal(classify.classifyKind({ title: `${a.name} v ${h.name} Highlights` }).kind, 'show');
+    assert.equal(classify.classifyKind({ title: `NFL: ${a.name} v ${h.name} - Play Resumes` }).kind, 'event', 'not "resume"');
+});
+
 // Codex review of #296 (high): a team rule joins only its own team's games, a recording's link only the games near it; the
 // nickname join must still see the rest of the league's catalogue, or a title naming another game's teams (or a name two
 // clubs share) joins the part it was given.
