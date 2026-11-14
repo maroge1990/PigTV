@@ -1377,12 +1377,16 @@ async function continuePart(scheduleId, now = Date.now()) {
             // R3: the same recording, a new epoch.
             const rec = recordingsDb.getById(cont.resume.recordingId);
             if (!rec || rec.segment_state !== 'capturing') { continuations.delete(scheduleId); finishSchedule(scheduleId); return; }
-            noteSegmentGap(rec.id, Date.now() - cont.lostAt, cont.resume.why || 'the provider dropped out');
-            if (route.candidates[index].providerId !== rec.provider_id) recordingsDb.setProvider(rec.id, route.candidates[index].providerId ?? null);
-            console.log(`[Recordings] #${rec.id} continues after ${Math.round((Date.now() - cont.lostAt) / 1000)}s` +
-                (route.multi ? ` on ${route.candidates[index].providerName}` : ''));
             const feed = await feedFor(settings, route.candidates[index]); // Wave 5
             if (!ours()) return abandonStart(schedule, feed);
+            // #302 (Codex round 1): the gap ends when the next part is spawned, after the feed is awaited (a shared
+            // ingest's subscribe can spend ~10 s timing out): that wait is missing too, and the next part's gap counts
+            // from its spawn, so the gaps touch.
+            const gapMs = Date.now() - cont.lostAt;
+            noteSegmentGap(rec.id, gapMs, cont.resume.why || 'the provider dropped out');
+            if (route.candidates[index].providerId !== rec.provider_id) recordingsDb.setProvider(rec.id, route.candidates[index].providerId ?? null);
+            console.log(`[Recordings] #${rec.id} continues after ${Math.round(gapMs / 1000)}s` +
+                (route.multi ? ` on ${route.candidates[index].providerName}` : ''));
             continuations.delete(scheduleId);
             spawnSegment(schedule, settings, { recordingId: rec.id, workDir: rec.work_dir, route, index, resumes: cont.resume.resumes, shortRun: cont.resume.shortRun, feed });
             return;

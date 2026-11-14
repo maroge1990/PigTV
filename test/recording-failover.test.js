@@ -293,6 +293,35 @@ test('#302: a chain of parts, one that never grew among them, adds up to the tim
     assert.ok(Math.abs(gap.total - missingS) <= 1.5, `the note says ${gap.total} s; ${missingS.toFixed(1)} s were missing`);
 });
 
+// #302 (Codex round 1): the gap was noted before the next part's feed was awaited, and a shared ingest's subscribe can
+// spend ~10 s timing out; the next part's own gap starts at its spawn, so that wait fell between the two gaps.
+test('#302: the time spent waiting for a shared feed before the next part is counted in the gap', async () => {
+    tuning.endGraceMs = 0;
+    tuning.stallMs = 1500;
+    tuning.stallCheckMs = 100;
+    setBehaviour(url.A(101), 'stall');
+    const ingest = load('services/ingest');
+    const real = { enabled: ingest.enabled, subscribe: ingest.subscribe };
+    try {
+        const s = due();
+        await until(() => captures().length === 1 && activeFor(s.id), 'recording on Strong8K');
+        // From here the shared ingest is on, and its subscribe waits 3 s and then fails (a timed-out connection): the
+        // part goes on without it, on its own connection, as feedFor's refusal path does.
+        ingest.enabled = () => true;
+        ingest.subscribe = async () => { await sleep(3000); throw new Error('timed out waiting for the stream'); };
+        await until(() => captures().length === 2 && activeFor(s.id), 'continued on Trex', 15000);
+        const [rec] = rowsOf(s.id);
+        await until(() => fs.existsSync(path.join(rec.work_dir, 'e2', 'a000000.ts')), 'the backup writes');
+        const missingS = (firstSegmentAt(rec, 2) - firstSegmentAt(rec, 1)) / 1000;
+        const gap = gapTotal(recordings.getById(rec.id));
+        assert.equal(gap.count, 1);
+        assert.ok(missingS >= 4.5, `the stall and the wait took their time (${missingS} s)`);
+        assert.ok(Math.abs(gap.total - missingS) <= 1.5, `the note says ${gap.total} s; ${missingS.toFixed(1)} s were missing`);
+    } finally {
+        Object.assign(ingest, real);
+    }
+});
+
 test('#274: a failover leaves one watchdog, the new part\'s; a stop leaves none', async () => {
     tuning.endGraceMs = 0;
     setBehaviour(url.A(101), 'dies');
