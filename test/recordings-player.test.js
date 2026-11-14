@@ -165,3 +165,42 @@ test('#62: closing the player while it is still preparing stops asking', async (
     assert.equal(t.overlay.removed, true);
     void playing;
 });
+
+// #62 (C-L): a recording in progress plays from its start through /watch.
+function tileOf(page, item) { return page.tileHtml(item, null); }
+
+test('#62: a recording in progress that can be watched offers "Watch from start"; one that cannot, or a finished one, does not', () => {
+    const t = make(() => json({}));
+    const live = tileOf(t.page, { id: 5, title: 'Match', status: 'recording', watch_live: true });
+    assert.match(live, /data-action="watch" data-id="5"[^>]*>[\s\S]*Watch from start/);
+    assert.ok(!live.includes('data-action="play"'), 'no plain Play while it records');
+    assert.ok(!tileOf(t.page, { id: 5, title: 'Match', status: 'recording', watch_live: false }).includes('data-action="watch"'));
+    assert.ok(!tileOf(t.page, { id: 5, title: 'Match', status: 'completed', watch_live: false }).includes('data-action="watch"'));
+    assert.ok(tileOf(t.page, { id: 5, title: 'Match', status: 'completed' }).includes('data-action="play"'));
+});
+
+test('#62: clicking "Watch from start" opens the player on /watch, not /playback or /stream', async () => {
+    const t = make((url) => json({ url: '/api/recordings/5/live/master.m3u8', container: 'hls', recording: true, durationSec: 60 }), { nativeHls: true });
+    const button = el({ dataset: { id: '5' } });
+    const list = el({ querySelectorAll: (sel) => (sel === '[data-action="watch"]' ? [button] : []) });
+    t.page.recordingsList = list;
+    t.page.data.recordings = [{ id: 5, title: 'Match', status: 'recording', watch_live: true }];
+    t.page.failed = { recordings: false, scheduled: false, rules: false };
+    t.page.drawRecorded();
+    button.fire('click');
+    await settle();
+    assert.deepEqual(t.requests, ['/api/recordings/5/watch'], 'no resume question, no playback, no stream');
+    assert.equal(t.video().src, '/api/recordings/5/live/master.m3u8?token=tok', 'Safari plays the playlist natively');
+});
+
+test('#62: asking to watch keeps asking while the first piece is made, and plays the finished recording if it finished meanwhile', async () => {
+    let n = 0;
+    const t = make((url) => {
+        if (url.endsWith('/watch')) return n++ === 0 ? json({ status: 'preparing', retryAfterSec: 2 }, 202) : json({ error: 'Recording is finished: play it instead', finished: true }, 409);
+        return json(playbackAnswer);
+    });
+    await t.page.play(7, { watch: true });
+    assert.deepEqual(t.requests, ['/api/recordings/7/watch', '/api/recordings/7/watch', '/api/recordings/7/playback?async=1']);
+    assert.deepEqual(t.delays, [2000]);
+    assert.equal(t.video().src, '/api/recordings/7/media.mp4?token=tok');
+});

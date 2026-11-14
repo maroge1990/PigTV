@@ -189,6 +189,9 @@ class RecordingsPage {
         el.querySelectorAll('[data-action="play"]').forEach(btn => {
             btn.addEventListener('click', () => this.play(btn.dataset.id));
         });
+        el.querySelectorAll('[data-action="watch"]').forEach(btn => {
+            btn.addEventListener('click', () => this.play(btn.dataset.id, { watch: true }));
+        });
         el.querySelectorAll('[data-action="delete"]').forEach(btn => {
             btn.addEventListener('click', () => this.deleteRecording(btn.dataset.id));
         });
@@ -271,7 +274,9 @@ class RecordingsPage {
             ? `<button type="button" class="btn btn-secondary" data-action="delete" data-id="${id}">Delete</button>`
             : (item.status === 'completed'
                 ? `<button type="button" class="btn ${String(item.id) === primaryId ? 'btn-primary' : 'btn-secondary'} btn-play" data-action="play" data-id="${id}">${REC_PLAY_ICON}Play</button>`
-                : '')
+                : (item.status === 'recording' && item.watch_live === true
+                    ? `<button type="button" class="btn btn-secondary btn-play" data-action="watch" data-id="${id}">${REC_PLAY_ICON}Watch from start</button>`
+                    : ''))
               + `<button type="button" class="btn btn-secondary btn-more" data-action="more" data-id="${id}" aria-haspopup="menu" aria-expanded="false" aria-label="More for ${e(item.title)}">⋯</button>`;
 
         return `<article class="rec-tile" data-id="${id}">${art}${bar}<div class="rec-tile-body">
