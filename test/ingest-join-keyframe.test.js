@@ -279,6 +279,20 @@ test('#309 review: a joiner\'s backlog is its own copy, so it does not keep the 
     }
 });
 
+test('#309 review: the opener\'s start-of-connection backlog has the same budget; over it, it joins like any other reader', async () => {
+    // Opus review of #309, low 6: the opener was handed everything since the connection's first PAT
+    // with no budget, so a slow start ended it as a slow consumer inside subscribe().
+    await openAndWait('/rai', { minFrame: 0, phase: [30, 40] }); // 1.2-1.6 s of feed, about 30 KB
+    const feed = [...ingest._registry.values()].find(i => !i.closed);
+    assert.equal(feed.bytes, feed.bytesIn, 'nothing has been dropped: an opener would start at the first PAT');
+    T.slowBytes = 8 * 1024;
+    const sub = feed.subscribe({ purpose: 'viewer' }, { fromStart: true });
+    assert.equal(sub.endReason, null, `the opener is still subscribed (ended: ${JSON.stringify(sub.endReason)}, ${feed.bytes} B buffered)`);
+    assert.ok(sub.readableLength > 0 && sub.readableLength <= T.slowBytes, `a backlog within the budget (${sub.readableLength} B)`);
+    assert.equal(ts.readPackets(sub.read())[0].pid, 0, 'from a PAT');
+    sub.leave();
+});
+
 test('the buffer keeps the look-back window even when bufferMs is shorter, and no more than that', async () => {
     T.bufferMs = 500;
     T.joinLookbackMs = 3000;

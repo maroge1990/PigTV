@@ -450,12 +450,13 @@ class Ingest extends EventEmitter {
         this.subs.add(sub);
         const now = Date.now();
         if (fromStart && this.bytes === this.bytesIn) {
-            if (this.chunks.length) {
-                const joined = Buffer.concat(this.chunks.map(c => c.buf));
-                const at = firstPatOffset(joined);
-                if (at >= 0) sub.deliver(joined.subarray(at));
+            const joined = Buffer.concat(this.chunks.map(c => c.buf));
+            const at = firstPatOffset(joined);
+            // The same budget as a joiner's (#309); over it, the opener joins as any other reader.
+            if (at < 0 || joined.length - at <= tuning.slowBytes) {
+                if (at >= 0) sub.deliverBacklog([joined.subarray(at)]);
+                return sub;
             }
-            return sub;
         }
         const lookFrom = now - tuning.joinLookbackMs;
         const window = this.chunks.filter(c => c.at >= lookFrom).map(c => c.buf);
