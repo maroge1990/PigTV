@@ -523,9 +523,9 @@ records, broadcasts, byes and teams, the previous week and the standings).
 order and team colours, fetched only for sessions that read finished; cricket innings, batting cards and notes; event
 leaderboards, draws and bouts), so their games' state is laid over per request with one more rule, by how far on each
 word is (`sportPageState.rank`: before, on, over). The collector further on than the page's read: the read is renewed at
-once (`sportPageCache.renew`: one build whatever the entry's age, at most every 30 s per entry, waited for at most the
-page's cold wait), and a finish the read still lacks after that keeps the page's own status, never a finished session
-without its result; a start is shown at once. The page's read further on than the account's delayed view: the
+once (`sportPageCache.renew`: one build whatever the entry's age, at most every 30 s per entry; a request with an entry
+never waits, the renewed read lands for the next one), and a finish the read lacks keeps the page's own status until
+it has it, never a finished session without its result; a start is shown at once. The page's read further on than the account's delayed view: the
 collector's word, without what belongs to the later state. Their cache lifetimes are unchanged (no 2-minute floor is
 lifted), so the renewals are the only added reads: one per session start and finish. F1: a session's status; without its
 `top`, and without the results block when it is that session's (the race's result, the grid from qualifying), the

@@ -331,8 +331,11 @@ test('F1: a finish the page\'s read still lacks after renewing keeps the page\'s
     assert.equal(reads, 2, 'one read, then one renewal in the 30 s however many requests');
     await f1.page(at + 27.5 * MIN, pageDeps(2, at + 27.5 * MIN));
     assert.equal(reads, 3, 'and the next after 30 s');
+    for (let i = 0; i < 20; i++) await new Promise(r => setImmediate(r)); // that renewal lands (still lagging)
     // the read catches up: over, with its result
     f1.fetcher.get = async url => (url.includes('/racing/f1/scoreboard') ? { ok: true, json: f1Board(game, at + 27 * MIN) } : { ok: false, error: 'HTTP 404' });
+    await f1.page(at + 28 * MIN, pageDeps(2, at + 28 * MIN)); // renews; this request is answered from the entry at once
+    for (let i = 0; i < 20; i++) await new Promise(r => setImmediate(r));
     const caught = await f1.page(at + 28 * MIN, pageDeps(2, at + 28 * MIN));
     assert.deepEqual([race(caught).status, race(caught).top?.driver, caught.weekend.phase], ['done', 'Alex Abel', 'after']);
 });

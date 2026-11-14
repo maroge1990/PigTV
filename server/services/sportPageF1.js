@@ -334,7 +334,7 @@ async function page(now = Date.now(), deps = {}) {
  * #297: each session's status from the score collector's store for this account (`deps.state`, sportPageState: its delay;
  * only a fresh or final snapshot), as the front page shows the same session. The collector further on than the page's
  * read (a session it has seen start or finish): the read is renewed at once (sportPageCache.renew: one build, at most
- * every 30 s, waited for at most the cold wait), as a finished session's order, teams and results come only from it; a
+ * every 30 s, landing for the next request), as a finished session's order, teams and results come only from it; a
  * finish the read still lacks after that keeps the page's own status (never a finished session without its result). The
  * page's read newer than the account's delayed view: the collector's status, without the session's top line, and without
  * the results block when it is that session's (the race's result, the grid from qualifying). The weekend's phase

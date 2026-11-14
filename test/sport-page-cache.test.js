@@ -128,19 +128,24 @@ test('renew(): rebuilds a fresh entry at once and waits for it; at most one buil
     const build = () => { builds++; return Promise.resolve({ n: builds }); };
     await c.get('k', 0, build);
     assert.equal((await c.get('k', 1000, build)).value.n, 1, 'fresh for 10 minutes');
-    assert.equal((await c.renew('k', 1000, build)).value.n, 2, 'renewed although fresh, and the caller gets the new read');
+    assert.equal((await c.renew('k', 1000, build)).value.n, 1, 'renewed although fresh; the caller is answered from the entry at once');
+    await tick();
+    assert.equal((await c.get('k', 1000, build)).value.n, 2, 'and the next request has the new read');
     for (let t = 1000; t < 31000; t += 1000) await c.renew('k', t, build);
     assert.equal(builds, 2, 'a feed still disagreeing costs no build per request: one per 30 s gap');
-    assert.equal((await c.renew('k', 31000, build)).value.n, 3, 'the next gap');
-    assert.equal((await c.renew('j', 31000, build)).value.n, 4, 'keys are separate');
+    await c.renew('k', 31000, build); await tick();
+    assert.equal(builds, 3, 'the next gap');
+    assert.equal((await c.renew('j', 31000, build)).value.n, 4, 'no entry: waited for (keys are separate)');
 });
 
-test('renew(): a slow build is waited for at most waitMs, the old entry returned meanwhile; a failed one keeps it', async () => {
+test('renew(): with an entry, a slow build is never waited for; a failed one keeps the entry', async () => {
     const c = cacheOf({ ttlOf: () => 600000 });
     await c.get('k', 0, () => Promise.resolve({ v: 'old' }));
     const gate = deferred();
-    const r = await c.renew('k', 1000, () => gate.promise, { waitMs: 5 });
-    assert.equal(r.value.v, 'old', 'not waited for past waitMs');
+    const started = Date.now();
+    const r = await c.renew('k', 1000, () => gate.promise, { waitMs: 5000 });
+    assert.equal(r.value.v, 'old', 'an entry: answered at once, not waited for');
+    assert.ok(Date.now() - started < 1000);
     assert.equal((await c.renew('k', 2000, () => assert.fail('one build in flight'))).value.v, 'old', 'a renew joins the build in flight');
     gate.resolve({ v: 'new' });
     await tick();

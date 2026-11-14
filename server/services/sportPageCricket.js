@@ -506,7 +506,7 @@ function wordOf(snapshot) {
  * #297: each match's status and score from the score collector's store for this account (`deps.state`, sportPageState:
  * its delay; only a fresh or final snapshot), as the front page's card for the same match. The collector further on than
  * the page's read (a match it has seen start or finish): the read is renewed at once (sportPageCache.renew: one build, at
- * most every 30 s, waited for at most the cold wait), as the innings' detail, the batting card, the notes and the result
+ * most every 30 s, landing for the next request), as the innings' detail, the batting card, the notes and the result
  * line come only from it; a finish the read still lacks after that keeps the page's own status and score (never a
  * finished match without its result). The page's read newer than the account's delayed view: the collector's status and
  * score, without the result line (`summary`, `line`, a series match's `result`) or the series tally counting it. A line

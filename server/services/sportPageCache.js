@@ -19,8 +19,8 @@
  *
  * #297: the score collector has seen a game, session or event move on from what the entry says (its detail read is
  * older). Starts ONE build whatever the entry's age, at most once per `gapMs` (default 30 s) per key, so a feed that keeps
- * disagreeing with the collector costs one build per gap, never one per request; then waits for it at most `waitMs`
- * (default the cold wait). Returns the entry as it then stands (the old one if the build has not landed or failed).
+ * disagreeing with the collector costs one build per gap, never one per request. With an entry the caller is answered
+ * from it at once and the build lands for the next request; with none it waits at most `waitMs` (the cold wait).
  */
 const RENEW_GAP_MS = 30000;
 
@@ -65,7 +65,8 @@ function createPageCache({ label, ttlOf, coldWaitMs, maxEntries = Infinity }) {
             while (renewedAt.size > 64) renewedAt.delete(renewedAt.keys().next().value);
             start(key, now, build, entries.get(key) || null);
         }
-        if (refreshing.has(key)) await wait(key, renewWait);
+        // a request with an entry never waits (as get()): it is answered from it, the renewal lands for the next one
+        if (!entries.has(key) && refreshing.has(key)) await wait(key, renewWait);
         return entries.get(key) || null;
     }
 

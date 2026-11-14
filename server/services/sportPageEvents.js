@@ -263,7 +263,7 @@ async function page(league, now = Date.now(), { names = [], event: eventState = 
  * #297: each event's status (and break label) from the score collector's store for this account (`state(cardId)`,
  * sportPageState.deps `event`: its delay; only a fresh or final snapshot), as the front page's card for the same event:
  * the ids and words are the cards' (sportIndividual). The collector further on than the page's read: the read is renewed
- * at once (sportPageCache.renew: one build, at most every 30 s, waited for at most the cold wait), as the draws, the
+ * at once (sportPageCache.renew: one build, at most every 30 s, landing for the next request), as the draws, the
  * leaderboard, the bouts and a race's winner come only from it; a finish the read still lacks after that keeps the
  * page's own status. The page's read newer than the account's delayed view: the collector's status, and no `lastWinner`
  * when it is this race's. Each match, round and bout keeps its own state from the page's read, as before.
