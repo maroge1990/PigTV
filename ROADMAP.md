@@ -143,13 +143,20 @@ production on 0632; Apple 246 on TestFlight).*
 Batches regrouped on 12 Nov 2026 after the audit (every open issue read against server 0577 and Apple 218). Each is one
 theme and one review round. Order within a section is the order to take them.
 
-1. **Sport 2, one source for the sport pages:** #297 · #282 · #29's re-measure; then #291 (after a read of production's
-   settings; its item 2 is partly wrong, see the issue).
+1. **Web 2, the player's quick fixes and settings (Mark's web upgrade, 14 Nov):** #320 (no station numbers, keys only on
+   Live TV, Safari fullscreen, stop on close, remember the channel, in-player prompts) · #322 (settings, decided 14 Nov).
+2. **Looping feed (#324, server, playback path):** capture FOX Footy 504 first (Mark's OK: a real provider connection),
+   then detect repeating content and switch to the standby. Full review rule.
 
 ## Next
 
-2. **Sport 3, pickers:** #265 step 2 · #266 (server and Apple), once Mark confirms the rows.
-3. **Web 1:** #62 play errors · #63 first run without a Home page · #64 Settings.js and sign-out · #292 · #295.
+3. **Sport 2, one source for the sport pages:** #297 · #282 · #29's re-measure; then #291 (after a read of production's
+   settings; its item 2 is partly wrong, see the issue).
+4. **Web 3, Sport at parity with the Apple apps (#323):** the Apple look ported (one set of mock screenshots for Mark first);
+   five steps: front page, sport page, league pages, F1 and cricket, events. After Sport 2.
+5. **Web 4, the player's reconnect and controls:** #321 · #62 (the reconnect is on the playback path: full review rule).
+6. **Sport 3, pickers:** #265 step 2 · #266 (server and Apple), once Mark confirms the rows.
+7. **Web leftovers:** #63 first run · #64 Settings.js and sign-out (after #322) · #292 · #295.
 
 ## Later (each needs a capture, a real provider, a device or a design choice first)
 
