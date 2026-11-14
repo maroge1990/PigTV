@@ -233,6 +233,33 @@ test('#309 review: a reader waiting for a PAT finds one split across chunks, and
     sub.leave();
 });
 
+test('#309 review: a reader waiting for a PAT that never comes is ended with a reason, not left with nothing', async () => {
+    // Opus review of #309, low 3: the wait had no deadline, so a feed that stopped sending PATs starved
+    // the reader without a word.
+    const lines = [];
+    const log = console.log;
+    console.log = (...a) => { lines.push(a.join(' ')); };
+    try {
+        const sub = await detachedReader('/rai');
+        const ended = [];
+        sub.on('ingest-end', e => ended.push(e));
+        T.joinLookbackMs = 300;
+        sub.waitForPat();
+        const out = sub.bytesOut;
+        sub.deliver(Buffer.concat([ts.videoFrame(1), ts.audio()])); // no PAT
+        await sleep(150);
+        assert.equal(sub.endReason, null, 'still waiting');
+        await until(() => sub.endReason, 'the reader is ended', 3000);
+        assert.deepEqual(ended, [{ reason: 'no-pat', providerReason: false }]);
+        assert.equal(sub.bytesOut, out, 'nothing was handed over while it waited');
+        const other = await detachedReader('/rai');
+        other.waitForPat();
+        await until(() => other.endReason, 'a second reader is ended', 3000);
+    } finally { console.log = log; }
+    const said = lines.filter(l => /waiting for a PAT is ended/.test(l));
+    assert.equal(said.length, 1, lines.join('\n'));
+});
+
 test('the buffer keeps the look-back window even when bufferMs is shorter, and no more than that', async () => {
     T.bufferMs = 500;
     T.joinLookbackMs = 3000;

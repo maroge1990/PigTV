@@ -128,6 +128,7 @@ class Subscription extends Readable {
             }
             this.awaitPat = false;
             this.patCarry = null;
+            clearTimeout(this.patTimer);
             chunk = data.subarray(at);
         }
         this.bytesOut += chunk.length;
@@ -137,6 +138,24 @@ class Subscription extends Readable {
         const unreadBacklog = Math.max(0, this.backlogBytes - (this.bytesOut - this.readableLength));
         if (this.readableLength - unreadBacklog > tuning.slowBytes) this.finish('slow-consumer', { providerReason: false });
     }
+    /**
+     * Start at the next PAT the feed sends (#309). None within joinLookbackMs ends the reader with
+     * `no-pat` (logged once per feed), rather than leaving it to wait with nothing.
+     */
+    waitForPat() {
+        this.awaitPat = true;
+        this.patTimer = setTimeout(() => {
+            if (!this.awaitPat || this.endReason) return;
+            const feed = this.ingest;
+            feed.joinFallbacksLogged = feed.joinFallbacksLogged || new Set();
+            if (!feed.joinFallbacksLogged.has('no-pat')) {
+                feed.joinFallbacksLogged.add('no-pat');
+                feed.log(`a reader waiting for a PAT is ended: none came in ${Math.round(tuning.joinLookbackMs / 1000)}s`);
+            }
+            this.finish('no-pat', { providerReason: false });
+        }, tuning.joinLookbackMs);
+        this.patTimer.unref?.();
+    }
     /** The join point's backlog (at most slowBytes), handed over at once and not counted as lag. */
     deliverBacklog(parts) {
         this.backlogBytes = parts.reduce((n, p) => n + p.length, 0);
@@ -145,6 +164,7 @@ class Subscription extends Readable {
     /** End this subscriber's stream with a reason ({ providerReason } says whose fault). */
     finish(reason, { providerReason = false } = {}) {
         if (this.endReason) return;
+        clearTimeout(this.patTimer);
         this.endReason = { reason, providerReason };
         this.emit('ingest-end', this.endReason);
         this.push(null);
@@ -162,6 +182,7 @@ class Subscription extends Readable {
     }
     /** The consumer is done with it. */
     leave() {
+        clearTimeout(this.patTimer);
         if (!this.endReason) this.endReason = { reason: 'left', providerReason: false };
         this.ingest.drop(this);
         this.destroy();
@@ -465,7 +486,7 @@ class Ingest extends EventEmitter {
             else if (at >= 0) {
                 // #309: over the same budget (sparse PATs, a burst), handing it over would end the
                 // reader here, before its consumer listens. It waits for the feed's next PAT instead.
-                sub.awaitPat = true;
+                sub.waitForPat();
                 this.joinFallbacksLogged = this.joinFallbacksLogged || new Set();
                 if (!this.joinFallbacksLogged.has('wait')) {
                     this.joinFallbacksLogged.add('wait');
