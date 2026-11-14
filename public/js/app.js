@@ -327,6 +327,8 @@ class App {
     async signOut() {
         // At most 5 s for the answers; past that, only until the requests (keepalive) have been sent, and logged.
         if (typeof UI !== 'undefined' && UI.flushPending) await UI.flushPending(5000).catch(() => {});
+        // #320: the stream is given back while the sign-in still works; after the token goes the request would be refused.
+        if (this.player && this.player.handlePageHide) this.player.handlePageHide();
         const token = localStorage.getItem('authToken');
         if (token) {
             await fetch('/api/auth/logout', {
