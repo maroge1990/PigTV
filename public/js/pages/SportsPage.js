@@ -406,8 +406,9 @@ class SportsPage {
             const img = e.target;
             if (!img || img.tagName !== 'IMG' || !img.classList?.contains('badge')) return;
             const disc = document.createElement('span');
-            disc.className = 'disc'; disc.setAttribute('aria-hidden', 'true');
+            disc.className = `disc ${img.getAttribute('data-tone') || ''}`.trim(); disc.setAttribute('aria-hidden', 'true');
             disc.style.cssText = img.style.cssText;
+            if (img.getAttribute('data-fill')) disc.style.background = img.getAttribute('data-fill');
             disc.textContent = img.getAttribute('data-mono') || '';
             img.replaceWith(disc);
         }, true);

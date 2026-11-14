@@ -5,6 +5,9 @@
 
 .sp { --live: var(--color-error); --raised: var(--color-bg-tertiary); --surface: var(--color-bg-secondary);
   --sel: var(--color-accent-dim); --gutter: 32px; --disc: #5A5466;
+  /* #326: iOS's league colours (Assets League*.colorset; no brand token), behind a monogram disc or a league badge */
+  --lg-nfl: #013369; --lg-f1: #E10600; --lg-nba: #C9082A; --lg-afl: #0B3D91; --lg-cricket: #1F7A3A; --lg-epl: #3D195B;
+  --lg-mlb: #041E42; --lg-nrl: #00843F; --lg-other: var(--disc);
   padding: 20px var(--gutter) 56px; font-size: 16px; }
 [data-theme="light"] .sp { --raised: #F2ECF0; }
 @media (max-width: 768px) { .sp { --gutter: 16px; padding-top: 16px; } }
@@ -139,8 +142,11 @@
 /* badges and discs */
 .sp .badge { flex: 0 0 auto; display: block; object-fit: contain; }
 .sp .disc { flex: 0 0 auto; display: grid; place-items: center; border-radius: 50%; background: var(--disc); color: #fff; font-weight: 800; line-height: 1; }
-.sp .lbadge { flex: 0 0 auto; display: grid; place-items: center; min-width: 26px; height: 24px; padding: 0 4px; border-radius: 6px;
-  background: var(--disc); color: #fff; font-size: 12px; font-weight: 800; }
+.sp .lbadge { flex: 0 0 auto; display: grid; place-items: center; min-width: 22px; height: 22px; padding: 0 4px; border-radius: 6px;
+  background: var(--disc); color: #fff; font-size: 11px; font-weight: 800; }
+.sp .lg-nfl { background: var(--lg-nfl); } .sp .lg-f1 { background: var(--lg-f1); } .sp .lg-nba { background: var(--lg-nba); }
+.sp .lg-afl { background: var(--lg-afl); } .sp .lg-cricket { background: var(--lg-cricket); } .sp .lg-epl { background: var(--lg-epl); }
+.sp .lg-mlb { background: var(--lg-mlb); } .sp .lg-nrl { background: var(--lg-nrl); } .sp .lg-other { background: var(--lg-other); }
 
 /* ---------- phone: the follow carousel and fixture rows (SportFrontPhonePage) ---------- */
 .sp .carousel { position: relative; display: flex; gap: 12px; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x mandatory;

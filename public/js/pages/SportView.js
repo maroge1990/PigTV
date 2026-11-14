@@ -399,18 +399,27 @@ const SportView = (() => {
         if (!words.length) return '?';
         return (words.length > 1 ? words[0][0] + words[words.length - 1][0] : words[0][0]).toUpperCase();
     }
-    /** A team's badge: the cached logo, the monogram disc as the fallback (also when the logo fails, `onBadgeError`). */
-    function badge(name, path, size = 26) {
-        const src = logo(path), mono = monogram(name);
-        const box = `width:${size}px;height:${size}px`;
+    /** #326: iOS's league colours (SportFrontText.leagueColorName), as the class that fills a disc or a league badge. */
+    const LEAGUE_TONE = { NFL: 'nfl', F1: 'f1', NBA: 'nba', AFL: 'afl', AFLW: 'afl', Cricket: 'cricket', EPL: 'epl', MLB: 'mlb', NRL: 'nrl' };
+    const tone = (league) => `lg-${LEAGUE_TONE[league] || 'other'}`;
+    /** A team's own colour from a league page ("013369" or "#013369"), else null. */
+    const teamHex = (c) => (typeof c === 'string' && /^#?[0-9A-Fa-f]{6}$/.test(c) ? `#${c.replace('#', '')}` : null);
+    /**
+     * A team's badge: the cached logo, else a disc (also when the logo fails, `onBadgeError`): the monogram in the
+     * league's colour, or with `team` ({ abbr, color }, a league page's team) its abbreviation in its own colour.
+     */
+    function badge(name, path, size = 26, league = null, team = null) {
+        const src = logo(path), abbr = team && team.abbr ? String(team.abbr) : null, mono = abbr || monogram(name);
+        const box = `width:${size}px;height:${size}px`, fill = abbr ? teamHex(team.color) : null, cls = fill ? '' : tone(abbr ? null : league);
+        const font = Math.round(size * (abbr ? 0.34 : 0.38));
         return src
-            ? `<img class="badge" src="${e(src)}" alt="" width="${size}" height="${size}" loading="lazy" data-mono="${e(mono)}" style="${box}">`
-            : `<span class="disc" aria-hidden="true" style="${box};font-size:${Math.round(size * 0.38)}px">${e(mono)}</span>`;
+            ? `<img class="badge" src="${e(src)}" alt="" width="${size}" height="${size}" loading="lazy" data-mono="${e(mono)}" data-tone="${e(cls)}"${fill ? ` data-fill="${e(fill)}"` : ''} style="${box}">`
+            : `<span class="${cls ? `disc ${cls}` : 'disc'}" aria-hidden="true" style="${box};font-size:${font}px${fill ? `;background:${fill}` : ''}">${e(mono)}</span>`;
     }
-    /** A league's square badge ("PL", "DPW") for a session row or a league list. */
+    /** A league's square badge ("F1", "NAS") in the league's colour, for a session row or a league list. */
     function leagueBadge(league) {
         const text = league.length <= 3 ? league.toUpperCase() : league.replace(/\s+/g, '').slice(0, 3).toUpperCase();
-        return `<span class="lbadge" aria-hidden="true">${e(text)}</span>`;
+        return `<span class="lbadge ${tone(league)}" aria-hidden="true">${e(text)}</span>`;
     }
     const star = (word = 'Your team') => `<span class="star" aria-hidden="true">★</span><span class="visually-hidden">${e(word)}, </span>`;
     const dot = () => '<span class="dot" aria-hidden="true"></span>';
@@ -482,7 +491,7 @@ const SportView = (() => {
         let body;
         if (twoSided(g)) {
             const sc = scores(g, front, hide), stars = cardStars(g, names);
-            body = g.competitors.map((c, i) => `<span class="trow${mark ? ' reserve' : ''}">${badge(c.name, c.logo, 26)}${stars.includes(i) ? star() : ''}<span class="n">${e(c.name)}</span>${sc ? `<span class="sc pig-amount">${e(sc[i])}</span>` : ''}</span>`).join('');
+            body = g.competitors.map((c, i) => `<span class="trow${mark ? ' reserve' : ''}">${badge(c.name, c.logo, 26, g.league)}${stars.includes(i) ? star() : ''}<span class="n">${e(c.name)}</span>${sc ? `<span class="sc pig-amount">${e(sc[i])}</span>` : ''}</span>`).join('');
         } else {
             const line = [g.status === 'scheduled' ? startLine(g, now) : '', isNextRound(g) ? '' : (g.channels && g.channels[0] ? g.channels[0].name : '')].filter(Boolean).join(' · ');
             body = `<span class="sk${mark ? ' reserve' : ''}">${e(g.session || kickerWord(g))}</span>`
@@ -544,7 +553,7 @@ const SportView = (() => {
 
     function followItems(front, now) {
         return (front.follows || []).map(f => ({ key: followKey(f), title: f.name, trailing: followTrailing(f, front, now),
-            live: f.state === 'live', badge: badge(f.name, f.logo, 22) }));
+            live: f.state === 'live', badge: badge(f.name, f.logo, 22, f.league) }));
     }
 
     /** The banner's backdrop: the F1 circuit map for a race, else the hero follow's badge, else a competitor's. */
@@ -611,7 +620,7 @@ const SportView = (() => {
         let l1;
         if (r.two) {
             const title = g.competitors.map((c, i) => `${r.stars.includes(i) ? star() : ''}${e(c.name)}`).join(' v ');
-            l1 = `${badge(g.competitors[0].name, g.competitors[0].logo, 22)}<span class="t">${title}</span>${badge(g.competitors[1].name, g.competitors[1].logo, 22)}`;
+            l1 = `${badge(g.competitors[0].name, g.competitors[0].logo, 22, g.league)}<span class="t">${title}</span>${badge(g.competitors[1].name, g.competitors[1].logo, 22, g.league)}`;
         } else {
             l1 = `${leagueBadge(g.league)}<span class="t">${g.followed === true ? star() : ''}${e(g.session ? `${g.title}` : g.title)}</span>`;
         }
@@ -627,7 +636,7 @@ const SportView = (() => {
         const { front, labels, links = false } = ctx;
         const f = front.follows[index], g = game(front, f.gameId), leagueWord = label(f.league, labels);
         if (!g) {
-            const body = `${badge(f.name, f.logo, 48)}<span class="ft">${e(f.name)}</span>`;
+            const body = `${badge(f.name, f.logo, 48, f.league)}<span class="ft">${e(f.name)}</span>`;
             return `<div class="fcard" data-index="${index}"><div class="kicker k"><span>${e(leagueWord)}</span></div>`
                 + (links ? `<button type="button" class="fbody fsolo" data-act="open-sport" data-sport="${e(f.sport || sportOf(f.league, null, front))}" data-key="fc:${index}">${body}</button>`
                     : `<div class="fbody fsolo">${body}</div>`)
@@ -651,7 +660,7 @@ const SportView = (() => {
         if (ch && !terminal(g)) line.push(ch);
         let mid;
         if (r.two) {
-            const side = (c, i) => `<span class="fside"><span class="bw">${badge(c.name, c.logo, 48)}${r.stars.includes(i) ? '<span class="st" aria-hidden="true">★</span>' : ''}</span><span class="fn">${r.stars.includes(i) ? '<span class="visually-hidden">Your team, </span>' : ''}${e(c.name)}</span></span>`;
+            const side = (c, i) => `<span class="fside"><span class="bw">${badge(c.name, c.logo, 48, g.league)}${r.stars.includes(i) ? '<span class="st" aria-hidden="true">★</span>' : ''}</span><span class="fn">${r.stars.includes(i) ? '<span class="visually-hidden">Your team, </span>' : ''}${e(c.name)}</span></span>`;
             // the short score in the middle, as large as fits, the overs or goals.behinds small under it (iOS #254)
             const size = !r.short ? '' : r.short.length <= 5 ? '' : r.short.length <= 9 ? ' mid' : ' small';
             const score = !r.score ? '<span class="fscore v pig-amount">v</span>'
@@ -659,7 +668,8 @@ const SportView = (() => {
                 + (r.detail ? `<span class="fdetail pig-amount" aria-hidden="true">${e(r.detail)}</span>` : '');
             mid = `<span class="fsides">${side(g.competitors[0], 0)}<span class="fmid">${score}</span>${side(g.competitors[1], 1)}</span>`;
         } else {
-            const who = solo ? badge(solo.name, solo.logo, 48) : leagueBadge(g.league);
+            // iOS: the follow's badge, else the league's monogram disc in its colour
+            const who = solo ? badge(solo.name, solo.logo, 48, g.league) : badge(g.league, null, 48, g.league);
             mid = `<span class="fsolo">${who}<span class="ft">${e(g.title)}${g.session ? `<small>${e(g.session)}</small>` : ''}</span></span>`;
         }
         const act = action(g, now), ev = !terminal(g) ? event(g) : null;
@@ -874,6 +884,7 @@ const SportView = (() => {
     function nflFixture(page, following, hide) {
         const followed = (abbr) => { const t = page.teams && page.teams[abbr]; return followsTeam(following, t && t.name, t && t.full, abbr); };
         const side = (s, g) => ({ id: s.abbr, abbr: s.abbr, name: nflName(s.abbr, page), logo: logo(page.teams && page.teams[s.abbr] && page.teams[s.abbr].logo),
+            color: (page.teams && page.teams[s.abbr] && page.teams[s.abbr].color) || null,
             record: hide ? null : s.record || null, score: g.status !== 'scheduled' && !hide && s.score != null ? String(s.score) : null, followed: followed(s.abbr) });
         const rounds = (page.weeks || []).map(w => ({ key: String(w.number), label: w.label || `Week ${w.number}`, current: !!w.current,
             note: (w.byes || []).length ? `Bye: ${w.byes.map(a => nflName(a, page)).join(', ')}` : null,
@@ -883,6 +894,7 @@ const SportView = (() => {
         const divisions = (page.standings && page.standings.divisions) || [];
         const mine = divisions.flatMap(d => d.teams || []).find(r => followed(r.abbr));
         const row = (rank, r) => ({ id: r.abbr, rank, abbr: r.abbr, name: nflName(r.abbr, page), logo: logo(page.teams && page.teams[r.abbr] && page.teams[r.abbr].logo),
+            color: (page.teams && page.teams[r.abbr] && page.teams[r.abbr].color) || null,
             values: [r.record || null, r.streak || null], followed: !!mine && r.abbr === mine.abbr });
         const hasMine = (d) => !!mine && (d.teams || []).some(r => r.abbr === mine.abbr);
         const views = !divisions.length ? [] : [
@@ -910,7 +922,7 @@ const SportView = (() => {
         const side = (s, g) => {
             const t = teams[s.id] || {};
             const played = !['scheduled', 'postponed', 'cancelled'].includes(g.status);
-            return { id: s.id || s.abbr, abbr: s.abbr, name: t.name || t.full || s.abbr, logo: logo(t.logo), record: null,
+            return { id: s.id || s.abbr, abbr: s.abbr || t.abbr, color: t.color || null, name: t.name || t.full || s.abbr, logo: logo(t.logo), record: null,
                 score: hide || !played || s.score == null ? null : String(s.score), followed: followed(s.id, s.abbr) };
         };
         const rounds = (page.rounds || []).map(r => ({ key: r.key, label: r.label, current: !!r.current, note: null,
@@ -918,7 +930,7 @@ const SportView = (() => {
                 home: side(g.home, g), away: side(g.away, g), channels: g.channels || [] })) }));
         const tables = ((page.standings && page.standings.groups) || []).map(gr => ({ title: gr.name || null, columns: (gr.columns || []).map(c => c.label),
             rows: (gr.rows || []).map(r => { const t = teams[r.id] || {};
-                return { id: r.id || r.abbr, rank: r.rank, abbr: r.abbr, name: t.name || t.full || r.abbr, logo: logo(t.logo),
+                return { id: r.id || r.abbr, rank: r.rank, abbr: r.abbr || t.abbr, color: t.color || null, name: t.name || t.full || r.abbr, logo: logo(t.logo),
                     values: (gr.columns || []).map(c => pct(r.values ? r.values[c.key] : null, c.key)), followed: followed(r.id, r.abbr) }; }) }));
         return { league, rounds, views: tables.length ? [{ name: '', tables }] : [] };
     }
@@ -969,7 +981,7 @@ const SportView = (() => {
         const id = card ? card.id : `fx:${fx.league}:${g.id}`;
         const sides = fx.awayFirst ? [g.away, g.home] : [g.home, g.away];
         const followed = g.home.followed || g.away.followed, ongoing = g.status === 'live' || g.status === 'break';
-        const rows = sides.map(s => `<span class="trow">${badge(s.name, s.logo, 26)}${s.followed ? star() : ''}<span class="n">${e(s.name)}</span>${s.record ? `<span class="rec">${e(s.record)}</span>` : ''}${s.score != null ? `<span class="sc pig-amount">${e(s.score)}</span>` : ''}</span>`).join('');
+        const rows = sides.map(s => `<span class="trow">${badge(s.name, s.logo, 22, fx.league, s)}${s.followed ? star() : ''}<span class="n">${e(s.name)}</span>${s.record ? `<span class="rec">${e(s.record)}</span>` : ''}${s.score != null ? `<span class="sc pig-amount">${e(s.score)}</span>` : ''}</span>`).join('');
         let bot;
         if (ongoing) bot = `${dot()}<span class="clk pig-amount">${e(g.detail || 'Live')}</span>`;
         else if (g.detail) bot = `<span class="res">${e(g.detail)} · ${e(UI.date(g.start))}</span>`;
@@ -993,7 +1005,7 @@ const SportView = (() => {
             const groupChips = groups.length > 1 ? `<div class="rounds">${groups.map(g => `<button type="button" class="fchip${g === group ? ' on' : ''}" data-act="table-group" data-group="${e(g.name)}" aria-pressed="${g === group}" data-key="tg:${e(g.name)}">${e(g.name)}</button>`).join('')}</div>` : '';
             body = groupChips + group.tables.map(t => `<div class="lcard"><div class="lh"><b>${e(t.title || label_)}</b>${ctx.season ? `<span>${e(ctx.season)}</span>` : ''}</div>`
                 + `<table class="st"><thead><tr><th scope="col"><span class="visually-hidden">Position</span></th><th scope="col" class="tl">Team</th>${t.columns.map(c => `<th scope="col">${e(c)}</th>`).join('')}</tr></thead><tbody>`
-                + t.rows.map((r, i) => `<tr${r.followed ? ' class="me"' : ''}><td class="pos pig-amount">${e(r.rank ?? i + 1)}</td><td class="nm"><div>${badge(r.name, r.logo, ctx.phone ? 20 : 24)}${r.followed ? star() : ''}<span>${e(r.name)}</span></div></td>${r.values.map((v, j) => `<td class="pig-amount${j === r.values.length - 1 ? ' pts' : ''}">${e(v ?? '–')}</td>`).join('')}</tr>`).join('')
+                + t.rows.map((r, i) => `<tr${r.followed ? ' class="me"' : ''}><td class="pos pig-amount">${e(r.rank ?? i + 1)}</td><td class="nm"><div>${badge(r.name, r.logo, ctx.phone ? 20 : 24, null, r)}${r.followed ? star() : ''}<span>${e(r.name)}</span></div></td>${r.values.map((v, j) => `<td class="pig-amount${j === r.values.length - 1 ? ' pts' : ''}">${e(v ?? '–')}</td>`).join('')}</tr>`).join('')
                 + '</tbody></table></div>').join('');
         }
         return `<section class="standings" aria-label="Standings"><div class="subhead"><h3>Standings</h3>${viewChips ? `<div class="views">${viewChips}</div>` : ''}</div>${body}</section>`;
@@ -1238,7 +1250,7 @@ const SportView = (() => {
     function otherCard(o, ctx) {
         const live = o.status === 'live';
         const sc = ctx.hide ? [] : (o.scores || []);
-        const rows = (o.teams || []).map((t, i) => `<span class="trow">${badge(t.name, t.logo, 26)}<span class="n">${e(t.name)}</span>${sc[i] ? `<span class="sc pig-amount">${e(sc[i])}</span>` : ''}</span>`).join('');
+        const rows = (o.teams || []).map((t, i) => `<span class="trow">${badge(t.name, t.logo, 26, 'Cricket')}<span class="n">${e(t.name)}</span>${sc[i] ? `<span class="sc pig-amount">${e(sc[i])}</span>` : ''}</span>`).join('');
         const ch = (o.channels || [])[0];
         return `<div class="gitem"><button type="button" class="gcard${live ? ' live' : ''}" data-act="game" data-id="${e(`ck:${o.id}`)}" data-key="ck:${e(o.id)}"><span class="sk">${e(o.competition || 'Cricket')}</span>${rows}${!ctx.hide && o.line ? `<span class="sline">${e(o.line)}</span>` : ''}<span class="cbot">${live ? dot() : ''}<span class="${live ? 'clk' : 'when'} pig-amount">${e(otherStatus(o, ctx.now))}</span>${o.status !== 'done' ? `<span class="ch">${e(ch ? ch.name : 'Not in guide yet')}</span>` : ''}</span></button></div>`;
     }
@@ -1249,11 +1261,11 @@ const SportView = (() => {
         const kicker = [lead.label || lead.competition || leagueLabel, lead.venue, hide ? null : lead.seriesLine].filter(Boolean).join(' · ');
         let board;
         if (hide) {
-            board = `<div class="board"><div class="tms">${(lead.teams || []).map(t => `<div class="tm"><span class="nm">${badge(t.name, t.logo, 34)}${e(t.name)}</span></div>`).join('')}</div></div>`;
+            board = `<div class="board"><div class="tms">${(lead.teams || []).map(t => `<div class="tm"><span class="nm">${badge(t.name, t.logo, 34, 'Cricket')}${e(t.name)}</span></div>`).join('')}</div></div>`;
         } else {
             const b = scoreboard(lead), cols = `grid-template-columns: minmax(0, 1fr) repeat(${b.headers.length}, minmax(64px, auto))`;
             board = `<div class="board"><div class="hdr" style="${cols}"><span></span>${b.headers.map(h => `<span>${e(h)}</span>`).join('')}</div>`
-                + (lead.teams || []).map((t, i) => `<div class="tm" style="${cols}"><span class="nm">${badge(t.name, t.logo, 34)}${e(t.name)}</span>${b.rows[i].map((v, j) => `<span class="${j === b.rows[i].length - 1 ? 'o' : 'r'} pig-amount">${e(v ?? '')}</span>`).join('')}</div>`).join('')
+                + (lead.teams || []).map((t, i) => `<div class="tm" style="${cols}"><span class="nm">${badge(t.name, t.logo, 34, 'Cricket')}${e(t.name)}</span>${b.rows[i].map((v, j) => `<span class="${j === b.rows[i].length - 1 ? 'o' : 'r'} pig-amount">${e(v ?? '')}</span>`).join('')}</div>`).join('')
                 + (lead.summary || (lead.crease && lead.crease.length) ? `<div class="sum">${lead.summary ? `<b>${e(lead.summary)}</b>` : ''}${lead.crease && lead.crease.length ? `<span>${e(lead.crease.map(c => (c.runs != null ? `${surname(c.name)} ${c.runs}*` : surname(c.name))).join(' · '))}</span>` : ''}</div>` : '')
                 + '</div>';
         }
