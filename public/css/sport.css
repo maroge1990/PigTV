@@ -389,6 +389,26 @@
   .sp .entries { columns: 1; }
 }
 
+/* ---------- the ⋯ on a card, the menu's sheet on a phone, the record dialog ---------- */
+.sp .gitem.has-more .cbot { padding-right: 40px; }
+.sp .more-btn { position: absolute; right: 2px; bottom: 0; width: 44px; height: 44px; display: grid; place-items: center; padding: 0;
+  border: 0; border-radius: 12px; background: none; color: var(--color-text-primary); }
+.sp .more-btn span { display: grid; place-items: center; width: 30px; height: 26px; border-radius: 8px; background: var(--raised);
+  border: 1px solid var(--color-control-border); font-size: 18px; font-weight: 700; line-height: 1; }
+.sp .more-btn:hover span, .sp .more-btn[aria-expanded="true"] span { background: var(--color-hover-raised); }
+.sp-scrim { position: fixed; inset: 0; z-index: 290; background: rgba(0, 0, 0, .55); }
+.rmenu.sp-menu.sheet { left: 0; right: 0; bottom: 0; top: auto; width: auto; max-width: none; max-height: 85vh; overflow-y: auto;
+  padding: 8px 12px calc(20px + env(safe-area-inset-bottom, 0px)); border-radius: 24px 24px 0 0; box-shadow: 0 -8px 30px rgba(0, 0, 0, .4); }
+.sp-menu.sheet .grab { width: 40px; height: 5px; border-radius: 3px; background: var(--color-control-border); margin: 4px auto 10px; }
+.sp-menu.sheet .mi { padding: 12px; }
+.sp-menu.sheet .cancel { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 48px; margin-top: 8px; border-radius: 999px;
+  border: 1px solid var(--color-border); background: var(--color-bg-secondary); color: var(--color-text-primary); font: inherit; font-weight: 600; cursor: pointer; }
+.sp-menu .msub { padding-left: 32px; }
+.sp-dialog .sp-field { display: block; margin-block: 12px; font-size: 16px; }
+.sp-dialog .sp-field input { display: block; width: 7em; min-height: 44px; margin-top: 6px; }
+@media (prefers-reduced-motion: no-preference) { .rmenu.sp-menu.sheet { animation: sp-sheet-in .18s ease-out; } }
+@keyframes sp-sheet-in { from { transform: translateY(24px); opacity: 0; } }
+
 /* ---------- states: nothing followed (the pig), loading, the error ---------- */
 .sp .state-block.sp-empty { padding: 72px 24px 56px; background: none; border: 0; gap: 12px; }
 .sp .state-block.sp-empty .state-block-title { font-size: 26px; font-weight: 800; }

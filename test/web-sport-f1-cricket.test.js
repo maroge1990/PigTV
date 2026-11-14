@@ -103,7 +103,7 @@ test('cricket: another league\'s matches are not on this league\'s page; with no
     p.lead.league = 'BBL'; p.others.forEach(o => { o.league = 'BBL'; });
     const html = V.leaguePage('Cricket', 'Cricket', 'cricket', { answer: p, loaded: true }, ctx(V, answer(), { leagues: ['Cricket', 'BBL'] }));
     assert.doesNotMatch(html, /South Africa v Australia|Bangladesh/);
-    assert.match(html, /<div class="cardgrid"><div class="gitem" data-game="cri">/, 'the league\'s front-page cards instead');
+    assert.match(html, /<div class="cardgrid"><div class="gitem[^"]*" data-game="cri">/, 'the league\'s front-page cards instead');
     eq(V.cricketLeagueOf('1', null, 'International (men)', { leagues: ['Cricket', 'BBL'], labels: { Cricket: 'International (men)' } }), 'Cricket');
 });
 function eq(a, b) { assert.deepEqual(JSON.parse(JSON.stringify(a)), b); }

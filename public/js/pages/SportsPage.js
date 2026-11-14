@@ -381,6 +381,15 @@ class SportsPage {
             if (!el || !root.contains(el)) return;
             this.act(el.getAttribute('data-act'), el, e);
         });
+        // Right-click (a long press on a phone) on a game opens its menu, as the ⋯ does.
+        root.addEventListener('contextmenu', (e) => {
+            const el = e.target?.closest?.('[data-act="game"]');
+            if (!el || !root.contains(el)) return;
+            const g = this.game(el.getAttribute('data-id'));
+            if (!g) return;
+            e.preventDefault();
+            this.openMenu(g, el, { point: Number.isFinite(e.clientX) && e.clientX > 0 ? { x: e.clientX, y: e.clientY } : null });
+        });
         // A logo that does not load becomes its monogram disc.
         root.addEventListener('error', (e) => {
             const img = e.target;
@@ -410,6 +419,14 @@ class SportsPage {
             case 'watch': return this.watch(id);
             case 'remind': return this.remind(id);
             case 'record': return this.record(id);
+            case 'more': case 'record-menu': { const g = this.game(id); return g ? this.openMenu(g, el) : undefined; }
+            case 'record-every': return this.recordEvery(id);
+            case 'record-options': return this.recordOptions(id);
+            case 'change-recording': return this.changeRecording(id);
+            case 'record-listed': return this.recordListed(id);
+            case 'unlisted-cancel': return this.recordListed(id, true);
+            case 'pin': return this.pin(id);
+            case 'watch-channel': return this.watch(id, el.getAttribute('data-channel'));
             case 'follow': return this.selectFollow(Number(el.getAttribute('data-index')));
             case 'retry': return this.refresh();
             case 'back': return this.back();
@@ -479,15 +496,18 @@ class SportsPage {
     }
 
     /** Play the game's best channel, found again in the channel list by its identity (never a stored position). */
-    async watch(id) {
+    async watch(id, channelKey = null) {
         this.closeMenu();
         const g = this.game(id), ev = g && SportView.event(g);
         if (!ev || SportView.action(g, this.now()) !== 'watch') { UI.toast('This game isn’t on your channels right now.'); return; }
+        const key = (c) => `${c.sourceId}:${c.stableId || c.id}`;
+        // "Watch on…": the chosen channel, while it still shows the game now
+        const chosen = channelKey ? this.channelsOnAir(g).find(c => key(c) === channelKey) : ev.channel;
+        if (!chosen) { UI.toast('That channel isn’t showing the game now.'); return; }
         try {
             const cl = this.app.channelList;
             await cl.loadSources(); await cl.loadChannels();
-            const key = (c) => `${c.sourceId}:${c.stableId || c.id}`;
-            const match = cl.channels.find(c => key(c) === key(ev.channel));
+            const match = cl.channels.find(c => key(c) === key(chosen));
             if (!match) { UI.toast('That channel isn’t in your channel list. Refresh the library and try again.'); return; }
             this.app.navigateTo('live');
             await cl.selectChannel({ sourceId: match.sourceId, channelId: match.id });
@@ -542,41 +562,99 @@ class SportsPage {
         }
     }
 
-    // ---------- the game's menu (a card that is not on now) ----------
+    // ---------- the game's menu: Apple's record menu (SportRecordMenu / ProgrammeMenu), a sheet on a phone ----------
 
-    menuItems(g) {
-        const ev = SportView.event(g), now = this.now(), items = [];
-        const act = SportView.action(g, now);
-        if (act === 'watch') items.push({ act: 'watch', icon: SportView.ICON.play, title: 'Watch', detail: ev.channel.name });
-        if (act === 'remind') items.push({ act: 'remind', icon: SportView.ICON.bell, title: 'Remind me', detail: `Plays on ${ev.channel.name} at ${UI.clock(ev.start)}` });
-        if (ev && !SportView.terminal(g)) items.push({ act: 'record', icon: SportView.ICON.rec.replace('<svg', '<svg class="red"'), title: 'Record this game', detail: `${UI.clock(ev.start)} – ${UI.clock(ev.end)}, with the usual padding`, section: 'Record' });
+    /** The followed team "Record every <team> game" is for: the follow the game is for, else its followed side. */
+    teamFor(g) {
+        if (!g || g.synthetic || !this.front || !Array.isArray(g.competitors) || g.competitors.length !== 2) return null;
+        const follows = this.front.follows || [];
+        const same = (a, b) => { const x = String(a || '').toLowerCase(), y = String(b || '').toLowerCase(); return x === y || x.endsWith(` ${y}`) || y.endsWith(` ${x}`); };
+        const own = follows.find(f => f.gameId === g.id && g.competitors.some(c => same(c.name, f.name)));
+        const side = own ? null : SportView.followedSide(g, follows.map(f => f.name));
+        const f = own || (side != null ? follows.find(x => same(x.name, g.competitors[side].name)) : null);
+        if (!f) return null;
+        return { name: f.name, sport: f.sport || SportView.sportOf(g.league, null, this.front) };
+    }
+    /** The channels airing a game now (its own times), for "Watch on…". */
+    channelsOnAir(g) {
+        const now = this.now();
+        return (g.channels || []).filter(c => (Number.isFinite(c.start) ? c.start <= now : true) && (Number.isFinite(c.end) ? now < c.end : true));
+    }
+    /**
+     * The items: Remind me before a game; "Watch on… (n channels)" when several channels show it now; RECORD: Record this
+     * game (or Change recording when it is set), Record every <team> game, More options…; for a game the TV Guide does not
+     * list yet, Record when it's listed (or Don't record it); on the front page, Make this the hero.
+     */
+    menuItems(g, { front = false } = {}) {
+        const V = SportView, ev = V.event(g), now = this.now(), items = [], act = V.action(g, now), red = V.ICON.rec.replace('<svg', '<svg class="red"');
+        if (act === 'remind') items.push({ act: 'remind', icon: V.ICON.bell, title: 'Remind me', detail: `Plays on ${ev.channel.name} at ${UI.clock(ev.start)}` });
+        if (act === 'watch') {
+            const on = this.channelsOnAir(g);
+            if (on.length > 1) items.push({ act: 'watch-on', icon: V.ICON.channels, title: `Watch on… (${on.length} channels)`, detail: on.map(c => c.name).join(', '), expands: true });
+            else items.push({ act: 'watch', icon: V.ICON.play, title: 'Watch', detail: ev.channel.name });
+        }
+        if (ev && !V.terminal(g) && ev.end > now) {
+            const r = g.recording;
+            if (r && r.scheduleId != null && r.status) items.push({ act: 'change-recording', icon: red, title: 'Change recording', detail: r.status === 'recording' ? 'Recording now' : 'Recording scheduled', section: 'Record' });
+            else items.push({ act: 'record', icon: red, title: 'Record this game', detail: `${UI.clock(ev.start)} – ${UI.clock(ev.end)}, with the usual padding`, section: 'Record' });
+            const team = this.teamFor(g);
+            if (team) items.push({ act: 'record-every', icon: V.ICON.repeat, title: `Record every ${team.name} game`, detail: 'Every game of the team, never replays', section: 'Record' });
+            items.push({ act: 'record-options', icon: V.ICON.sliders, title: 'More options…', detail: 'Start early, finish late', section: 'Record' });
+        } else if (!ev && !g.synthetic && g.status === 'scheduled' && (g.competitors || []).length === 2 && !g.recording && g.start > now) {
+            // #234: a game the TV Guide does not list yet is recorded once it is
+            if (g.recordWhenListed && g.recordWhenListed.ruleId != null) items.push({ act: 'unlisted-cancel', icon: red, title: 'Don’t record it', detail: 'It records when the TV Guide lists it', section: 'Record' });
+            else items.push({ act: 'record-listed', icon: red, title: 'Record when it’s listed', detail: 'Not in the TV Guide yet', section: 'Record' });
+        }
+        if (front && !g.synthetic && this.heroId !== g.id) items.push({ act: 'pin', icon: V.ICON.star, title: 'Make this the hero', detail: 'Show it in the banner', section: '' });
         return items;
     }
-    menuMarkup(g) {
-        const V = SportView, e = V.e, ev = V.event(g), items = this.menuItems(g);
+    menuMarkup(g, opts = {}) {
+        const V = SportView, e = V.e, ev = V.event(g), items = this.menuItems(g, opts);
         const sub = ev ? `${ev.channel.name} · ${UI.clock(ev.start)} – ${UI.clock(ev.end)}` : V.channelLine(g) || 'No TV listing found';
         let html = `<div class="mh"><b>${e(g.title)}</b><span>${e(sub)}</span></div>`;
         let section = null;
         for (const it of items) {
-            if (it.section && it.section !== section) { section = it.section; html += `<div class="mdiv" role="separator"></div><div class="ms" aria-hidden="true">${e(section)}</div>`; }
-            html += `<button type="button" class="mi" role="menuitem" tabindex="-1" data-act="${e(it.act)}" data-id="${e(g.id)}">${it.icon}<span><b>${e(it.title)}</b><span>${e(it.detail)}</span></span></button>`;
+            if (it.section != null && it.section !== section) {
+                section = it.section;
+                html += `<div class="mdiv" role="separator"></div>${section ? `<div class="ms" aria-hidden="true">${e(section)}</div>` : ''}`;
+            }
+            html += `<button type="button" class="mi" role="menuitem" tabindex="-1" data-act="${e(it.act)}" data-id="${e(g.id)}"${it.expands ? ' aria-expanded="false"' : ''}>${it.icon}<span><b>${e(it.title)}</b><span>${e(it.detail)}</span></span></button>`;
+            if (it.expands) html += `<div class="msub" hidden>${this.channelsOnAir(g).map(c => `<button type="button" class="mi" role="menuitem" tabindex="-1" data-act="watch-channel" data-id="${e(g.id)}" data-channel="${e(`${c.sourceId}:${c.stableId || c.id}`)}">${V.ICON.play}<span><b>${e(c.name)}</b>${c.quality ? `<span>${e(c.quality)}</span>` : ''}</span></button>`).join('')}</div>`;
         }
         if (!items.length) html += '<p class="mempty">Not on your channels yet.</p>';
         return html;
     }
-    openMenu(g, anchor) {
+    /** The menu for a game: under its card or button on a computer, a sheet from the bottom on a phone. */
+    openMenu(g, anchor, opts = {}) {
         this.closeMenu();
+        const sheet = this.phone;
         const menu = document.createElement('div');
-        menu.className = 'rmenu sp-menu';
+        menu.className = `rmenu sp-menu${sheet ? ' sheet' : ''}`;
         menu.setAttribute('role', 'menu');
         menu.setAttribute('aria-label', g.title);
-        menu.innerHTML = this.menuMarkup(g);
+        menu.innerHTML = (sheet ? '<div class="grab" aria-hidden="true"></div>' : '') + this.menuMarkup(g, { front: opts.front ?? !this.route.sport })
+            + (sheet ? '<button type="button" class="pill cancel" data-act="menu-cancel">Cancel</button>' : '');
+        let scrim = null;
+        if (sheet) {
+            scrim = document.createElement('div');
+            scrim.className = 'sp-scrim';
+            scrim.setAttribute('aria-hidden', 'true');
+            document.body.appendChild(scrim);
+        }
         document.body.appendChild(menu);
-        const rows = () => [...menu.querySelectorAll('[role=menuitem]')];
+        const rows = () => [...menu.querySelectorAll('[role=menuitem]')].filter(r => !r.closest?.('[hidden]'));
         const close = (focus = true) => this.closeMenu(focus);
         menu.addEventListener('click', (e) => {
             const el = e.target?.closest?.('[data-act]');
-            if (el) this.act(el.getAttribute('data-act'), el, e);
+            if (!el) return;
+            const name = el.getAttribute('data-act');
+            if (name === 'menu-cancel') { close(); return; }
+            if (name === 'watch-on') {
+                const list = el.nextElementSibling, open = list && list.hidden;
+                if (list) { list.hidden = !open; el.setAttribute('aria-expanded', String(!!open)); if (open) list.querySelector('[role=menuitem]')?.focus?.(); }
+                return;
+            }
+            this.act(name, el, e);
         });
         menu.addEventListener('keydown', (e) => {
             const list = rows(), i = list.indexOf(document.activeElement);
@@ -589,18 +667,20 @@ class SportsPage {
         });
         const outside = (e) => { if (!menu.contains(e.target) && !anchor?.contains?.(e.target)) close(false); };
         document.addEventListener('pointerdown', outside, true);
-        this.menu = { el: menu, anchor, key: anchor?.getAttribute?.('data-key') || null, gameId: g.id, outside };
+        this.menu = { el: menu, scrim, anchor, key: anchor?.getAttribute?.('data-key') || null, gameId: g.id, outside };
         anchor?.setAttribute?.('aria-expanded', 'true');
-        this.placeMenu();
+        if (!sheet) this.placeMenu(opts.point);
         (rows()[0] || menu).focus?.();
     }
-    placeMenu() {
+    placeMenu(point = null) {
         const m = this.menu;
-        if (!m || !m.anchor?.getBoundingClientRect) return;
-        const b = m.anchor.getBoundingClientRect(), r = m.el.getBoundingClientRect ? m.el.getBoundingClientRect() : { width: 360, height: 0 };
+        if (!m) return;
+        const b = point ? { left: point.x, right: point.x, top: point.y, bottom: point.y } : m.anchor?.getBoundingClientRect ? m.anchor.getBoundingClientRect() : null;
+        if (!b) return;
+        const r = m.el.getBoundingClientRect ? m.el.getBoundingClientRect() : { width: 360, height: 0 };
         const vw = (typeof window !== 'undefined' && window.innerWidth) || 1024, vh = (typeof window !== 'undefined' && window.innerHeight) || 768;
         const w = r.width || 360, h = r.height || 0;
-        const left = Math.max(8, Math.min(b.left, vw - w - 8));
+        const left = Math.max(8, Math.min(point ? b.left : b.right - w, vw - w - 8));
         let top = b.bottom + 4;
         if (top + h > vh - 8 && b.top - h - 4 >= 8) top = b.top - h - 4;
         m.el.style.left = `${Math.round(left)}px`;
@@ -612,6 +692,7 @@ class SportsPage {
         this.menu = null;
         document.removeEventListener('pointerdown', m.outside, true);
         m.el.remove();
+        m.scrim?.remove();
         // #323 review: a poll may have redrawn the page under the menu: its card is found again by its data-key
         const anchor = this.anchorFor(m);
         anchor?.setAttribute?.('aria-expanded', 'false');
@@ -622,6 +703,98 @@ class SportsPage {
         if (m.anchor && m.anchor.isConnected !== false) return m.anchor;
         if (!m.key || !this.root?.querySelectorAll) return null;
         return [...this.root.querySelectorAll('[data-key]')].find(n => n.getAttribute('data-key') === m.key) || null;
+    }
+
+    // ---------- what the menu's items do ----------
+
+    /** Record every <team> game: a household rule (C-M `team`), the team's games from the fixture, never a replay. */
+    async recordEvery(id) {
+        this.closeMenu(true);
+        const g = this.game(id), team = this.teamFor(g);
+        if (!team) return;
+        try {
+            await API.recordings.addRule({ kind: 'team', match: team.name, sport: team.sport });
+            UI.toast(`Recording every ${team.name} game.`);
+            this.refresh();
+        } catch (err) { UI.toast(UI.errorText(err, `Every ${team.name} game could not be set to record.`), { kind: 'error' }); }
+    }
+    /** #234: record a game once the TV Guide lists it (C-M `game`), or stop waiting for it. */
+    async recordListed(id, cancel = false) {
+        this.closeMenu(true);
+        const g = this.game(id);
+        if (!g) return;
+        try {
+            if (cancel) { await API.recordings.deleteRule(g.recordWhenListed.ruleId); UI.toast(`${g.title} won’t be recorded.`); }
+            else { await API.recordings.addRule({ kind: 'game', gameId: g.id }); UI.toast(`${g.title} records when the TV Guide lists it.`); }
+            this.refresh();
+        } catch (err) { UI.toast(UI.errorText(err, 'The recording could not be changed.'), { kind: 'error' }); }
+    }
+    /** Make this the hero (the front page's banner), while its game is on the page. */
+    pin(id) {
+        this.closeMenu(true);
+        if (!this.game(id)) return;
+        this.selectedFollowKey = null; this.pinned = id; this.heroId = id;
+        this.loadMap(); this.render();
+    }
+    /** Two whole-minute fields (start early, finish late) in a dialog; `done(values)` is its rose button's. */
+    paddingDialog({ title, action, pre = '', post = '', preLocked = false, extra = null, done }) {
+        const d = UI.dialog.create({ title, className: 'sp-dialog' });
+        d.body.innerHTML = `<label class="sp-field">Start early, minutes<input type="number" id="sp-pad-pre" name="pre" min="0" max="60" step="1" inputmode="numeric" value="${SportView.e(pre)}"${preLocked ? ' disabled' : ''} placeholder="Usual"></label>`
+            + `<label class="sp-field">Finish late, minutes<input type="number" id="sp-pad-post" name="post" min="0" max="180" step="1" inputmode="numeric" value="${SportView.e(post)}" placeholder="Usual"></label>`
+            + '<p class="setting-hint">Leave a field empty for the usual padding.</p>';
+        const read = (input) => (String(input.value).trim() === '' ? undefined : UI.readWholeNumber(input));
+        const save = document.createElement('button'); save.type = 'button'; save.className = 'btn btn-primary'; save.textContent = action;
+        save.addEventListener('click', async () => {
+            const preIn = d.body.querySelector('#sp-pad-pre'), postIn = d.body.querySelector('#sp-pad-post');
+            const values = { pre: preLocked ? undefined : read(preIn), post: read(postIn) };
+            if (values.pre === null || values.post === null) return;
+            save.disabled = true;
+            if (await done(values) !== false) d.close(); else save.disabled = false;
+        });
+        const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'btn btn-secondary'; cancel.setAttribute('data-dialog-close', ''); cancel.textContent = 'Cancel';
+        d.footer.append(...(extra ? [extra(d)] : []), cancel, save);
+        d.open();
+        return d;
+    }
+    /** More options…: Record this game with its own padding. */
+    recordOptions(id) {
+        this.closeMenu();
+        const g = this.game(id), ev = g && SportView.event(g);
+        if (!ev) return;
+        this.paddingDialog({ title: `Record ${g.title}`, action: 'Record this game', done: async ({ pre, post }) => {
+            try {
+                const c = ev.channel;
+                await API.recordings.schedule({ sourceId: Number(c.sourceId), channelItemId: c.id, channelName: c.name, title: g.title,
+                    programStart: ev.start, programEnd: ev.end, ...(pre != null ? { preBufferMin: pre } : {}), ...(post != null ? { postBufferMin: post } : {}),
+                    ...(g.synthetic ? {} : { gameId: g.id }) });
+                UI.toast(`Set to record: ${g.title}.`);
+                this.refresh();
+                return true;
+            } catch (err) { UI.toast(UI.errorText(err, 'The recording could not be scheduled.'), { kind: 'error' }); return false; }
+        } });
+    }
+    /** Change recording: its padding (only finishing later once it records), or Cancel recording with Undo. */
+    changeRecording(id) {
+        this.closeMenu();
+        const g = this.game(id), r = g && g.recording;
+        if (!r || r.scheduleId == null) return;
+        const recording = r.status === 'recording';
+        this.paddingDialog({ title: `Change recording · ${g.title}`, action: 'Save recording', preLocked: recording,
+            extra: (d) => {
+                const b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-secondary'; b.textContent = 'Cancel recording';
+                b.addEventListener('click', () => {
+                    d.close();
+                    UI.undoable(`Recording of ${g.title} cancelled.`, { undo: () => {}, failText: 'The recording could not be cancelled.',
+                        commit: ({ keepalive } = {}) => API.request('DELETE', `/recordings/scheduled/${r.scheduleId}`, null, { keepalive }).then(() => this.refresh()) });
+                });
+                return b;
+            },
+            done: async ({ pre, post }) => {
+                const body = { ...(pre != null ? { preBufferMin: pre } : {}), ...(post != null ? { postBufferMin: post } : {}) };
+                if (!Object.keys(body).length) return true;
+                try { await API.request('PUT', `/recordings/scheduled/${r.scheduleId}`, body); UI.toast('Recording changed.'); this.refresh(); return true; }
+                catch (err) { UI.toast(UI.errorText(err, 'The recording could not be changed.'), { kind: 'error' }); return false; }
+            } });
     }
 }
 

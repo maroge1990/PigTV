@@ -85,7 +85,7 @@ test('the front page as drawn: the banner (hero, follows list), a section per sp
     const html = V.front(ctx(V, answer()));
     assert.match(html, /<section class="banner" aria-label="Arsenal v Chelsea">/);
     assert.match(html, /<div class="kicker live"><span class="dot" aria-hidden="true"><\/span><span>Live · Football · Premier League · Your team<\/span>/);
-    assert.match(html, /<button type="button" class="pill primary" data-act="watch" data-id="ars" data-key="hero:watch">[\s\S]*?Watch<\/button><button type="button" class="pill" data-act="record"/);
+    assert.match(html, /<button type="button" class="pill primary" data-act="watch" data-id="ars" data-key="hero:watch">[\s\S]*?Watch<\/button><button type="button" class="pill" data-act="record-menu" aria-haspopup="menu"/);
     assert.equal((html.match(/pill primary/g) || []).length, 1, 'one rose button');
     assert.match(html, /<span class="up">Following<\/span> · your order, playing now on top/);
     assert.match(html, /class="brow sel" data-act="follow" data-index="0"[^>]*aria-current="true">[\s\S]*?<span class="t">Arsenal<\/span><span class="tr live">Live · v Chelsea<\/span>/);
@@ -196,7 +196,7 @@ test('pressing a card: Watch while its channel airs it, else its menu; the hero\
     assert.equal(menu.getAttribute('role'), 'menu');
     assert.match(menu.innerHTML, /<div class="mh"><b>Newcastle v Tottenham<\/b><span>Stan Sport 2 · /);
     assert.match(menu.innerHTML, /data-act="remind" data-id="nxt">[\s\S]*?<b>Remind me<\/b>/);
-    assert.match(menu.innerHTML, /<div class="ms" aria-hidden="true">Record<\/div><button type="button" class="mi" role="menuitem" tabindex="-1" data-act="record" data-id="nxt">/);
+    assert.match(menu.innerHTML, /<div class="ms" aria-hidden="true">Record<\/div><button type="button" class="mi" role="menuitem" tabindex="-1" data-act="change-recording" data-id="nxt">/, 'set to record already: Change recording (#323 step 5)');
     menu.dispatchEvent(new FakeEvent('keydown', { key: 'Escape' }));
     assert.equal(b.document.body.querySelector('.sp-menu'), null, 'Escape closes it');
     assert.equal(b.document.activeElement, anchor, 'focus goes back to the card');

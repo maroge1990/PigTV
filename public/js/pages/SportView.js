@@ -419,6 +419,9 @@ const SportView = (() => {
         return '';
     }
 
+    /** The card's "⋯": its menu (a sibling of the card's button, after it in keyboard order; right-click opens it too). */
+    const moreButton = (id, title) => `<button type="button" class="more-btn" data-act="more" data-id="${e(id)}" data-key="more:${e(id)}" aria-haspopup="menu" aria-expanded="false" aria-label="${e(`More options for ${title}`)}"><span aria-hidden="true">⋯</span></button>`;
+
     /** A card in a rail: a button (Watch, or the game's menu) with the team rows or a session's lines, then the state. */
     function card(g, ctx) {
         const { front, hide, now } = ctx;
@@ -441,7 +444,8 @@ const SportView = (() => {
         else if (twoSided(g)) bot += `<span class="when pig-amount">${e(startLine(g, now))}</span>`;
         if (twoSided(g)) bot += `<span class="ch">${e(channelLine(g))}</span>`;
         else bot += `<span class="act">${e(actionLabel(g, now))}</span>`;
-        return `<div class="gitem" data-game="${e(g.id)}"><button type="button" class="${cls}" data-act="game" data-id="${e(g.id)}" data-key="card:${e(g.id)}">${body}<span class="cbot">${bot}</span>${mark}</button></div>`;
+        const more = terminal(g) ? '' : moreButton(g.id, g.title);
+        return `<div class="gitem${more ? ' has-more' : ''}" data-game="${e(g.id)}"><button type="button" class="${cls}" data-act="game" data-id="${e(g.id)}" data-key="card:${e(g.id)}">${body}<span class="cbot">${bot}</span>${mark}</button>${more}</div>`;
     }
 
     // ---------- markup: the banner (SportBanner) ----------
@@ -479,7 +483,7 @@ const SportView = (() => {
         if (g && ev) {
             if (act === 'watch') out += `<button type="button" class="pill primary" data-act="watch" data-id="${e(g.id)}" data-key="hero:watch">${ICON.play}Watch</button>`;
             else if (act === 'remind') out += `<button type="button" class="pill primary" data-act="remind" data-id="${e(g.id)}" data-key="hero:remind">${ICON.bell}Remind me</button>`;
-            out += `<button type="button" class="pill" data-act="record" data-id="${e(g.id)}" data-key="hero:record">${ICON.rec}Record</button>`;
+            out += `<button type="button" class="pill" data-act="record-menu" aria-haspopup="menu" data-id="${e(g.id)}" data-key="hero:record">${ICON.rec}Record</button>`;
         }
         if (open) out += `<button type="button" class="pill" data-act="open-sport" data-sport="${e(open)}" data-key="hero:open">Open ${e(open)}${ICON.chev}</button>`;
         return out;
@@ -603,7 +607,7 @@ const SportView = (() => {
         if (ev) {
             if (act === 'watch') buttons += `<button type="button" class="pill primary" data-act="watch" data-id="${e(g.id)}" data-key="${e(key)}:watch">${ICON.play}Watch</button>`;
             else if (act === 'remind') buttons += `<button type="button" class="pill primary" data-act="remind" data-id="${e(g.id)}" data-key="${e(key)}:remind">${ICON.bell}Remind me</button>`;
-            buttons += `<button type="button" class="pill" data-act="record" data-id="${e(g.id)}" data-key="${e(key)}:record">${ICON.rec}Record</button>`;
+            buttons += `<button type="button" class="pill" data-act="record-menu" aria-haspopup="menu" data-id="${e(g.id)}" data-key="${e(key)}:record">${ICON.rec}Record</button>`;
         }
         return `<div class="fcard"><div class="kicker k${live ? ' live' : ''}">${live ? dot() : ''}<span>${e(kicker)}</span></div>`
             + `<button type="button" class="fbody" data-act="game" data-id="${e(g.id)}" data-key="${e(key)}">${mid}<span class="fline pig-amount">${e(line.join(' · '))}</span></button>`
@@ -911,7 +915,8 @@ const SportView = (() => {
         else bot = `<span class="when pig-amount">${e(when(g.start, now))}</span>`;
         const channel = (card && card.channels && card.channels[0] && card.channels[0].name) || (g.channels[0] && g.channels[0].name);
         if (g.status !== 'done') bot += `<span class="ch">${e(channel || 'Not in guide yet')}</span>`;
-        return `<div class="gitem fxitem"><button type="button" class="fx${followed ? ' fol' : ongoing ? ' live' : ''}" data-act="game" data-id="${e(id)}" data-key="fx:${e(g.id)}">${rows}${g.situation ? `<span class="sline">${e(g.situation)}</span>` : ''}<span class="cbot">${bot}</span></button></div>`;
+        const more = g.status === 'done' ? '' : moreButton(id, sides.map(x => x.name).join(fx.awayFirst ? ' at ' : ' v '));
+        return `<div class="gitem fxitem${more ? ' has-more' : ''}"><button type="button" class="fx${followed ? ' fol' : ongoing ? ' live' : ''}" data-act="game" data-id="${e(id)}" data-key="fx:${e(g.id)}">${rows}${g.situation ? `<span class="sline">${e(g.situation)}</span>` : ''}<span class="cbot">${bot}</span></button>${more}</div>`;
     }
 
     function standingsHtml(fx, ctx, label_) {
@@ -1179,7 +1184,7 @@ const SportView = (() => {
         if (ev) {
             if (act === 'watch') actions += `<button type="button" class="pill primary" data-act="watch" data-id="${e(g.id)}" data-key="lead:watch">${ICON.play}Watch live</button>`;
             else if (act === 'remind') actions += `<button type="button" class="pill primary" data-act="remind" data-id="${e(g.id)}" data-key="lead:remind">${ICON.bell}Remind me</button>`;
-            if (act !== 'none' && act !== 'details') actions += `<button type="button" class="pill" data-act="record" data-id="${e(g.id)}" data-key="lead:record">${ICON.rec}Record</button>`;
+            if (act !== 'none' && act !== 'details') actions += `<button type="button" class="pill" data-act="record-menu" aria-haspopup="menu" data-id="${e(g.id)}" data-key="lead:record">${ICON.rec}Record</button>`;
         }
         const chn = ev ? (act === 'remind' ? `${when(ev.start, now)} on ${ev.channel.name}` : `on ${ev.channel.name}`) : lead.status === 'done' ? '' : 'Not in guide yet';
         return `<div class="lead"><div class="lead-k"><span>${e(kicker)}</span><span class="lpill${lead.status === 'live' ? ' live' : ''}">${e(pill)}</span></div>`
@@ -1342,7 +1347,7 @@ const SportView = (() => {
         followItems, front, frontDesktop, frontPhone, row, rowHtml, phoneCard, dots, position, isEmpty, game, sportOf, label,
         railGames, staleNote, scoresNote, star, dot, recordMark, kickerWord, yours, availabilityWord, onAirLine, e, gameCard,
         sportLeagues, sportGames, leagueGames, sportHero, openingLeague, leagueItems, leagueGroups, leagueCards, leagueContent,
-        moreTitle, sportPage, EVENT_LEAGUES, groupsHtml, nothingSoon, fixtureDetail, nflFixture, leagueFixture, roundOf, viewOf,
+        moreTitle, sportPage, EVENT_LEAGUES, moreButton, groupsHtml, nothingSoon, fixtureDetail, nflFixture, leagueFixture, roundOf, viewOf,
         tableGroups, fixtureCard, fixtureGame, fixtureCardHtml, standingsHtml, fixturePage, leaguePage, gamesGrid, leagueWords,
         mapPath, countdown, focusSession, sessionPill, sessionGame, f1Hero, f1Page, cricketLeagueOf, innings, scoreboard, cricketPill,
         seriesResult, cricketGame, cricketPage, evFollowed, evFocus, golfHtml, tennisHtml, fightHtml, raceHtml, eventsPage

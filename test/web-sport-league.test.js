@@ -91,7 +91,7 @@ test('the league page\'s states: loading, the failure with Try again, not availa
     assert.match(V.leaguePage('Football', 'EPL', 'league', { answer: { available: false } }, c), /data-title="Premier League isn’t available right now"/);
     assert.match(V.leaguePage('Football', 'EPL', 'league', { answer: { available: true, rounds: [] } }, c), /No Premier League games listed[\s\S]*href="#guide">Open the TV Guide/);
     assert.match(V.leaguePage('Football', 'EPL', 'league', { answer: afl(), stale: true, updatedAt: NOW }, c), /Couldn’t update\. Showing what you had at/);
-    assert.match(V.leaguePage('Football', 'EPL', 'games', null, c), /<div class="cardgrid"><div class="gitem" data-game="ars">/, 'a league without a page: its cards');
+    assert.match(V.leaguePage('Football', 'EPL', 'games', null, c), /<div class="cardgrid"><div class="gitem[^"]*" data-game="ars">/, 'a league without a page: its cards');
 });
 
 test('#sports/Football/EPL asks for the league\'s page, draws it under "‹ Football", and its round chips switch', async () => {
