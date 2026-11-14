@@ -198,7 +198,8 @@ function isProviderFailure(err) {
 /**
  * #324: another feed of the channel `channelRef` ({ sourceId, channelId }) that could take over from the shared
  * feed `ingestKey` now, or null: a candidate of the channel's plan (so not quarantined, not on a provider that is
- * down) that is a different feed and that the coordinator would admit for `owner` without disturbing anybody (a
+ * down) that is a different feed and that the coordinator would admit for every one of `owners` (else `owner`)
+ * without disturbing anybody (a
  * free connection, a standby or other abandoned stream, the viewer's own stream, or a live ingest to join), and
  * that `usable(candidate)` accepts (what the readers of the looping feed would really switch to), and that was not
  * itself found repeating in the last hour (noteRepeating). The plan is read
@@ -219,7 +220,9 @@ function isRepeating(providerId, channelKey, now = Date.now()) {
     return false;
 }
 
-async function otherFeedFor({ channelRef, ingestKey, owner = null, usable = null }, settings = {}) {
+async function otherFeedFor({ channelRef, ingestKey, owner = null, owners = null, usable = null }, settings = {}) {
+    // Every viewer reading the looping feed (each distinct owner) must be admitted there: ending the feed ends them all.
+    const who = Array.isArray(owners) && owners.length ? owners : [owner];
     if (!channelRef || channelRef.sourceId === undefined || channelRef.channelId === undefined) return null;
     const { candidates } = await module.exports.plan(channelRef.sourceId, channelRef.channelId);
     const coordinator = require('./streamCoordinator');
@@ -232,7 +235,7 @@ async function otherFeedFor({ channelRef, ingestKey, owner = null, usable = null
         if (key === ingestKey) continue; // the looping feed itself
         if (usable && !usable(c)) continue; // a reader there would not use it (the relay's unusable, a recording's route)
         const joinIngest = ingest.liveFor(coordinator.poolOf(c.providerId), c.url) ? key : null;
-        if (coordinator.canAdmitWithoutDisturbing({ providerId: c.providerId, owner, settings, joinIngest })) return c;
+        if (who.every(o => coordinator.canAdmitWithoutDisturbing({ providerId: c.providerId, owner: o, settings, joinIngest }))) return c;
     }
     return null;
 }

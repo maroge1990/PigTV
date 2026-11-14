@@ -367,7 +367,9 @@ class Ingest extends EventEmitter {
         // Remembered whatever happens next: another provider's loop check must not send its play here.
         try { require('./providerRouting').noteRepeating(this.providerId, this.channelKey); } catch (e) { /* observation only */ }
         const viewer = [...this.subs].find(s => s.info.purpose === 'viewer' && s.info.owner);
-        this.otherFeed(viewer ? viewer.info.owner : null).then((other) => {
+        // Every viewer on the feed must be admitted elsewhere (Opus #324): ending it ends them all.
+        const owners = [...new Set([...this.subs].filter(s => s.info.purpose === 'viewer').map(s => s.info.owner || null))];
+        this.otherFeed(owners).then((other) => {
             this.loopDeciding = false;
             if (this.closed) return;
             const who = this.providerName || 'the provider';
@@ -395,7 +397,7 @@ class Ingest extends EventEmitter {
     }
 
     /** #324: another feed of this channel that could take over now, or null (none, or the channel is not known). */
-    async otherFeed(owner) {
+    async otherFeed(owners) {
         if (!this.channelRef) return null;
         // Codex #324 high: a candidate counts only if every reader here would really use it - each subscription may
         // carry `loopFilter(candidate)`: the relay's (not a provider it found unusable), a recording's (its route, a
@@ -404,7 +406,7 @@ class Ingest extends EventEmitter {
         const usable = (c) => filters.every(f => { try { return f(c) === true; } catch (e) { return false; } });
         try {
             const settings = await require('../db').settings.get();
-            return await require('./providerRouting').otherFeedFor({ channelRef: this.channelRef, ingestKey: this.key, owner, usable }, settings);
+            return await require('./providerRouting').otherFeedFor({ channelRef: this.channelRef, ingestKey: this.key, owners, usable }, settings);
         } catch (err) {
             this.log(`could not look for another provider (${err && err.code ? err.code : 'an error'})`);
             return null;

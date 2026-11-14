@@ -370,3 +370,25 @@ test('two looping providers do not hand the play back and forth: one found repea
         feed.leave();
     } finally { out.restore(); }
 });
+
+// Opus #324: admission was checked for the first viewer only, but ending the feed ends every reader. Two viewers on the
+// looping feed; Dream 4K's only connection is held by the first viewer's own stream there (so the first could move, by
+// replacing it), while the second could not be admitted without disturbing the first: it plays on.
+test('the looping feed is ended only if every viewer on it can be admitted elsewhere', { skip }, async () => {
+    gate = Promise.resolve();
+    const lease = takeLease(B.id, 'viewer', { owner: 'device:tv' });
+    const settings = await settingsNow();
+    assert.equal(coordinator.canAdmitWithoutDisturbing({ providerId: B.id, owner: 'device:tv', settings }), true, 'the first viewer could move');
+    assert.equal(coordinator.canAdmitWithoutDisturbing({ providerId: B.id, owner: 'device:phone', settings }), false, 'the second could not');
+    const out = captureLog();
+    try {
+        const source = ingest.sourceFor(candA, settings, channelRef);
+        const tv = await ingest.subscribe({ ...source, purpose: 'viewer', owner: 'device:tv' });
+        const phone = await ingest.subscribe({ ...source, purpose: 'viewer', owner: 'device:phone' });
+        tv.resume(); phone.resume();
+        await until(() => out.lines.some(l => l.includes('no other provider for this channel: it plays on')), 'kept', 20000);
+        assert.equal(tv.endReason, null);
+        assert.equal(phone.endReason, null, 'the second viewer is not cut off');
+        tv.leave(); phone.leave();
+    } finally { out.restore(); coordinator.releaseLease(lease); }
+});
