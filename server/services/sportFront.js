@@ -153,30 +153,64 @@ async function front({ userId, events, ended = null, now = Date.now() }) {
     const leagues = new Set(prefs.sports.flatMap(s => s.leagues));
     const timezone = dashboard.timezone();
     if (!leagues.size) return emptyFront({ now, timezone, spoilerFree: prefs.spoilerFree });
-    // 0503 (D-54): with the collector off, the follows and leagues alone: no card, and never the collector's catalogue
-    // (frozen when it was on before, with old scores); badges from the stored ESPN roster only. Nothing is fetched.
+    // #195: the International groups in which a followed name is one of the group's nations.
+    const groups = require('./sportGroups');
+    const nations = prefs.sports.flatMap(s => s.leagues.filter(l => groups.isGroup(l) && groups.followsNation(l, s.teams)));
+    // 0503 (D-54): with the collector off, never the collector's catalogue (frozen when it was on before, with old scores);
+    // badges from the stored ESPN roster only. #282: with ESPN fixtures on, every game of the schedule read is a card drawn
+    // like a future game (scheduleFront); with them off too, the follows and leagues alone, no card. Nothing is fetched.
     if (!dashboard.collectorEnabled()) {
+        if (require('./sportsFixtures').enabled()) return scheduleFront({ userId, prefs, leagues, nations, timezone, events, now });
         const response = { now, timezone, games: [], followMatches: {} };
         return { ...arrange(response, prefs, { logoFor: followLogos(null, { catalogue: false }) }), rails: [] };
     }
     dashboard.store(); // the tables exist before the read-only worker opens them
     const cached = await events();
     const endedEvents = ended ? await ended(leagues) : [];
-    // #195: the International groups in which a followed name is one of the group's nations.
-    const groups = require('./sportGroups');
-    const nations = prefs.sports.flatMap(s => s.leagues.filter(l => groups.isGroup(l) && groups.followsNation(l, s.teams)));
     const response = await dashboard.response({ eventsBody: cached.body, options: { now, userId, timezone, nations,
         league: null, leagues, follow: null, broadLeagues: new Set(),
         keepFinishedToday: true, teams: store.view(prefs).teams, spoilerFree: prefs.spoilerFree, channelTimes: true, upcomingHours: 72, endedEvents, guideCards: false } });
-    require('./logoCache').applyLogoCache(response.games.flatMap(g => g.competitors));
+    await withRecordings(response.games);
+    return arrange(response, prefs, { logoFor: followLogos(dashboard.store()) });
+}
+
+/** Badges through the logo cache, and each card's recording (annotateRecordings) and waiting 'game' rule (#234). */
+async function withRecordings(games) {
+    require('./logoCache').applyLogoCache(games.flatMap(g => g.competitors));
     try {
         const settings = await require('../db').settings.get();
-        annotateRecordings(response.games, require('./recordingEngine').listScheduled({ settings }));
+        annotateRecordings(games, require('./recordingEngine').listScheduled({ settings }));
         // #234: a game waiting for its listing to be recorded (a 'game' rule, nothing scheduled yet) says so on its card.
         const waiting = new Map(require('./recordingRules').list().filter(r => r.kind === 'game' && r.enabled && r.gameId).map(r => [r.gameId, r.id]));
-        for (const g of response.games) if (!g.recording && waiting.has(g.id)) g.recordWhenListed = { ruleId: waiting.get(g.id) };
+        for (const g of games) if (!g.recording && waiting.has(g.id)) g.recordWhenListed = { ruleId: waiting.get(g.id) };
     } catch (err) { console.warn('[Sports] recordings on the front page:', err.message); } // the page without them
-    return arrange(response, prefs, { logoFor: followLogos(dashboard.store()) });
+}
+
+/**
+ * #282 (Mark, 10 Nov 2026): the front page with the score collector off and ESPN fixtures on. Every game of the schedule
+ * read (sportsFixtures.scheduleStore: sport_fixtures, the 30-minute read) in the followed leagues is a card, joined to the
+ * guide's channels exactly as the collector's are (buildDashboard on its worker; D-41: a guide listing alone never
+ * becomes a card), and drawn like a future game: `status: "scheduled"`, `freshness: "unavailable"`, `observedAt` null,
+ * `progress` {}, no `scores`, `situation` or `breakLabel`; `scores: "unavailable"` for the page. A game that has started
+ * stays while its own end (else its start plus the sport's typical length, finishEstimate) is ahead or it is on air now.
+ * Never reads the collector's tables and never makes a request: the schedule is what the background read last stored.
+ * Leagues with their own feed (sportFeeds: AFLW, NRLW, netball, MotoGP, Supercars) and the whole-event ones (tennis,
+ * golf, UFC, IndyCar, NASCAR) are not in it, so they have no cards here.
+ */
+async function scheduleFront({ userId, prefs, leagues, nations, timezone, events, now }) {
+    const dashboard = require('./sportsDashboard');
+    const cached = await events();
+    const response = await dashboard.response({ eventsBody: cached.body, options: { now, userId, timezone, nations,
+        league: null, leagues, follow: null, broadLeagues: new Set(), keepFinishedToday: false,
+        teams: require('./sportPagePrefs').view(prefs).teams, spoilerFree: prefs.spoilerFree, channelTimes: true,
+        upcomingHours: 72, endedEvents: [], guideCards: false, schedule: true } });
+    response.games = response.games
+        .filter(g => g.start > now || finishEstimate(g) > now || g.broadcastStatus === 'on-tv')
+        .map(({ scores, situation, breakLabel, overrun, ...g }) => ({ ...g, status: 'scheduled', freshness: 'unavailable',
+            observedAt: null, progress: {} }))
+        .sort(byStart);
+    await withRecordings(response.games);
+    return { ...arrange(response, prefs, { logoFor: followLogos(null, { catalogue: false }) }), scores: 'unavailable' };
 }
 
 /**

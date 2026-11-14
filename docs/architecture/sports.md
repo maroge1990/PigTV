@@ -147,7 +147,7 @@ scoreboards and `sports_dashboard_catalog` the only store of a game's identity, 
 | `sports_dashboard_coverage` | the collector (0550; since 0552 also the teams its window's answers name) | `sportsFixtures.snapshot`, the Status page's fixtures panel, the roster pass |
 | `sport_fixture_teams` | the 30-minute pass: ESPN `/teams` once a day per league, else (cricket, or `/teams` not answering) the teams of the collector's last window; International cricket's every pass | rosters: classifier, follows, Settings, front-page logos |
 | `sport_fixture_status` | the leagues' own feeds (`recordFeed`); the fixture refresh with the collector off | the Status page |
-| `sport_fixtures` | the fixture refresh, only with the collector off | `snapshot` with the collector off, and for a league the collector has not wholly answered yet |
+| `sport_fixtures` | the fixture refresh, only with the collector off | `snapshot` with the collector off, and for a league the collector has not wholly answered yet; the front page's cards with the collector off (#282) |
 
 The 30-minute pass (`refreshAll`, same demand rule and EPG-sync kick) keeps only the rosters while the collector is on; a
 league's first whole window after start runs it at once (a cricket roster comes only from the window). `sport_fixtures` is left in place, unread and unwritten with the collector on, so a rollback (from 0553 or later: OPERATIONS.md › Rollback) finds
@@ -156,9 +156,20 @@ its last rows (that build's own coverage then bounds them, and its first pass re
 URLs, once per day of the window every 30 minutes (demand rule as above), storing teams, start, end and F1 session only (no
 score, status or clock) and feeding the classifier as before 0551; the collector never starts and nothing writes its
 tables (test/sport-scores-off.test.js). So `=0` means no live scores and no score polling, not no ESPN; `PIGTV_SPORT_FIXTURES=0`
-is no ESPN schedule either. Request count
+is no ESPN schedule either. Each record keeps its ESPN path (`source`, #282), so its game has the collector's id. Request count
 over a simulated day (test/sport-espn-requests.test.js, NFL and EPL followed): idle 1048 scoreboard requests before and
 after; a viewer 18:00-21:00 UTC 1118 -> 1048; an enabled rule all day 1576 -> 1096.
+
+**The front page with scores off (#282).** With the collector off and fixtures on, `sportFront.scheduleFront` builds the
+front page from the schedule read alone: `sportsFixtures.scheduleStore` turns the followed leagues' `sport_fixtures` rows into
+catalogue games (the collector's ids, teams with ESPN ids, names, aliases and badges; no state), and `buildDashboard` joins
+them to the guide's channels on its worker exactly as it does the collector's (D-41: `guideCards: false`, a listing alone is
+never a card). Every card is then drawn like a future game: `status: "scheduled"`, `freshness: "unavailable"`, no score,
+situation or progress, and the page's `scores` is `"unavailable"`. A game that has started stays while its end (else its start
+plus the sport's typical length) is ahead or it is on air (Watch). Serving it never starts the collector, reads its tables or
+makes a request. Leagues with their own feed (`sportFeeds`: AFLW, NRLW, netball, MotoGP, Supercars) and the whole-event ones
+(tennis, golf, UFC, IndyCar, NASCAR) are not in the schedule read, so they have no cards in this mode; nor do next rounds or a
+followed team's next game past 72 hours (the collector's). With fixtures off too, the page is as in 0503 (D-54): no card.
 
 **One fetch (#272, 0547).** Every sport feed request (fixtures, the collector, the five pages, suggestions, the leagues' own
 feeds) goes through `services/sportFetch.js`: only the hosts and path prefixes it lists (`ALLOWED`: ESPN's `/apis/site/v2/sports/`

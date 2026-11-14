@@ -29,12 +29,12 @@
  * #297 (item 2): with the score collector off (PIGTV_SPORTS_DASHBOARD=0) this is the schedule read, kept by design: the
  * same ESPN scoreboard URLs the collector polls, but once per day of the window every 30 minutes, and only what a
  * schedule says is kept (sportsFixturesEspn.competitionRecord: id, teams, start, end, F1 session), never a score, a status
- * or a clock. The guide's live/replay check reads it (snapshot).
+ * or a clock. The guide's live/replay check reads it (snapshot) and, #282, the Sport front page's cards (scheduleStore).
  */
 const { getDb } = require('../db/sqlite');
 const sportsClassify = require('./sportsClassify');
 const espn = require('./sportsFixturesEspn');
-const { CRICKET_GROUPS } = require('./sportCatalog');
+const { CRICKET_GROUPS, isCricket } = require('./sportCatalog');
 const requestPolicy = require('./espnRequestPolicy');
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -257,7 +257,7 @@ async function fetchPaths(paths, now) {
         if (!r.ok) { error = r.error; complete = false; continue; }
         anyOk = true;
         if (r.complete === false) { complete = false; error = r.error || 'part of the window failed'; }
-        records.push(...r.records);
+        records.push(...r.records.map(rec => ({ ...rec, source: path }))); // #282: the collector's id is `espn:<path>:<id>`
         teams.push(...r.teams);
     }
     return anyOk ? { ok: true, complete, records, teams, error } : { ok: false, error };
@@ -366,7 +366,7 @@ async function refreshCricket({ now = Date.now(), db = getDb(), league = 'Cricke
         if (!result.ok) { lastError = result.error; complete = false; continue; }
         anyOk = true;
         if (result.complete === false) { complete = false; lastError = result.error || lastError; }
-        records.push(...result.records);
+        records.push(...result.records.map(rec => ({ ...rec, source: `cricket/${s.id}` })));
         for (const t of result.teams) teams.set((t.displayName || t.abbreviation || '').toLowerCase(), t);
     }
     if (!series.length) anyOk = true; // nothing active is a legitimate, successful answer
@@ -637,6 +637,58 @@ function snapshotFromCatalog(db, leagues) {
     return out;
 }
 
+// ---- #282: the Sport front page's cards with the score collector off ------------------------------
+
+/**
+ * #282: the schedule read's games of `leagues` (sport_fixtures, written only with the collector off) as the collector's
+ * catalogue games, which sportsDashboard.buildDashboard turns into the front page's cards (sportFront): the collector's
+ * own id (`espn:<path>:<id>`, what recording rules and clients hold), both teams with their ESPN id, name, aliases and
+ * badge, ESPN's start and end (not a cricket match's: an envelope, as the collector), an F1 session by its label and the
+ * Grand Prix's name. No state: a schedule has none. Left out: a row without its path in a league of several (stored
+ * before #282; the next pass adds it), a team without an ESPN id, an F1 competition that is not a known session.
+ */
+function scheduleGames(db, leagues) {
+    let rows = [];
+    try {
+        rows = db.prepare('SELECT league, data FROM sport_fixtures WHERE league IN (SELECT value FROM json_each(?)) ORDER BY start, fixture_id')
+            .all(JSON.stringify([...leagues]));
+    } catch { return []; } // no table yet
+    const { teamAliases } = require('./sportsScoresEspn');
+    const out = [], seen = new Set();
+    for (const row of rows) {
+        let rec;
+        try { rec = JSON.parse(row.data); } catch { continue; }
+        const paths = [].concat(ESPN_LEAGUE_PATHS[row.league] || []);
+        const source = typeof rec?.source === 'string' ? rec.source : paths.length === 1 ? paths[0] : null;
+        if (!source || !/^[a-z-]+\/[a-z0-9._-]+$/i.test(source) || !/^[A-Za-z0-9_-]{1,80}$/.test(String(rec.id ?? ''))
+            || !Number.isFinite(rec.start)) continue;
+        const id = `espn:${source}:${rec.id}`;
+        if (seen.has(id)) continue;
+        const end = !isCricket(row.league) && Number.isFinite(rec.end) ? rec.end : null;
+        if (row.league === 'F1') {
+            const session = f1Session(rec.sessionAbbr)?.label;
+            if (!session) continue;
+            seen.add(id);
+            out.push({ id, league: 'F1', start: rec.start, end, title: typeof rec.eventName === 'string' ? rec.eventName : 'Formula 1',
+                competitors: [], session, circuit: null, format: null });
+            continue;
+        }
+        if (!Array.isArray(rec.teams) || rec.teams.length !== 2 || !rec.teams.every(t => /^\d{1,12}$/.test(String(t?.id ?? '')))) continue;
+        const competitors = rec.teams.map(t => ({ id: String(t.id), name: t.displayName || t.name || '', aliases: teamAliases(t), logo: t.logo || null }));
+        if (competitors.some(c => !c.name) || competitors[0].id === competitors[1].id) continue;
+        seen.add(id);
+        out.push({ id, league: row.league, start: rec.start, end, title: competitors.map(c => c.name).join(' v '), competitors,
+            session: null, circuit: null, format: null });
+    }
+    return out;
+}
+
+/** #282: what buildDashboard reads of a store, from the schedule read alone: its games, no state, no score delay. */
+function scheduleStore(db, leagues) {
+    const catalog = scheduleGames(db, leagues);
+    return { preferences: () => ({ avoidSpoilers: false, scoreDelaySeconds: 0 }), view: () => ({ catalog, selected: new Map() }) };
+}
+
 // ---- the Status page's "Sport fixtures" panel -------------------------------------------------
 
 /** Per league: last successful fetch, fixture count, last error - never a URL. */
@@ -683,7 +735,7 @@ function reset() {
 module.exports = {
     enabled, neededLeagues, categoryLeagues, refreshAll, refreshLeague, refreshCricket, scheduleRefresh, refreshPass,
     startBackgroundRefresh, stopBackgroundRefresh, snapshot, statusSummary, reset,
-    ESPN_LEAGUE_PATHS, INTERNATIONAL_PATHS, teamsOf, rosterFor, recordFeed, refreshRoster,
+    ESPN_LEAGUE_PATHS, INTERNATIONAL_PATHS, teamsOf, rosterFor, recordFeed, refreshRoster, scheduleGames, scheduleStore,
     // exposed for tests
     toFixture, cardFixture, teamAliasSides, f1Session
 };

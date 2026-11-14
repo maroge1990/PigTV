@@ -762,7 +762,8 @@ turns it off) and C-I's guide events. The legacy C-O routes and `features.sports
 
 - `GET /api/sports/front` (any user) → `{ now, timezone, spoilerFree, scores, sports, follows, hero, rails, games }`
   - `scores`: `"fresh"` (at least one score card is current) | `"stale"` (cards exist, none current) | `"unavailable"`
-    (no score data at all: the page says so once; since 0390 there are then no cards, #194).
+    (no score data at all: the page says so once; since 0390 there are then no cards, #194, except the scores-off
+    schedule cards below, #282).
   - `sports[]`, in the household's order: `{ league, live (count), next: { gameId, start } | null, line }`; `line`
     is `"live"` | `"next"` | `"quiet"` (the client words it: "Race live", "2 live", a start time, "Nothing scheduled").
   - `follows[]`, one per followed team or driver (order: the 0427 and 0433 bullets below): `{ league, name, logo, state,
@@ -834,6 +835,15 @@ turns it off) and C-I's guide events. The legacy C-O routes and `features.sports
   `sports[]` lists the followed leagues (`live: 0`, `next: null`, `line: "quiet"`) and `follows[]` the followed names
   (`state: "none"`, `gameId`/`start` null; `logo` from the stored ESPN roster or null). `features.sportFront` still
   says whether scores are collected. A server from 0381 to 0502 answers 404 there with `sportFront` false.
+- Since #282 (server XXXX), with scores off but ESPN fixtures on (`sportFront` false, `PIGTV_SPORT_FIXTURES` not `0`), the
+  page has cards again, built from ESPN's fixture list with the guide's channels joined (D-41: never from a listing alone),
+  each drawn like a future game: the usual card shape and ids (`espn:<path>:<id>`), `status: "scheduled"`, `freshness:
+  "unavailable"`, `observedAt: null`, `progress: {}`, never `scores`, `situation` or `breakLabel`; `channels`, `canWatch`
+  (on air now), `followed`/`followedSides`, `onAir`, `recording` as usual. `scores` stays `"unavailable"` (the client keeps its
+  scores-off notice). A game that has started stays a `scheduled` card while it is expected to be on (its `end`, else its
+  start plus a typical length) or on air; `rails[]` then lists each followed league, `follows[]` point at the cards
+  (`state: "next"`) and the hero may be `follow-next`. Leagues ESPN's fixtures do not cover (AFLW, NRLW, netball, MotoGP,
+  Supercars, tennis, golf, UFC, IndyCar, NASCAR) have no cards; no `nextRound` cards. With fixtures off too, as 0503.
 
 ### C-S. Sport pages: Cricket. Flag: `sportPageCricket` (0383, #21)
 

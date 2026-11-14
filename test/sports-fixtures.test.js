@@ -683,3 +683,38 @@ test('0496: ESPN\'s F1 session matches a place spelt without accents or by its c
     assert.equal(classify.samePlace('F1', place('Qatar Airways Miami Grand Prix'), place('Qatar Grand Prix')), false, 'nor its sponsor\'s');
     assert.equal(classify.samePlace('F1', place('Qatar Airways Miami Grand Prix'), place('Formula 1: Miami Grand Prix')), true);
 });
+
+test('#282: the schedule read\'s games carry the collector\'s ids, teams with ids and badges, and no state', async () => {
+    const now = Date.parse('2026-09-27T12:00Z');
+    await withEspn({ 'football/nfl/scoreboard': readFx('nfl-20260927'), 'football/nfl/teams': readFx('teams-nfl'),
+        'racing/f1/scoreboard': readFx('f1-scoreboard') }, async () => {
+        await fixtures.refreshLeague('NFL', { now });
+        await fixtures.refreshLeague('F1', { now: Date.parse('2026-09-25T00:00Z') });
+    });
+    const db = sqlite.getDb();
+    const scores = load('services/sportsScoresEspn');
+    const games = fixtures.scheduleGames(db, new Set(['NFL', 'F1']));
+    // The same ids the score collector gives the same answers (sportsScoresEspn.normalize), so recording rules and clients match.
+    const want = [...scores.normalize(readFx('nfl-20260927'), 'NFL', 'football/nfl'), ...scores.normalize(readFx('f1-scoreboard'), 'F1', 'racing/f1')]
+        .map(g => g.id).sort();
+    assert.deepEqual(games.map(g => g.id).sort(), want);
+    const nfl = games.find(g => g.league === 'NFL');
+    assert.equal(nfl.competitors.length, 2);
+    assert.ok(nfl.competitors.every(c => /^\d+$/.test(c.id) && c.name && c.aliases.length));
+    assert.ok(games.filter(g => g.league === 'F1').every(g => g.session && g.competitors.length === 0));
+    assert.ok(games.every(g => !('snapshot' in g) && !('scores' in g)), 'no state');
+    const store = fixtures.scheduleStore(db, new Set(['NFL']));
+    assert.deepEqual(store.view().selected, new Map());
+    assert.equal(store.view().catalog.length, games.filter(g => g.league === 'NFL').length);
+
+    // A row stored before #282 has no path: fine in a league of one path, left out in a league of several.
+    const row = db.prepare('SELECT fixture_id, data FROM sport_fixtures WHERE league = ? LIMIT 1').get('NFL');
+    const { source, ...old } = JSON.parse(row.data);
+    assert.equal(source, 'football/nfl');
+    db.prepare('UPDATE sport_fixtures SET data = ? WHERE league = ? AND fixture_id = ?').run(JSON.stringify(old), 'NFL', row.fixture_id);
+    assert.ok(fixtures.scheduleGames(db, new Set(['NFL'])).some(g => g.id === `espn:football/nfl:${old.id}`));
+    db.prepare('INSERT INTO sport_fixtures (league, fixture_id, start, data, updated_at) VALUES (?, ?, ?, ?, ?)')
+        .run('Internationals', old.id, old.start, JSON.stringify(old), now);
+    assert.deepEqual(fixtures.scheduleGames(db, new Set(['Internationals'])), []);
+    db.prepare('DELETE FROM sport_fixtures WHERE league = ?').run('Internationals');
+});
