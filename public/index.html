@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="css/pig-radiance.css?v=1">
   <link rel="stylesheet" href="css/pig-glass.css?v=1">
   <link rel="stylesheet" href="css/sport.css?v=1">
-  <link rel="stylesheet" href="css/player.css?v=1">
+  <link rel="stylesheet" href="css/player.css?v=2">
   <!-- HLS.js 1.5.7 for video playback, bundled so the app needs no internet -->
   <script src="/js/vendor/hls-1.5.7.min.js"></script>
 </head>
@@ -1076,6 +1076,17 @@
       </div>
 
     </main>
+
+    <!-- #321: what keeps playing while another page shows. In the page's column, under the content, so it pushes the
+         page up rather than covering its controls. VideoPlayer.renderNowPlayingBar() fills and shows it. -->
+    <div class="now-playing-bar hidden" id="now-playing-bar" role="region" aria-label="Now playing">
+      <div class="now-playing-bar-text">
+        <span class="now-playing-bar-channel" id="now-playing-bar-channel"></span>
+        <span class="now-playing-bar-programme" id="now-playing-bar-programme"></span>
+      </div>
+      <button type="button" class="btn btn-secondary" id="now-playing-bar-live">Back to Live TV</button>
+      <button type="button" class="btn btn-secondary" id="now-playing-bar-stop" title="Stop (ends the stream)" aria-label="Stop (ends the stream)">Stop</button>
+    </div>
   </div>
 
   <!-- Context Menu Template -->
@@ -1133,11 +1144,11 @@
   <script src="/js/icons.js?v=1"></script>
   <script src="/js/api.js?v=21"></script>
   <script src="/js/ui.js?v=3"></script>
-  <script src="/js/components/VideoPlayer.js?v=15"></script>
+  <script src="/js/components/VideoPlayer.js?v=16"></script>
   <script src="/js/components/ChannelList.js?v=11"></script>
   <script src="/js/components/SourceManager.js?v=9"></script>
   <script src="/js/components/EpgGuide.js?v=10"></script>
-  <script src="/js/pages/LivePage.js?v=3"></script>
+  <script src="/js/pages/LivePage.js?v=4"></script>
   <script src="/js/pages/Guide.js?v=3"></script>
   <script src="/js/pages/SportView.js?v=1"></script>
   <script src="/js/pages/SportsPage.js?v=5"></script>

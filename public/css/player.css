@@ -93,3 +93,62 @@
     row-gap: var(--space-xs);
   }
 }
+
+/* The Now playing bar: on every page but Live TV while a stream plays. A row of #app's column under <main>, so the
+   page above shrinks to make room (nothing is covered), clear of the home indicator and the notch's sides. */
+.now-playing-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-sm) calc(var(--space-lg) + env(safe-area-inset-right, 0px))
+    calc(var(--space-sm) + var(--safe-area-inset-bottom)) calc(var(--space-lg) + env(safe-area-inset-left, 0px));
+  background: var(--color-bg-secondary);
+  border-top: 1px solid var(--color-border);
+}
+
+.now-playing-bar-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.now-playing-bar-channel,
+.now-playing-bar-programme {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.now-playing-bar-channel {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.now-playing-bar-programme {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.now-playing-bar .btn {
+  flex: none;
+  min-height: 44px;
+}
+
+/* The notice pill keeps clear of the bar. */
+body.has-now-playing-bar .ui-toast-host {
+  bottom: calc(var(--space-2xl) + var(--space-2xl) + var(--space-lg) + var(--safe-area-inset-bottom));
+}
+
+@media (max-width: 480px) {
+  .now-playing-bar {
+    gap: var(--space-sm);
+    padding-left: calc(var(--space-md) + env(safe-area-inset-left, 0px));
+    padding-right: calc(var(--space-md) + env(safe-area-inset-right, 0px));
+  }
+
+  .now-playing-bar .btn {
+    padding-inline: var(--space-sm);
+  }
+}

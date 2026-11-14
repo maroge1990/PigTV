@@ -680,6 +680,7 @@ class VideoPlayer {
 
         this.initMediaSessionHandlers();
         this.initPageLifecycle();
+        this.initNowPlayingBar();
 
         // Click on video shows overlay
         this.video.addEventListener('click', () => this.showNowPlayingOverlay());
@@ -973,6 +974,7 @@ class VideoPlayer {
 
         this._playing = true;
         this._resumeChannel = null;
+        this._programmeTitle = '';
         this.rememberChannel(channel);
         this.updateTabTitle();
         this.updateNowPlaying(channel);
@@ -980,6 +982,7 @@ class VideoPlayer {
         this.fetchEpgData(channel);
         this.startConflictWatch();
         this.startStallWatch();
+        this.renderNowPlayingBar();
         window.dispatchEvent(new CustomEvent('channelChanged', { detail: channel }));
     }
 
@@ -1303,11 +1306,45 @@ class VideoPlayer {
             if (!this._reconnectEl.parentNode) this.container.appendChild(this._reconnectEl);
         }
         this.loadingSpinner?.classList.add('show');
+        this.renderNowPlayingBar();
     }
 
     hideReconnecting() {
+        const was = this._reconnecting;
         this._reconnecting = false;
         if (this._reconnectEl) this._reconnectEl.classList.add('hidden');
+        if (was) this.renderNowPlayingBar();
+    }
+
+    // ---- #321: the Now playing bar, on every page but Live TV while a stream plays ----
+
+    initNowPlayingBar() {
+        const live = document.getElementById('now-playing-bar-live');
+        const stop = document.getElementById('now-playing-bar-stop');
+        live?.addEventListener('click', () => { if (window.app && typeof window.app.navigateTo === 'function') window.app.navigateTo('live'); });
+        stop?.addEventListener('click', () => this.stop());
+        this.renderNowPlayingBar();
+    }
+
+    /** LivePage says whether the player is out of sight (another page shows): the bar shows while something plays. */
+    setAway(away) {
+        this._away = !!away;
+        this.renderNowPlayingBar();
+    }
+
+    renderNowPlayingBar() {
+        if (typeof document === 'undefined' || typeof document.getElementById !== 'function') return;
+        const bar = document.getElementById('now-playing-bar');
+        if (!bar) return;
+        const channel = this.currentChannel;
+        const show = !!(this._away && (this._playing || this._reconnecting) && channel);
+        bar.classList.toggle('hidden', !show);
+        if (document.body && document.body.classList) document.body.classList.toggle('has-now-playing-bar', show);
+        if (!show) return;
+        const name = document.getElementById('now-playing-bar-channel');
+        const programme = document.getElementById('now-playing-bar-programme');
+        if (name) name.textContent = channel.name || channel.tvgName || 'Live TV';
+        if (programme) programme.textContent = this._reconnecting ? 'Reconnecting…' : (this._programmeTitle || '');
     }
 
     // ---- #321: the player's actions (Apple CustomPlayer.swift: Favourite, Record, Audio, Go to live, Last channel) ----
@@ -1957,6 +1994,7 @@ class VideoPlayer {
 
         // Reset UI to idle state
         this._playing = false;
+        this.renderNowPlayingBar();
         this.cancelPrompt();
         this.updateTabTitle();
         this.updateMediaSession(null);
@@ -1984,6 +2022,7 @@ class VideoPlayer {
 
         channelName.textContent = channel.name || channel.tvgName || 'Unknown channel';
 
+        this._programmeTitle = epgData && epgData.current ? String(epgData.current.title || '') : '';
         if (epgData && epgData.current) {
             programTitle.textContent = epgData.current.title;
             const start = UI.time(epgData.current.start);
@@ -2005,6 +2044,7 @@ class VideoPlayer {
             });
         }
         this.updateMediaSession(channel, epgData);
+        this.renderNowPlayingBar();
     }
 
     // ---- #320: a question inside the player, in place of confirm() ----
@@ -2244,6 +2284,8 @@ class VideoPlayer {
      * Show error overlay
      */
     showError(message, { retry = false } = {}) {
+        // #321: on another page the player (and its error) is out of sight: the notice says it there.
+        if (this._away && typeof UI !== 'undefined' && UI.toast) UI.toast(String(message ?? ''), { kind: 'error' });
         this.overlay.classList.remove('hidden');
         // #60 (0475 Codex round 1): the message can be the server's own sentence: set as text, never as markup.
         const doc = this._document || document;

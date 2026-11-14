@@ -73,6 +73,8 @@ class LivePage {
 
     async show() {
         document.addEventListener('keydown', this.handleKeydown);
+        // #321: the player is in sight again; the Now playing bar goes.
+        if (this.app.player && this.app.player.setAway) this.app.player.setAway(false);
         if (this.app.player && this.app.player.updateTabTitle) this.app.player.updateTabTitle();
         this.app.channelList.setEpgRefreshActive(true);
 
@@ -98,6 +100,8 @@ class LivePage {
         document.removeEventListener('keydown', this.handleKeydown);
         this.app.channelList.setEpgRefreshActive(false);
         if (this.app.player && this.app.player.abandonPrompt) this.app.player.abandonPrompt();
+        // #321: the stream keeps playing out of sight; the Now playing bar says what, with Stop and Back to Live TV.
+        if (this.app.player && this.app.player.setAway) this.app.player.setAway(true);
     }
 }
 
