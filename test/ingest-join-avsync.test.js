@@ -59,7 +59,7 @@ async function joinedStarts(mux, port, { seconds = 8, gop = 50, joinMs = 3000 } 
         assert.ok(fs.existsSync(path.join(outDir, 'seg0000.m4s')), `a first segment was written\n${stderr}`);
         const starts = firstSegmentStarts(outDir);
         assert.ok(starts.audio !== null && starts.video !== null, `both streams in the first segment (audio ${starts.audio}, video ${starts.video})`);
-        return { ...starts, stderr };
+        return { ...starts, stderr, backlog: viewer.backlogBytes };
     } finally {
         server.closeAllConnections?.();
         server.close();
@@ -86,14 +86,17 @@ test('the same with ffmpeg\'s default muxing (several AAC frames per PES): sound
         assert.doesNotMatch(stderr, /error|corrupt|continuity/i, 'the copy session reports nothing about the join');
     });
 
-test('#309: a 25 Mb/s feed with a key frame every 4 s, joined 3.5 s after one, still starts on the key frame (T2)',
+test('#309: a 30 Mb/s feed with a key frame every 4 s, joined 2.8 s after one, still starts on the key frame (T2)',
     { skip: !haveFfmpeg && 'ffmpeg is not installed here' }, async () => {
-        // About 11 MB from the key frame: over half the default 16 MiB slow-reader limit, so 0579 took
-        // the old join at the newest PAT and the first segment started with about 0.5 s of sound and no
-        // picture. The backlog is now not counted as lag, and the key-frame join is used up to the limit.
-        // The muxer pads the feed to 25 Mb/s with null packets (the bitrate is what the backlog measures).
+        // About 10.5 MB from the key frame: over half the default 16 MiB slow-reader limit, so 0579 took
+        // the old join at the newest PAT and the first segment started with sound and no picture until
+        // the next key frame. The backlog is now not counted as lag, and the key-frame join is used up to
+        // the limit. The muxer pads the feed with null packets (the bitrate is what the backlog measures);
+        // 30 Mb/s and 2.8 s keep the backlog over half the limit with 0.5 s to spare and the join 1.2 s
+        // before the next key frame.
         assert.equal(ingest.tuning.slowBytes, 16 * 1024 * 1024, 'the default limit');
-        const { audio, video } = await joinedStarts(['-pes_payload_size', '0', '-muxrate', '25000000'], 'sync-25mbit',
-            { seconds: 12, gop: 100, joinMs: 7500 });
+        const { audio, video, backlog } = await joinedStarts(['-pes_payload_size', '0', '-muxrate', '30000000'], 'sync-30mbit',
+            { seconds: 12, gop: 100, joinMs: 6800 });
+        assert.ok(backlog > 8 * 1024 * 1024 && backlog <= 16 * 1024 * 1024, `a key-frame backlog over half the limit (${backlog} B)`);
         assert.ok(Math.abs(video - audio) <= 0.1, `audio ${audio.toFixed(3)} s and video ${video.toFixed(3)} s start together`);
     });

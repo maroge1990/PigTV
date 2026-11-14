@@ -31,9 +31,13 @@ before(async () => {
         const send = () => {
             const f = feed.frame;
             const parts = [];
-            const sparse = path === '/sparse'; // 56 KB a frame (11 Mb/s), a PAT a second, no key frame
-            if (f % (path === '/offbeat' ? 7 : sparse ? 25 : 5) === 0) { parts.push(ts.pat()); if (path !== '/nopmt') parts.push(ts.pmt()); }
-            parts.push(ts.videoFrame(f, { key: !sparse && f % GOP === 0, rai: true, more: sparse ? 300 : 2 }), ts.audio());
+            const sparse = path === '/sparse'; // 75 KB a frame (15 Mb/s), a PAT every 2 s, no key frame
+            const key = !sparse && f % GOP === 0;
+            // '/bigkey': 56 KB key frames and 0.4 KB pictures, so the backlog from a key frame stays
+            // between 56 and 90 KB wherever in the GOP a reader joins.
+            const more = sparse ? 400 : path === '/bigkey' ? (key ? 300 : 1) : 2;
+            if (f % (path === '/offbeat' ? 7 : sparse ? 50 : 5) === 0) { parts.push(ts.pat()); if (path !== '/nopmt') parts.push(ts.pmt()); }
+            parts.push(ts.videoFrame(f, { key, rai: true, more }), ts.audio());
             res.write(Buffer.concat(parts));
             feed.frame++;
         };
@@ -120,28 +124,35 @@ test('a key-frame backlog over the slow-reader limit takes the old join, so the 
         assert.equal(packets[0].pid, 0, 'the old join: the newest PAT in the final 2 s');
         assert.ok(packets.slice(1).every(p => p.pid !== 0), 'no other PAT after it');
         assert.ok(big.backlog.length <= T.slowBytes, `a short backlog (${big.backlog.length} B)`);
-        // #309: a limit between that backlog and twice it: the key-frame join (0579 required a backlog
-        // under half the limit, so 25 Mb/s with key frames over 2.7 s apart kept the old join).
-        T.slowBytes = Math.floor(size * 1.5);
-        const sub = await ingest.subscribe({ pool: 'j', url: `${base}/rai`, purpose: 'viewer' });
+    } finally { console.log = log; }
+    const said = lines.filter(l => /joined at the newest PAT/.test(l));
+    assert.equal(said.length, 1, lines.join('\n'));
+    assert.match(said[0], /backlog from the newest key frame .* is over the slow-reader limit/);
+    assert.doesNotMatch(said[0], /127\.0\.0\.1|http/);
+});
+
+test('#309: a key-frame backlog over half the slow-reader limit but within it gets the key frame; what comes after it still counts as lag', async () => {
+    // 0579 required a backlog under half the limit, so 25 Mb/s with key frames over 2.7 s apart kept
+    // the old join. On '/bigkey' the backlog is 56-90 KB anywhere in the GOP: a 100 KB limit puts it
+    // over half and within the limit whenever the reader comes.
+    await openAndWait('/bigkey', { minFrame: GOP + 20 });
+    {
+        T.slowBytes = 100 * 1024;
+        const sub = await ingest.subscribe({ pool: 'j', url: `${base}/bigkey`, purpose: 'viewer' });
         assert.equal(sub.endReason, null);
         const backlog = sub.readableLength;
         assert.ok(backlog > T.slowBytes / 2 && backlog <= T.slowBytes, `a backlog over half the limit (${backlog} B, limit ${T.slowBytes} B)`);
         assert.equal(videoStarts(ts.readPackets(sub.read()))[0].frame % GOP, 0, 'the key-frame join');
         // The backlog is not counted as lag, but what comes after it is: a reader that never reads is
         // still ended, once it is a whole limit behind beyond the backlog.
-        const sub2 = await ingest.subscribe({ pool: 'j', url: `${base}/rai`, purpose: 'viewer' });
+        const sub2 = await ingest.subscribe({ pool: 'j', url: `${base}/bigkey`, purpose: 'viewer' });
         const first = sub2.readableLength;
-        await until(() => sub2.endReason, 'the reader that never reads is ended', 10000);
+        await until(() => sub2.endReason, 'the reader that never reads is ended', 15000);
         assert.equal(sub2.endReason.reason, 'slow-consumer');
         assert.ok(sub2.bytesOut > first + T.slowBytes, `ended only past the backlog and a limit (${sub2.bytesOut} B out, backlog ${first} B)`);
         assert.ok(sub2.bytesOut <= first + T.slowBytes + 64 * 1024, `and soon after (${sub2.bytesOut} B out)`);
         sub.leave();
-    } finally { console.log = log; }
-    const said = lines.filter(l => /joined at the newest PAT/.test(l));
-    assert.equal(said.length, 1, lines.join('\n'));
-    assert.match(said[0], /backlog from the newest key frame .* is over the slow-reader limit/);
-    assert.doesNotMatch(said[0], /127\.0\.0\.1|http/);
+    }
 });
 
 test('the join looks back no further than joinLookbackMs: an older key frame is not used and the joiner starts at the newest PAT, as before', async () => {
@@ -182,7 +193,8 @@ test('#309: a fallback backlog over the budget is not handed over (it would end 
     const log = console.log;
     console.log = (...a) => { lines.push(a.join(' ')); };
     try {
-        await openAndWait('/sparse', { phase: [20, 23] }); // 20-23 frames after a PAT (one every 25)
+        // 18-22 frames after a PAT (1.35-1.7 MB), over 1 s before the next one (every 50 frames).
+        await openAndWait('/sparse', { phase: [18, 22] });
         T.slowBytes = 1024 * 1024;
         const sub = await ingest.subscribe({ pool: 'j', url: `${base}/sparse`, purpose: 'viewer' });
         assert.equal(sub.endReason, null, `the reader is still subscribed (ended: ${JSON.stringify(sub.endReason)})`);
