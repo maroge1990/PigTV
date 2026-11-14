@@ -662,3 +662,12 @@ reviews.
 - **Context:** #286: a recording stopped because appdata ran low ended "completed" with no reason.
 - **Choice:** Mark: the schedule says "Stopped early: free space in appdata ran low", and a `disk-low` notice is sent.
 - **Consequence:** a new webhook event, listed in [`PRODUCT.md`](PRODUCT.md) and the Settings hint.
+
+### D-62. iPhone and iPad run from iOS 17; the Apple TV stays on tvOS 26.5 (9 and 14 Nov 2026; Mark)
+
+- **Context:** #262: Mark wants the app on iPads running iPadOS 17 and later; the iOS target was 26.5.
+- **Choice:** Mark: iOS and iPadOS 17.0 is the minimum, tvOS stays 26.5. Amends D-12's minimum OS line. The newer
+  looks (Liquid Glass, scroll geometry) are kept on 26 and replaced by the nearest older ones on 17 and 18. On 14 Nov
+  Mark chose not to download an iOS 17 simulator: 17 is checked by compiling and on his iPad, not in a simulator.
+- **Consequence:** `PigBackDeploy.swift` in the Apple app holds every fallback; a new API newer than iOS 17 goes through
+  it (the compiler refuses one that does not). Apple 240 and 241.

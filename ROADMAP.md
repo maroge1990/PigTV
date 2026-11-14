@@ -5,10 +5,16 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 14 Nov 2026 (batches Server 1 and Server 2, server 0580 to 0601).*
+*Overwritten at the end of every session. 14 Nov 2026 (batches Server 1, Server 2 and Apple 2; Apple 239 on TestFlight).*
 
-- **Released:** server **v0579** (`:release`, 13 Nov; v0577 the day before) and Apple **218** uploaded to TestFlight
-  (tvOS and iOS, 12 Nov). A release runs on Mark's go-ahead (D-45). Next builds: server **0602**, Apple **240**. Apple 239 is pushed, not uploaded. Production runs `:latest` (D-58), so
+- **Released:** server **v0579** (`:release`, 13 Nov; v0577 the day before) and Apple **239** uploaded to TestFlight
+  (tvOS and iOS, 14 Nov, after `Tools/test.sh all` in the Mac's clone). A release runs on Mark's go-ahead (D-45). Next
+  builds: server **0602**, Apple **242**. Apple 241 is pushed, not uploaded.
+- **14 Nov, batch Apple 2 pushed, Apple 240 and 241 (#262, D-62):** iPhone and iPad run from iOS 17.0, the Apple TV
+  stays on 26.5. The newer looks go through fallbacks in `PigBackDeploy.swift` (glass buttons become bordered, the glass
+  card a material, the Sport banner-to-strip switch reads a scroll probe on 17, the guide strip's fades are 18+ only).
+  Compiled at 17 and tested on the 27 simulators (`push` passed); no iOS 17 simulator (Mark's choice), so 17 itself is
+  Mark's iPad check (T5) on a TestFlight build from 241. Filed on the way: #316 (an iPhone header pixel test fails, on 239 too). Production runs `:latest` (D-58), so
   Server 1 and 2 reach it at Mark's next Force Update.
 - **14 Nov, batch Server 2 pushed, server 0596 to 0601 (Status and sign-in):** Status names each session's and
   recording's provider again (#299, broken since 0175); deleting a user removes their paired devices (#300); log lines
@@ -118,26 +124,25 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 Batches regrouped on 12 Nov 2026 after the audit (every open issue read against server 0577 and Apple 218). Each is one
 theme and one review round. Order within a section is the order to take them.
 
-1. **Apple 2, iPadOS and iOS 17+ (#262):** seven sites need fallbacks, not three; redo the 17.0 trial build.
+1. **Server 3, the rest of the share:** #289 (segment copies, the owners' sweep, the route's access checks, ad
+   detection) · #290 items 1 and 2. Full review rule.
+2. **Server 4, key-frame join edge cases (#309, full review rule):** the fallback's byte budget, the video PID from
+   complete PMTs, duplicate table packets, high-bitrate feeds.
 
 ## Next
 
-2. **Server 3, the rest of the share:** #289 (segment copies, the owners' sweep, the route's access checks, ad
-   detection) · #290 items 1 and 2. Full review rule.
-3. **Server 4, key-frame join edge cases (#309, full review rule):** the fallback's byte budget, the video PID from
-   complete PMTs, duplicate table packets, high-bitrate feeds.
-4. **Sport 1, matching:** #296 (a listing with no English name), with what #231 left. Full review rule.
-5. **Sport 2, one source for the sport pages:** #297 · #282 · #29's re-measure; then #291 (after a read of production's
+3. **Sport 1, matching:** #296 (a listing with no English name), with what #231 left. Full review rule.
+4. **Sport 2, one source for the sport pages:** #297 · #282 · #29's re-measure; then #291 (after a read of production's
    settings; its item 2 is partly wrong, see the issue).
-6. **Sport 3, pickers:** #265 step 2 · #266 (server and Apple), once Mark confirms the rows.
-7. **Web 1:** #62 play errors · #63 first run without a Home page · #64 Settings.js and sign-out · #292 · #295.
+5. **Sport 3, pickers:** #265 step 2 · #266 (server and Apple), once Mark confirms the rows.
+6. **Web 1:** #62 play errors · #63 first run without a Home page · #64 Settings.js and sign-out · #292 · #295.
 
 ## Later (each needs a capture, a real provider, a device or a design choice first)
 
 - **A/V sync:** #267 meter · #268 marker, then #3 and #27. **Relay and recovery (released alone, D-25):** #4 · #41's
   transition table and invariant test · #74 · #30. **Start speed:** #240 · #36 · #38.
 - **Operations:** #43 · #44 · #45 · #28. **Recording text:** #314. **Logs:** #315. **Tests:** #26, and the stored replay for #22 to #24 re-run after 0551.
-- **Apple launch and tests:** #54 · #55 · #53 · #283 · #313 (Apple 1's review lows). **Apple structure:** #50 · #51.
+- **Apple launch and tests:** #54 · #55 · #53 · #283 · #313 (Apple 1's review lows) · #316. **Apple structure:** #50 · #51.
 - **Apple player:** #25 · #35 · #58 · #308 (Start over from live) · #101. **Apple, design first:** #56 · #57 · #232.
   **Brand kit:** #294.
 
@@ -149,7 +154,7 @@ theme and one review round. Order within a section is the order to take them.
   - Sport: #20 · #191 to #199 · #200 to #202 · #204 · #205 · #210 to #216 · #218 · #223 · #230 · #233 · #234 · #261 ·
     #263 · #264; at a real event: #22 to #24 · #206 · #222 · #231 · #235.
   - Layout and brand: #190 · #211 · #225 to #229 · #243 · #277 to #280; from 239: #310 · #311 · #312 · #298 · #293 · #203 ·
-    #278's five · #301.
+    #278's five · #301; from 241 (not uploaded yet): #262 on an iPadOS 17 iPad.
 - **Read-only checks after a release (Claude runs them):** #273 (busy-period rate) · #29 (Mark's Status figures); #259 at
   the next race.
 - **#21** (the sport rebuild) closes when the sport pass is done: everything under it is built or filed.
