@@ -255,6 +255,13 @@ work is in `docs/architecture/sports.md` › Recognition; the shape the client r
     fixture span. Wholly overnight blocks are replays. Response shapes are unchanged.
   - Since 0221 (R9) an event can also come from an event slot's own **name** ("NHL: Pittsburgh vs Philadelphia @ Sep 30
     7:30 PM :Sportsnet+ 12") where the slot's guide shows nothing real; same shape, nothing for the client to change.
+  - Since #297 (same shape): a game still being played after its guide slots have ended stays listed (it used to leave
+    with its slot) while the score collector's card for it is ongoing for the asking account, as the front page's card
+    reads it (live, a break or suspended; the account's score delay; fresh), and for at most 4 h after its last slot: an
+    `event`, `live: true`, on the channels it was on (each channel's `start` its slot's), its `end` and each channel's
+    `end` rolled on to 10 minutes past the answer's minute (as C-R's `overrun` channels, without the field), so a client
+    that keeps events with `end > now` and plays `channels[0]` keeps Watch until the game is over. A game is joined to
+    its card as the front page joins it, and one with an airing still on now is listed as before.
 - Admin (web only): `GET /api/sports/follow` (`{keywords, leagues}`; since 0394 the leagues any account follows, read-only: the keyword list is retired, D-42), `GET /api/sports/preview` (72 h, every kind, with
   the rule and `kindRule`), `GET /api/sports/categories`.
 - Apple: a Sport tab (On now, Starting soon, Later today, Tomorrow, one section per later weekday, Replays) with league

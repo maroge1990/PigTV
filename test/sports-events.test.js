@@ -204,6 +204,69 @@ test('#191: an airing ended within 4 h is kept for endedEvents and leagueEvents 
     }
 });
 
+// #297 item 3: C-I is built from the guide, so a game left /events when its slot ended although it was still being played
+// (the front page kept it live on its channel). While the score collector's card for the game is ongoing for the account,
+// as the front reads it (its delay; fresh), the event stays: live, on the channel it was on, its end rolled on 10 minutes.
+// Read once a minute, as the answer is kept (so each step below asks at another minute).
+test('#297: a game still being played past its guide slot stays in /events, live on its channel, until the collector says it is over', async () => {
+    const ev = load('services/sportsEvents');
+    const dashboard = load('services/sportsDashboard');
+    const d = sqlite.getDb();
+    await follow(['NFL']);
+    const row = d.prepare('INSERT INTO epg_programs (channel_id, source_id, start_time, end_time, title, categories) VALUES (?, 99, ?, ?, ?, ?)')
+        .run('fs505', NOW - 3 * H, NOW - 20 * M, 'NFL: Packers v Bears', JSON.stringify(['Sport', 'American Football'])).lastInsertRowid;
+    const store = dashboard.store();
+    store.updatePreferences(adminUser.id, { revision: store.preferences(adminUser.id).revision, scoreDelaySeconds: 0 }); // the viewer keeps 90 s
+    const card = (state, scores) => ({ id: 'espn:football/nfl:297001', league: 'NFL', start: NOW - 3 * H, end: null, title: 'Green Bay Packers v Chicago Bears',
+        session: null, circuit: null, format: null,
+        competitors: [{ id: '9', name: 'Green Bay Packers', aliases: ['Green Bay Packers', 'Packers', 'GB'], logo: null },
+            { id: '3', name: 'Chicago Bears', aliases: ['Chicago Bears', 'Bears', 'CHI'], logo: null }],
+        snapshot: { state, progress: {}, scores, situation: null } });
+    const minute = Math.floor(NOW / M) * M;
+    const packers = (body) => body.events.find(e => e.title === 'Packers v Bears');
+    try {
+        ev.reset();
+        assert.equal(packers(await ev.eventsFor({ hours: 6, pastSlot: true, userId: adminUser.id, now: minute - M })), undefined, 'no card: gone with its slot, as before');
+        store.ingest([card('live', ['17', '14'])], minute - 5 * M);
+        store.ingest([card('live', ['17', '14'])], minute - 30000);
+        const listed = packers(await ev.eventsFor({ hours: 6, pastSlot: true, userId: adminUser.id, now: minute }));
+        assert.ok(listed, 'listed while the collector says it is live');
+        assert.deepEqual([listed.kind, listed.live, listed.end, listed.start], ['event', true, minute + 10 * M, NOW - 3 * H]);
+        assert.deepEqual(listed.channels.map(c => [c.name, c.start, c.end]), [['Fox Sports 505 SD', NOW - 3 * H, minute + 10 * M]], 'the channel it was on, rolled on');
+        assert.deepEqual(Object.keys(listed).sort(), ['aliases', 'channels', 'end', 'id', 'kind', 'league', 'live', 'start', 'title'], 'C-I\'s shape, nothing added');
+        assert.deepEqual(Object.keys(listed.channels[0]).sort(), ['end', 'id', 'logo', 'name', 'number', 'quality', 'sourceId', 'stableId', 'start']);
+        // the serialised answer (GET /events) is the same, at its minute
+        const r = await ev.eventsResponse({ hours: 6, pastSlot: true, userId: adminUser.id, now: NOW });
+        assert.deepEqual(JSON.parse(r.body.toString()), await ev.eventsFor({ hours: 6, pastSlot: true, userId: adminUser.id, now: minute }));
+        assert.ok(packers(await events('?hours=6')), 'GET /api/sports/events');
+        // only GET /events asks for it: the recording rules, the front page and the dashboard read the guide's airings
+        // (and apply #191's overrun rule to the ended ones themselves)
+        assert.equal(packers(await ev.eventsFor({ hours: 6, userId: adminUser.id, now: minute })), undefined, 'eventsFor without pastSlot');
+        const front = await ev.eventsResponse({ reach: true, userId: adminUser.id, now: NOW });
+        assert.equal(packers(JSON.parse(front.body.toString())), undefined, 'the front page\'s reading');
+        // the final: gone for the account with no delay, still live for one with 90 s until its delay has passed
+        store.ingest([card('finished', ['24', '21'])], minute + 30000);
+        assert.equal(packers(await ev.eventsFor({ hours: 6, pastSlot: true, userId: adminUser.id, now: minute + M })), undefined, 'over: gone');
+        assert.ok(packers(await ev.eventsFor({ hours: 6, pastSlot: true, userId: viewer.id, now: minute + M })), 'the viewer\'s delayed view is still live');
+        assert.equal(packers(await ev.eventsFor({ hours: 6, pastSlot: true, userId: viewer.id, now: minute + 2 * M })), undefined, 'and gone once it is over for them too');
+        // a stale card (a cooldown) does not keep it
+        store.forget(['espn:football/nfl:297001']);
+        store.ingest([card('live', ['17', '14'])], minute - 10 * M);
+        assert.equal(packers(await ev.eventsFor({ hours: 6, pastSlot: true, userId: adminUser.id, now: minute + 3 * M })), undefined, 'not fresh: gone');
+        // the collector off: as before
+        store.ingest([card('live', ['17', '14'])], minute + 4 * M - 30000);
+        process.env.PIGTV_SPORTS_DASHBOARD = '0';
+        try { assert.equal(packers(await ev.eventsFor({ hours: 6, pastSlot: true, userId: adminUser.id, now: minute + 4 * M })), undefined, 'collector off'); }
+        finally { delete process.env.PIGTV_SPORTS_DASHBOARD; }
+    } finally {
+        d.prepare('DELETE FROM epg_programs WHERE id = ?').run(row);
+        store.forget(['espn:football/nfl:297001']);
+        store.updatePreferences(adminUser.id, { revision: store.preferences(adminUser.id).revision, scoreDelaySeconds: 90 });
+        await follow([]);
+        ev.reset();
+    }
+});
+
 // #21 (0340, C-P): the F1 page's route, with ESPN answered from the captured fixture (the page's own tests are in
 // sport-page-f1.test.js; this is the route, its flag and its auth).
 test('/api/sports/pages/f1 answers the F1 page to any user, and /api/info advertises it', async () => {

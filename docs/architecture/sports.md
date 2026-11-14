@@ -126,12 +126,21 @@ collector has not wholly answered yet reads `sport_fixtures` as before (bounded 
 collector off (`PIGTV_SPORTS_DASHBOARD=0`) everything does. Games are named by the collector's id (`espn:<path>:<id>`), the one
 recording rules, schedules and clients already hold; nothing ever referred to a fixture row's id.
 
+**A game past its guide slot stays in C-I (#297).** C-I is built from the guide, so a game used to leave `/events` when
+its slot ended while the front page's card still had it live (#191). `sportsEvents.overrunning` lists, for `GET /events`
+alone (`pastSlot`), each event whose airings all ended within OVERRUN_MAX while the collector's card for its game is
+ongoing for the account as the front reads it (live, break or suspended; its delay; fresh), joined as the front joins it
+(`matchBroadcasts` over the league's games of the last five days; a game with an airing on now is left as it is): `live`,
+its end and its channels' ends rolled on to the minute + OVERRUN_STEP. Kept on the build per minute and delay; the
+per-minute answer's key carries which events it added, so accounts with the same answer share it. The recording rules,
+the front page and the dashboard read the guide's airings as before and apply #191 themselves.
+
 **One fetcher, one store (#272, 0552).** While the score collector is on (the default) it is the only fetcher of ESPN's
 scoreboards and `sports_dashboard_catalog` the only store of a game's identity, schedule and state. Who reads what:
 
 | Store | Written by | Read by |
 |---|---|---|
-| `sports_dashboard_catalog` (+ `sports_score_history`) | the collector | the front page, dashboard, the League and NFL pages' games' state (0557, 0558, `sportPageState`) and the F1, Cricket and Events pages' (#297), follows, suggestions, recording rules, recording ends, and (through `sportsFixtures.snapshot`) the guide's live/replay classifier |
+| `sports_dashboard_catalog` (+ `sports_score_history`) | the collector | the front page, dashboard, `/events`' games past their slot (#297), the League and NFL pages' games' state (0557, 0558, `sportPageState`) and the F1, Cricket and Events pages' (#297), follows, suggestions, recording rules, recording ends, and (through `sportsFixtures.snapshot`) the guide's live/replay classifier |
 | `sports_dashboard_coverage` | the collector (0550; since 0552 also the teams its window's answers name) | `sportsFixtures.snapshot`, the Status page's fixtures panel, the roster pass |
 | `sport_fixture_teams` | the 30-minute pass: ESPN `/teams` once a day per league, else (cricket, or `/teams` not answering) the teams of the collector's last window; International cricket's every pass | rosters: classifier, follows, Settings, front-page logos |
 | `sport_fixture_status` | the leagues' own feeds (`recordFeed`); the fixture refresh with the collector off | the Status page |

@@ -45,7 +45,7 @@ const { NUMBER_JOIN, VISIBLE_SQL, CHANNEL_KEY_SQL } = require('./channelNumbers'
 const channelHealth = require('./channelHealth');
 const epgMapping = require('./epgMapping');
 const sportCategories = require('./sportCategories');
-const { OVERRUN_MAX } = require('./sportOverrun');
+const { OVERRUN_MAX, overrunEnd } = require('./sportOverrun');
 const sportsClassify = require('./sportsClassify');
 const sportsFixtures = require('./sportsFixtures');
 
@@ -858,6 +858,72 @@ function favouriteTest(userId) {
 /** #191: C-I answers only events ending after its build's start; earlier ones are kept for the overrun rule alone. */
 const keptFrom = (built) => (Number.isFinite(built.from) ? built.from : -Infinity);
 
+/** The account's score delay (C-O `scoreDelaySeconds`), what the front page's cards use; null with the collector off. */
+function scoreDelayOf(userId) {
+    try {
+        const dashboard = require('./sportsDashboard');
+        if (!dashboard.collectorEnabled()) return null;
+        const d = dashboard.store().preferences(userId).scoreDelaySeconds;
+        return Number.isFinite(d) ? d : 90;
+    } catch { return null; }
+}
+
+const ONGOING = new Set(['live', 'break', 'suspended']);
+const FRESH_ALLOWANCE_MS = 120000; // sportsDashboard.buildDashboard's
+const GAME_SPAN_MS = 5 * 24 * HOUR_MS; // a Test's five days: a game started earlier is not looked for
+/**
+ * #297 item 3: C-I is built from the guide, so a game left /events when its guide slot ended although it was still being
+ * played (the front page's card kept it live, on its channel, by #191's overrun rule). Now an event (kind `event`) whose
+ * airings have all ended, within OVERRUN_MAX, stays in the answer while the score collector's card for its game is
+ * ongoing for this account as the front page reads it (live, a break or suspended; this account's score delay; fresh by
+ * the front's rule, a tournament's break for BREAK_POLL longer): `live`, its `end` and each of its channels' `end`
+ * rolled on to the minute + OVERRUN_STEP (sportOverrun.overrunEnd), its channels those of the slots it was in. The game
+ * is joined as the front joins it (sportsDashboard.matchBroadcasts over the league's games of the last five days, so an
+ * airing that fits two games joins neither); a game that still has an airing on now is not listed twice.
+ * -> Map(event -> its projected end) for `minute`, kept on the build per (minute, delay). Never throws.
+ */
+function overrunning(built, minute, delay) {
+    if (delay === null || delay === undefined) return new Map();
+    if (built.overrun?.minute !== minute) built.overrun = { minute, byDelay: new Map() };
+    const kept = built.overrun.byDelay.get(delay);
+    if (kept) return kept;
+    const out = new Map();
+    built.overrun.byDelay.set(delay, out);
+    try {
+        const ended = built.events.filter(ev => ev.kind === 'event' && ev.end <= minute && overrunEnd(ev.end, true, minute) !== null);
+        if (!ended.length) return out;
+        const leagues = new Set(ended.map(ev => ev.league));
+        const current = built.events.filter(ev => ev.kind === 'event' && leagues.has(ev.league) && ev.start <= minute && ev.end > minute);
+        const dashboard = require('./sportsDashboard');
+        const individual = require('./sportIndividual');
+        const store = dashboard.store();
+        const games = store.catalog().filter(g => leagues.has(g.league) && g.start <= minute && g.start > minute - GAME_SPAN_MS);
+        const ongoing = new Set(games.filter(g => {
+            let seen = null;
+            try { seen = store.delayed(g.id, minute, delay); } catch { return false; }
+            const state = seen?.data?.state;
+            if (!ONGOING.has(state)) return false;
+            const allowance = individual.has(g.league) && state === 'break' ? dashboard.BREAK_POLL + FRESH_ALLOWANCE_MS : FRESH_ALLOWANCE_MS;
+            return minute - seen.observedAt <= delay * 1000 + allowance;
+        }).map(g => g.id));
+        if (!ongoing.size) return out;
+        const joined = dashboard.matchBroadcasts(games, [...ended, ...current]);
+        const end = overrunEnd(minute, true, minute);
+        for (const id of ongoing) {
+            const airings = joined.get(id) || [];
+            if (airings.some(ev => ev.end > minute)) continue; // still on air: listed as it is
+            for (const ev of airings) out.set(ev, end);
+        }
+    } catch (err) { console.warn('[Sports] events past their slot:', err.message); }
+    return out;
+}
+
+/** An event past its slot as C-I answers it (#297): live, its end and each channel's own end rolled on to `end`. */
+function overrunOut(ev, now, isFav, end, withRule = false) {
+    const out = eventOut(ev, now, isFav, withRule);
+    return { ...out, end, live: true, channels: out.channels.map(ch => (ch.end === undefined ? ch : { ...ch, end })) };
+}
+
 /** One cached event as C-I answers it: its channels best first (quality, health ok, favourite, guide order). */
 function eventOut(ev, now, isFav, withRule = false) {
     const channels = ev.channels.slice().sort((a, b) =>
@@ -926,7 +992,7 @@ async function endedEvents({ leagues, userId, now = Date.now(), decorateChannels
  * adds `rule` and `match` (how it was recognised) and `kindRule` (why it is that kind;
  * the admin preview).
  */
-async function eventsFor({ hours, userId, now = Date.now(), withRule = false, include, decorateChannels } = {}) {
+async function eventsFor({ hours, userId, now = Date.now(), withRule = false, include, decorateChannels, pastSlot = false } = {}) {
     const span = clampHours(hours) * HOUR_MS;
     const built = await cachedEvents(now, decorateChannels);
     const isFav = favouriteTest(userId);
@@ -934,8 +1000,12 @@ async function eventsFor({ hours, userId, now = Date.now(), withRule = false, in
     const events = [];
     const all = include === 'all';
     const after = keptFrom(built);
+    // #297: a game still being played past its slot, for GET /events alone (`pastSlot`): never the recording rules', the
+    // front page's or the dashboard's reading, which apply #191's overrun rule to the ended airings themselves
+    const past = pastSlot ? overrunning(built, now, scoreDelayOf(userId)) : new Map();
     for (const ev of built.events) {
         if (!all && !DEFAULT_KINDS.has(ev.kind)) continue;
+        if (past.has(ev)) { events.push(overrunOut(ev, now, isFav, past.get(ev), withRule)); continue; }
         if (!(ev.end > now && ev.start < now + span && ev.end > after)) continue;
         events.push(eventOut(ev, now, isFav, withRule));
     }
@@ -1052,7 +1122,7 @@ function favouriteTails(prep, favs, favSig) {
     return tails;
 }
 
-function assemble(prep, tails, minute, span, all) {
+function assemble(prep, tails, minute, span, all, past = [], pastJson = () => '') {
     const lanes = [[], [], [], [], [], [], [], []]; // kind x (live, not live): the order the answer wants
     const end = minute + span;
     for (const entry of prep.entries) {
@@ -1062,10 +1132,16 @@ function assemble(prep, tails, minute, span, all) {
         const live = ev.start <= minute && minute < ev.end;
         lanes[entry.kind * 2 + (live ? 0 : 1)].push(entry);
     }
+    // #297: events past their slot (all live events), in the order prepareBuilt sorts: by start, then title
+    for (const ev of past) {
+        const lane = lanes[KIND_ORDER[ev.kind] * 2];
+        const at = lane.findIndex(e => e.ev.start > ev.start || (e.ev.start === ev.start && e.ev.title.localeCompare(ev.title) > 0));
+        lane.splice(at < 0 ? lane.length : at, 0, { ev, json: pastJson(ev) });
+    }
     const parts = [];
     for (let l = 0; l < lanes.length; l++) {
         const live = l % 2 === 0 ? 'true' : 'false';
-        for (const entry of lanes[l]) parts.push(entry.head + live + (tails.get(entry) || entry.tail));
+        for (const entry of lanes[l]) parts.push(entry.json !== undefined ? entry.json : entry.head + live + (tails.get(entry) || entry.tail));
     }
     return Buffer.from(`{"now":${minute},"events":[${parts.join(',')}]}`);
 }
@@ -1083,16 +1159,20 @@ function trimResponses(rev, minute) {
 
 /**
  * The /events answer, serialised: { body: Buffer, etag, gzip(): Promise<Buffer>, cached }.
- * Same JSON as `JSON.stringify(await eventsFor({ hours, userId, include, now: <the minute's start> }))`.
+ * Same JSON as `JSON.stringify(await eventsFor({ hours, userId, include, pastSlot, now: <the minute's start> }))`.
  */
-async function eventsResponse({ hours, userId, now = Date.now(), include, decorateChannels, reach = false } = {}) {
+async function eventsResponse({ hours, userId, now = Date.now(), include, decorateChannels, reach = false, pastSlot = false } = {}) {
     const hrs = reach ? REACH_HOURS : clampHours(hours); // 0459: `reach` only from the server's own front page, never a query
     const all = include === 'all';
     const minute = Math.floor(now / MINUTE_MS) * MINUTE_MS;
     const built = await cachedEvents(now, decorateChannels);
     const favs = favouriteKeys(userId);
     const favSig = favs.size ? crypto.createHash('sha1').update([...favs].sort().join('\u0000')).digest('hex').slice(0, 12) : '';
-    const key = `${built.rev}|${hrs}|${all ? 'all' : 'd'}|${favSig}|${minute}`;
+    // #297: games still being played past their slot, by this account's score delay (the front page's); two accounts
+    // whose answers are the same share the entry (and the ETag)
+    const past = pastSlot ? overrunning(built, minute, scoreDelayOf(userId)) : new Map();
+    const pastSig = past.size ? [...past.keys()].map(ev => ev.id).sort().join(',') : '';
+    const key = `${built.rev}|${hrs}|${all ? 'all' : 'd'}|${favSig}|${minute}|${pastSig}`;
     const hit = built.rev ? responses.get(key) : null;
     if (hit) {
         responses.delete(key); // most recently used goes last
@@ -1100,7 +1180,9 @@ async function eventsResponse({ hours, userId, now = Date.now(), include, decora
         return { ...hit.out, cached: true };
     }
     const prep = await prepareBuilt(built);
-    const body = assemble(prep, favs.size ? favouriteTails(prep, favs, favSig) : new Map(), minute, hrs * HOUR_MS, all);
+    const isFav = (ch) => favs.has(`${ch.sourceId}:${ch.stableId || ch.id}`) || favs.has(`${ch.sourceId}:${ch.id}`);
+    const body = assemble(prep, favs.size ? favouriteTails(prep, favs, favSig) : new Map(), minute, hrs * HOUR_MS, all,
+        [...past.keys()].filter(ev => all || DEFAULT_KINDS.has(ev.kind)), (ev) => JSON.stringify(overrunOut(ev, minute, isFav, past.get(ev))));
     const etag = `W/"${bootNonce}-${built.rev || 'x'}-${crypto.createHash('sha1').update(key).digest('hex').slice(0, 12)}"`;
     const entry = { rev: built.rev, minute, bytes: body.length };
     let gz = null;

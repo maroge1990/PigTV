@@ -121,7 +121,8 @@ router.get('/events', async (req, res) => {
         // send, and the ETag lets a client that sends If-None-Match have a 304. `no-cache` rather
         // than the router's `no-store` so such a client may keep the body to revalidate; one that
         // never asks gets the 200 it always did.
-        const r = await sportsEvents.eventsResponse({ hours: req.query.hours, userId: req.user.id, include, decorateChannels });
+        // #297: with a game still being played past its guide slot (sportsEvents.overrunning)
+        const r = await sportsEvents.eventsResponse({ hours: req.query.hours, userId: req.user.id, include, decorateChannels, pastSlot: true });
         res.set({ 'Cache-Control': 'private, no-cache', ETag: r.etag, Vary: 'Accept-Encoding' });
         if (req.fresh) return res.status(304).end();
         res.type('json');
