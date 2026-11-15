@@ -2,7 +2,10 @@
  * #63: first run. Live TV shows this checklist where the empty channel list was, for an admin, until the first
  * provider's first sync has worked: add a provider, test it, the first sync, guide matching, pairing an Apple TV. Each
  * step ticks off from what the server already says (no setup state of its own, apart from a passed connection test,
- * which this browser remembers). Once channels are listed, ChannelList draws them instead and this is gone.
+ * which this browser remembers). Once channels are listed, ChannelList draws them instead and this is gone; the steps
+ * still open after the first sync (guide matching, pairing) stay as a slim banner above the list until both are done
+ * or the admin closes it (Mark, 15 Nov 2026). The closing is kept per account in this browser's localStorage: the
+ * server has no per-account preference store that fits (/api/settings is global, the sport preferences are sport's).
  *
  * Reads GET /api/sources/providers and /status, /api/epg/mappings and /unmatched?limit=1, /api/devices; runs
  * POST /api/sources/:id/test and /:id/sync. ProviderFormat (pages/ProvidersSettings.js) words the sync's state and
@@ -64,6 +67,65 @@ class FirstRun {
     /** Shown while there is no provider, or the first one has not synced yet. */
     static shouldShow(facts) {
         return !facts.primary || !(facts.row && facts.row.status === 'success');
+    }
+
+    /** The banner's key: one per account, so another admin on this browser still sees it. */
+    static bannerKey() {
+        return `pigtv_first_run_banner_closed:${window.app?.currentUser?.username || window.app?.currentUser?.id || ''}`;
+    }
+
+    static bannerClosed() {
+        try { return localStorage.getItem(FirstRun.bannerKey()) === '1'; } catch { return false; }
+    }
+
+    static closeBanner() {
+        try { localStorage.setItem(FirstRun.bannerKey(), '1'); } catch { /* it shows again next time */ }
+    }
+
+    /**
+     * After the first sync: the steps still open of guide matching and pairing, for the banner above the channel list
+     * ([] when there is nothing to show: not synced yet, both done, or the banner was closed).
+     */
+    static bannerSteps(facts, { closed = false } = {}) {
+        if (closed || !facts || FirstRun.shouldShow(facts)) return [];
+        return FirstRun.steps(facts).filter(s => (s.key === 'guide' || s.key === 'device') && !s.done);
+    }
+
+    static bannerHtml(steps) {
+        const e = UI.escape;
+        return `<div class="first-run-banner" role="region" aria-label="Finish setting up">
+            <span class="first-run-banner-text">Finish setting up:</span>
+            ${steps.map(s => `<button type="button" class="btn btn-sm btn-secondary" data-first-run="${e(s.action.run)}">${e(s.title)}</button>`).join('')}
+            <button type="button" class="first-run-banner-close" data-first-run-close aria-label="Close the setup steps" title="Close the setup steps">&times;</button>
+        </div>`;
+    }
+
+    /**
+     * Put the banner at the top of `container` (ChannelList, after drawing its channels), when it is due. Reads at most
+     * once a minute however often the list redraws (a search redraws on every key).
+     */
+    async banner(container, { now = Date.now() } = {}) {
+        if (!FirstRun.isAdmin() || FirstRun.bannerClosed()) return;
+        const mine = (this.bannerGen = (this.bannerGen || 0) + 1);
+        if (!this.bannerFacts || now - this.bannerReadAt > 60000) {
+            try {
+                this.bannerFacts = await FirstRun.read();
+                this.bannerReadAt = now;
+            } catch (err) {
+                console.error('First run: the setup steps could not be read:', err);
+                return;
+            }
+        }
+        if (mine !== this.bannerGen) return; // the list was drawn again meanwhile; that draw puts its own
+        const steps = FirstRun.bannerSteps(this.bannerFacts, { closed: FirstRun.bannerClosed() });
+        if (!steps.length) return;
+        container.querySelector?.('.first-run-banner')?.remove?.();
+        const el = document.createElement('div');
+        el.innerHTML = FirstRun.bannerHtml(steps);
+        const box = el.firstElementChild || el;
+        box.querySelectorAll?.('[data-first-run]').forEach(b => b.addEventListener('click', () => this.act(b.dataset.firstRun, container, b)));
+        box.querySelector?.('[data-first-run-close]')?.addEventListener('click', () => { FirstRun.closeBanner(); box.remove?.(); });
+        container.insertBefore(box, container.firstChild);
     }
 
     /** The five steps, in order: { key, title, detail, done, action: { label, run } | null, busy }. */

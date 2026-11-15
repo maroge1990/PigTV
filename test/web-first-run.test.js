@@ -11,7 +11,7 @@ const { loadUi } = require('./helpers/webUi');
 // to ask their admin. The real ChannelList, FirstRun and ProvidersSettings (for ProviderFormat); API and timers stubbed.
 const read = (f) => fs.readFileSync(path.join(__dirname, '..', 'public', f), 'utf8');
 
-function setup({ role = 'admin', replies = {}, stored = null } = {}) {
+function setup({ role = 'admin', replies = {}, stored = null, username = 'mark' } = {}) {
     const timers = [];
     const storage = new Map(stored ? [['pigtv_first_run_tested', stored]] : []);
     const calls = [];
@@ -36,7 +36,7 @@ function setup({ role = 'admin', replies = {}, stored = null } = {}) {
     const element = () => ({ dataset: {}, style: {}, innerHTML: '', className: '', value: '', querySelector: () => null, querySelectorAll: () => [], addEventListener() {} });
     const context = vm.createContext({
         console: { ...console, log() {}, warn() {}, error() {} },
-        window: { app: { currentUser: { role }, navigateTo: (...a) => navigations.push(a) } },
+        window: { app: { currentUser: { role, username }, navigateTo: (...a) => navigations.push(a) } },
         API,
         document: { addEventListener() {}, getElementById: () => null, createElement: element, visibilityState: 'visible' },
         Icons: { favorite: '', favoriteOutline: '' },
@@ -49,10 +49,13 @@ function setup({ role = 'admin', replies = {}, stored = null } = {}) {
     const ChannelList = vm.runInContext('ChannelList', context);
     const list = Object.create(ChannelList.prototype);
     const container = element();
+    container.inserted = [];
+    container.insertBefore = (el) => container.inserted.push(el);
+    container.appendChild = () => {};
     Object.assign(list, {
         channels: [], categories: [], sources: [], container, searchInput: { value: '' }, sourceSelect: { value: '' },
         favoriteKeys: new Set(), favoriteRows: [], collapsedGroups: new Set(), _userExpandedGroups: new Set(), _hasCollapsedState: true,
-        focusIdentity: () => null
+        focusIdentity: () => null, renderNextBatch() {}, restoreFocus() {}, observer: { observe() {} }
     });
     return { context, list, container, timers, calls, navigations, storage, FirstRun: vm.runInContext('FirstRun', context) };
 }
@@ -165,12 +168,59 @@ test('#63: guide matching and pairing tick off from the server, and their button
     assert.deepEqual(JSON.parse(JSON.stringify(navigations)), [['settings', 'push', 'channels/epg'], ['settings', 'push', 'system']]);
 });
 
-test('#63: with channels listed, nothing of the checklist is drawn or read', async () => {
-    const { list, container, calls } = setup();
+test('#63: with channels listed, the full checklist is not drawn', async () => {
+    const { list, container } = setup({ replies: { providers: [PRIMARY], status: [SYNCED], mappings: [{ tvgId: 'x' }], 'GET /devices': [{ id: 'd' }] } });
     list.channels = [{ sourceId: 5, id: 'a', name: 'One', groupTitle: 'News' }];
-    list.render = list.render.bind(list);
-    try { list.render(); } catch { /* the batch drawing needs a fuller DOM than this stub; only the empty branch matters */ }
+    list.render();
     await settle();
-    assert.doesNotMatch(container.innerHTML, /first-run/);
-    assert.deepEqual(calls, []);
+    assert.doesNotMatch(container.innerHTML, /first-run-steps/);
+});
+
+// Mark, 15 Nov 2026: after the first sync, the steps still open (guide matching, pairing) stay as a slim banner above
+// the channel list, for admins, until both are done or it is closed (for good, per account).
+const SYNCED = { source_id: 5, type: 'all', status: 'success', last_sync: 0 };
+const ONE = [{ sourceId: 5, id: 'a', name: 'One', groupTitle: 'News' }];
+async function drawList(options) {
+    const s = setup(options);
+    s.list.channels = ONE;
+    s.list.render();
+    await settle();
+    s.banner = s.container.inserted.map(el => el.innerHTML).join('');
+    return s;
+}
+
+test('#63: channels listed and the guide not matched: the banner offers what is left', async () => {
+    const { banner } = await drawList({ replies: { providers: [PRIMARY], status: [SYNCED], mappings: [], 'GET /epg/unmatched?limit=1': { total: 40, channels: [] }, 'GET /devices': [] } });
+    assert.match(banner, /class="first-run-banner"/);
+    assert.match(banner, /data-first-run="guide">Match channels to the guide</);
+    assert.match(banner, /data-first-run="device">Pair an Apple TV</);
+    assert.match(banner, /aria-label="Close the setup steps"/);
+    const { banner: one } = await drawList({ replies: { providers: [PRIMARY], status: [SYNCED], mappings: [], 'GET /epg/unmatched?limit=1': { total: 40 }, 'GET /devices': [{ id: 'd' }] } });
+    assert.match(one, /data-first-run="guide"/);
+    assert.doesNotMatch(one, /data-first-run="device"/, 'a paired device is done');
+});
+
+test('#63: both done, or the banner closed, or not an admin: no banner', async () => {
+    const done = await drawList({ replies: { providers: [PRIMARY], status: [SYNCED], mappings: [{ tvgId: 'x' }], 'GET /devices': [{ id: 'd' }] } });
+    assert.equal(done.banner, '');
+    const viewer = await drawList({ role: 'viewer', replies: { providers: [PRIMARY], status: [SYNCED], mappings: [], 'GET /devices': [] } });
+    assert.equal(viewer.banner, '');
+    assert.deepEqual(viewer.calls, [], 'nothing is read for a viewer');
+    const open = await drawList({ replies: { providers: [PRIMARY], status: [SYNCED], mappings: [], 'GET /devices': [] } });
+    assert.match(open.banner, /first-run-banner/);
+    open.FirstRun.closeBanner();
+    assert.equal(open.storage.get('pigtv_first_run_banner_closed:mark'), '1', 'kept per account');
+    open.container.inserted.length = 0;
+    open.list.render();
+    await settle();
+    assert.equal(open.container.inserted.length, 0, 'closed for good');
+});
+
+test('#63: a search redraws the list on every key; the banner reads the server at most once a minute', async () => {
+    const s = await drawList({ replies: { providers: [PRIMARY], status: [SYNCED], mappings: [], 'GET /devices': [] } });
+    const reads = s.calls.filter(c => c === 'providers').length;
+    s.list.render();
+    s.list.render();
+    await settle();
+    assert.equal(s.calls.filter(c => c === 'providers').length, reads);
 });

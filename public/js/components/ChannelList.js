@@ -442,6 +442,11 @@ class ChannelList {
         this.listContainer.className = 'channel-list-content';
         this.listContainer.innerHTML = searchTerm ? '' : this.favouritesHintHtml();
         this.container.appendChild(this.listContainer);
+        // #63: an admin's setup steps still open after the first sync (guide matching, pairing), as a banner on top.
+        if (!searchTerm && typeof FirstRun !== 'undefined' && FirstRun.isAdmin()) {
+            this.firstRun ||= new FirstRun({ onSynced: () => this.reloadAfterFirstSync() });
+            this.firstRun.banner(this.container);
+        }
 
         // Add loader element at bottom
         this.loader = document.createElement('div');

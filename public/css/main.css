@@ -2104,6 +2104,39 @@ body.ui-dialog-open {
   color: var(--color-error-text);
 }
 
+/* After the first sync: the steps still open, slim, above the channel list. */
+.first-run-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs) var(--space-sm);
+  padding: var(--space-xs) var(--space-sm);
+  margin-bottom: var(--space-sm);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.first-run-banner-text {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.first-run-banner-close {
+  margin-left: auto;
+  padding: 0 var(--space-xs);
+  font-size: var(--text-lg);
+  line-height: 1;
+  color: var(--color-text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.first-run-banner-close:hover {
+  color: var(--color-text-primary);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .first-run-step.is-busy .first-run-mark { animation: none; }
 }
