@@ -700,6 +700,44 @@ function editScheduled(id, { pre = null, post = null } = {}, { now = Date.now(),
 }
 
 /**
+ * #329 (Codex round 1): "Record on B instead", atomically. In one synchronous transaction the schedule, still
+ * `scheduled` or `waiting`, is pointed at the target channel and programme (as POST /recordings/schedule takes them):
+ * the same row, so its game link (one game, one schedule), padding and id stay. It becomes the viewer's own pick
+ * (`rule_id` cleared, so its rule leaves it alone) and waits afresh (status `scheduled`, no reason, no clash choice).
+ * -> { row } as GET /scheduled lists it, or { status, error }: 400 a target scheduling would refuse, 404 unknown, 409
+ * recording (never stopped by a move) or finished, or another schedule already has the target programme.
+ */
+function moveScheduled(id, target = {}, { settings = null } = {}) {
+    const sourceId = Number(target.sourceId);
+    const programStart = Number(target.programStart), programEnd = Number(target.programEnd);
+    if (!Number.isInteger(sourceId) || sourceId <= 0 || !target.channelItemId || typeof target.channelItemId !== 'string'
+        || !Number.isFinite(programStart) || !Number.isFinite(programEnd) || programStart <= 0 || programEnd <= programStart) {
+        return { status: 400, error: 'sourceId, channelItemId, programStart and programEnd are required' };
+    }
+    const channelItemId = String(bareChannelId(target.channelItemId));
+    const result = getDb().transaction(() => {
+        const row = scheduledDb.getById(id);
+        if (!row) return { status: 404, error: 'No upcoming schedule with that id' };
+        const where = row.channel_name || 'its channel';
+        if (row.status === 'recording') return { status: 409, error: `It is already recording on ${where}; stop it first to record on another channel.` };
+        if (!['scheduled', 'waiting'].includes(row.status)) return { status: 409, error: 'This recording has finished or no longer exists, so it cannot be moved.' };
+        const there = scheduledDb.findByProgram(sourceId, channelItemId, programStart);
+        if (there && there.id !== id) return { status: 409, error: `Something else is already set to record on ${there.channel_name || 'that channel'} at that time.` };
+        getDb().prepare(`UPDATE scheduled_recordings SET source_id = ?, channel_item_id = ?, channel_stable_id = ?, channel_name = ?,
+            channel_logo = ?, program_start = ?, program_end = ?, image_url = ?, rule_id = NULL, status = 'scheduled', error = NULL,
+            chosen_at = NULL, clash_winner = NULL WHERE id = ?`)
+            .run(sourceId, channelItemId, channelIdentity(sourceId, channelItemId), target.channelName || null,
+                channelLogo(target.channelLogo), programStart, programEnd, programmeImage(sourceId, channelItemId, programStart), id);
+        return { from: row, to: scheduledDb.getById(id) };
+    })();
+    if (result.error) return result;
+    coordinator.clearPrompt(id); // a viewer asked for the old channel's connection is asked no more
+    choiceEpoch++; // a start under way re-checks (startStillWanted: the row no longer names its channel)
+    console.log(`[Recordings] Schedule #${id} "${result.to.title}" moved from ${result.from.channel_name || '?'} to ${result.to.channel_name || '?'}`);
+    return { row: listScheduled({ settings }).find(r => r.id === id) || withImage(result.to) };
+}
+
+/**
  * scheduledDb.setStatus, plus one log line per actual status change (0156).
  *
  * `schedule` is either the row already in hand (its `.status` is trusted as
@@ -996,6 +1034,11 @@ function startStillWanted(schedule, owner) {
     if (active.has(schedule.id)) return false;
     const now = scheduledDb.getById(schedule.id);
     if (!now || (now.status !== 'scheduled' && now.status !== 'waiting')) return false;
+    // #329: moved to another channel or programme while it got ready (moveScheduled): the next tick starts the new one.
+    if (now.source_id !== schedule.source_id || now.channel_item_id !== schedule.channel_item_id || now.program_start !== schedule.program_start) {
+        console.log(`[Recordings] Schedule #${schedule.id}: moved while it got ready; started again from the new channel`);
+        return false;
+    }
     // 0445 (Codex 0444 round 1, high): its start-early was cut while it got ready (editScheduled), so it is not due yet.
     if (recordingWindow(now).startsAt > Date.now()) {
         console.log(`[Recordings] Schedule #${schedule.id}: its start moved later while it got ready; not started yet`);
@@ -2128,6 +2171,7 @@ module.exports = {
     listScheduled,
     chooseScheduled,
     editScheduled,
+    moveScheduled,
     listActive,
     withChannelLogo,
     withImage,

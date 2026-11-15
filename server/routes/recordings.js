@@ -369,6 +369,21 @@ router.put('/scheduled/:id', async (req, res) => {
     }
 });
 
+// #329 (C-M, web only): "Record on B instead": `{ sourceId, channelItemId, channelName?, channelLogo?, programStart,
+// programEnd }` as POST /schedule takes them. The schedule (not started) moves, atomically, keeping its id, game and
+// padding -> 200 the row as GET /scheduled lists it; 400 a bad target, 404 unknown, 409 recording or finished (nothing
+// changes), or another schedule has that programme.
+router.post('/scheduled/:id/move', async (req, res) => {
+    try {
+        const settings = await require('../db').settings.get();
+        const result = recordingEngine.moveScheduled(parseInt(req.params.id), req.body && typeof req.body === 'object' ? req.body : {}, { settings });
+        if (result.error) return res.status(result.status).json({ error: result.error });
+        res.json(result.row);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Cancel (or stop, if currently recording) a scheduled recording. 0207: for a failed or
 // missed one (the "Recent problems" list) this deletes it instead, with its failed
 // recordings and their files, and answers { deleted: true }.

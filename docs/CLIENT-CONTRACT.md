@@ -386,8 +386,13 @@ A rule makes ordinary schedules; one-off recordings are unchanged. Any signed-in
   makes nothing and answers **200** with that schedule (as a 201 would list it, its own `channel_name`) plus
   `alreadyScheduled: true`; a new schedule is still 201 with no `alreadyScheduled`. A finished, failed, missed or
   cancelled schedule of the game does not count. Without `gameId` nothing changes. Wording: "Already set to record on
-  <channel_name>". To move a game's recording to another channel, a client cancels the old schedule, then schedules
-  the new one (the web sets the old one again should that fail).
+  <channel_name>". **Web only (the Apple client does not call it):** `POST
+  /api/recordings/scheduled/:id/move` `{sourceId, channelItemId, channelName?, channelLogo?, programStart, programEnd}`
+  (as the schedule route takes them; any signed-in user, as cancelling) moves a schedule that has not started to
+  another channel or airing in one step, keeping its id, game and padding; it becomes a one-off (`rule_id` null) →
+  200 the row as `GET /recordings/scheduled` lists it; 400 a bad target; 404 unknown; 409 with `{error}` when it is
+  recording ("It is already recording on <channel>; stop it first to record on another channel."), finished, or
+  another schedule already has that programme. Nothing changes on an error.
 - C-M since 0439 (#207): a keyword `sport` rule records the best channel whose own airing (C-I channel `start`/`end`)
   is still to start, on that airing's times (as `team` rules since 0417), not the event's merged bounds.
 - **Since 0444 (#49): "Change recording".** `PUT /api/recordings/scheduled/:id` `{preBufferMin?, postBufferMin?}` (any

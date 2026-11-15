@@ -1233,57 +1233,32 @@ class SportsPage {
             commit: ({ keepalive } = {}) => entry.send(keepalive) });
     }
     /**
-     * "Record on B instead": B is scheduled first (with the game's id and A's padding); only once that succeeds is A
-     * cancelled. A failed schedule leaves A as it was; a failed cancel says so (both are then set).
+     * "Record on B instead": the schedule on A moves to B on the server (POST /recordings/scheduled/:id/move, #329), with
+     * its game and padding, in one step; a refusal leaves A as it was and says why.
      */
     async moveRecording(st, w) {
-        const to = st.move, from = st.schedule, g = st.g;
+        const to = st.move, from = st.schedule;
         if (!to || !from || st.busy) return;
         st.busy = true; st.error = null; w?.redraw();
         const was = (st.airings[st.index] && st.airings[st.index].c.name) || from.channel_name || 'the other channel';
         const c = to.c;
-        const pad = { ...(Number.isFinite(from.pre_buffer_min) ? { preBufferMin: from.pre_buffer_min } : {}), ...(Number.isFinite(from.post_buffer_min) ? { postBufferMin: from.post_buffer_min } : {}) };
-        const scheduleOn = (ch, at) => API.recordings.schedule({ sourceId: Number(ch.sourceId), channelItemId: ch.id, channelName: ch.name, title: g.title,
-            programStart: at.start, programEnd: at.end, ...pad, ...(g.synthetic ? {} : { gameId: g.id }) });
-        let made;
+        let moved;
         try {
-            made = await scheduleOn(c, to);
+            // #329 (Codex round 1): one request, one transaction on the server: the schedule itself moves (its game, padding
+            // and id kept), or nothing changes (already recording, finished, or the channel refused)
+            moved = await API.request('POST', `/recordings/scheduled/${from.id}/move`, { sourceId: Number(c.sourceId), channelItemId: c.id,
+                channelName: c.name, programStart: to.start, programEnd: to.end });
         } catch (err) {
             st.busy = false;
-            st.error = `${UI.errorText(err, `It couldn’t be set to record on ${to.c.name}.`)} It still records on ${was}.`;
+            const words = UI.errorText(err, `It couldn’t be set to record on ${c.name}.`);
+            st.error = err && err.status === 409 ? words : `${words} It still records on ${was}.`;
             if (this.window === w) w.redraw(); else UI.toast(st.error, { kind: 'error' });
             return;
         }
-        let text = `Now recording on ${to.c.name} instead of ${was}.`, kind;
-        if (made && made.alreadyScheduled && made.id !== from.id) {
-            // #329: another schedule of this game (not the one being moved) already records it: nothing is changed
-            text = SportsPage.already(made);
-        } else if (made && made.alreadyScheduled) {
-            // #329: the server keeps one schedule per game, so the one on A is the answer: cancel it, then set B
-            // (should B then fail, A is set again).
-            try {
-                await API.request('DELETE', `/recordings/scheduled/${from.id}`);
-            } catch (err) {
-                st.busy = false;
-                st.error = `${UI.errorText(err, `It couldn’t be moved to ${to.c.name}.`)} It still records on ${was}.`;
-                if (this.window === w) w.redraw(); else UI.toast(st.error, { kind: 'error' });
-                return;
-            }
-            try { await scheduleOn(c, to); }
-            catch {
-                const back = { start: from.program_start, end: from.program_end };
-                const fromChannel = { sourceId: from.source_id, id: from.channel_item_id, name: from.channel_name };
-                try { await scheduleOn(fromChannel, back); text = `It couldn’t be set to record on ${to.c.name}. It still records on ${was}.`; }
-                catch { text = `It couldn’t be set to record on ${to.c.name}, and the recording on ${was} was cancelled. Set it again.`; }
-                kind = 'error';
-            }
-        } else {
-            try { await API.request('DELETE', `/recordings/scheduled/${from.id}`); }
-            catch { text = `Set to record on ${to.c.name}, but the recording on ${was} couldn’t be cancelled. Cancel it in Recordings.`; kind = 'error'; }
-        }
+        const text = `Now recording on ${(moved && moved.channel_name) || c.name} instead of ${was}.`;
         st.busy = false;
         if (this.window === w) this.closeWindow();
-        UI.toast(text, kind ? { kind } : {});
+        UI.toast(text);
         this.refresh();
     }
     /** The primary button: Save changes (PUT), a rule (C-M `team`, or `sport` for a league), or this game on the chosen channel. */

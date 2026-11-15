@@ -151,7 +151,9 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
 - **One game, one active schedule** (#329; C-M). `scheduleFromProgram`, which the route and every rule use, checks for an
   active schedule of the same `gameId` (household-wide) and inserts in one synchronous SQLite transaction; a hit is
   answered as `alreadyScheduled` and creates nothing. A rule that hits one records it as its hit without taking it over
-  (`rule_id` stays as it was), so it never moves or cancels another rule's or a viewer's pick.
+  (`rule_id` stays as it was), so it never moves or cancels another rule's or a viewer's pick. "Record on B instead"
+  is `moveScheduled` (`POST /scheduled/:id/move`): one transaction re-points the row (only `scheduled` or `waiting`;
+  never a running capture) and clears its `rule_id`; a start under way sees the moved row and stops, for the next tick.
 - **A sport recording ends with its event** (0440, #217; C-M). `scheduled_recordings.sport_game_id` (a team rule's game, a
   client's `gameId`) or, failing it, the dashboard's join (`recordingGuideEnd.gameFor`) links a schedule to a fixture game.
   From a minute before its guide end + post-padding (the floor), each tick and the hard stop read the score collector's

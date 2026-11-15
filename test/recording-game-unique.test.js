@@ -44,6 +44,7 @@ before(async () => {
                             VALUES (?, ?, ?, 'live', ?, 'Sport', ?, ?, ?, 0, ?)`);
     item.run(`${source.id}:pos_1`, source.id, 'pos_1', 'Fox Footy', 1, 'ff', 'ff', 'http://provider.invalid/1.ts');
     item.run(`${source.id}:pos_2`, source.id, 'pos_2', 'Fox Footy 2', 2, 'ff2', 'ff2', 'http://provider.invalid/2.ts');
+    item.run(`${source.id}:pos_3`, source.id, 'pos_3', 'Kayo 3', 3, 'k3', 'k3', 'http://provider.invalid/3.ts');
     d.prepare(`INSERT INTO epg_programs (channel_id, source_id, start_time, end_time, title, categories, flags, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
         .run('ff', source.id, NOW + 2 * H, NOW + 5 * H, 'AFL: Collingwood v Carlton', '["Sport"]', 8, null);
     user = await db.users.create({ username: 'mark', role: 'admin' });
@@ -146,4 +147,54 @@ test('#329: a "Record every game" rule finds the game set to record on another c
     // a later evaluation keeps it so
     await load('services/recordingRules').evaluate();
     assert.deepEqual(ofGame(gameId).map(r => [r.id, r.status]), [[mine.body.id, 'scheduled']]);
+});
+
+// Codex round 1 of #329 (high): the web's "Record on B instead" scheduled B (now answered with A) and cancelled A, so a
+// game could end up recorded nowhere, or a live capture be stopped. The server now moves the schedule in one transaction.
+const row = (id) => sqlite.getDb().prepare('SELECT id, source_id, channel_item_id, channel_name, program_start, status, sport_game_id, rule_id FROM scheduled_recordings WHERE id = ?').get(id);
+
+test('#329 move: a scheduled game moves to another channel and time, the same row with its game and padding', async () => {
+    const a = await call('POST', '/api/recordings/schedule', on('pos_1', 'Fox Footy', NOW + 30 * H, { gameId: 'g:move', preBufferMin: 4, postBufferMin: 25 }));
+    sqlite.getDb().prepare(`UPDATE scheduled_recordings SET status = 'waiting', error = 'x' WHERE id = ?`).run(a.body.id);
+    const moved = await call('POST', `/api/recordings/scheduled/${a.body.id}/move`, on('pos_2', 'Fox Footy 2', NOW + 30 * H + 1800000));
+    assert.equal(moved.status, 200, JSON.stringify(moved.body));
+    assert.deepEqual([moved.body.id, moved.body.channel_name, moved.body.program_start, moved.body.status, moved.body.endsWith],
+        [a.body.id, 'Fox Footy 2', NOW + 30 * H + 1800000, 'scheduled', 'event']);
+    const r = sqlite.getDb().prepare('SELECT * FROM scheduled_recordings WHERE id = ?').get(a.body.id);
+    assert.deepEqual([r.channel_item_id, r.sport_game_id, r.pre_buffer_min, r.post_buffer_min, r.error], ['pos_2', 'g:move', 4, 25, null]);
+    assert.equal(ofGame('g:move').length, 1);
+});
+
+test('#329 move: refused while recording or once finished, and for a target scheduling would refuse; nothing changes', async () => {
+    const a = await call('POST', '/api/recordings/schedule', on('pos_1', 'Fox Footy', NOW + 32 * H, { gameId: 'g:refuse' }));
+    const was = row(a.body.id);
+    for (const bad of [{ channelItemId: undefined }, { programEnd: NOW + 32 * H - 1 }, { sourceId: 'x' }]) {
+        const r = await call('POST', `/api/recordings/scheduled/${a.body.id}/move`, { ...on('pos_2', 'Fox Footy 2', NOW + 32 * H), ...bad });
+        assert.equal(r.status, 400, JSON.stringify(bad));
+        assert.deepEqual(row(a.body.id), was, 'untouched');
+    }
+    scheduled.setStatus(a.body.id, 'recording');
+    const live = await call('POST', `/api/recordings/scheduled/${a.body.id}/move`, on('pos_2', 'Fox Footy 2', NOW + 32 * H));
+    assert.deepEqual([live.status, live.body.error], [409, 'It is already recording on Fox Footy; stop it first to record on another channel.']);
+    assert.deepEqual(row(a.body.id), { ...was, status: 'recording' });
+    scheduled.setStatus(a.body.id, 'completed');
+    assert.equal((await call('POST', `/api/recordings/scheduled/${a.body.id}/move`, on('pos_2', 'Fox Footy 2', NOW + 32 * H))).status, 409);
+    assert.equal((await call('POST', '/api/recordings/scheduled/999999/move', on('pos_2', 'Fox Footy 2', NOW + 32 * H))).status, 404);
+});
+
+test('#329 move: a schedule of the game made on C at the same time, and one already on the target, are never clobbered', async () => {
+    const a = await call('POST', '/api/recordings/schedule', on('pos_1', 'Fox Footy', NOW + 34 * H, { gameId: 'g:both' }));
+    const [moved, onC] = await Promise.all([
+        call('POST', `/api/recordings/scheduled/${a.body.id}/move`, on('pos_2', 'Fox Footy 2', NOW + 34 * H)),
+        call('POST', '/api/recordings/schedule', on('pos_3', 'Kayo 3', NOW + 34 * H, { gameId: 'g:both' }))]);
+    assert.equal(moved.status, 200);
+    assert.deepEqual([onC.status, onC.body.id, onC.body.alreadyScheduled], [200, a.body.id, true]);
+    assert.deepEqual(ofGame('g:both').map(r => [r.id, r.channel_name, r.status]), [[a.body.id, 'Fox Footy 2', 'scheduled']]);
+    // another programme's schedule already on the target: 409, both as they were
+    const other = await call('POST', '/api/recordings/schedule', on('pos_3', 'Kayo 3', NOW + 36 * H));
+    const b = await call('POST', '/api/recordings/schedule', on('pos_1', 'Fox Footy', NOW + 36 * H, { gameId: 'g:taken' }));
+    const [o, w] = [row(other.body.id), row(b.body.id)];
+    const r = await call('POST', `/api/recordings/scheduled/${b.body.id}/move`, on('pos_3', 'Kayo 3', NOW + 36 * H));
+    assert.deepEqual([r.status, r.body.error], [409, 'Something else is already set to record on Kayo 3 at that time.']);
+    assert.deepEqual([row(other.body.id), row(b.body.id)], [o, w]);
 });
