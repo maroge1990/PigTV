@@ -319,15 +319,32 @@ class App {
      * Sign out. #276 review: a change still waiting for its Undo notice (a delete, a cancel, a rule stopped) is sent
      * first, while the sign-in still works, and waited for (at most 5 s, then only until it has been sent); after
      * sign-out it would be refused.
+     *
+     * #130: whatever fails on the way (no server, no answer, an error), this browser forgets the sign-in and goes to
+     * the sign-in page. Nothing is said: the server keeps nothing for a web sign-in (POST /api/auth/logout only
+     * answers), so a logout it never heard changes nothing for the person.
      */
     async signOut() {
-        // At most 5 s for the answers; past that, only until the requests (keepalive) have been sent, and logged.
-        if (typeof UI !== 'undefined' && UI.flushPending) await UI.flushPending(5000).catch(() => {});
-        // #320: the stream is given back while the sign-in still works; after the token goes the request would be refused.
-        if (this.player && this.player.handlePageHide) this.player.handlePageHide();
+        try {
+            // At most 5 s for the answers; past that, only until the requests (keepalive) have been sent, and logged.
+            if (typeof UI !== 'undefined' && UI.flushPending) await UI.flushPending(5000).catch(() => {});
+            // #320: the stream is given back while the sign-in still works; after the token goes the request would be refused.
+            if (this.player && this.player.handlePageHide) this.player.handlePageHide();
+        } catch (err) {
+            console.error('Sign-out: what was waiting could not be sent:', err);
+        }
         const token = localStorage.getItem('authToken');
         if (token) {
-            await API.authFetch('/api/auth/logout', { method: 'POST' });
+            // At most 3 s for the server's answer, so a server that does not answer cannot hold the person here.
+            let timer = null;
+            const gaveUp = new Promise(resolve => { timer = setTimeout(resolve, 3000); });
+            try {
+                await Promise.race([API.authFetch('/api/auth/logout', { method: 'POST' }), gaveUp]);
+            } catch (err) {
+                console.warn('Sign-out: the server was not told (nothing depends on it):', err);
+            } finally {
+                clearTimeout(timer);
+            }
         }
         localStorage.removeItem('authToken');
         window.location.replace('/login.html');

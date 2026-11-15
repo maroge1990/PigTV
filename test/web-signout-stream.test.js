@@ -12,7 +12,7 @@ test('signOut gives the session back with the token, before the token is removed
     const calls = [];
     const context = vm.createContext({
         console: { ...console, log() {}, warn() {}, error() {} },
-        document: { addEventListener() {} },
+        document: { addEventListener() {} }, setTimeout, clearTimeout,
         localStorage: { getItem: (k) => store.get(k) ?? null, removeItem: (k) => store.delete(k) },
         fetch: async (url, init) => { calls.push([url, init.method, init.headers && init.headers.Authorization, store.has('authToken')]); return { ok: true }; },
         window: { location: { replace() {} } }
