@@ -415,8 +415,8 @@ class SportsPage {
         const prev = wrap.querySelector('.rail-arrow.prev'), next = wrap.querySelector('.rail-arrow.next');
         const max = (rail.scrollWidth || 0) - (rail.clientWidth || 0), x = rail.scrollLeft || 0, over = !this.phone && max > 1;
         const focused = typeof document !== 'undefined' ? document.activeElement : null;
-        if (prev) prev.hidden = !(over && x > 1);
-        if (next) next.hidden = !(over && x < max - 1);
+        if (prev) prev.hidden = !(over && x > 8); // the rail rests on its 4 px padding (scroll snap)
+        if (next) next.hidden = !(over && x < max - 8);
         const lost = [prev, next].find(b => b && b === focused && b.hidden);
         if (lost) {
             const other = lost === prev ? next : prev;

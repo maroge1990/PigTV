@@ -112,3 +112,16 @@ test('44 px targets, shown on hover and focus, always on a touch screen, gone on
     assert.match(rulesFor('.sp .rail-arrow[hidden]'), /display:\s*none/);
     assert.match(rulesFor('.sp.is-phone .rail-arrow'), /display:\s*none/);
 });
+
+// #327 rig T3: the rail's 4 px padding and scroll snap leave it resting at scrollLeft 4 at its start (and 4 short of
+// its end), so the buttons must not count that as scrolled.
+test('a row resting on its padding (scroll snap) still counts as at its start and its end', () => {
+    const b = browser();
+    const p = page(b);
+    const r = rig(b, { scrollWidth: 2200, clientWidth: 1000, scrollLeft: 4 });
+    p.root.appendChild(r.wrap);
+    p.updateRails();
+    assert.deepEqual([r.prev.hidden, r.next.hidden], [true, false], 'at rest on the padding: only ›');
+    r.rail.scrollLeft = 1196; p.updateRail(r.rail);
+    assert.deepEqual([r.prev.hidden, r.next.hidden], [false, true], '4 px short of the end: only ‹');
+});
