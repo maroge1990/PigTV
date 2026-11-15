@@ -406,6 +406,8 @@ class RecordingsPage {
                     <div class="rec-tags">${rule.enabled ? `<span class="rec-tag is-accent">On</span><span class="rec-meta">${upcoming}</span>` : '<span class="rec-tag">Off</span>'}</div>
                 </div>
                 <div class="rec-actions">
+                    ${rule.kind === 'series' ? `<button type="button" class="btn btn-secondary" data-action="toggle-new-only" data-id="${e(rule.id)}" data-new-only="${rule.newOnly === true}"
+                        aria-pressed="${rule.newOnly === true}">${rule.newOnly ? 'Record repeats too' : 'New episodes only'}</button>` : ''}
                     <button type="button" class="btn btn-secondary" data-action="toggle-rule" data-id="${e(rule.id)}" data-enabled="${rule.enabled}"
                         aria-pressed="${rule.enabled}">${rule.enabled ? 'Turn off' : 'Turn on'}</button>
                     <button type="button" class="btn btn-secondary" data-action="delete-rule" data-id="${e(rule.id)}">Delete</button>
@@ -414,6 +416,9 @@ class RecordingsPage {
         }).join('')}</ul>`;
         el.querySelectorAll('[data-action="toggle-rule"]').forEach(btn => {
             btn.addEventListener('click', () => this.toggleRule(btn.dataset.id, btn.dataset.enabled !== 'true'));
+        });
+        el.querySelectorAll('[data-action="toggle-new-only"]').forEach(btn => {
+            btn.addEventListener('click', () => this.setNewOnly(btn.dataset.id, btn.dataset.newOnly !== 'true'));
         });
         el.querySelectorAll('[data-action="delete-rule"]').forEach(btn => {
             btn.addEventListener('click', () => this.deleteRule(btn.dataset.id));
@@ -439,6 +444,16 @@ class RecordingsPage {
     async toggleRule(id, enabled) {
         try {
             await API.recordings.updateRule(id, { enabled });
+            await this.refresh();
+        } catch (err) {
+            UI.toast(UI.errorText(err, 'Could not change the rule.'), { kind: 'error' });
+        }
+    }
+
+    // #62: a series rule records only new episodes (as the Apple Record page's "Every new episode") or repeats too.
+    async setNewOnly(id, newOnly) {
+        try {
+            await API.recordings.updateRule(id, { newOnly });
             await this.refresh();
         } catch (err) {
             UI.toast(UI.errorText(err, 'Could not change the rule.'), { kind: 'error' });
