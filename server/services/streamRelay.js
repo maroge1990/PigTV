@@ -355,6 +355,16 @@ class Relay {
             // #324: the shared ingest ended the feed for repeating the same clip (ffmpeg then exited).
             const repeating = repeatingClip(leg.session);
             if (repeating) return this.switchOver(`kept repeating the same ${repeating} clip`, 'repeating');
+            // #332: the shared ingest ended the feed as the provider's placeholder. Before any switch the stream the
+            // player holds (its master playlist, this relay's fingerprint) was described from the placeholder, never
+            // the channel: nothing can join it, so the relay ends and the player asks again (a fresh probe).
+            if (leg.session.feedLost && leg.session.feedLost.reason === 'placeholder') {
+                if (!this.switches) {
+                    this.note('placeholder', `${this.providerOf(leg)} sent its placeholder, not the channel`, { provider: this.providerOf(leg) });
+                    return this.close('its first feed was the provider\'s placeholder; the player asks again', true);
+                }
+                return this.switchOver('sent its placeholder, not the channel', 'placeholder');
+            }
             return leg.lost.how === 'stall' ? this.switchOver('stopped sending', 'stalled')
                 : leg.lost.how === 'timestamps' ? this.switchOver('broke its timestamps after a reconnect', 'timestamps')
                     : this.switchOver('ended', 'lost');
@@ -804,7 +814,7 @@ function playingSessionId(id) {
  * For the Status page and GET /api/status: one entry per followed stream, plus (for ten
  * minutes) the ones that ended because nothing could take over. `state` is one of starting |
  * playing | switching | standby-starting | standby-ready | promoted | reclaimed | failed;
- * `lastReason` is { code, detail, at } with code lost | stalled | timestamps | repeating | blank |
+ * `lastReason` is { code, detail, at } with code lost | stalled | timestamps | repeating | placeholder | blank |
  * incompatible | standby-incompatible | standby-reclaimed | promoted | no-candidate. Names only.
  */
 function list() {

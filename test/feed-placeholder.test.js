@@ -66,6 +66,7 @@ function media(from, seconds, perTick) {
     return Buffer.concat(out);
 }
 const SLATE = media(0, 1, 1); // the placeholder: 1 s of media, 18.8 kB (~150 kbps)
+const LONG_SLATE = media(0, 4, 1); // 4 s of it in one burst (75 kB): enough for a session's first segment
 
 // ---- the provider: '/slate.ts' sends 1 s of slate and closes, every time; '/real.ts' a 451 kbps feed (no end;
 // '?drop=MS' ends each connection after MS); '/turns.ts' a 1.2 Mb/s channel for 1.5 s on its first connection, then
@@ -133,6 +134,8 @@ before(async () => {
         connections[p] = (connections[p] || 0) + 1;
         res.writeHead(200, { 'Content-Type': 'video/mp2t' });
         if (p.startsWith('/slate')) return slate(res);
+        // Held open 1.5 s after its burst: the play has started (and is followed) before the second connection ends.
+        if (p === '/longslate.ts') { res.write(LONG_SLATE); setTimeout(() => res.end(), 1500); return; }
         if (p === '/turns.ts') return connections[p] === 1 ? realFeed(res, { untilMs: 1500, perTick: 8 }) : slate(res);
         const drop = /drop=(\d+)/.exec(query || '');
         return realFeed(res, { dropMs: drop ? Number(drop[1]) : null });
@@ -149,10 +152,13 @@ before(async () => {
     item.run(`${A.id}:pos_1`, A.id, 'pos_1', 'Sky Sports Main Event', 1, 's1', `${base}/slate.ts`);
     item.run(`${A.id}:pos_2`, A.id, 'pos_2', 'TNT Sports 1', 2, 's2', `${base}/slate2.ts`);
     item.run(`${A.id}:pos_3`, A.id, 'pos_3', 'TNT Sports 2', 3, 's3', `${base}/turns.ts`);
+    item.run(`${A.id}:pos_4`, A.id, 'pos_4', 'TNT Sports 3', 4, 's4', `${base}/longslate.ts`);
     // TNT Sports 1 has a backup on Dream 4K that plays.
     sqlite.getDb().prepare(`INSERT INTO backup_channels (source_id, stream_id, name, url_data) VALUES (?, '901', 'TNT Sports 1', ?)`).run(B.id, `${base}/real.ts`);
     sqlite.getDb().prepare(`INSERT INTO channel_links (primary_source_id, primary_key, backup_source_id, backup_stream_id, method, status, rank, updated_at)
                             VALUES (?, 's2', ?, '901', 'exact', 'auto', 1, ?)`).run(A.id, B.id, Date.now());
+    sqlite.getDb().prepare(`INSERT INTO channel_links (primary_source_id, primary_key, backup_source_id, backup_stream_id, method, status, rank, updated_at)
+                            VALUES (?, 's4', ?, '901', 'exact', 'auto', 1, ?)`).run(A.id, B.id, Date.now());
     await db.settings.update({ maxProviderStreams: 2, sharedIngestEnabled: true, relayEnabled: false });
 
     const app = express();
@@ -345,4 +351,47 @@ test('a feed that turns into the placeholder mid-play ends the play: quarantined
     const again = await play('pos_3');
     assert.equal(again.status, 503);
     assert.equal(again.body.error, PLACEHOLDER_TEXT);
+});
+
+// ---- the placeholder's probe is never the channel's description (#332 (2)) -----------------------------------------
+
+const profileCount = () => sqlite.getDb().prepare('SELECT COUNT(*) AS n FROM channel_profiles').get().n;
+
+test('a play that started on the placeholder keeps no channel profile and no cached probe of it', async () => {
+    sqlite.getDb().prepare('DELETE FROM channel_profiles').run();
+    const r = await play('pos_4');
+    assert.equal(r.status, 200, JSON.stringify(r.body)); // 4 s of slate is a first segment
+    const session = transcodeSession.getSession(r.body.sessionId);
+    await until(() => session.feedLost && session.feedLost.reason === 'placeholder', 'the feed ends as the placeholder');
+    await sleep(50);
+    assert.equal(profileCount(), 0, 'no profile of the slate');
+    assert.equal(probeCache.size, 0, 'no cached probe of the slate either');
+});
+
+test('a relay whose first leg was the placeholder ends (the player asks again) rather than splice a feed onto the slate\'s description', async () => {
+    const relay = load('services/streamRelay');
+    await db.settings.update({ relayEnabled: true });
+    try {
+        const r = await play('pos_4');
+        assert.equal(r.status, 200, JSON.stringify(r.body));
+        const followed = relay.get(r.body.sessionId);
+        assert.ok(followed, 'the play is followed by a relay');
+        await until(() => !relay.get(r.body.sessionId), 'the relay ends');
+        assert.equal(connections['/real.ts'] || 0, 0, 'no leg was started on Dream 4K against the slate\'s fingerprint');
+        const ended = relay.list().find(x => x.id === r.body.sessionId);
+        assert.equal(ended.state, 'failed');
+        assert.equal(ended.lastReason.code, 'placeholder');
+    } finally {
+        await relay.closeAll();
+        await db.settings.update({ relayEnabled: false });
+    }
+});
+
+test('a session is a placeholder suspect once its feed ended as one or had a short low-rate connection', () => {
+    const { placeholderSuspect } = load('services/playbackStrategy');
+    assert.equal(placeholderSuspect({ feedLost: { reason: 'placeholder' } }), true);
+    assert.equal(placeholderSuspect({ feed: { ingest: { shortLowSeen: true } } }), true);
+    assert.equal(placeholderSuspect({ feed: { ingest: { shortLowSeen: false, placeholder: null } } }), false);
+    assert.equal(placeholderSuspect({ feedLost: { reason: 'upstream-lost' } }), false);
+    assert.equal(placeholderSuspect(null), false);
 });

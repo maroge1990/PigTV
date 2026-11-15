@@ -129,8 +129,11 @@ async function probedAnalysis({ url, ffprobePath, userAgent, caps, cacheKey, dea
     }
     const info = analyzeProbeResult(raw, url, caps);
     const probedAt = Date.now();
-    probeCache.set(cacheKey, { result: info, timestamp: probedAt, probedAt });
-    return { info, probeNote: seconds(Date.now() - probeStartedAt), fromProfile: false, probedAt };
+    // #332: probed from the provider's placeholder (its feed ended as one, or had a short low-rate connection): the
+    // slate's analysis, never kept for the channel.
+    const placeholderProbe = !!feed && ((feed.endReason && feed.endReason.reason === 'placeholder') || (feed.ingest && feed.ingest.shortLowSeen === true));
+    if (!placeholderProbe) probeCache.set(cacheKey, { result: info, timestamp: probedAt, probedAt });
+    return { info, probeNote: seconds(Date.now() - probeStartedAt), fromProfile: false, probedAt, placeholderProbe };
 }
 
 /** 0124: how this start was served, for the admin status page. Observation only. */
@@ -216,6 +219,7 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, owner = 
         throw supersededError();
     }
     await afterStart({ session, ready, info, plan, probeNote, fromProfile, probedAt, cacheKey, sessionStartedAt, note: timingNote,
+        placeholderProbe: analysis.placeholderProbe === true || placeholderNoted(ingestSource),
         remove: () => transcodeSession.removeSession(session.id) });
 
     return sessionDecision(session.id, plan, info);
@@ -319,7 +323,7 @@ function sessionPlan({ info, caps, settings, userAgent, owner, live, audioEncode
  * or drop the channel profile, and on a failure remove the session and throw the
  * client's sentence. `note` is appended to the timing line.
  */
-async function afterStart({ session, ready, info, plan, probeNote, fromProfile, probedAt, cacheKey, sessionStartedAt, remove, note = '' }) {
+async function afterStart({ session, ready, info, plan, probeNote, fromProfile, probedAt, cacheKey, sessionStartedAt, remove, note = '', placeholderProbe = false }) {
     const { videoMode, videoRange, frameRate } = plan;
     // 0144: after an initial burst, unless PIGTV_READRATE_BURST=0 (plain -re).
     const paceNote = () => { const b = transcodeSession.readrateBurstSec(); return b > 0 ? ` after an initial ${b}s burst` : ''; };
@@ -343,13 +347,26 @@ async function afterStart({ session, ready, info, plan, probeNote, fromProfile, 
             ? `NOT produced - ffmpeg ended after ${seconds(session.timings.endedEarly - sessionStartedAt)}${failureStatus ? ` (provider ${failureStatus === 'refused' ? 'refused the connection' : `HTTP ${failureStatus}`})` : ''}`
             : 'NOT produced in time');
     console.log(`[Playback] resolve timing: HLS session, probe ${probeNote}, first segment ${firstSegment}${pacing}${timing}${range}${note}`);
-    if (ready) {
+    // #332: a feed that was (or may be) the provider's placeholder: its probe is the slate's, never the channel's.
+    const placeholder = placeholderProbe || placeholderSuspect(session);
+    if (ready && !placeholder) {
         // It played from this analysis: keep it for the next play (a fresh probe), or
         // note that it still works (a profile). Written only now, so an analysis that
         // never produced a picture is never reused.
         if (fromProfile) channelProfiles.markOk(cacheKey);
-        else channelProfiles.save(cacheKey, info, probedAt);
-    } else if (fromProfile) {
+        else {
+            channelProfiles.save(cacheKey, info, probedAt);
+            // #332: the placeholder found later (the feed ends as one, or a blank verdict is one): this analysis was
+            // probed from it, so neither the profile nor the in-memory copy is kept.
+            if (typeof session.once === 'function') {
+                session.once('placeholder', () => { channelProfiles.remove(cacheKey); probeCache.delete(cacheKey); });
+            }
+        }
+    } else if (placeholder && !fromProfile) {
+        // #332: the probe was the slate's: not kept in memory either (it was cached when it was taken).
+        probeCache.delete(cacheKey);
+    } else if (fromProfile && !placeholder) {
+        // (#332: a start that failed on the placeholder says nothing about the channel's profile: it is kept.)
         // The feed may have changed under its profile: probe afresh next time, not from
         // the in-memory copy of the same analysis either.
         channelProfiles.remove(cacheKey);
@@ -368,6 +385,23 @@ async function afterStart({ session, ready, info, plan, probeNote, fromProfile, 
         err.providerReason = ended ? (transcodeSession.providerFailureIn(session.stderrTail || []) || session.feedLost?.reason === 'placeholder') : true;
         throw err;
     }
+}
+
+/** #332: was this candidate's feed found sending the placeholder (providerRouting, 3 min)? */
+function placeholderNoted(ingestSource) {
+    if (!ingestSource || ingestSource.providerId === null || ingestSource.providerId === undefined || ingestSource.channelKey == null) return false;
+    try { return require('./providerRouting').isPlaceholder(ingestSource.providerId, ingestSource.channelKey); } catch (e) { return false; }
+}
+
+/**
+ * #332: was this session's shared feed the provider's placeholder, or may it have been (a short low-rate connection
+ * so far)? Its probe is then the slate's, not the channel's: never kept as a profile.
+ */
+function placeholderSuspect(session) {
+    if (!session) return false;
+    if (session.feedLost && session.feedLost.reason === 'placeholder') return true;
+    const ingest = session.feed && session.feed.ingest;
+    return !!ingest && (ingest.shortLowSeen === true || !!ingest.placeholder);
 }
 
 function sessionDecision(sessionId, plan, info) {
@@ -423,4 +457,4 @@ function probeFailureMessage(err) {
     return reason ? reason.message : FAILURE_TEXT.couldNotRead();
 }
 
-module.exports = { supersededError, SUPERSEDED_MESSAGE, resolve, DEFAULT_CAPABILITIES, probeFailureMessage };
+module.exports = { supersededError, SUPERSEDED_MESSAGE, resolve, DEFAULT_CAPABILITIES, probeFailureMessage, placeholderSuspect };

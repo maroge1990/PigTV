@@ -23,6 +23,10 @@ ingest that sessions read through is [`ingest.md`](ingest.md); the Apple player'
   session produced its playlist from a fresh probe; a failed start from a profile deletes it (and its in-memory copy); re-probed after
   `PIGTV_PROFILE_MAX_AGE_DAYS` (7). **`dtsUneven` and `videoRange` ride in the profile**, so a feed whose timing or range changes is
   re-classified within 7 days or on its first failed start. ffmpeg's own probe is **not** reduced. Always on (the off switch went in 0204).
+  #332: a probe of the provider's placeholder is never kept, as a profile or in the 5-minute memory: not when the probe's
+  shared feed ended as the placeholder or had a short low-rate connection, nor when the session's feed did, nor while the
+  feed is held back for it; a profile saved from a fresh probe is dropped when the feed later ends as the placeholder.
+  A failed start on the placeholder keeps the channel's existing profile.
 - **Timestamps: two kinds of feed** (0088). *Uneven* feeds have about a third of their DTS steps as ~1-tick-then-double, left by
   an upstream muxer (Fox Sports 505), and need `-fflags +igndts`. *Even* feeds (TSN, Sky UHD, Sportsnet 4K) are **broken by**
   `igndts`. `streamProbe.classifyTimestamps()` decides per feed: steps below ¼ of the mean frame period >5% ⇒ uneven (measured
@@ -240,7 +244,9 @@ rebased the step first (a reconnect showed up only as repeated content, and ever
   confirm a loop). Only feeds read through the shared ingest are checked:
   a play or recording that opens the provider URL itself (shared connection off, or refused) is not.
 - A feed the shared ingest finds sending the **provider's placeholder** (#332, [`ingest.md`](ingest.md) › Placeholder feed)
-  ends as lost with reason `placeholder`, whether or not another feed can take over. While the channel's feed
+  ends as lost with reason `placeholder`, whether or not another feed can take over. A later leg's loss switches as any
+  other; leg 0's ends the relay (failed) instead, since the stream the player holds (its master playlist, the relay's
+  fingerprint) was described from the slate: the player asks again and its resolve probes afresh. While the channel's feed
   is held back for it (3 min) and nothing else can play it, the resolve answers C-B's "This channel is not available right
   now: nothing is on this stream at the moment." without opening the provider.
 - Known limits: the feeds aren't in step (a jump or repeat at a switch); a cold switch still waits for the 20 s stall
