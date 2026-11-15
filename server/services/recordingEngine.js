@@ -1035,7 +1035,9 @@ function startStillWanted(schedule, owner) {
     const now = scheduledDb.getById(schedule.id);
     if (!now || (now.status !== 'scheduled' && now.status !== 'waiting')) return false;
     // #329: moved to another channel or programme while it got ready (moveScheduled): the next tick starts the new one.
-    if (now.source_id !== schedule.source_id || now.channel_item_id !== schedule.channel_item_id || now.program_start !== schedule.program_start) {
+    // The stable identity too (Codex sign-off, high): a sync can hand A's pos_N to B, so a move to B can keep the item.
+    if (now.source_id !== schedule.source_id || now.channel_item_id !== schedule.channel_item_id || now.program_start !== schedule.program_start
+        || (now.channel_stable_id ?? null) !== (schedule.channel_stable_id ?? null)) {
         console.log(`[Recordings] Schedule #${schedule.id}: moved while it got ready; started again from the new channel`);
         return false;
     }
@@ -2204,6 +2206,8 @@ module.exports = {
     _compressRecording: post.compressRecording,
     _prepareRecording: media.prepareRecording,
     _setPrepareQueue: media._setPrepareQueue,
+    /** Tests: is a start of this (possibly stale) schedule still wanted, with no lease and no shutdown since. */
+    _startStillWanted: (schedule) => startStillWanted(schedule, { lease: null, generation: stopAllGeneration }),
     _owners: owners, // 0270: the deletion's writer wait and the start-up sweep
     _reconcileJobsOnStartup: reconcileJobsOnStartup,
     _reconcileOnStartup: reconcileOnStartup, // R3: what a restart does to a recording in progress

@@ -534,3 +534,35 @@ test('DVR-4: shutdown while the feed is awaited - nothing starts after stopAllAc
         held.restore();
     }
 });
+
+// #329, Codex sign-off (high): a sync hands A's position to channel B; the schedule moves to B with the same source, item
+// and start while its start awaits A's feed. The start must see the move (the stable identity) and record nothing of A.
+test('#329: moved to B on the same position (a sync reassigned it) while A\'s feed is awaited: the feed and lease go back, nothing of A is recorded', async () => {
+    const d = sqlite.getDb();
+    d.prepare(`INSERT INTO playlist_items (id, source_id, item_id, type, name, category_id, is_hidden, sort_order, stable_id, stream_url)
+               VALUES (?, ?, 'pos_7', 'live', 'Chan A', 'Sport', 0, 7, 'cha', ?)`).run(`${A.id}:pos_7`, A.id, `${base}/cha.ts`);
+    const held = holdSubscribe();
+    try {
+        const s = due('pos_7', 'cha');
+        const stale = scheduled.getById(s.id);
+        assert.equal(engine._startStillWanted(stale), true);
+        const { ticking } = await startsWaiting(s, held);
+        d.prepare(`UPDATE playlist_items SET name = 'Chan B', stable_id = 'chb', stream_url = ? WHERE id = ?`).run(`${base}/chb.ts`, `${A.id}:pos_7`);
+        const moved = engine.moveScheduled(s.id, { sourceId: A.id, channelItemId: 'pos_7', channelName: 'Chan B', programStart: s.program_start, programEnd: s.program_end });
+        assert.equal(moved.row?.channel_stable_id, 'chb', JSON.stringify(moved));
+        assert.equal(engine._startStillWanted(stale), false, 'the stale start (stable id cha) is no longer wanted');
+        assert.equal(engine._startStillWanted(scheduled.getById(s.id)), true, 'a start of the moved row is');
+        const feed = fakeFeed();
+        held.resolve(feed);
+        await ticking;
+        await sleep(200);
+        assert.equal(feed.left, 1, 'the feed of A is given back');
+        assert.equal(captures().length, 0, 'no capture of A');
+        assert.equal(recordings.listBySchedule(s.id).length, 0, 'no recording row');
+        assert.equal([...coordinator._leases.values()].filter(l => l.scheduleId === s.id).length, 0, 'its lease is released');
+        assert.equal(scheduled.getById(s.id).channel_stable_id, 'chb');
+    } finally {
+        held.restore();
+        d.prepare('DELETE FROM playlist_items WHERE id = ?').run(`${A.id}:pos_7`);
+    }
+});
