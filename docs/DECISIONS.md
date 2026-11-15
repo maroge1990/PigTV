@@ -683,3 +683,16 @@ reviews.
   old stored value changes nothing; default installs keep byte-identical ffmpeg arguments (the golden test). Server 0639
   to 0643. `sharedIngestEnabled`, `maxProviderStreams`, `viewerIdleTimeoutSec` and `recordingPromptLeadMin` were read
   and kept: code paths in admission, ingest and recording still use them.
+
+### D-64. TestFlight uploads are cloud-signed over plain SSH, with no keychain (15 Nov 2026; Mark)
+
+- **Context:** an upload needed the Mac's login keychain unlocked, so Mark had to type his Mac password in a terminal
+  tab for every release. Piggyback already uploads without it.
+- **Choice:** Mark: do it Piggyback's way from the next release. `Tools/testflight.sh` archives unsigned and the export
+  is signed by Apple's cloud-managed distribution certificate, authorised by the Admin-role App Store Connect API key
+  (an App Manager key cannot cloud-sign). The build number stays the project's (`Tools/bump-build.sh`), not the commit
+  count, so builds and commit subjects keep one number. D-49's full UI run still gates an upload.
+- **Consequence:** an unsigned archive carries no entitlements, so the script stamps the App Group back on with an
+  ad-hoc signature before the export (checked 15 Nov: app and Top Shelf signed "Apple Distribution" with
+  `group.au.markrogers.PigTV`, both platforms, via `--export`, which uploads nothing). Device installs
+  (`install-device.sh`) still use the keychain.
