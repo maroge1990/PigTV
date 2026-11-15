@@ -7,7 +7,8 @@
  * the primary, whose channels and guide are shown; the rest are backups tried in that order.
  * Uses GET /api/sources/providers, /api/sources/status, /api/sources/:id (the form),
  * /api/sources/:id/account (and POST .../account/check), POST/PUT/DELETE /api/sources,
- * PUT /api/sources/order, POST .../sync, .../toggle, .../test.
+ * PUT /api/sources/order, POST .../sync, .../toggle, .../test, and POST /api/sources/test (#330: a new provider's
+ * details are tested first; it is saved, and synced, only after a pass or the admin's "Save anyway").
  *
  * ProviderFormat holds the pure helpers (tested without a DOM).
  */
@@ -163,6 +164,11 @@ class ProvidersSettings {
         });
         tab?.addEventListener('change', (e) => {
             if (e.target?.matches?.('[data-field="type"]')) this.syncTypeFields(e.target.closest('.provider-card'));
+            if (e.target?.closest?.('.provider-card[data-id="new"]')) this.showSaveAnyway(false);
+        });
+        // #330: "Save anyway" answers the details that failed their test; a changed field is tested again.
+        tab?.addEventListener('input', (e) => {
+            if (e.target?.closest?.('.provider-card[data-id="new"]')) this.showSaveAnyway(false);
         });
     }
 
@@ -315,6 +321,7 @@ class ProvidersSettings {
             </div>
             <div class="provider-save">
                 <button type="button" class="btn ${saved ? 'btn-secondary' : 'btn-primary'} btn-sm" data-provider-action="save" data-id="${id}">${saved ? 'Save provider' : 'Add provider'}</button>
+                ${saved ? '' : `<button type="button" class="btn btn-secondary btn-sm hidden" data-provider-action="save-anyway" data-id="new" id="provider-save-anyway">Save anyway</button>`}
                 <button type="button" class="btn btn-secondary btn-sm" data-provider-action="cancel" data-id="${id}">Cancel</button>
                 ${saved ? `<button type="button" class="btn btn-secondary btn-sm" data-provider-action="test" data-id="${id}">Test connection</button>
                 <button type="button" class="btn btn-secondary btn-sm" data-provider-action="toggle" data-id="${id}">${saved.enabled ? 'Disable' : 'Enable'}</button>
@@ -428,6 +435,7 @@ class ProvidersSettings {
         if (action === 'add') { this.open.set('new', null); return this.render(); }
         if (action === 'cancel') { this.open.delete(rawId === 'new' ? 'new' : Number(rawId)); return this.render(); }
         if (action === 'save' && rawId === 'new') return this.create(button);
+        if (action === 'save-anyway') return this.create(button, { tested: true });
         const id = Number(rawId);
         if (action === 'sync-guide' || action === 'delete-guide') return this.guideAct(action, id, button);
         const p = this.providers.find(x => x.id === id);
@@ -473,11 +481,37 @@ class ProvidersSettings {
         } catch { return true; }
     }
 
-    async create(button) {
+    showSaveAnyway(show) {
+        document.getElementById('provider-save-anyway')?.classList.toggle('hidden', !show);
+    }
+
+    /**
+     * #330: the details are tested before anything is saved. A pass saves (and syncs); a failure says why and offers
+     * "Save anyway", which saves without testing again (`tested`).
+     */
+    async create(button, { tested = false } = {}) {
         const card = button.closest('.provider-card');
         const built = ProviderFormat.buildSave(null, this.readForm(card));
         if (built.error) { this.cardStatus('new', built.error, true); return; }
         button.disabled = true;
+        this.showSaveAnyway(false);
+        if (!tested) {
+            this.cardStatus('new', 'Testing the connection…');
+            const { type, url, username, password } = built.body;
+            let failure = null;
+            try {
+                const result = await API.sources.testDetails({ type, url, username, password });
+                if (!result.success) failure = ProviderFormat.safeText(result.error || result.message || 'no reply');
+            } catch (err) {
+                failure = UI.errorText(err, 'the connection test could not be run');
+            }
+            if (failure) {
+                button.disabled = false;
+                this.cardStatus('new', `Connection failed: ${String(failure).replace(/[.\s]+$/, '')}. Check the details, or save anyway.`, true);
+                this.showSaveAnyway(true);
+                return;
+            }
+        }
         this.cardStatus('new', 'Adding…');
         try {
             if (built.body.type === 'm3u' && !(await this.largePlaylistOk(built.body.url))) {

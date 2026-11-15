@@ -262,7 +262,7 @@ test('Providers: a refused save shows the server\'s sentence on that card', asyn
 
 test('Providers: adding posts the form once and never names a role (the server places it)', async () => {
     const { context, requests } = harness({
-        'POST /api/sources': { id: 7 }, 'GET /api/sources/providers': [], 'GET /api/sources/status': [], 'GET /api/sources': []
+        'POST /api/sources/test': { success: true }, 'POST /api/sources': { id: 7 }, 'GET /api/sources/providers': [], 'GET /api/sources/status': [], 'GET /api/sources': []
     });
     const panel = new context.ProvidersSettings();
     panel.open.set('new', null);
@@ -486,4 +486,60 @@ test('0182: the old add/edit source forms are gone from SourceManager (it is the
     const source = js('components/SourceManager.js');
     for (const gone of ['getSourceForm', 'showAddModal', 'saveNewSource', 'source-role', 'add-xtream']) assert.ok(!source.includes(gone), gone);
     assert.match(source, /initContentBrowser\(\)/);
+});
+
+// #330: a new provider's details are tested before anything is saved; it is added (and synced) only after a pass,
+// or after "Save anyway", which appears only once a test has failed.
+function addHarness(testReply) {
+    const h = harness({ 'POST /api/sources/test': testReply, 'POST /api/sources': { id: 7 },
+        'GET /api/sources/providers': [], 'GET /api/sources/status': [], 'GET /api/sources': [] });
+    const hidden = { value: true };
+    h.elements['provider-save-anyway'] = { classList: { toggle: (c, on) => { if (c === 'hidden') hidden.value = on; } } };
+    const panel = new h.context.ProvidersSettings();
+    panel.open.set('new', null);
+    const values = { name: 'Dream4K', type: 'xtream', url: 'http://d.invalid', username: 'u', password: 'p', epgUrl: 'http://g.invalid/x.xml', idOverlayUrl: '' };
+    const button = () => ({ closest: () => formCard(values), disabled: false });
+    const keys = () => h.requests.map(r => r.key).filter(k => k.startsWith('POST'));
+    return { ...h, panel, button, keys, hidden };
+}
+
+test('#330: Add provider tests the details first and saves only after a pass', async () => {
+    const { panel, button, keys, requests, hidden } = addHarness({ success: true, status: 'Active' });
+    await panel.act('save', 'new', button());
+    assert.deepEqual(keys(), ['POST /api/sources/test', 'POST /api/sources'], 'tested, then saved');
+    assert.deepEqual(plain(requests[0].body), { type: 'xtream', url: 'http://d.invalid', username: 'u', password: 'p' }, 'only the connection details');
+    assert.equal(hidden.value, true, 'no Save anyway after a pass');
+    assert.equal(panel.open.has('new'), false);
+});
+
+test('#330: a failed test saves nothing, says why and offers Save anyway, which saves without testing again', async () => {
+    const { panel, button, keys, elements, hidden } = addHarness({ success: false, error: 'The provider rejected the login' });
+    const add = button();
+    await panel.act('save', 'new', add);
+    assert.deepEqual(keys(), ['POST /api/sources/test'], 'nothing saved, no sync');
+    assert.equal(elements['provider-status-new'].textContent, 'Connection failed: The provider rejected the login. Check the details, or save anyway.');
+    assert.equal(add.disabled, false, 'can be tested again');
+    assert.equal(hidden.value, false, 'Save anyway is shown');
+    assert.equal(panel.open.has('new'), true, 'the form stays open');
+
+    await panel.act('save-anyway', 'new', button());
+    assert.deepEqual(keys(), ['POST /api/sources/test', 'POST /api/sources'], 'saved on the admin\'s word, not tested again');
+    assert.equal(panel.open.has('new'), false);
+});
+
+test('#330: a test that cannot be run is a failure too: nothing is saved', async () => {
+    const { panel, button, keys, hidden } = addHarness({ __status: 500, error: 'Internal error' });
+    await panel.act('save', 'new', button());
+    assert.deepEqual(keys(), ['POST /api/sources/test']);
+    assert.equal(hidden.value, false);
+});
+
+test('#330: Save anyway is on the new provider\'s form only, hidden until a test fails; the API client posts to /api/sources/test', async () => {
+    const { context, requests } = harness({ 'POST /api/sources/test': { success: true } });
+    const panel = new context.ProvidersSettings();
+    assert.match(panel.formHtml('new', null), /class="btn btn-secondary btn-sm hidden" data-provider-action="save-anyway"[^>]*>Save anyway</);
+    assert.doesNotMatch(panel.formHtml(1, { id: 1, type: 'xtream', name: 'S', url: 'http://s.invalid', enabled: true }), /save-anyway/);
+    await context.API.sources.testDetails({ type: 'm3u', url: 'http://s.invalid/a.m3u' });
+    assert.deepEqual(requests.map(r => [r.key, plain(r.body)]), [['POST /api/sources/test', { type: 'm3u', url: 'http://s.invalid/a.m3u' }]]);
+    assert.ok(Number((html.match(/ProvidersSettings\.js\?v=(\d+)/) || [])[1]) >= 7, 'the script version was bumped');
 });

@@ -87,6 +87,7 @@ const API = {
         delete: (id) => API.request('DELETE', `/sources/${id}`),
         toggle: (id) => API.request('POST', `/sources/${id}/toggle`),
         test: (id) => API.request('POST', `/sources/${id}/test`),
+        testDetails: (details) => API.request('POST', '/sources/test', details), // #330: before a provider is saved
         sync: (id, options) => API.request('POST', `/sources/${id}/sync`, options), // Manual sync (#42: { acceptSmaller })
         getStatus: () => API.request('GET', '/sources/status'), // Get all statuses
         estimateByUrl: (url, type) => API.request('POST', '/sources/estimate', { url, type }), // Estimate by URL (before creation)
