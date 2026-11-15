@@ -209,3 +209,29 @@ test('0145: the client wait (first picture minus resolve) per path, median and p
     assert.match(printed, /HLS session \[Apple\/device\]\s+5\.0 \/ 9\.1\s+3\.1 \/ 3\.2\s+3\.2/);
     assert.match(printed, /HLS session \[Apple\/device\]: 3 plays;.*client wait median 3\.1s \/ p90 3\.2s \(n=3\)/);
 });
+
+// #268: the player's "Sound out of step" mark is counted on the play it was pressed in (the sender's next play-end),
+// next to that play's stalls.
+test('#268: av-desync marks are counted per play, next to the stalls', () => {
+    const text = `
+[Player] play-start via transcode(hls, video copy) hls-delivery=on resolve=1.0s first-picture=3.0s from=device:ipad
+[Player] av-desync t=1834.3s behind=5.8s rate=0.97 catching-up=true stalls=2 watched=1831s from=device:ipad relay=abc leg=1 provider=Dream_4K switches=1 since-last-switch=95s standby=none
+[Player] av-desync t=1900s behind=1s rate=1 catching-up=false stalls=2 watched=1897s from=device:ipad relay=none
+[Player] play-start via transcode(hls, video copy) hls-delivery=on resolve=1.0s first-picture=3.0s from=user:1
+[Player] play-end via transcode(hls, video copy) hls-delivery=on watched=600s stalls=0 from=user:1
+[Player] play-end via transcode(hls, video copy) hls-delivery=on watched=2400s stalls=2 from=device:ipad
+[Player] play-start via transcode(hls, video copy) hls-delivery=on resolve=1.0s first-picture=3.0s from=device:ipad
+[Player] play-end via transcode(hls, video copy) hls-delivery=on watched=700s stalls=0 from=device:ipad
+[Player] av-desync t=5s behind=2s rate=1 catching-up=false stalls=0 watched=5s from=device:ipad relay=none`;
+    const parsed = parse(text);
+    assert.deepEqual(parsed.ends.map(e => e.desyncs), [0, 2, 0], 'the two marks belong to the iPad\'s first play only');
+    assert.equal(parsed.openDesyncs, 1, 'a mark in a play that has not ended yet');
+    const rows = summarise(parsed);
+    const device = rows.find(r => r.label === 'HLS session [Apple/device]'), web = rows.find(r => r.label === 'HLS session');
+    assert.deepEqual([device.desyncs, device.desyncPlays, device.stalls], [2, 1, 2]);
+    assert.equal(web.desyncs, 0);
+    const out = report(parsed);
+    assert.match(out, /desync/);
+    assert.match(out, /HLS session \[Apple\/device\]\s+2\s+\S+\s+2\s+\S+\s+2 \(1\)/);
+    assert.match(out, /and 1 mark in a play with no play-end in this log/);
+});

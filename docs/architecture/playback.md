@@ -203,9 +203,15 @@ silent from the start. **Real problems:** `Could not write header`, `FFmpeg exit
 `Releasing stalled session`, `[HLS] 404 for …`, `asking the server again` repeating on one channel.
 
 **Client diagnostics.** `POST /api/playback/client-event` (token; whitelisted, bounded fields; path only, never a query string):
-`media-error`, `start-timeout`, `play-start`, `play-end`. Log lines end `from=user:<id>` / `from=device:<id>`.
-`scripts/playback-report.js <saved log>` summarises first-picture time (cold/warm, median and p90), **client wait** (first
-picture minus resolve, median/p90, 0145: the player's own share), stalls/hour and failures, per row: `HLS session`, `HLS session [Apple/device]`, `direct` (0113 relabelled it for the one-path world; a "probe profile" play is warm).
+`media-error`, `start-timeout`, `play-start`, `play-end`, `av-desync`. Log lines end `from=user:<id>` / `from=device:<id>`.
+`av-desync` (#268) is the player's "Sound out of step" mark: one line, `[Player] av-desync t=<s>s behind=<s>s rate=<r>
+catching-up=<bool> stalls=<n> watched=<s>s from=device:<id>` then the owner's open relay in brief (`streamRelay.forOwner`,
+`Relay.brief()`): `relay=<id> leg=<n> provider=<name> switches=<n> since-last-switch=<s>s|none standby=off|none|starting|ready`,
+or `relay=none`. A number out of range or not a number reads `?`; the provider is a name (spaces as `_`), URLs stripped.
+It uses the fault reports' limiter, never counts against the channel's health, and is a "Sound out of step" row in Status ›
+Recent plays. `scripts/playback-report.js <saved log>` summarises first-picture time (cold/warm, median and p90), **client wait** (first
+picture minus resolve, median/p90, 0145: the player's own share), stalls/hour, `av-desync` marks (counted on the sender's
+next `play-end`, with the plays they fell in) and failures, per row: `HLS session`, `HLS session [Apple/device]`, `direct` (0113 relabelled it for the one-path world; a "probe profile" play is warm).
 **Log vocabulary added in 0113–0115:** `resolve timing … probe profile (age Nd)`; `… first segment NOT produced - ffmpeg ended after Xs
 (provider HTTP 4xx)`; `… , master playlist (SDR, 25.000 fps)`; `[TranscodeSession id] Provider refused the connection; retry N of 2
 in 1.5s|3s` (0143; was "retrying once in 1.5s"); `… source ends (N min) - paced to real time after an initial 8s burst` (0144);

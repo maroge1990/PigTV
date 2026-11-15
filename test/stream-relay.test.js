@@ -278,6 +278,30 @@ test('a cold switch: the lost leg is quarantined by its own listener, the next p
     assert.deepEqual(segs(await r.getPlaylist()).slice(-2), ['L1-seg0002.m4s', 'L1-seg0003.m4s']);
 });
 
+// #268: the player's "Sound out of step" mark logs the owner's relay in brief: found by its owner, with the playing leg,
+// its provider's name, the switches and the time since the last one, and the standby's state. Never an address.
+test('#268: forOwner finds the owner\'s relay; brief() names the leg, provider, switches, time since a switch and standby', async () => {
+    assert.equal(relay.forOwner('device:tv'), null, 'no relay yet');
+    const s = fakeSession();
+    write(s, 0, 3);
+    const r = await silently(() => relay.adopt(s, ctx()));
+    await silently(() => r.tick());
+    assert.equal(relay.forOwner('device:tv'), r);
+    assert.equal(relay.forOwner('device:other'), null, 'only the owner\'s own');
+    assert.equal(relay.forOwner(null), null);
+    assert.deepEqual(r.brief(), { id: s.id, leg: 0, provider: 'Strong8K', switches: 0, sinceLastSwitchSec: null, standby: 'off' });
+    quarantined.push('Strong8K');
+    write(s, 0, 4, { ended: true, duration: 4 });
+    s.emit('lost', { how: 'exit', providerReason: true });
+    await silently(() => r.tick());
+    const b = r.brief(Date.now() + 42000);
+    assert.deepEqual({ ...b, sinceLastSwitchSec: undefined }, { id: s.id, leg: 1, provider: 'Dream4K', switches: 1, sinceLastSwitchSec: undefined, standby: 'off' });
+    assert.ok(b.sinceLastSwitchSec >= 42 && b.sinceLastSwitchSec <= 43, String(b.sinceLastSwitchSec));
+    assert.ok(!JSON.stringify(b).includes('invalid'), 'no provider address');
+    await silently(() => relay.close(s.id));
+    assert.equal(relay.forOwner('device:tv'), null, 'a closed relay is not the owner\'s');
+});
+
 // #37 (0468 Codex round 1, high): a pause was kept on the playing leg only, so a switch to another provider (or a
 // renewal) during it dropped the protection. The new leg keeps the original deadline, never a new one.
 test('#37: a relay switch during a pause carries the pause deadline to the new leg, unchanged', async () => {

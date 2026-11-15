@@ -570,11 +570,46 @@ router.post('/client-event', requireToken, (req, res) => {
     const limiter = isMeasurement ? measurementLimiter : clientEventLimiter;
     if (limiter.check(key).blocked) return res.status(204).end(); // drop quietly
     limiter.record(key);
-    if (!isMeasurement && body.event !== 'media-error' && body.event !== 'start-timeout') return res.status(400).json({ error: 'Unknown event' });
+    if (!isMeasurement && body.event !== 'media-error' && body.event !== 'start-timeout' && body.event !== 'av-desync') {
+        return res.status(400).json({ error: 'Unknown event' });
+    }
 
     const coordinator = require('../services/streamCoordinator');
     const text = (v, max) => String(v ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, max);
     const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : '?');
+
+    if (body.event === 'av-desync') {
+        // #268: the player's "Sound out of step" mark, stamped beside the owner's relay as it stands now. Diagnostics
+        // only: whitelisted numbers in range (else ?), a real boolean, names; never a URL or a provider's address.
+        const owner = coordinator.ownerKey(req.user);
+        const inRange = (v, lo, hi) => (typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi ? v : null);
+        const r1 = (v) => (v === null ? '?' : String(Math.round(v * 10) / 10));
+        const t = inRange(body.currentTime, 0, 1e7), behind = inRange(body.behindLive, 0, 86400);
+        const rate = inRange(body.rate, 0, 4), stalls = inRange(body.stalls, 0, 1e6), watched = inRange(body.watchedSec, 0, 1e7);
+        const catchingUp = typeof body.catchingUp === 'boolean' ? body.catchingUp : null;
+        const name = (v) => require('../redact').stripUrls(text(v, 200)).slice(0, 40).trim().replace(/\s+/g, '_') || '?';
+        let relayText = 'relay=none';
+        let relayProvider = null;
+        try {
+            const relay = owner ? require('../services/streamRelay').forOwner(owner) : null;
+            if (relay) {
+                const b = relay.brief();
+                relayProvider = b.provider;
+                relayText = `relay=${name(b.id)} leg=${b.leg} provider=${name(b.provider)} switches=${b.switches} ` +
+                    `since-last-switch=${b.sinceLastSwitchSec === null ? 'none' : `${b.sinceLastSwitchSec}s`} standby=${b.standby}`;
+            }
+        } catch (e) { /* observation only: the mark is still logged */ }
+        console.log(`[Player] av-desync t=${r1(t)}s behind=${r1(behind)}s rate=${rate === null ? '?' : Math.round(rate * 1000) / 1000} ` +
+            `catching-up=${catchingUp === null ? '?' : catchingUp} stalls=${stalls === null ? '?' : Math.round(stalls)} ` +
+            `watched=${watched === null ? '?' : Math.round(watched)}s from=${owner || 'unknown'} ${relayText}`);
+        const last = playbackEvents.lastResolveFor(owner) || {};
+        const said = [behind === null ? null : `behind ${r1(behind)}s`, rate === null ? null : `rate ${Math.round(rate * 1000) / 1000}`,
+            catchingUp ? 'catching up' : null].filter(Boolean).join(', ');
+        playbackEvents.record({ type: 'av-desync', owner, channel: last.channel, provider: relayProvider || last.provider,
+            stalls: stalls === null ? null : Math.round(stalls), watchedSec: watched === null ? null : Math.round(watched),
+            reason: said || null });
+        return res.status(204).end();
+    }
 
     if (isMeasurement) {
         // Informational, not a fault: plain log, one greppable line.

@@ -8,8 +8,9 @@
  *   docker logs pigtv 2>&1 | node scripts/playback-report.js          (or from stdin)
  *
  * It reads only lines the server already writes: `[Player] play-start`, `[Player] play-end`,
- * `[Playback] resolve timing`, `[Player] media-error` / `start-timeout`, and a few ffmpeg-side
- * failure messages. It changes nothing and needs no dependencies.
+ * `[Playback] resolve timing`, `[Player] media-error` / `start-timeout`, `[Player] av-desync` (#268: the
+ * player's "Sound out of step" mark, counted on the play it was pressed in: the same sender's next play-end),
+ * and a few ffmpeg-side failure messages. It changes nothing and needs no dependencies.
  *
  * Since 0103 there is one delivery path: every play that is not `direct` is an HLS session. (The
  * script was first written for the HLS-vs-remux trial, closed on 23 Sept 2026; an old log's remux
@@ -44,6 +45,7 @@ const RESOLVE_TIMING = /\[Playback\] resolve timing: (direct|remux|HLS session),
 const PHASES = /\bphases=(\S+)/;
 const MEDIA_ERROR = /\[Player\] media-error (\S+?)\((\S+?)\) via (\S+) path=(\S*) msg="([^"]*)"/;
 const START_TIMEOUT = /\[Player\] start-timeout via (\S+)/;
+const AV_DESYNC = /\[Player\] av-desync /;
 // Every client event ends with who sent it: `user:<id>` for a web login, `device:<id>` for a
 // paired device (the Apple client). Devices are reported on their own rows.
 // 0488 (0487 Codex round 1): not anchored to the line's end, so origin= and phases= may follow it.
@@ -81,7 +83,9 @@ function errorPathLabel(via, device = false) {
 
 function parse(text) {
     const plays = [];        // { label, resolveSec, firstPictureSec, clientWaitSec, warm }
-    const ends = [];         // { label, watchedSec, stalls }
+    const ends = [];         // { label, watchedSec, stalls, desyncs }
+    const desyncsBy = new Map(); // #268: sender -> av-desync marks since their last play-end
+    let openDesyncs = 0;
     const errors = [];       // { kind, code, via, label, path, message }
     const server = Object.fromEntries(SERVER_SIGNS.map(([name]) => [name, 0]));
     let segmentTimeouts = 0;
@@ -126,7 +130,13 @@ function parse(text) {
             });
         } else if ((m = PLAY_END.exec(line))) {
             const [, strategy, , , , watched, stalls] = m;
-            ends.push({ label: pathLabel(strategy) + (fromDevice(line) ? DEVICE_SUFFIX : ''), watchedSec: seconds(watched), stalls: parseInt(stalls, 10) });
+            const from = (FROM.exec(line) || [])[1] || '';
+            ends.push({ label: pathLabel(strategy) + (fromDevice(line) ? DEVICE_SUFFIX : ''), watchedSec: seconds(watched), stalls: parseInt(stalls, 10),
+                desyncs: desyncsBy.get(from) || 0 });
+            desyncsBy.delete(from);
+        } else if (AV_DESYNC.test(line)) {
+            const from = (FROM.exec(line) || [])[1] || '';
+            desyncsBy.set(from, (desyncsBy.get(from) || 0) + 1);
         } else if ((m = MEDIA_ERROR.exec(line))) {
             errors.push({ kind: 'media-error', code: m[1], via: m[3], label: errorPathLabel(m[3], fromDevice(line)), path: m[4], message: m[5] });
         } else if ((m = START_TIMEOUT.exec(line))) {
@@ -135,7 +145,8 @@ function parse(text) {
             for (const [name, re] of SERVER_SIGNS) if (re.test(line)) server[name]++;
         }
     }
-    return { lines, plays, ends, errors, server, segmentTimeouts, startFailures };
+    for (const n of desyncsBy.values()) openDesyncs += n;
+    return { lines, plays, ends, errors, server, segmentTimeouts, startFailures, openDesyncs };
 }
 
 // ---------------------------------------------------------------- statistics
@@ -173,6 +184,7 @@ function summarise(parsed) {
         const warm = b.plays.filter(p => p.warm === true).map(p => p.firstPictureSec);
         const watched = b.ends.reduce((sum, e) => sum + (e.watchedSec || 0), 0);
         const stalls = b.ends.reduce((sum, e) => sum + (Number.isFinite(e.stalls) ? e.stalls : 0), 0);
+        const desyncs = b.ends.reduce((sum, e) => sum + (e.desyncs || 0), 0);
         return {
             label: b.label,
             plays: b.plays.length,
@@ -184,6 +196,8 @@ function summarise(parsed) {
             sessions: b.ends.length,
             watchedSec: watched,
             stalls,
+            desyncs,
+            desyncPlays: b.ends.filter(e => e.desyncs > 0).length,
             stallsPerHour: watched >= 600 ? stalls / (watched / 3600) : null, // too little watching to say
             longSessions: b.ends.filter(e => (e.watchedSec || 0) >= LONG_SESSION_SEC).length,
             longestSec: max(b.ends.map(e => e.watchedSec)),
@@ -254,12 +268,14 @@ function report(parsed) {
     }
 
     out.push('How the plays went once they started (only plays watched for 10 s or more are counted)');
-    out.push(`${pad('path', 28)}${padL('watched', 8)}${padL('total', 8)}${padL('stalls', 8)}${padL('per hour', 10)}${padL('longest', 9)}${padL(`>=${LONG_SESSION_SEC / 3600}h`, 6)}`);
+    out.push(`${pad('path', 28)}${padL('watched', 8)}${padL('total', 8)}${padL('stalls', 8)}${padL('per hour', 10)}${padL('desync', 8)}${padL('longest', 9)}${padL(`>=${LONG_SESSION_SEC / 3600}h`, 6)}`);
     for (const p of paths) {
         const perHour = p.stallsPerHour == null ? 'n/a' : p.stallsPerHour.toFixed(1);
-        out.push(`${pad(p.label, 28)}${padL(p.sessions, 8)}${padL(duration(p.watchedSec), 8)}${padL(p.stalls, 8)}${padL(perHour, 10)}${padL(duration(p.longestSec), 9)}${padL(p.longSessions, 6)}`);
+        out.push(`${pad(p.label, 28)}${padL(p.sessions, 8)}${padL(duration(p.watchedSec), 8)}${padL(p.stalls, 8)}${padL(perHour, 10)}${padL(p.desyncs ? `${p.desyncs} (${p.desyncPlays})` : 0, 8)}${padL(duration(p.longestSec), 9)}${padL(p.longSessions, 6)}`);
     }
     out.push('  per hour is shown only once a path has 10 minutes or more of watching behind it');
+    out.push('  desync = "Sound out of step" marks, with the number of plays they were pressed in');
+    if (parsed.openDesyncs) out.push(`  and ${parsed.openDesyncs} mark${parsed.openDesyncs === 1 ? '' : 's'} in a play with no play-end in this log`);
     out.push('');
 
     out.push('Failures the player reported');

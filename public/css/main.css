@@ -2998,6 +2998,11 @@ body.ui-dialog-open {
   color: var(--color-error-text);
 }
 
+/* #268: the player's "Sound out of step" mark in Recent plays */
+.status-av-desync {
+  color: var(--color-warning-text);
+}
+
 /* 0157: the recordings-folder warning banner */
 .status-warning {
   border-left: 3px solid var(--color-warning);

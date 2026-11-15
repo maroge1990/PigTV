@@ -110,6 +110,7 @@ class Relay {
         // R12: decided when the play began and kept for its life (a Settings change is for the next play).
         this.standbyOn = standbyEnabled(ctx.settings);
         this.switches = 0;
+        this.switchedAt = null;        // #268: when the last switch landed, for the av-desync log line
         this.renewalTimes = [];
         this.renewalBlocked = false;
         this.reclaimedPins = new Set();
@@ -140,6 +141,18 @@ class Relay {
             standbyReady: this.standbyReady(),
             lastReason: this.lastReason
         };
+    }
+
+    /**
+     * #268: the relay in brief for the player's "Sound out of step" mark: its id, the playing leg's number, that leg's
+     * provider name, the switches so far, seconds since the last one (null: none yet), and the standby's state
+     * (off | none | starting | ready). Names and numbers only, never an address.
+     */
+    brief(now = Date.now()) {
+        const standby = !this.standbyOn ? 'off'
+            : this.standby ? (this.standbyReady() ? 'ready' : 'starting') : this.startingStandby ? 'starting' : 'none';
+        return { id: this.id, leg: this.active.n, provider: this.providerOf(this.active), switches: this.switches,
+            sinceLastSwitchSec: this.switchedAt ? Math.max(0, Math.round((now - this.switchedAt) / 1000)) : null, standby };
     }
 
     log(text) { console.log(`[Relay ${this.id}] ${text}`); }
@@ -471,6 +484,7 @@ class Relay {
                 followPin.resume();
             }
             this.switches++;
+            this.switchedAt = Date.now();
             this.switched = true;
             this.lastProgressAt = Date.now();
             this.standbyAt = Date.now() + STANDBY_DELAY_MS;
@@ -799,9 +813,19 @@ function list() {
     return [...relays.values()].map(r => r.describe()).concat(failedRelays.map(f => f.snapshot));
 }
 
+/** #268: this owner's open relay (the newest, should there be more than one), else null. */
+function forOwner(owner) {
+    if (!owner) return null;
+    let found = null;
+    for (const r of relays.values()) {
+        if (!r.closed && r.ctx && r.ctx.owner === owner && (!found || r.legs[0].startedAt >= found.legs[0].startedAt)) found = r;
+    }
+    return found;
+}
+
 /** The switches as they stand: { enabled, standby } for a settings object. */
 function modeOf(settings) {
     return { enabled: enabled(settings), standby: standbyEnabled(settings) };
 }
 
-module.exports = { enabled, standbyEnabled, modeOf, adopt, get, close, closeAll, playingSessionId, list, Relay, STANDBY_TAIL, tuning };
+module.exports = { enabled, standbyEnabled, modeOf, adopt, get, forOwner, close, closeAll, playingSessionId, list, Relay, STANDBY_TAIL, tuning };

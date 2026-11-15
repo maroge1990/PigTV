@@ -386,3 +386,32 @@ test('Status shows a feed repeating the same clip on its ingest row and in the r
     assert.ok(html.includes(`Feed repeating the same clip: ${note}`), 'the recent play is worded');
     assert.ok(!html.includes('repeating: Strong8K'), 'not the raw code');
 });
+
+// #268: the player's "Sound out of step" mark is its own row in the recent plays, labelled, with what the player said.
+test('#268: Status shows an av-desync mark in the recent plays as "Sound out of step" with its detail', async () => {
+    const elements = { 'status-content': { innerHTML: '', querySelector: () => null, addEventListener: () => {} }, 'status-updated': { textContent: '' } };
+    const status = {
+        generatedAt: Date.now(), build: { display: 'build 0758' }, sessions: [], recordings: { active: [], upcoming: [] },
+        events: [{ at: Date.now(), type: 'av-desync', channel: 'FOX Footy', provider: 'Strong8K', stalls: 2, watchedSec: 1831,
+            reason: 'behind 5.8s, rate 0.97, catching up' }],
+        sync: [], disk: { transcodeCache: { available: false }, recordings: { available: false } }
+    };
+    const context = vm.createContext({
+        console, localStorage: { getItem: () => 'tok' }, document: { getElementById: (id) => elements[id] || null },
+        setInterval: () => 1, clearInterval: () => {},
+        fetch: async () => ({ ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => status })
+    });
+    context.window = context;
+    loadUi(context);
+    vm.runInContext(js('api.js'), context);
+    loadUi(context);
+    vm.runInContext(js('pages/StatusPage.js'), context);
+    const page = new context.StatusPage({});
+    page.showDetails = true;
+    page.show();
+    await new Promise(r => setImmediate(r));
+    const html = elements['status-content'].innerHTML;
+    assert.ok(html.includes('<span class="status-event status-av-desync">Sound out of step</span>'), 'the small label');
+    assert.ok(html.includes('behind 5.8s, rate 0.97, catching up'), 'what the player said');
+    assert.match(fs.readFileSync(path.join(__dirname, '../public/css/main.css'), 'utf8'), /\.status-av-desync \{\s*color: var\(--color-warning-text\);/);
+});

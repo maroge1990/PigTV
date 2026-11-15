@@ -517,7 +517,8 @@ class StatusPage {
         const e = (v) => UI.escape(v);
 
         // Recent plays
-        const label = { 'play-start': 'Started', 'play-end': 'Ended', failure: 'Failed', relay: 'Recovery' };
+        // #268: 'av-desync' is the player's "Sound out of step" mark on the play
+        const label = { 'play-start': 'Started', 'play-end': 'Ended', failure: 'Failed', relay: 'Recovery', 'av-desync': 'Sound out of step' };
         add('plays', this.section('Recent plays', this.table(
             ['Time', 'Event', 'Channel', 'Device', 'Start', 'First picture', 'Detail'],
             (status.events || []).map(ev => [
@@ -525,7 +526,8 @@ class StatusPage {
                 `<span class="status-event status-${e(ev.type)}">${e(label[ev.type] || ev.type)}</span>`,
                 e(ev.channel || 'unknown'), e(ev.ownerName || ev.owner || '–'), e(ev.start || '–'),
                 ev.firstPictureSec !== null && ev.firstPictureSec !== undefined ? this.amt(`${ev.firstPictureSec.toFixed(1)}s`) : '–',
-                ev.type === 'failure' || ev.type === 'relay' ? e(this.reasonText(ev.reason))
+                ev.type === 'av-desync' ? e(ev.reason || '–')
+                    : ev.type === 'failure' || ev.type === 'relay' ? e(this.reasonText(ev.reason))
                     : ev.type === 'play-end' ? `watched ${this.duration(ev.watchedSec)}, ${ev.stalls ?? 0} stall${ev.stalls === 1 ? '' : 's'}`
                         : e([ev.strategy, ev.videoMode].filter(Boolean).join(', '))
             ]),
