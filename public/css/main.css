@@ -2410,8 +2410,20 @@ body.ui-dialog-open {
     height: 24px;
   }
 
+  /* #295: at 120 px the heart and the logo left the name one letter: the logo goes (the name is what you read in a
+     guide this narrow) and the name may take two lines. */
+  .epg-channel-info .epg-channel-logo {
+    display: none;
+  }
+
   .epg-channel-name {
     font-size: var(--text-xs);
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 
   .epg-time-slot {

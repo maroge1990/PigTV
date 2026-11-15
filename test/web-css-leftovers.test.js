@@ -84,6 +84,20 @@ test('#295: bare Settings fields have padding so the text does not touch the bor
     assert.match(bare.body, /min-height:\s*36px/);
 });
 
+test('#295: the Sport bar link has an icon of its own like the others (the old glyph span was hidden when the labels are)', () => {
+    const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
+    const sport = html.match(/<a href="#sports"[\s\S]*?<\/a>/)[0];
+    assert.match(sport, /<span class="nav-icon"><svg/);
+    assert.ok(!sport.includes('◉'), 'no text glyph');
+});
+
+test('#295: in the phone guide the channel name is not squeezed to a letter', () => {
+    const logo = ALL.find(r => phone.test(r.media) && r.selectors.includes('.epg-channel-info .epg-channel-logo'));
+    assert.ok(logo && /display:\s*none/.test(logo.body), 'the logo goes');
+    const name = ALL.filter(r => phone.test(r.media) && r.selectors.includes('.epg-channel-name')).pop();
+    assert.ok(name && /white-space:\s*normal/.test(name.body) && /-webkit-line-clamp:\s*2/.test(name.body), 'the name may take two lines');
+});
+
 test('#295: Providers > Groups never imported keeps the tick box beside the name on a phone', () => {
     const row = ALL.find(r => phone.test(r.media) && r.selectors.includes('.setting-item.import-exclusion'));
     assert.ok(row && /display:\s*grid/.test(row.body) && /grid-template-columns:\s*auto 1fr/.test(row.body));
