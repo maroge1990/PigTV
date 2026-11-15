@@ -381,6 +381,13 @@ A rule makes ordinary schedules; one-off recordings are unchanged. Any signed-in
   last 15 min it stops at the guide end + `post_buffer_min` as before. While it records past that point because the game
   is still on, the row adds `overrun: true` (re-read the list: the stop rolls on 10 min at a time). `"guide"`: as
   before. Wording: "When it stops: when ESPN says it's over (or the guide end + Finish late)".
+- **One game, one active schedule (#329, additive, no flag).** `POST /recordings/schedule` with a `gameId` that an active
+  schedule (`scheduled`, `waiting` or `recording`; household-wide, whoever made it, by hand or by a rule) already has
+  makes nothing and answers **200** with that schedule (as a 201 would list it, its own `channel_name`) plus
+  `alreadyScheduled: true`; a new schedule is still 201 with no `alreadyScheduled`. A finished, failed, missed or
+  cancelled schedule of the game does not count. Without `gameId` nothing changes. Wording: "Already set to record on
+  <channel_name>". To move a game's recording to another channel, a client cancels the old schedule, then schedules
+  the new one (the web sets the old one again should that fail).
 - C-M since 0439 (#207): a keyword `sport` rule records the best channel whose own airing (C-I channel `start`/`end`)
   is still to start, on that airing's times (as `team` rules since 0417), not the event's merged bounds.
 - **Since 0444 (#49): "Change recording".** `PUT /api/recordings/scheduled/:id` `{preBufferMin?, postBufferMin?}` (any

@@ -392,41 +392,51 @@ async function scheduleFromProgram({
     const pre = Number.isFinite(preBufferMin) ? preBufferMin : settings.defaultPreBufferMin;
     const post = Number.isFinite(postBufferMin) ? postBufferMin : settings.defaultPostBufferMin;
 
-    // One schedule per programme - unless the caller says that one is not this programme's
-    // (`exclude`: recordingRules, another episode's schedule in the same slot; 0269).
-    const existing = scheduledDb.findByProgram(sourceId, String(channelItemId), programStart);
-    if (existing && !(exclude && exclude.has(existing.id))) return linkGame(existing, gameId);
+    // #329: the check and the insert are one synchronous transaction (no await in it), so two requests for one game
+    // never both insert, whichever path (the route, a rule) makes them.
+    return getDb().transaction(() => {
+        // #329: one game, one active schedule (household-wide, as schedules are): a schedule for a fixture game that one
+        // already records (or will) answers with that one, marked `alreadyScheduled`, and creates nothing.
+        const sameGame = validGameId(gameId) ? scheduledDb.findActiveByGame(gameId) : null;
+        if (sameGame) return { ...sameGame, alreadyScheduled: true };
 
-    const created = scheduledDb.create({
-        title: title || 'Untitled Program',
-        description: description || null,
-        source_id: sourceId,
-        channel_item_id: String(channelItemId),
-        // What the schedule is FOR. Resolved now, while the playlist still says
-        // where this channel is; by the time it records, the position may not.
-        channel_stable_id: channelIdentity(sourceId, channelItemId),
-        channel_name: channelName || null,
-        channel_logo: channelLogo(channelLogoUrl),
-        program_start: programStart,
-        program_end: programEnd,
-        pre_buffer_min: pre,
-        post_buffer_min: post,
-        created_by: createdBy || null,
-        created_at: Date.now()
-    });
-    // R6: the programme's artwork, when the guide has it.
-    const image = programmeImage(sourceId, channelItemId, programStart);
-    if (image) {
-        getDb().prepare('UPDATE scheduled_recordings SET image_url = ? WHERE id = ?').run(image, created.id);
-        return linkGame(scheduledDb.getById(created.id), gameId);
-    }
-    return linkGame(created, gameId);
+        // One schedule per programme - unless the caller says that one is not this programme's
+        // (`exclude`: recordingRules, another episode's schedule in the same slot; 0269).
+        const existing = scheduledDb.findByProgram(sourceId, String(channelItemId), programStart);
+        if (existing && !(exclude && exclude.has(existing.id))) return linkGame(existing, gameId);
+
+        const created = scheduledDb.create({
+            title: title || 'Untitled Program',
+            description: description || null,
+            source_id: sourceId,
+            channel_item_id: String(channelItemId),
+            // What the schedule is FOR. Resolved now, while the playlist still says
+            // where this channel is; by the time it records, the position may not.
+            channel_stable_id: channelIdentity(sourceId, channelItemId),
+            channel_name: channelName || null,
+            channel_logo: channelLogo(channelLogoUrl),
+            program_start: programStart,
+            program_end: programEnd,
+            pre_buffer_min: pre,
+            post_buffer_min: post,
+            created_by: createdBy || null,
+            created_at: Date.now()
+        });
+        // R6: the programme's artwork, when the guide has it.
+        const image = programmeImage(sourceId, channelItemId, programStart);
+        if (image) {
+            getDb().prepare('UPDATE scheduled_recordings SET image_url = ? WHERE id = ?').run(image, created.id);
+            return linkGame(scheduledDb.getById(created.id), gameId);
+        }
+        return linkGame(created, gameId);
+    })();
 }
 
 /** #217: a schedule made for a fixture game (`gameId`) records until that game ends (recordingGuideEnd.eventStop). */
 const GAME_ID_RE = /^[\x21-\x7e]{1,200}$/; // a collector id ("espn:soccer/eng.1:123", "aflw:…"): printable, no spaces
+const validGameId = (gameId) => typeof gameId === 'string' && GAME_ID_RE.test(gameId);
 function linkGame(schedule, gameId) {
-    if (!schedule || schedule.sport_game_id || typeof gameId !== 'string' || !GAME_ID_RE.test(gameId)) return schedule;
+    if (!schedule || schedule.sport_game_id || !validGameId(gameId)) return schedule;
     getDb().prepare('UPDATE scheduled_recordings SET sport_game_id = ? WHERE id = ? AND sport_game_id IS NULL').run(gameId, schedule.id);
     return scheduledDb.getById(schedule.id);
 }

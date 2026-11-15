@@ -237,7 +237,8 @@ router.post('/schedule', async (req, res) => {
         const settings = await require('../db').settings.get();
         const listed = schedule && recordingEngine.listScheduled({ settings }).find(r => r.id === schedule.id);
         const answer = { ...recordingEngine.withImage(schedule), ...(listed ? { endsWith: listed.endsWith, stopsAt: listed.stopsAt } : {}) };
-        res.status(201).json(listed && listed.conflictsWith ? { ...answer, conflictsWith: listed.conflictsWith } : answer);
+        // #329: a game already set to record answers 200 with that schedule and `alreadyScheduled: true` (nothing made).
+        res.status(schedule.alreadyScheduled ? 200 : 201).json(listed && listed.conflictsWith ? { ...answer, conflictsWith: listed.conflictsWith } : answer);
     } catch (err) {
         console.error('[Recordings] Schedule error:', err);
         res.status(500).json({ error: err.message });

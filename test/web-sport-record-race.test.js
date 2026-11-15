@@ -15,12 +15,12 @@ async function harness() {
     const nxt = f.games.find(g => g.id === 'nxt');
     delete nxt.recording;
     nxt.channels.push({ sourceId: 2, stableId: 'k5', id: '505', name: 'Kayo 5', start: nxt.start, end: nxt.start + 2 * H });
-    const state = { scheduled: [], fail: false };
+    const state = { scheduled: [], fail: false, made: {} };
     const b = browser({ request: async (m, url, body) => {
         calls.push([m, url, body]);
         if (url === '/recordings/scheduled') { if (state.fail) throw new Error('offline'); return state.scheduled; }
         return url === '/sports/front' ? f : url === '/sports/pages/preferences' ? { spoilerFree: false } : {};
-    }, recordings: { schedule: async (d) => { calls.push(['schedule', d]); return {}; } } });
+    }, recordings: { schedule: async (d) => { calls.push(['schedule', d]); return state.made; } } });
     const p = page(b, { setLocation() {}, navigateTo() {} });
     await p.show('');
     p.openRecord('nxt');
@@ -70,4 +70,13 @@ test('another programme on the same channel, or a cancelled schedule, is not thi
     h.state.scheduled = [row({ program_start: h.nxt.start + 3 * H, program_end: h.nxt.start + 4 * H }), row({ id: 5, status: 'cancelled', program_start: h.nxt.start, program_end: h.nxt.start + 2 * H })];
     await h.save();
     assert.equal(h.calls.filter(c => c[0] === 'schedule').length, 1);
+});
+
+test('#329: the server answers alreadyScheduled (set to record between the read and the press): the page says where', async () => {
+    const h = await harness();
+    h.state.made = row({ alreadyScheduled: true, program_start: h.nxt.start, program_end: h.nxt.start + 2 * H });
+    await h.save();
+    assert.equal(h.calls.filter(c => c[0] === 'schedule').length, 1);
+    assert.equal(h.b.document.body.querySelector('dialog'), null);
+    assert.equal(h.b.context.toasts.at(-1)[0], 'Already set to record on Stan Sport 2.');
 });

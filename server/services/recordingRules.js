@@ -550,6 +550,13 @@ function evaluate({ now = Date.now() } = {}) {
                         preBufferMin: rule.pre_buffer_min ?? undefined, postBufferMin: rule.post_buffer_min ?? undefined,
                         createdBy: rule.created_by, exclude, gameId: c.gameId || null
                     });
+                    // #329: the game already records on another schedule (a viewer's, or another rule's): that one is the
+                    // hit, left as it is (adopting it would let this rule move or cancel someone else's pick).
+                    if (schedule.alreadyScheduled) {
+                        hit(rule.id, c.identity, schedule.id);
+                        console.log(`[Rules] Rule #${rule.id}: "${c.title}" is already set to record (#${schedule.id})`);
+                        continue;
+                    }
                     db().prepare('UPDATE scheduled_recordings SET rule_id = ? WHERE id = ? AND rule_id IS NULL').run(rule.id, schedule.id);
                     hit(rule.id, c.identity, schedule.id);
                     made.push({ ruleId: rule.id, scheduleId: schedule.id, title: c.title, start: c.start });

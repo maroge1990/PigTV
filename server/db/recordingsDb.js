@@ -341,6 +341,16 @@ const scheduled = {
         `).get(sourceId, channelItemId, programStart));
     },
 
+    /** #329: the active schedule of a fixture game (the oldest, should there ever be two), or null. */
+    findActiveByGame(gameId) {
+        initSchema();
+        return row(getDb().prepare(`
+            SELECT * FROM scheduled_recordings
+            WHERE sport_game_id = ? AND status IN ('scheduled', 'recording', 'waiting')
+            ORDER BY id LIMIT 1
+        `).get(gameId));
+    },
+
     setStatus(id, status, extra = {}) {
         const db = getDb();
         const fields = ['status = @status'];

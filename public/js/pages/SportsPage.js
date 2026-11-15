@@ -656,7 +656,7 @@ class SportsPage {
             const made = await API.recordings.schedule({ sourceId: Number(c.sourceId), channelItemId: c.id, channelName: c.name,
                 title: g.title, programStart: ev.start, programEnd: ev.end, ...(g.synthetic ? {} : { gameId: g.id }) });
             const clash = Array.isArray(made?.conflictsWith) && made.conflictsWith.length;
-            UI.toast(clash ? `Set to record. It clashes with ${made.conflictsWith.map(x => x.title || x).join(', ')}.` : `Set to record: ${g.title}.`);
+            UI.toast(SportsPage.already(made) || (clash ? `Set to record. It clashes with ${made.conflictsWith.map(x => x.title || x).join(', ')}.` : `Set to record: ${g.title}.`));
             this.refresh();
         } catch (err) {
             UI.toast(UI.errorText(err, 'The recording could not be scheduled.'), { kind: 'error' });
@@ -1241,11 +1241,13 @@ class SportsPage {
         if (!to || !from || st.busy) return;
         st.busy = true; st.error = null; w?.redraw();
         const was = (st.airings[st.index] && st.airings[st.index].c.name) || from.channel_name || 'the other channel';
+        const c = to.c;
+        const pad = { ...(Number.isFinite(from.pre_buffer_min) ? { preBufferMin: from.pre_buffer_min } : {}), ...(Number.isFinite(from.post_buffer_min) ? { postBufferMin: from.post_buffer_min } : {}) };
+        const scheduleOn = (ch, at) => API.recordings.schedule({ sourceId: Number(ch.sourceId), channelItemId: ch.id, channelName: ch.name, title: g.title,
+            programStart: at.start, programEnd: at.end, ...pad, ...(g.synthetic ? {} : { gameId: g.id }) });
+        let made;
         try {
-            const c = to.c;
-            await API.recordings.schedule({ sourceId: Number(c.sourceId), channelItemId: c.id, channelName: c.name, title: g.title, programStart: to.start, programEnd: to.end,
-                ...(Number.isFinite(from.pre_buffer_min) ? { preBufferMin: from.pre_buffer_min } : {}), ...(Number.isFinite(from.post_buffer_min) ? { postBufferMin: from.post_buffer_min } : {}),
-                ...(g.synthetic ? {} : { gameId: g.id }) });
+            made = await scheduleOn(c, to);
         } catch (err) {
             st.busy = false;
             st.error = `${UI.errorText(err, `It couldn’t be set to record on ${to.c.name}.`)} It still records on ${was}.`;
@@ -1253,8 +1255,32 @@ class SportsPage {
             return;
         }
         let text = `Now recording on ${to.c.name} instead of ${was}.`, kind;
-        try { await API.request('DELETE', `/recordings/scheduled/${from.id}`); }
-        catch { text = `Set to record on ${to.c.name}, but the recording on ${was} couldn’t be cancelled. Cancel it in Recordings.`; kind = 'error'; }
+        if (made && made.alreadyScheduled && made.id !== from.id) {
+            // #329: another schedule of this game (not the one being moved) already records it: nothing is changed
+            text = SportsPage.already(made);
+        } else if (made && made.alreadyScheduled) {
+            // #329: the server keeps one schedule per game, so the one on A is the answer: cancel it, then set B
+            // (should B then fail, A is set again).
+            try {
+                await API.request('DELETE', `/recordings/scheduled/${from.id}`);
+            } catch (err) {
+                st.busy = false;
+                st.error = `${UI.errorText(err, `It couldn’t be moved to ${to.c.name}.`)} It still records on ${was}.`;
+                if (this.window === w) w.redraw(); else UI.toast(st.error, { kind: 'error' });
+                return;
+            }
+            try { await scheduleOn(c, to); }
+            catch {
+                const back = { start: from.program_start, end: from.program_end };
+                const fromChannel = { sourceId: from.source_id, id: from.channel_item_id, name: from.channel_name };
+                try { await scheduleOn(fromChannel, back); text = `It couldn’t be set to record on ${to.c.name}. It still records on ${was}.`; }
+                catch { text = `It couldn’t be set to record on ${to.c.name}, and the recording on ${was} was cancelled. Set it again.`; }
+                kind = 'error';
+            }
+        } else {
+            try { await API.request('DELETE', `/recordings/scheduled/${from.id}`); }
+            catch { text = `Set to record on ${to.c.name}, but the recording on ${was} couldn’t be cancelled. Cancel it in Recordings.`; kind = 'error'; }
+        }
         st.busy = false;
         if (this.window === w) this.closeWindow();
         UI.toast(text, kind ? { kind } : {});
@@ -1330,10 +1356,16 @@ class SportsPage {
         const c = a.c;
         const made = await failing('The recording could not be scheduled.', () => API.recordings.schedule({ sourceId: Number(c.sourceId), channelItemId: c.id,
             channelName: c.name, title: g.title, programStart: a.start, programEnd: a.end, ...pad, ...(g.synthetic ? {} : { gameId: g.id }) }));
+        const already = SportsPage.already(made);
+        if (already) return already;
         const clash = Array.isArray(made?.conflictsWith) && made.conflictsWith.length;
         return clash ? `Set to record on ${c.name}. It clashes with ${made.conflictsWith.map(x => x.title || x).join(', ')}.` : `Set to record on ${c.name}: ${g.title}.`;
     }
 }
+
+/** #329: the words for a schedule answer that found the game already set to record (`alreadyScheduled`), else null. */
+SportsPage.already = (made) => (made && made.alreadyScheduled
+    ? (made.channel_name ? `Already set to record on ${made.channel_name}.` : 'Already set to record.') : null);
 
 /** RecordPlan's Start early and Finish late, in minutes; null is the server's usual padding. */
 SportsPage.START_EARLY = [null, 0, 1, 2, 5, 10];

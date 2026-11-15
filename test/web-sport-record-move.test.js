@@ -7,7 +7,7 @@ const assert = require('node:assert/strict');
 const { browser, answer, page } = require('./helpers/sportWeb');
 
 const H = 3600000;
-async function harness({ fail = false, status = 'scheduled' } = {}) {
+async function harness({ fail = false, status = 'scheduled', answers = null } = {}) {
     const calls = [];
     const f = answer();
     const nxt = f.games.find(g => g.id === 'nxt'); // C-R: set to record (scheduleId 4) on Stan Sport 2
@@ -18,7 +18,13 @@ async function harness({ fail = false, status = 'scheduled' } = {}) {
         calls.push([m, url, body]);
         if (url === '/recordings/scheduled') return rows;
         return url === '/sports/front' ? f : url === '/sports/pages/preferences' ? { spoilerFree: false } : {};
-    }, recordings: { schedule: async (d) => { calls.push(['schedule', d]); if (fail) throw Object.assign(new Error('That channel is not available.'), { status: 400 }); return { id: 5 }; } } });
+    }, recordings: { schedule: async (d) => {
+        calls.push(['schedule', d]);
+        if (fail) throw Object.assign(new Error('That channel is not available.'), { status: 400 });
+        if (!answers) return { id: 5 };
+        const a = answers.shift();
+        return typeof a === 'function' ? a() : a;
+    } } });
     const p = page(b, { setLocation() {}, navigateTo() {} });
     await p.show('');
     p.openDetails('nxt');
@@ -58,4 +64,27 @@ test('the schedule on Kayo 5 fails: the recording on Stan Sport 2 stays, and the
 test('while it records, no move is offered (it would stop the recording)', async () => {
     const h = await harness({ status: 'recording' });
     assert.doesNotMatch(h.body(), /r-move/);
+});
+
+test('#329: the server keeps one schedule per game (answers A, alreadyScheduled): A is cancelled, then Kayo 5 is set', async () => {
+    const h = await harness({ answers: [{ id: 4, alreadyScheduled: true, channel_name: 'Stan Sport 2' }, { id: 5 }] });
+    await h.move();
+    const order = h.calls.filter(c => c[0] === 'schedule' || c[0] === 'DELETE').map(c => c[0] === 'schedule' ? ['schedule', c[1].channelItemId, c[1].gameId] : c.slice(0, 2));
+    assert.deepEqual(order, [['schedule', '505', 'nxt'], ['DELETE', '/recordings/scheduled/4'], ['schedule', '505', 'nxt']]);
+    assert.equal(h.b.context.toasts.at(-1)[0], 'Now recording on Kayo 5 instead of Stan Sport 2.');
+});
+
+test('#329: Kayo 5 then fails after A was cancelled: A is set again and the page says it still records there', async () => {
+    const h = await harness({ answers: [{ id: 4, alreadyScheduled: true, channel_name: 'Stan Sport 2' }, () => { throw new Error('gone'); }, { id: 6 }] });
+    await h.move();
+    const order = h.calls.filter(c => c[0] === 'schedule' || c[0] === 'DELETE').map(c => c[0] === 'schedule' ? ['schedule', c[1].channelItemId] : c.slice(0, 2));
+    assert.deepEqual(order, [['schedule', '505'], ['DELETE', '/recordings/scheduled/4'], ['schedule', '505'], ['schedule', '102']]);
+    assert.deepEqual(JSON.parse(JSON.stringify(h.b.context.toasts.at(-1))), ['It couldn’t be set to record on Kayo 5. It still records on Stan Sport 2.', { kind: 'error' }]);
+});
+
+test('#329: another schedule of the game records it already: nothing is cancelled, the page says where', async () => {
+    const h = await harness({ answers: [{ id: 7, alreadyScheduled: true, channel_name: 'Fox Footy' }] });
+    await h.move();
+    assert.equal(h.calls.filter(c => c[0] === 'DELETE').length, 0);
+    assert.equal(h.b.context.toasts.at(-1)[0], 'Already set to record on Fox Footy.');
 });
