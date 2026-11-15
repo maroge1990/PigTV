@@ -4,17 +4,34 @@
  */
 Object.assign(SettingsPage.prototype, {
     /**
-     * #9 (0358): one setting at a time, and the result shown: "Saved" next to the page's status, or why not. The
-     * volume slider saves when let go, not on every step.
+     * #9 (0358): one setting at a time, and the result shown: "Saved" next to the page's status. #64: saved like every
+     * other single control (saveOnChange): if the server refuses it, the control and the player's copy go back to the
+     * value it holds and a notice says why. `shown` turns a stored value into what the control shows; `after` runs once
+     * it is back (a field that depends on it).
      */
-    async savePlayerSetting(key) {
-        const result = await this.app.player.saveSettings([key]);
-        const status = document.getElementById('playback-settings-status');
-        if (status) {
-            status.textContent = result.ok ? 'Saved' : 'That setting was not saved. Try again.';
-            status.classList.toggle('error', !result.ok);
-        }
-        return result;
+    async savePlayerSetting(key, control, { shown = (v) => v ?? '', after = null } = {}) {
+        const player = this.app.player;
+        const settings = player.settings;
+        const previous = settings[key];
+        const value = control.type === 'checkbox' ? control.checked : control.value;
+        settings[key] = value;
+        return this.saveOnChange({
+            status: document.getElementById('playback-settings-status'),
+            save: async () => {
+                // This browser's own preferences (the arrow keys) the player keeps itself; the rest go to the server
+                // one key at a time, and what it saved is what the player keeps.
+                if ((player.constructor?.LOCAL_KEYS || []).includes(key)) return player.saveSettings([key]);
+                const saved = await API.settings.update({ [key]: value });
+                if (saved && typeof saved === 'object' && key in saved) settings[key] = saved[key];
+                return saved;
+            },
+            revert: () => {
+                settings[key] = previous;
+                if (control.type === 'checkbox') control.checked = previous === true;
+                else control.value = shown(previous);
+                if (after) after();
+            }
+        });
     },
 
     initPlayerSettings() {
@@ -27,8 +44,7 @@ Object.assign(SettingsPage.prototype, {
 
         // Arrow keys toggle
         arrowKeysToggle.addEventListener('change', () => {
-            this.app.player.settings.arrowKeysChangeChannel = arrowKeysToggle.checked;
-            this.savePlayerSetting('arrowKeysChangeChannel');
+            this.savePlayerSetting('arrowKeysChangeChannel', arrowKeysToggle);
         });
 
         // EPG refresh interval
@@ -39,8 +55,7 @@ Object.assign(SettingsPage.prototype, {
 
             // Save on change - server will restart its sync timer via PUT /api/settings
             epgRefreshSelect.addEventListener('change', () => {
-                this.app.player.settings.epgRefreshInterval = epgRefreshSelect.value;
-                this.savePlayerSetting('epgRefreshInterval');
+                this.savePlayerSetting('epgRefreshInterval', epgRefreshSelect, { shown: (v) => v || '24' });
             });
         }
 

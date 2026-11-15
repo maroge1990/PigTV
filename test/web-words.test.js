@@ -382,7 +382,8 @@ test('a failed switch save in Settings says so when it flips back', async () => 
     await sw.listeners.change();
     assert.equal(sw.checked, false, 'flipped back');
     assert.equal(c.toasts.length, 1);
-    assert.deepEqual(plain(c.toasts[0]), ['That setting was not saved. It is back to how it was.', { kind: 'error' }]);
+    // #64: and why (here, no answer from the server).
+    assert.deepEqual(plain(c.toasts[0]), ['That setting was not saved: the server could not be reached. It is back to how it was.', { kind: 'error' }]);
 });
 
 // ---- the guide's column resize ---------------------------------------------------------------------------------------

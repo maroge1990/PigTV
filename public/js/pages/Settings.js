@@ -76,6 +76,28 @@ class SettingsPage {
     }
 
     /**
+     * #64: the one save model for a single switch or list in Settings: it saves the moment it is changed (a form of
+     * several fields, such as a provider, a user or the recording settings, has a Save button instead). `save()` does
+     * the saving and throws on failure. If it fails, `revert()` puts the control back to the value the server holds and
+     * a notice says why, and that it is back; never a silent flip-back. `status` (optional) says "Saved" when it worked.
+     * Resolves true when saved.
+     */
+    async saveOnChange({ save, revert = null, status = null, tail = 'It is back to how it was.' }) {
+        try {
+            await save();
+        } catch (err) {
+            if (revert) {
+                try { revert(); } catch (e) { console.error('Could not put the setting back:', e); }
+            }
+            if (status) { status.textContent = ''; status.classList?.toggle('error', false); }
+            UI.toast(SettingsPage.notSavedText(err, tail), { kind: 'error' });
+            return false;
+        }
+        if (status) { status.textContent = 'Saved'; status.classList?.toggle('error', false); }
+        return true;
+    }
+
+    /**
      * #276: a panel whose controls a GET fills. 'loading': disabled and aria-busy; 'failed': still disabled (what they
      * show is not what the server holds); 'ready': each control back to the state it had before.
      */
@@ -204,6 +226,17 @@ class SettingsPage {
         // Page is hidden
     }
 }
+
+/**
+ * #64: why a setting was not saved, then what became of it: the server's own reason when it gave one (C-B), else
+ * whether it could not be reached or could not save it.
+ */
+SettingsPage.notSavedText = (err, tail) => {
+    const status = err && err.status;
+    const why = status === undefined || status === null || status === 0 ? 'That setting was not saved: the server could not be reached.'
+        : status >= 500 ? 'That setting was not saved: the server could not save it.' : 'That setting was not saved.';
+    return `${UI.errorText(err, why)}${tail ? ` ${tail}` : ''}`;
+};
 
 /** #276 (C14): Settings places as they read in the address, and the tab or panel each one opens. */
 SettingsPage.PATHS = {

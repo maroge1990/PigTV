@@ -40,8 +40,7 @@ Object.assign(SettingsPage.prototype, {
 
         // Event listeners for encoder settings
         hwEncoderSelect?.addEventListener('change', () => {
-            this.app.player.settings.hwEncoder = hwEncoderSelect.value;
-            this.savePlayerSetting('hwEncoder');
+            this.savePlayerSetting('hwEncoder', hwEncoderSelect, { shown: (v) => v || 'auto' });
         });
 
         // User-Agent handlers
@@ -52,19 +51,20 @@ Object.assign(SettingsPage.prototype, {
         };
 
         userAgentSelect?.addEventListener('change', () => {
-            this.app.player.settings.userAgentPreset = userAgentSelect.value;
-            this.savePlayerSetting('userAgentPreset');
+            this.savePlayerSetting('userAgentPreset', userAgentSelect, { shown: (v) => v || 'chrome', after: toggleCustomInput });
             toggleCustomInput();
         });
 
         userAgentCustomInput?.addEventListener('change', () => {
-            this.app.player.settings.userAgentCustom = userAgentCustomInput.value;
-            this.savePlayerSetting('userAgentCustom');
+            this.savePlayerSetting('userAgentCustom', userAgentCustomInput);
         });
     },
 
     /** The transcoding panel's values from GET /api/settings (#276: was fetched at start, with defaults on failure). */
     applyTranscodeSettings(s) {
+        // #64: the player's copy holds what the panel shows, so a refused change goes back to this value.
+        const copy = this.app?.player?.settings;
+        if (copy) for (const k of ['hwEncoder', 'userAgentPreset', 'userAgentCustom']) if (k in s) copy[k] = s[k];
         const set = (id, value) => { const el = document.getElementById(id); if (el) el.value = value; };
         set('setting-hw-encoder', s.hwEncoder || 'auto');
         set('setting-user-agent-tc', s.userAgentPreset || 'chrome');

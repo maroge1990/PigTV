@@ -28,5 +28,6 @@ test('deleting a provider says it removes favourites, numbers and scheduled reco
 
 test('a renewal switch that cannot run is unticked and saved off, as the standby is', () => {
     const js = settingsSource();
-    assert.match(js, /if \(renewal\.disabled && renewal\.checked\) \{\s*renewal\.checked = false;\s*try \{ await API\.settings\.update\(\{ ingestReconnectRenewal: false \}\)/);
+    assert.match(js, /if \(renewal\.disabled && renewal\.checked\) \{\s*renewal\.checked = false;\s*await saveOff\('ingestReconnectRenewal'\)/);
+    assert.match(js, /const saveOff = \(key\) => this\.saveOnChange\(\{ save: \(\) => API\.settings\.update\(\{ \[key\]: false \}\)/);
 });

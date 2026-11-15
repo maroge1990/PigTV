@@ -4,18 +4,14 @@
  */
 Object.assign(SettingsPage.prototype, {
     initHwDecodeSettings() {
-        const bind = (id, key) => {
+        // #64: each switch saves when changed (saveOnChange): a failed save puts it back and says why.
+        const bind = (id, key, after = null) => {
             const el = document.getElementById(id);
             if (!el) return;
-            el.addEventListener('change', async () => {
-                try {
-                    await API.settings.update({ [key]: el.checked });
-                } catch (err) {
-                    console.error(`Failed to save ${key}:`, err);
-                    el.checked = !el.checked;
-                    UI.toast('That setting was not saved. It is back to how it was.', { kind: 'error' });
-                }
-            });
+            el.addEventListener('change', () => this.saveOnChange({
+                save: () => API.settings.update({ [key]: el.checked }),
+                revert: () => { el.checked = !el.checked; if (after) after(); }
+            }));
         };
         bind('setting-vaapi-hw-decode', 'vaapiHwDecode');
         bind('setting-vaapi-cpu-scale', 'vaapiCpuScale');
@@ -24,6 +20,9 @@ Object.assign(SettingsPage.prototype, {
         const standby = document.getElementById('setting-standby-enabled');
         const renewal = document.getElementById('setting-ingest-renewal');
         const shared = document.getElementById('setting-shared-ingest');
+        // A switch that cannot run is turned off and saved off (below); if that save fails it stays off here, as the
+        // server treats it while the switch it needs is off, and the notice says to check it.
+        const saveOff = (key) => this.saveOnChange({ save: () => API.settings.update({ [key]: false }), tail: 'Check it before you rely on it.' });
         // #65 (0360): like the standby (0203), a renewal switch that cannot run is unticked and saved off, not left
         // ticked and greyed, which read as "still on".
         const syncRenewalAvailability = async () => {
@@ -31,26 +30,28 @@ Object.assign(SettingsPage.prototype, {
             renewal.disabled = !relay?.checked || !shared?.checked;
             if (renewal.disabled && renewal.checked) {
                 renewal.checked = false;
-                try { await API.settings.update({ ingestReconnectRenewal: false }); } catch (err) { console.error('Failed to save ingestReconnectRenewal:', err); UI.toast('That setting was not saved. Check it before you rely on it.', { kind: 'error' }); }
+                await saveOff('ingestReconnectRenewal');
             }
         };
-        shared?.addEventListener('change', syncRenewalAvailability);
-        bind('setting-relay-enabled', 'relayEnabled');
-        bind('setting-ingest-renewal', 'ingestReconnectRenewal');
-        bind('setting-standby-enabled', 'standbyEnabled');
-        bind('setting-warm-next-channel', 'warmNextChannel'); // R11
-        bind('setting-shared-ingest', 'sharedIngestEnabled'); // Wave 5
-        // 0203: turning recovery off also turns the standby off (it cannot run without it), and
-        // says so: a ticked-but-greyed switch read as "still on".
-        relay?.addEventListener('change', async () => {
-            syncRenewalAvailability();
-            if (!standby) return;
+        const syncStandbyAvailability = async () => {
+            if (!standby || !relay) return;
             standby.disabled = !relay.checked;
             if (!relay.checked && standby.checked) {
                 standby.checked = false;
-                try { await API.settings.update({ standbyEnabled: false }); } catch (err) { console.error('Failed to save standbyEnabled:', err); UI.toast('That setting was not saved. Check it before you rely on it.', { kind: 'error' }); }
+                await saveOff('standbyEnabled');
             }
-        });
+        };
+        // A recovery or shared-ingest switch put back after a failed save greys out (or frees) what depends on it again.
+        const resync = () => { syncRenewalAvailability(); syncStandbyAvailability(); };
+        shared?.addEventListener('change', syncRenewalAvailability);
+        bind('setting-relay-enabled', 'relayEnabled', resync);
+        bind('setting-ingest-renewal', 'ingestReconnectRenewal');
+        bind('setting-standby-enabled', 'standbyEnabled');
+        bind('setting-warm-next-channel', 'warmNextChannel'); // R11
+        bind('setting-shared-ingest', 'sharedIngestEnabled', resync); // Wave 5
+        // 0203: turning recovery off also turns the standby off (it cannot run without it), and
+        // says so: a ticked-but-greyed switch read as "still on".
+        relay?.addEventListener('change', resync);
     },
 
     applyHwDecodeSettings(s) {
