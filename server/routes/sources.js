@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const { sources } = require('../db');
 const { getDb } = require('../db/sqlite');
-const xtreamApi = require('../services/xtreamApi');
 const syncService = require('../services/syncService');
 const m3uParser = require('../services/m3uParser');
 const { requireAuth, requireAdmin } = require('../auth');
@@ -11,7 +10,8 @@ const { NUMBER_JOIN } = require('../services/channelNumbers');
 const sportCategories = require('../services/sportCategories');
 const providerFields = require('../services/providerFields');
 const providerAccounts = require('../services/providerAccounts');
-const { redact } = require('../redact');
+const { stripUrls } = require('../redact');
+const sourceTest = require('../services/sourceTest');
 const backupChannels = require('../services/backupChannels');
 
 router.use(requireAuth);
@@ -188,17 +188,19 @@ router.put('/:id/import-exclusions', requireAdmin, async (req, res) => {
     res.json({ ok: true });
 });
 
+/** The rules a new source's type and address meet: creating one and testing one (#330) share them. */
+function newSourceError({ type, name, url } = {}, { needName = true } = {}) {
+    if (!type || (needName && !name) || !url) return needName ? 'Type, name, and URL are required' : 'Type and URL are required';
+    if (!['xtream', 'm3u', 'epg'].includes(type)) return 'Invalid source type';
+    return null;
+}
+
 router.post('/', async (req, res) => {
     try {
         const { type, name, url, username, password } = req.body;
 
-        if (!type || !name || !url) {
-            return res.status(400).json({ error: 'Type, name, and URL are required' });
-        }
-
-        if (!['xtream', 'm3u', 'epg'].includes(type)) {
-            return res.status(400).json({ error: 'Invalid source type' });
-        }
+        const invalid = newSourceError(req.body);
+        if (invalid) return res.status(400).json({ error: invalid });
 
         const all = await sources.getAll();
         const checked = providerFields.validate(req.body, { type, others: all, hasStreams, enabled: true });
@@ -484,6 +486,22 @@ router.post('/:id/sync', async (req, res) => {
     }
 });
 
+/**
+ * POST /api/sources/test   (admin; #330)
+ *
+ * Tests `{ type, url, username, password }` before anything is saved: the add form calls it first and saves (and syncs)
+ * only after a pass, or after the admin's "Save anyway". Writes nothing. The same rules as creating a source, the same
+ * reply as testing a saved one (sourceTest.js).
+ */
+router.post('/test', async (req, res) => {
+    const body = req.body || {};
+    const invalid = newSourceError(body, { needName: false });
+    if (invalid) return res.status(400).json({ error: invalid });
+    const result = await sourceTest.testSource({ type: body.type, url: body.url, username: body.username, password: body.password });
+    if (!result.success && result.error) console.warn(`[Sources] Test of a new provider failed: ${result.error}`);
+    res.json(result);
+});
+
 // Test source connection
 router.post('/:id/test', async (req, res) => {
     try {
@@ -491,34 +509,12 @@ router.post('/:id/test', async (req, res) => {
         if (!source) {
             return res.status(404).json({ error: 'Source not found' });
         }
-
-        if (source.type === 'xtream') {
-            // Only the account facts the page shows: the reply also carries the login and
-            // the server's address, which never leave the server.
-            const account = providerAccounts.parseAccountReply(
-                await xtreamApi.authenticate(source.url, source.username, source.password));
-            res.json({
-                success: true,
-                status: account.status,
-                expiresAt: account.exp_date,
-                isTrial: account.is_trial === null ? null : account.is_trial === 1,
-                maxConnections: account.max_connections,
-                activeConnections: account.active_cons
-            });
-        } else if (source.type === 'm3u') {
-            const response = await fetch(source.url);
-            const text = await response.text();
-            const isValid = text.includes('#EXTM3U');
-            res.json({ success: isValid, message: isValid ? 'Valid M3U playlist' : 'Invalid M3U format' });
-        } else if (source.type === 'epg') {
-            const response = await fetch(source.url);
-            const text = await response.text();
-            const isValid = text.includes('<tv') || text.includes('<?xml');
-            res.json({ success: isValid, message: isValid ? 'Valid EPG XML' : 'Invalid EPG format' });
-        }
+        const result = await sourceTest.testSource(source);
+        if (!result.success && result.error) console.warn(`[Sources] Test of ${source.name} failed: ${result.error}`);
+        res.json(result);
     } catch (err) {
-        console.error('Error testing source:', redact(err && err.message));
-        res.json({ success: false, error: redact(err && err.message) || 'The connection test failed' });
+        console.error('Error testing source:', stripUrls(err && err.message));
+        res.json({ success: false, error: stripUrls(err && err.message) || 'The connection test failed' });
     }
 });
 
@@ -549,8 +545,10 @@ router.post('/estimate', async (req, res) => {
             threshold: M3U_LARGE_THRESHOLD
         });
     } catch (err) {
-        console.error('Error estimating M3U size:', err);
-        res.status(500).json({ error: 'Failed to estimate playlist size', message: err.message });
+        // #330: the error can quote the address and its login: neither is logged nor returned.
+        const message = stripUrls(err && err.message, [req.body && req.body.url]);
+        console.error('Error estimating M3U size:', message);
+        res.status(500).json({ error: 'Failed to estimate playlist size', message });
     }
 });
 

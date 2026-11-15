@@ -20,10 +20,10 @@ async function userAgent() {
 
 /**
  * `kind`: 'playlist' | 'guide' | 'api'. The deadline covers the whole download, body included. `extraHeaders`: #237's
- * conditional request (If-None-Match / If-Modified-Since).
+ * conditional request (If-None-Match / If-Modified-Since). `options.timeoutMs`: a shorter deadline (#330's connection test).
  */
-async function providerFetch(url, kind, extraHeaders = {}) {
-    const timeoutMs = TIMEOUTS[kind] || TIMEOUTS.api;
+async function providerFetch(url, kind, extraHeaders = {}, options = {}) {
+    const timeoutMs = options.timeoutMs || TIMEOUTS[kind] || TIMEOUTS.api;
     return fetch(url, { headers: { ...extraHeaders, 'User-Agent': await userAgent() }, signal: AbortSignal.timeout(timeoutMs) });
 }
 
