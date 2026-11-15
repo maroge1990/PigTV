@@ -17,7 +17,7 @@ const db = require('../db');
 const { getDb } = require('../db/sqlite');
 const { bareChannelId } = require('../services/channelIds');
 const { redact } = require('../redact');
-const { MESSAGES: FAILURE_TEXT, clientSafe } = require('../services/playbackErrors');
+const { MESSAGES: FAILURE_TEXT, clientSafe, placeholderError } = require('../services/playbackErrors');
 const playbackStrategy = require('../services/playbackStrategy');
 const { startOnFirstFree, STOP } = require('../services/playbackStart');
 const { streamAuth } = require('../auth');
@@ -209,6 +209,9 @@ router.post('/resolve', requireToken, async (req, res) => {
                 ask: (candidate) => ({ force: false, settings, owner, providerId: candidate.providerId, joinIngest: ingestFor(candidate)?.key || null }),
                 start: async (candidate, i, lease) => {
                     if (clientGone()) throw playbackStrategy.supersededError();
+                    // #332: this feed was sending the provider's placeholder a moment ago (held back 3 min; the plan
+                    // gives it only when nothing else can play the channel): no connection for a still slate.
+                    if (routing && providerRouting.isPlaceholder(candidate.providerId, candidate.channelKey)) throw placeholderError();
                     decision = await start(candidate, i, lease);
                     chosen = candidate;
                     return true;
@@ -217,7 +220,8 @@ router.post('/resolve', requireToken, async (req, res) => {
                     // 0180: stopped on request (or overtaken), not a provider failure: nothing
                     // is noted and no later candidate is started.
                     if (err.superseded || !routing || !providerRouting.isProviderFailure(err)) throw err;
-                    lastError = err;
+                    // #332: found sending its placeholder during this start: the viewer is told so (C-B).
+                    lastError = !err.placeholder && providerRouting.isPlaceholder(candidate.providerId, candidate.channelKey) ? placeholderError() : err;
                     failedOver = true;
                     providerRouting.noteStartFailure(candidate, routing.primaryKey);
                     const next = candidates.slice(i + 1)[0];
@@ -266,6 +270,7 @@ router.post('/resolve', requireToken, async (req, res) => {
             lastTried = first;
             try {
                 if (clientGone()) throw playbackStrategy.supersededError();
+                if (routing && providerRouting.isPlaceholder(first.providerId, first.channelKey)) throw placeholderError(); // #332
                 decision = await playbackStrategy.resolve({
                     url: first.url,
                     capabilities: capabilities || {},
@@ -283,6 +288,7 @@ router.post('/resolve', requireToken, async (req, res) => {
                 });
             } catch (err) {
                 if (!err.superseded && routing && providerRouting.isProviderFailure(err)) providerRouting.noteStartFailure(first, routing.primaryKey);
+                if (!err.superseded && !err.placeholder && routing && providerRouting.isPlaceholder(first.providerId, first.channelKey)) throw placeholderError();
                 throw err;
             } finally {
                 coordinator.releaseUnbound(verdict.lease);
@@ -330,6 +336,8 @@ router.post('/resolve', requireToken, async (req, res) => {
                 // 0191: a blank or placeholder picture marks this attempt's health row
                 // (providerRouting.watchSession quarantines the channel on the provider).
                 played.once('blank', () => channelHealth.sessionBlank(owner));
+                // #332: the provider's placeholder ended the feed: the attempt's health row says so.
+                played.once('placeholder', () => channelHealth.sessionBlank(owner, Date.now(), 'placeholder'));
                 // 0189 (relayEnabled): keep this stream going across a lost provider. A
                 // channel play only; off, adopt() does nothing.
                 if (routing && live) {

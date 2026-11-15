@@ -59,6 +59,8 @@ const text = (v, max) => (v === null || v === undefined ? null : String(v).repla
  */
 function reasonOf(how, session = null) {
     if (session && session.feedLost && session.feedLost.reason === 'repeating') return 'repeating';
+    // #332: the provider's placeholder (a still slate) ended the feed.
+    if (session && session.feedLost && session.feedLost.reason === 'placeholder') return 'placeholder';
     return how === 'stall' ? 'stalled' : how === 'timestamps' ? 'timestamps' : 'lost';
 }
 

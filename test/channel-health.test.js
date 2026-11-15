@@ -214,8 +214,8 @@ test('the status document lists the least reliable channels with attempts, failu
     const { status, body } = await call('GET', '/api/status');
     assert.equal(status, 200);
     assert.deepEqual(body.leastReliable, [
-        { name: 'Bravo', attempts: 2, failures: 2, stalls: 0, watchedMin: 0, stallsPerHour: null, medianFirstPictureSec: null, health: 'flaky', blank: false, score: 2 },
-        { name: 'Alpha', attempts: 4, failures: 1, stalls: 0, watchedMin: 0, stallsPerHour: null, medianFirstPictureSec: 6, health: 'ok', blank: false, score: 1 }
+        { name: 'Bravo', attempts: 2, failures: 2, stalls: 0, watchedMin: 0, stallsPerHour: null, medianFirstPictureSec: null, health: 'flaky', blank: false, placeholder: false, score: 2 },
+        { name: 'Alpha', attempts: 4, failures: 1, stalls: 0, watchedMin: 0, stallsPerHour: null, medianFirstPictureSec: 6, health: 'ok', blank: false, placeholder: false, score: 1 }
     ]);
 });
 

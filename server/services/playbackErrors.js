@@ -35,8 +35,15 @@ const MESSAGES = {
     // The channel (or its source) is not in the playlist (streamUrlForChannel's 404).
     notInPlaylist: () => 'This channel is not available. It may have been removed from the playlist; a playlist sync may help.',
     // The playlist row has no stream address (streamUrlForChannel's 422).
-    noStreamUrl: () => 'This channel is not available: the playlist has no stream address for it.'
+    noStreamUrl: () => 'This channel is not available: the playlist has no stream address for it.',
+    // #332: the provider sends its placeholder (a still slate), not the channel, and no other copy could play it.
+    placeholder: () => 'This channel is not available right now: nothing is on this stream at the moment.'
 };
+
+/** #332: the resolve's error when the provider sends its placeholder (a provider reason: the next candidate is tried). */
+function placeholderError() {
+    return Object.assign(new Error(MESSAGES.placeholder()), { status: 503, providerReason: true, placeholder: true });
+}
 
 // Any scheme://... run, however it was redacted.
 const URL_RE = /\b[a-z][a-z0-9+.-]*:\/\/[^\s'"]*/gi;
@@ -46,4 +53,4 @@ function clientSafe(message) {
     return String(message == null ? '' : message).replace(URL_RE, '(address hidden)');
 }
 
-module.exports = { ALLOWED_PREFIXES, MESSAGES, clientSafe };
+module.exports = { ALLOWED_PREFIXES, MESSAGES, clientSafe, placeholderError };

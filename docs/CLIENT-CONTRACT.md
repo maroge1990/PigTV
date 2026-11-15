@@ -188,6 +188,9 @@ The resolve `error` is shown **only** if it starts with one of:
 - `This channel is not available`
 
 Texts live in `playbackErrors.js` and never contain a URL. Any other text maps to the client's generic message.
+#332 adds one, with HTTP 503: "This channel is not available right now: nothing is on this stream at the moment." (the
+provider sends its placeholder, a still slate, and no other feed of the channel plays). It says "right now", so the Apple
+client takes it as passing, not lasting.
 
 ### C-C. HE-AAC passthrough. No flag (a capability)
 

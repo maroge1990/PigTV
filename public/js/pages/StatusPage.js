@@ -437,9 +437,10 @@ class StatusPage {
         return ` · ${one('ffmpeg')} · ${one('ffprobe')}${origins.length ? ` (${e(origins.join(', '))})` : ''}`;
     }
 
-    /** A recent play's reason as shown: #324's `repeating: …` reads "Feed repeating the same clip: …". */
+    /** A recent play's reason as shown: #324's `repeating: …` reads "Feed repeating the same clip: …", #332's `placeholder: …` "Provider placeholder: …". */
     reasonText(reason) {
         const text = String(reason || '');
+        if (text.startsWith('placeholder: ')) return `Provider placeholder: ${text.slice('placeholder: '.length)}`;
         return text.startsWith('repeating: ') ? `Feed repeating the same clip: ${text.slice('repeating: '.length)}` : text;
     }
 
@@ -507,6 +508,7 @@ class StatusPage {
                     ch.medianFirstPictureSec !== null && ch.medianFirstPictureSec !== undefined ? `${Number(ch.medianFirstPictureSec).toFixed(1)}s` : '–',
                     (ch.health === 'flaky' ? '<span class="status-event status-failure">Flaky</span>' : e(ch.health || '–'))
                         + (ch.blank ? ' <span class="status-event status-failure">Blank picture</span>' : '')
+                        + (ch.placeholder ? ' <span class="status-event status-failure">Provider placeholder</span>' : '')
                 ]), '') : '')
             + (!problems.length && !flaky.length ? '<p class="setting-hint">No missed or failed recordings, and no failed starts or stalls in the last 7 days.</p>' : '');
         return this.section('Last 7 days', body);

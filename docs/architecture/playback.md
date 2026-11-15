@@ -239,6 +239,10 @@ rebased the step first (a reconnect showed up only as repeated content, and ever
   Only when another provider can take over; with none it plays on. Feeds without sound are not checked (the sound must
   confirm a loop). Only feeds read through the shared ingest are checked:
   a play or recording that opens the provider URL itself (shared connection off, or refused) is not.
+- A feed the shared ingest finds sending the **provider's placeholder** (#332, [`ingest.md`](ingest.md) › Placeholder feed)
+  ends as lost with reason `placeholder`, whether or not another feed can take over. While the channel's feed
+  is held back for it (3 min) and nothing else can play it, the resolve answers C-B's "This channel is not available right
+  now: nothing is on this stream at the moment." without opening the provider.
 - Known limits: the feeds aren't in step (a jump or repeat at a switch); a cold switch still waits for the 20 s stall
   watchdog; the provider in Stream info is the one the play started on. A switch applies to plays started after it changes.
 

@@ -364,7 +364,8 @@ async function afterStart({ session, ready, info, plan, probeNote, fromProfile, 
         // 0174: the provider's fault (failover may try the next one) when ffmpeg said
         // so, or when nothing came in time; an unexplained exit (an encoder, GPU or
         // argument error) is not.
-        err.providerReason = ended ? transcodeSession.providerFailureIn(session.stderrTail || []) : true;
+        // #332: the shared feed was ended as the provider's placeholder: the provider's too (the next candidate is tried).
+        err.providerReason = ended ? (transcodeSession.providerFailureIn(session.stderrTail || []) || session.feedLost?.reason === 'placeholder') : true;
         throw err;
     }
 }

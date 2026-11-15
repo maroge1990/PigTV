@@ -50,6 +50,10 @@ const QUARANTINE_MS = 10 * MINUTE;
 // looping providers of one channel never hand the play back and forth.
 const REPEATING_MS = 60 * MINUTE;
 const repeating = new Map(); // qKey -> until
+// #332: a (provider, channel) found sending the provider's placeholder (ingest.js, feedPlaceholder.js) is quarantined this
+// long, shorter than a failure's: the slate often comes and goes. Never counted toward the provider's breaker.
+const PLACEHOLDER_MS = 3 * MINUTE;
+const placeholders = new Map(); // qKey -> until
 
 // The resolve's own budget when there is somewhere to fail over to: the Apple
 // client's request timeout is 35 s. A candidate is not started with less than
@@ -161,10 +165,29 @@ function noteProviderSuccess(id) {
 
 const qKey = (id, channelKey) => `${Number(id)}|${String(channelKey)}`;
 
-function quarantine(id, channelKey, now = Date.now()) {
+/** Hold this (provider, channel) back for `ms` (QUARANTINE_MS by default); a longer hold already running is kept (#332). */
+function quarantine(id, channelKey, now = Date.now(), ms = QUARANTINE_MS) {
     if (id === null || id === undefined || channelKey === null || channelKey === undefined) return;
-    quarantined.set(qKey(id, channelKey), now + QUARANTINE_MS);
-    quarantinedAt.set(qKey(id, channelKey), now);
+    const k = qKey(id, channelKey);
+    quarantined.set(k, Math.max(now + ms, quarantined.get(k) || 0));
+    quarantinedAt.set(k, now);
+}
+
+/** #332: this provider's feed of this channel is the provider's placeholder: quarantined PLACEHOLDER_MS, no breaker count. */
+function notePlaceholder(providerId, channelKey, now = Date.now()) {
+    if (providerId === null || providerId === undefined || channelKey === null || channelKey === undefined) return;
+    placeholders.set(qKey(providerId, channelKey), now + PLACEHOLDER_MS);
+    quarantine(providerId, channelKey, now, PLACEHOLDER_MS);
+}
+
+/** #332: was this feed found sending the placeholder in the last PLACEHOLDER_MS? */
+function isPlaceholder(providerId, channelKey, now = Date.now()) {
+    const k = qKey(providerId, channelKey);
+    const until = placeholders.get(k);
+    if (until === undefined) return false;
+    if (until > now) return true;
+    placeholders.delete(k);
+    return false;
 }
 
 function isQuarantined(id, channelKey, now = Date.now()) {
@@ -228,6 +251,8 @@ function isRepeating(providerId, channelKey, now = Date.now()) {
 function noteStartFailure(candidate, primaryKey) {
     if (!candidate) return;
     if (isRepeating(candidate.providerId, candidate.channelKey)) quarantine(candidate.providerId, candidate.channelKey);
+    // #332: the placeholder is the channel's alone too, and already held back for PLACEHOLDER_MS (notePlaceholder).
+    else if (isPlaceholder(candidate.providerId, candidate.channelKey)) return;
     else noteFailure(candidate, primaryKey);
 }
 
@@ -241,6 +266,7 @@ async function otherFeedFor({ channelRef, ingestKey, owner = null, owners = null
     for (const c of candidates || []) {
         if (!c || !isStreamUrl(c.url) || isQuarantined(c.providerId, c.channelKey)) continue;
         if (isRepeating(c.providerId, c.channelKey)) continue; // found looping too in the last hour
+        if (isPlaceholder(c.providerId, c.channelKey)) continue; // #332: sending the placeholder a moment ago
         // plan() falls back to the primary even when it is down or expired (Opus #324): never somewhere to go.
         if (providerState(c.providerId) === 'down') continue;
         const source = providerMap().get(Number(c.providerId));
@@ -267,17 +293,22 @@ function watchSession(session, candidate, primaryKey, label = null) {
         // #324: a feed repeating the same clip is one channel's feed on a provider that is up: quarantined
         // for the channel, like a blank picture, and not counted toward the provider's breaker.
         const repeating = !!session.feedLost && session.feedLost.reason === 'repeating';
-        if (repeating) quarantine(candidate.providerId, candidate.channelKey);
+        // #332: the provider's placeholder: the channel's alone, held back for the shorter PLACEHOLDER_MS.
+        const placeholder = !!session.feedLost && session.feedLost.reason === 'placeholder';
+        if (placeholder) quarantine(candidate.providerId, candidate.channelKey, Date.now(), PLACEHOLDER_MS);
+        else if (repeating) quarantine(candidate.providerId, candidate.channelKey);
         else noteFailure(candidate, primaryKey);
         console.warn(`[Playback] ${candidate.providerName} lost ${label ? `"${label}"` : 'a channel'} mid-play ` +
-            `(${repeating ? 'kept repeating the same clip'
+            `(${placeholder ? 'sent its placeholder, not the channel' : repeating ? 'kept repeating the same clip'
                 : how === 'stall' ? 'stalled' : how === 'timestamps' ? 'timestamps broke after a reconnect' : 'ffmpeg exited'}); ` +
-            `not used for it for ${QUARANTINE_MS / MINUTE} min`);
+            `not used for it for ${(placeholder ? PLACEHOLDER_MS : QUARANTINE_MS) / MINUTE} min`);
     });
     // 0191: a blank or placeholder picture. Quarantined, so the next play of the channel
     // tries another provider first, but not counted toward the breaker: the provider is
     // up, it is this one channel that is wrong. The play itself goes on.
-    session.once('blank', ({ kbps } = {}) => {
+    session.once('blank', ({ kbps, placeholder = false } = {}) => {
+        // #332: a blank verdict that is the placeholder ends the feed instead ('lost' above holds it back 3 min).
+        if (placeholder) return;
         quarantine(candidate.providerId, candidate.channelKey);
         console.warn(`[Playback] ${candidate.providerName} is sending a blank picture for ${label ? `"${label}"` : 'a channel'} ` +
             `(${kbps} kbps); the next play tries another provider first for ${QUARANTINE_MS / MINUTE} min`);
@@ -550,6 +581,7 @@ function snapshot(now = Date.now()) {
 
 function reset() {
     repeating.clear();
+    placeholders.clear();
     breakers.clear();
     quarantined.clear();
     quarantinedAt.clear();
@@ -578,6 +610,9 @@ module.exports = {
     isRepeating,
     noteStartFailure,
     REPEATING_MS,
+    notePlaceholder,
+    isPlaceholder,
+    PLACEHOLDER_MS,
     snapshot,
     reset,
     DEADLINE_MS,

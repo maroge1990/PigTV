@@ -25,6 +25,7 @@ const { FeedPace } = require('./feedPace');
 const lagLimit = require('./feedLagLimit');
 const { keyframeJoin } = require('./tsKeyframes');
 const { LoopDetector } = require('./feedLoop');
+const placeholderRule = require('./feedPlaceholder');
 
 const TS_PACKET = 188;
 const SYNC = 0x47;
@@ -53,6 +54,10 @@ const tuning = {
     joinLookbackMs: num('PIGTV_INGEST_JOIN_LOOKBACK_SEC', 6, 2) * 1000,
     // #324: a feed sending the same clip again and again (feedLoop.js) ends as lost; 0 turns the check off.
     loopCheck: num('PIGTV_INGEST_LOOP_CHECK', 1, 0) !== 0,
+    // #332: the provider's placeholder (feedPlaceholder.js): connections that each end this soon, at a blank picture's
+    // rate, PLACEHOLDER_RUN times in a row, end the feed. 0 turns the check off.
+    placeholderCheck: num('PIGTV_INGEST_PLACEHOLDER_CHECK', 1, 0) !== 0,
+    placeholderShortMs: placeholderRule.SHORT_CONNECTION_MS,
     backoffMs: [500, 1000, 2000, 4000]
 };
 
@@ -164,11 +169,16 @@ class Subscription extends Readable {
         this.backlogBytes = parts.reduce((n, p) => n + p.length, 0);
         for (const p of parts) this.deliver(p);
     }
-    /** End this subscriber's stream with a reason ({ providerReason } says whose fault; #324: `periodSec` for `repeating`). */
-    finish(reason, { providerReason = false, periodSec = null } = {}) {
+    /**
+     * End this subscriber's stream with a reason ({ providerReason } says whose fault; #324: `periodSec` for `repeating`;
+     * #332: `placeholderSince` for `placeholder`, when the placeholder began: `onlyPlaceholder` says this reader joined
+     * after that and so was handed nothing but the placeholder).
+     */
+    finish(reason, { providerReason = false, periodSec = null, placeholderSince = null } = {}) {
         if (this.endReason) return;
         clearTimeout(this.patTimer);
         this.endReason = periodSec === null ? { reason, providerReason } : { reason, providerReason, periodSec };
+        if (reason === 'placeholder') this.endReason.onlyPlaceholder = placeholderSince !== null && this.joinedAt >= placeholderSince;
         this.emit('ingest-end', this.endReason);
         this.push(null);
         this.ingest.drop(this);
@@ -221,6 +231,16 @@ class Ingest extends EventEmitter {
         this.loop = tuning.loopCheck ? new LoopDetector() : null;
         this.looping = null;
         this.loopDeciding = false;
+        // #332: this connection's start and bytes, the run of short low-rate connections (and when it began), whether
+        // there has been one at all (a 20 s blank verdict then means the placeholder), and the picture's height when a
+        // reader knows it (the blank threshold: 250 kbps below 720p, else 500).
+        this.connStartAt = null;
+        this.connBytes = 0;
+        this.placeholderRun = 0;
+        this.placeholderRunStart = null;
+        this.shortLowSeen = false;
+        this.feedHeight = null;
+        this.placeholder = null;
         // #324: the channel this feed plays ({ sourceId, channelId }), to look for another provider of it.
         this.channelRef = channelRef;
         // R7 data: the worst lag over every connection (the pace resets on a reconnect), and how
@@ -311,6 +331,8 @@ class Ingest extends EventEmitter {
         this.pace.reset(Date.now());
         // #324: a new connection is never compared with the last (a provider may resend old content).
         if (this.loop) this.loop.reset();
+        this.connStartAt = Date.now();
+        this.connBytes = 0;
         this.learningAt = Date.now();
         this.learningWorst = 0;
         if (this.state === 'connecting') {
@@ -335,6 +357,7 @@ class Ingest extends EventEmitter {
     onData(chunk) {
         const now = Date.now();
         this.bytesIn += chunk.length;
+        this.connBytes += chunk.length;
         this.lastByteAt = now;
         const wasMeasured = this.pace.measured;
         if (wasMeasured) this.learningWorst = Math.max(this.learningWorst, this.pace.observe(now));
@@ -421,6 +444,65 @@ class Ingest extends EventEmitter {
         }
     }
 
+    /**
+     * #332: a connection that delivered has ended. Short and at a blank picture's rate it adds to the run
+     * (feedPlaceholder.js), anything else ends the run; a whole run ends the feed as the provider's placeholder (and
+     * returns true: no reconnect, the next would bring the same).
+     */
+    judgeConnection() {
+        if (!tuning.placeholderCheck || this.connStartAt === null) return false;
+        const conn = { bytes: this.connBytes, wallMs: Date.now() - this.connStartAt, mediaSec: this.pace.measured ? this.pace.media : 0 };
+        const run = placeholderRule.nextRun(this.placeholderRun, conn, { height: this.feedHeight, shortMs: tuning.placeholderShortMs });
+        if (run === 1) this.placeholderRunStart = this.connStartAt;
+        if (run > 0) this.shortLowSeen = true;
+        this.placeholderRun = run;
+        if (!placeholderRule.isPlaceholderRun(run)) return false;
+        const kbps = Math.round(placeholderRule.connectionKbps(conn));
+        this.endAsPlaceholder(`${run} connections in a row each ended within ${Math.round(tuning.placeholderShortMs / 1000)} s, the last after ` +
+            `${Math.round(conn.wallMs / 100) / 10} s at ${kbps} kbps`, this.placeholderRunStart);
+        return true;
+    }
+
+    /**
+     * #332: the provider is sending its placeholder, not the channel. The feed ends at once for the provider's sake, every
+     * reader with `placeholder` (a provider reason: the dead-feed failover, the client's re-resolve, a recording's next
+     * try), and the (provider, channel) is quarantined for providerRouting.PLACEHOLDER_MS (3 min: the slate comes and
+     * goes), never counted toward the provider's breaker. Ended whether or not the channel has somewhere else to go: a
+     * still slate is not the channel (a viewer is told so, a recording keeps trying: D-59). `since`: when the placeholder
+     * began (the run's first connection), or null when not known (a blank verdict).
+     */
+    endAsPlaceholder(detail, since = null) {
+        if (this.closed) return false;
+        try { require('./providerRouting').notePlaceholder(this.providerId, this.channelKey); } catch (e) { /* observation only */ }
+        const who = this.providerName || 'the provider';
+        this.placeholder = { at: Date.now(), detail };
+        this.log(`${who} is sending a placeholder${this.channel ? ` on "${this.channel}"` : ''} (${detail}); ending the feed`);
+        const viewer = [...this.subs].find(s => s.info.purpose === 'viewer' && s.info.owner);
+        try {
+            require('./playbackEvents').record({ type: 'relay', owner: viewer ? viewer.info.owner : null, channel: this.channel,
+                provider: this.providerName, reason: `placeholder: ${who} is sending a still placeholder, not the channel` });
+        } catch (e) { /* observation only */ }
+        this.close(`${who} is sending a placeholder, not the channel`, { providerReason: true, reason: 'placeholder', placeholderSince: since });
+        return true;
+    }
+
+    /**
+     * #332: a reader's 20 s picture check found the feed blank (transcodeSession.checkPicture). When the feed has had a
+     * short low-rate connection, or the picture has the placeholder's shape, it is the placeholder: ended as one (true).
+     */
+    noteBlank({ width = null, height = null, fps = null, kbps = null } = {}) {
+        if (!tuning.placeholderCheck || this.closed) return false;
+        if (!placeholderRule.blankIsPlaceholder({ shortLowSeen: this.shortLowSeen, width, height, fps })) return false;
+        return this.endAsPlaceholder(`a blank picture${kbps !== null ? ` at ${kbps} kbps` : ''}` +
+            (this.shortLowSeen ? ' after a short low-rate connection' : ' with the placeholder\'s shape'), null);
+    }
+
+    /** #332: a reader knows the picture's height (the blank threshold depends on it). */
+    noteHeight(height) {
+        const h = Number(height);
+        if (Number.isFinite(h) && h > 0) this.feedHeight = h;
+    }
+
     /** A connection that never delivered MPEG-TS: refuse the ingest at its start, else keep reconnecting. */
     connectFailed(why, providerReason) {
         if (this.closed) return;
@@ -438,6 +520,7 @@ class Ingest extends EventEmitter {
     /** The connection is gone after it had delivered: reconnect (backing off) for up to reconnectMs, then fail. */
     onUpstreamGone(why, forLag = false) {
         if (this.closed) return;
+        if (this.state === 'live' && this.judgeConnection()) return;
         if (this.state === 'live') {
             this.learn(Date.now());
             lagLimit.flush(this.lagLimit);
@@ -592,7 +675,7 @@ class Ingest extends EventEmitter {
     }
 
     /** Close the reader; subscribers still on it end with `reason`. */
-    close(why, { providerReason = false, reason = 'closed', periodSec = null } = {}) {
+    close(why, { providerReason = false, reason = 'closed', periodSec = null, placeholderSince = null } = {}) {
         if (this.closed) return;
         // I1 (0230): callers still waiting for the first bytes settle now. Closed for the provider's
         // sake it is a refusal; otherwise (released, shutdown) it is a cancellation, which a caller
@@ -610,7 +693,7 @@ class Ingest extends EventEmitter {
         clearTimeout(this.lingerTimer);
         clearTimeout(this.retryTimer);
         if (this.request) { try { this.request.destroy(); } catch (e) { /* gone */ } }
-        for (const sub of [...this.subs]) sub.finish(reason, { providerReason, periodSec });
+        for (const sub of [...this.subs]) sub.finish(reason, { providerReason, periodSec, placeholderSince });
         this.subs.clear();
         this.chunks = [];
         this.bytes = 0;
@@ -669,7 +752,7 @@ function rememberChannel(key, ref) {
  * once the stream is confirmed MPEG-TS; rejects (`ingestRefused`) when it is not, or the provider
  * refuses the first connection - the caller then uses its usual path.
  */
-async function subscribe({ pool, url, userAgent, providerId = null, purpose = null, owner = null, channel = null, providerName = null, channelKey = null, channelRef = null }) {
+async function subscribe({ pool, url, userAgent, providerId = null, purpose = null, owner = null, channel = null, providerName = null, channelKey = null, channelRef = null, height = null }) {
     const key = keyOf(pool, url);
     channelRef = channelRef || channelRefs.get(key) || null;
     let ingest = registry.get(key);
@@ -687,6 +770,7 @@ async function subscribe({ pool, url, userAgent, providerId = null, purpose = nu
     ingest.channel ??= channel;
     ingest.channelRef ??= channelRef;
     ingest.providerName ??= providerName;
+    ingest.noteHeight(height);
     return ingest.subscribe({ purpose, owner }, { fromStart: opened });
 }
 

@@ -90,11 +90,8 @@ const TIMESTAMP_WARNING = /timestamp discontinuity|Non-monotonic DTS|Packet dura
 // health row marked. Playback itself is left alone. A still slate is caught too,
 // which is the point: neither is the channel.
 const BLANK_CHECK_SEC = 20;
-const blankKbps = (height) => {
-    const n = Number.parseInt(process.env.PIGTV_BLANK_KBPS, 10);
-    if (Number.isFinite(n) && n >= 0) return n;
-    return height && height < 720 ? 250 : 500;
-};
+// #332: the threshold is shared with the shared ingest's placeholder rule (feedPlaceholder.js).
+const { blankKbps } = require('./feedPlaceholder');
 
 // How many segments a live session keeps on disk before rotating the
 // oldest ones out. Unbounded (the old 0) means the whole session gets
@@ -253,7 +250,8 @@ class TranscodeSession extends EventEmitter {
             const src = this.options.ingestSource;
             let feed = null;
             try {
-                feed = await ingest.subscribe({ ...src, purpose: this.options.standby ? 'standby' : this.options.warm ? 'warm' : 'viewer', owner: this.owner || null });
+                feed = await ingest.subscribe({ ...src, purpose: this.options.standby ? 'standby' : this.options.warm ? 'warm' : 'viewer', owner: this.owner || null,
+                    height: this.options.height || null });
             } catch (err) {
                 // PB1: stopped meanwhile, or the ingest was closed under us (released, shutdown): a
                 // cancellation, never a reason to open a connection of our own.
@@ -267,7 +265,13 @@ class TranscodeSession extends EventEmitter {
                 this.feed = feed;
                 this.ingestKey = ingest.keyOf(src.pool, src.url);
                 this.feedLost = null;
-                this.feed.on('ingest-end', (why) => { this.feedLost = why; });
+                this.feed.on('ingest-end', (why) => {
+                    this.feedLost = why;
+                    // #332: the provider's placeholder ended the feed (the resolve forgets a profile probed from it).
+                    if (why && why.reason === 'placeholder') {
+                        try { this.emit('placeholder', why); } catch (err) { console.warn(`[TranscodeSession ${this.id}] A placeholder listener failed:`, err.message); }
+                    }
+                });
                 this.feed.on('reconnected', (info) => this.handleIngestReconnect(info));
             }
         }
@@ -1332,8 +1336,13 @@ class TranscodeSession extends EventEmitter {
         if (this.blank) {
             console.warn(`[TranscodeSession ${this.id}] Blank picture: ${kbps} kbps over ${Math.round(seconds)}s` +
                 `${height ? ` at ${height}p` : ''} (under ${limit}) - the provider is sending a black or still placeholder, not the channel`);
+            // #332: on the shared ingest, after a short low-rate connection or with the placeholder's shape, it is the
+            // provider's placeholder: the feed is ended as one (ingest.noteBlank), which the listeners are told.
+            const feed = this.feed && !this.feed.endReason ? this.feed.ingest : null;
+            const placeholder = !!feed && typeof feed.noteBlank === 'function'
+                && feed.noteBlank({ width: Number(this.options.width) || null, height: height || null, fps: this.options.fps ?? null, kbps }) === true;
             try {
-                this.emit('blank', { kbps, seconds });
+                this.emit('blank', { kbps, seconds, placeholder });
             } catch (err) {
                 console.warn(`[TranscodeSession ${this.id}] A blank-picture listener failed:`, err.message);
             }

@@ -183,7 +183,7 @@ function clientFailed(owner, now = Date.now()) {
  * a black or still placeholder, not the channel. The attempt becomes a failure with reason
  * 'blank' even though it "played". The pending entry stays, so play-end still lands on it.
  */
-function sessionBlank(owner, now = Date.now()) {
+function sessionBlank(owner, now = Date.now(), reason = 'blank') {
     try {
         const p = owner ? pending.get(owner) : null;
         if (!p || now - p.at > ENDED_MS) return false;
@@ -191,7 +191,8 @@ function sessionBlank(owner, now = Date.now()) {
         const row = db.prepare('SELECT source_id, channel_key FROM channel_health WHERE id = ?').get(p.rowId);
         if (!row) return false;
         const before = countsFor(row.source_id, row.channel_key, now);
-        db.prepare(`UPDATE channel_health SET ok = 0, reason = 'blank' WHERE id = ?`).run(p.rowId);
+        // #332: 'placeholder' when the feed was the provider's placeholder (ended), else 'blank'.
+        db.prepare('UPDATE channel_health SET ok = 0, reason = ? WHERE id = ?').run(reason === 'placeholder' ? 'placeholder' : 'blank', p.rowId);
         afterChange(row.source_id, row.channel_key, before, now);
         return true;
     } catch (e) {
@@ -265,9 +266,10 @@ function leastReliable({ limit = 10, now = Date.now() } = {}) {
     const byKey = new Map();
     for (const r of rows) {
         const k = `${r.source_id}:${r.channel_key}`;
-        const e = byKey.get(k) || { name: null, attempts: 0, failures: 0, stalls: 0, watched: 0, pictures: [], blank: false };
+        const e = byKey.get(k) || { name: null, attempts: 0, failures: 0, stalls: 0, watched: 0, pictures: [], blank: false, placeholder: false };
         e.name = r.name || e.name; // the latest name wins
         e.blank = r.reason === 'blank'; // 0191: whether the latest attempt was a blank picture
+        e.placeholder = r.reason === 'placeholder'; // #332: or the provider's placeholder
         e.attempts++;
         if (!r.ok) e.failures++;
         e.stalls += r.stalls || 0;
@@ -294,6 +296,7 @@ function leastReliable({ limit = 10, now = Date.now() } = {}) {
             medianFirstPictureSec: median(e.pictures),
             health: classify(e.attempts, e.failures, e.stalls, e.watched),
             blank: e.blank,
+            placeholder: e.placeholder,
             score: round1(e.failures + e.stalls / (Math.max(e.watched, RANK_MIN_WATCH_SEC) / 3600))
         }))
         .sort((a, b) => b.score - a.score

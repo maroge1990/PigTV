@@ -178,9 +178,25 @@ test('7mate\'s black 1080p (193 kbps with its audio) is marked blank once there 
     const r = await s.checkPicture();
     assert.equal(r.kbps, 193);
     assert.equal(s.blank, true);
-    assert.deepEqual(blanks, [{ kbps: 193, seconds: 24 }]);
+    assert.deepEqual(blanks, [{ kbps: 193, seconds: 24, placeholder: false }]); // #332: no shared feed here: not the placeholder
     assert.equal(await s.checkPicture(), null, 'decided once');
     assert.equal(blanks.length, 1);
+});
+
+test('#332: on the shared feed, the blank verdict is handed to the ingest, which may end it as the placeholder', async () => {
+    const asked = [];
+    const placeholder = sessionWithSegments('slate', { kbps: 193, segments: 6 });
+    placeholder.s.options.width = 1920;
+    placeholder.s.options.fps = '30/1';
+    placeholder.s.feed = { endReason: null, ingest: { noteBlank: (shape) => { asked.push(shape); return true; } } };
+    await placeholder.s.checkPicture();
+    assert.deepEqual(asked, [{ width: 1920, height: 1080, fps: '30/1', kbps: 193 }]);
+    assert.deepEqual(placeholder.blanks, [{ kbps: 193, seconds: 24, placeholder: true }]);
+    // The ingest says it is not the placeholder (a dark channel): the verdict is the 0191 note, as before.
+    const dark = sessionWithSegments('dark', { kbps: 193, segments: 6 });
+    dark.s.feed = { endReason: null, ingest: { noteBlank: () => false } };
+    await dark.s.checkPicture();
+    assert.deepEqual(dark.blanks, [{ kbps: 193, seconds: 24, placeholder: false }]);
 });
 
 test('a real picture is not blank: Fox Footy\'s 5 Mbps, and a modest SD channel', async () => {
