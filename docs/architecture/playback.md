@@ -204,7 +204,7 @@ silent from the start. **Real problems:** `Could not write header`, `FFmpeg exit
 
 **Client diagnostics.** `POST /api/playback/client-event` (token; whitelisted, bounded fields; path only, never a query string):
 `media-error`, `start-timeout`, `play-start`, `play-end`, `av-desync`. Log lines end `from=user:<id>` / `from=device:<id>`.
-`av-desync` (#268) is the player's "Sound out of step" mark: one line, `[Player] av-desync t=<s>s behind=<s>s rate=<r>
+`av-desync` (#268) is the player's "Sound out of step" mark: one line, `[Player] av-desync t=<s>s buffered=<s>s behind=<s>s rate=<r>
 catching-up=<bool> stalls=<n> watched=<s>s from=device:<id>` then the owner's open relay in brief (`streamRelay.forOwner`,
 `Relay.brief()`): `relay=<id> leg=<n> provider=<name> switches=<n> since-last-switch=<s>s|none standby=off|none|starting|ready`,
 or `relay=none`. A number out of range or not a number reads `?`; the provider is a name (spaces as `_`), URLs stripped.

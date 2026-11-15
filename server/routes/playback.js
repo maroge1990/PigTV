@@ -584,7 +584,7 @@ router.post('/client-event', requireToken, (req, res) => {
         const owner = coordinator.ownerKey(req.user);
         const inRange = (v, lo, hi) => (typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi ? v : null);
         const r1 = (v) => (v === null ? '?' : String(Math.round(v * 10) / 10));
-        const t = inRange(body.currentTime, 0, 1e7), behind = inRange(body.behindLive, 0, 86400);
+        const t = inRange(body.currentTime, 0, 1e7), buffered = inRange(body.bufferedEnd, 0, 1e7), behind = inRange(body.behindLive, 0, 86400);
         const rate = inRange(body.rate, 0, 4), stalls = inRange(body.stalls, 0, 1e6), watched = inRange(body.watchedSec, 0, 1e7);
         const catchingUp = typeof body.catchingUp === 'boolean' ? body.catchingUp : null;
         const name = (v) => require('../redact').stripUrls(text(v, 200)).slice(0, 40).trim().replace(/\s+/g, '_') || '?';
@@ -599,7 +599,7 @@ router.post('/client-event', requireToken, (req, res) => {
                     `since-last-switch=${b.sinceLastSwitchSec === null ? 'none' : `${b.sinceLastSwitchSec}s`} standby=${b.standby}`;
             }
         } catch (e) { /* observation only: the mark is still logged */ }
-        console.log(`[Player] av-desync t=${r1(t)}s behind=${r1(behind)}s rate=${rate === null ? '?' : Math.round(rate * 1000) / 1000} ` +
+        console.log(`[Player] av-desync t=${r1(t)}s buffered=${r1(buffered)}s behind=${r1(behind)}s rate=${rate === null ? '?' : Math.round(rate * 1000) / 1000} ` +
             `catching-up=${catchingUp === null ? '?' : catchingUp} stalls=${stalls === null ? '?' : Math.round(stalls)} ` +
             `watched=${watched === null ? '?' : Math.round(watched)}s from=${owner || 'unknown'} ${relayText}`);
         const last = playbackEvents.lastResolveFor(owner) || {};

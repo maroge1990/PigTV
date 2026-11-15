@@ -212,7 +212,7 @@ test('#268: av-desync is one line with the player\'s state and relay=none when t
         assert.equal((await post({ event: 'av-desync', currentTime: 1834.27, bufferedEnd: 1840.1, behindLive: 5.83, rate: 0.97,
             catchingUp: true, stalls: 2, watchedSec: 1830.6 })).status, 204);
     });
-    assert.deepEqual(lines, ['[Player] av-desync t=1834.3s behind=5.8s rate=0.97 catching-up=true stalls=2 watched=1831s from=user:1 relay=none']);
+    assert.deepEqual(lines, ['[Player] av-desync t=1834.3s buffered=1840.1s behind=5.8s rate=0.97 catching-up=true stalls=2 watched=1831s from=user:1 relay=none']);
     const ev = events.recent()[0];
     assert.equal(ev.type, 'av-desync');
     assert.equal(ev.channel, 'Fox Footy');
@@ -232,7 +232,7 @@ test('#268: with a relay in play the line carries it in brief: id, leg, provider
             await post({ event: 'av-desync', currentTime: 10, behindLive: 3, rate: 1, catchingUp: false, stalls: 0, watchedSec: 10 });
         });
         assert.deepEqual(asked, ['user:1']);
-        assert.deepEqual(lines, ['[Player] av-desync t=10s behind=3s rate=1 catching-up=false stalls=0 watched=10s from=user:1 ' +
+        assert.deepEqual(lines, ['[Player] av-desync t=10s buffered=?s behind=3s rate=1 catching-up=false stalls=0 watched=10s from=user:1 ' +
             'relay=abc123 leg=2 provider=Dream_4K switches=2 since-last-switch=95s standby=ready']);
         assert.equal(load('services/playbackEvents').recent()[0].provider, 'Dream 4K');
         // no switch yet
@@ -251,13 +251,13 @@ test('#268: av-desync fields are bounded, unknown fields dropped, and no URL rea
         switches: 1, sinceLastSwitchSec: 4, standby: 'none' }) });
     try {
         const lines = await withLog(async () => {
-            await post({ event: 'av-desync', currentTime: 'http://provider.example/live/u/p/1.ts', behindLive: -4, rate: 99,
+            await post({ event: 'av-desync', currentTime: 'http://provider.example/live/u/p/1.ts', bufferedEnd: 'soon', behindLive: -4, rate: 99,
                 catchingUp: 'yes', stalls: { n: 1 }, watchedSec: Infinity, url: 'http://provider.example/live/u/p/1.ts',
                 message: 'line one\n[Auth] Login OK', strategy: 'x\ny' });
         });
         assert.equal(lines.length, 1);
         const line = lines[0];
-        assert.match(line, /^\[Player\] av-desync t=\?s behind=\?s rate=\? catching-up=\? stalls=\? watched=\?s from=user:1 relay=r1 leg=1 provider=\S+ switches=1 since-last-switch=4s standby=none$/);
+        assert.match(line, /^\[Player\] av-desync t=\?s buffered=\?s behind=\?s rate=\? catching-up=\? stalls=\? watched=\?s from=user:1 relay=r1 leg=1 provider=\S+ switches=1 since-last-switch=4s standby=none$/);
         assert.ok(!/provider\.example|pass|Login|\n/.test(line), line);
         const ev = load('services/playbackEvents').recent()[0];
         assert.ok(!JSON.stringify(ev).includes('provider.example'), JSON.stringify(ev));
