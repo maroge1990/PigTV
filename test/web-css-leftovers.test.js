@@ -123,3 +123,20 @@ test('#295: Providers > Groups never imported keeps the tick box beside the name
     const row = ALL.find(r => phone.test(r.media) && r.selectors.includes('.setting-item.import-exclusion'));
     assert.ok(row && /display:\s*grid/.test(row.body) && /grid-template-columns:\s*auto 1fr/.test(row.body));
 });
+
+// Rig T3 of the web leftovers batch (15 Nov 2026): three things the static checks above missed.
+test('rig: Recordings\' Delete selected is a neutral button with red text, never red on red', () => {
+    const all = rules().filter(r => r.media === '' && r.selectors.some(s => s.replace(/\s+/g, ' ') === '.rec-tools .btn-danger'));
+    const body = all.map(r => r.body).join(';');
+    assert.match(body, /background:\s*var\(--color-bg-tertiary\)/, 'neutral background');
+    assert.match(body, /color:\s*var\(--color-error-text\)/, 'status text red');
+});
+test('rig: the build label leaves the top bar below 768 px, so the nav fits from 481 px', () => {
+    const r = rules().find(x => /max-width:\s*768px/.test(x.media) && x.selectors.includes('.version-badge'));
+    assert.ok(r && /display:\s*none/.test(r.body), '.version-badge hidden at 768 px and below');
+});
+test('rig: bare Settings fields are 44 px on touch, after the 36 px base rule', () => {
+    const idxBase = css.indexOf('min-height: 36px');
+    const tail = css.slice(idxBase);
+    assert.match(tail, /@media \(pointer: coarse\)\s*\{[^}]*\.settings-section select:not\(\[class\]\)[^{]*\{\s*min-height:\s*44px/, 'a coarse-pointer 44 px rule comes after the base');
+});

@@ -3703,7 +3703,8 @@ body.ui-dialog-open {
 .rec-tools .btn { min-height: 44px; }
 .rec-none { margin: 0; color: var(--color-text-secondary); display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); }
 
-.rec-tools .btn-danger { color: var(--color-error-text); }
+.rec-tools .btn-danger,
+.rec-tools .btn-danger:hover:not(:disabled, [aria-disabled="true"]) { background: var(--color-bg-tertiary); color: var(--color-error-text); }
 .rec-tools .btn[disabled] { opacity: .5; cursor: default; }
 .rec-tile.is-picked { border-color: var(--color-accent); box-shadow: 0 0 0 1px var(--color-accent); }
 .rec-pick { position: absolute; top: var(--space-sm); left: var(--space-sm); z-index: 1; display: inline-flex; align-items: center; gap: var(--space-xs);
@@ -3736,6 +3737,16 @@ body.ui-dialog-open {
 .rec-chip .rec-clash { margin-top: var(--space-xs); padding: var(--space-xs) var(--space-sm); font-size: var(--text-xs); }
 .rec-chip-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-sm); margin-top: auto; padding-top: var(--space-xs); }
 .rec-chip-foot .rec-actions .btn { min-height: 36px; padding: var(--space-xs) var(--space-md); }
+/* Rig T3 (15 Nov 2026): the 36 px base rule above came after the coarse-pointer 44 px one and won; touch keeps 44. */
+@media (pointer: coarse) {
+  .settings-section input:is([type="text"], [type="number"], [type="password"], [type="email"], [type="url"]):not([class]),
+  .settings-section select:not([class]) { min-height: 44px; }
+}
+/* Rig T3: below 768 px the build label wrapped and pushed the nav out of the bar (481 to 520 px); Status has the build. */
+@media (max-width: 768px) {
+  .version-badge { display: none; }
+}
+
 
 /* Rules and recent problems: rows */
 .rec-two { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--space-lg); margin-bottom: var(--space-lg); }
