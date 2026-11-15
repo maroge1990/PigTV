@@ -41,12 +41,10 @@ function rules() {
 const ALL = rules();
 const find = (selector, mediaRe) => ALL.filter(r => r.selectors.includes(selector) && (mediaRe ? mediaRe.test(r.media) : true));
 
-test('#295: the top bar fits from 481 to 560 px (tighter links and lockup)', () => {
-    const links = find('.navbar-menu .nav-link', /min-width:\s*481px\)\s*and\s*\(max-width:\s*560px/);
-    assert.ok(links.length, 'a nav-link rule for 481 to 560 px');
-    assert.match(links[0].body, /padding-left:\s*var\(--space-xs\)/);
-    const lockup = find('.brand-lockup', /min-width:\s*481px/);
-    assert.ok(lockup.length && /width:\s*104px/.test(lockup[0].body), 'a smaller lockup in that range');
+test('#295: the top bar fits from 481 px (tighter link sides up to 768 px)', () => {
+    const links = find('.nav-link', /max-width:\s*768px/).filter(r => /flex-direction:\s*column/.test(r.body));
+    assert.ok(links.length, 'the 768 px nav-link rule');
+    assert.match(links[0].body, /padding:\s*var\(--space-sm\) var\(--space-xs\)/);
 });
 
 const phone = /max-width:\s*480px/;
@@ -96,6 +94,29 @@ test('#295: in the phone guide the channel name is not squeezed to a letter', ()
     assert.ok(logo && /display:\s*none/.test(logo.body), 'the logo goes');
     const name = ALL.filter(r => phone.test(r.media) && r.selectors.includes('.epg-channel-name')).pop();
     assert.ok(name && /white-space:\s*normal/.test(name.body) && /-webkit-line-clamp:\s*2/.test(name.body), 'the name may take two lines');
+});
+
+// #295 point 2 (PigBrand 1.9.1): status words and tags use the text shades; icons, dots and fills keep the bright colours.
+test('#295: the status text tokens carry the brand 1.9.1 values, light and dark', () => {
+    const light = find('[data-theme="light"]').map(r => r.body).join(';');
+    const dark = find(':root').map(r => r.body).join(';');
+    for (const [name, l, d] of [['success', '#0B6948', '#10B981'], ['warning', '#884F0B', '#F59E0B'], ['error', '#A42E25', '#F37171']]) {
+        assert.match(light, new RegExp(`--color-${name}-text:\\s*${l}`, 'i'), `light ${name}`);
+        assert.match(dark, new RegExp(`--color-${name}-text:\\s*${d}`, 'i'), `dark ${name}`);
+    }
+});
+
+test('#295: status tags and words are coloured with the text shades, never the bright colour', () => {
+    const textOf = (sel) => find(sel).map(r => (r.body.match(/(?<![-\w])color:\s*[^;]+/g) || []).join(';')).join(';');
+    const want = { '.rec-tag.is-ok': 'success', '.rec-tag.is-warn': 'warning', '.rec-tag.is-bad': 'error', '.rec-tag.is-live': 'error',
+        '.rec-err': 'error', '.provider-soon': 'warning', '.provider-busy': 'warning', '.link-badge.warn': 'warning', '.link-badge.bad': 'error',
+        '.status-failure': 'error', '.lineup-status.error': 'error', '.field-error': 'error' };
+    for (const [sel, kind] of Object.entries(want)) {
+        const c = textOf(sel);
+        assert.ok(c.includes(`--color-${kind}-text`), `${sel} uses the ${kind} text shade: ${c}`);
+    }
+    // No text colour anywhere takes the bright status colour (icons and fills are background, border, fill or stroke).
+    assert.deepEqual(css.match(/(?<![-\w])color:\s*var\(--color-(success|warning|error)\b(?!-)/g), ['color: var(--color-warning'], 'only the warning icon keeps a bright colour');
 });
 
 test('#295: Providers > Groups never imported keeps the tick box beside the name on a phone', () => {

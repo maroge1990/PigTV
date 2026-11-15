@@ -25,7 +25,7 @@ test('the banner has no border; the back button is raised, radius 16, no border'
 test('the outlines: followed 3 px accent, live 2 px danger (cards, fixtures, live F1 tiles)', () => {
     for (const sel of ['.sp .gcard.fol', '.sp .fx.fol']) assert.match(rulesFor(sel), /inset 0 0 0 3px var\(--color-accent\)/, sel);
     for (const sel of ['.sp .gcard.live', '.sp .fx.live', '.sp .tile.live']) assert.match(rulesFor(sel), /inset 0 0 0 2px color-mix\(in srgb, var\(--live\) 80%/, sel);
-    assert.match(rulesFor('.sp .tile.live .ln'), /color:\s*var\(--live\)/, 'a live tile\'s line is red');
+    assert.match(rulesFor('.sp .tile.live .ln'), /color:\s*var\(--live-text\)/, 'a live tile\'s line is red');
 });
 
 test('the game card is iOS\'s 260 wide with 40 px team rows', () => {

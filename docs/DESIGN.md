@@ -67,7 +67,7 @@ app's `public/css/`.
 
 ### PigTV brand standard (PigBrand guide 1.8.1, token values 1.7.0)
 
-The source of truth is the PigBrand kit: guide 1.8.1, token values 1.7.0 (`PigBrand/docs/pig-family-brand-guide.md`, `docs/integration.md`, `tokens/brand-tokens.json`). The vendored `pig-glass.css` and `pig-radiance.css` carry the kit's 1.9.0 stamp, a version stamp only: their values are unchanged since 1.7.0. This note only records what PigTV takes from it and where. When the kit changes, re-copy the files below rather than editing them here.
+The source of truth is the PigBrand kit: guide 1.8.1, token values 1.7.0, plus the 1.9.1 status text shades `--color-success-text`, `--color-warning-text`, `--color-error-text` in `main.css` (`PigBrand/docs/pig-family-brand-guide.md`, `docs/integration.md`, `tokens/brand-tokens.json`). The vendored `pig-glass.css` and `pig-radiance.css` carry the kit's 1.9.0 stamp, a version stamp only: their values are unchanged since 1.7.0. This note only records what PigTV takes from it and where. When the kit changes, re-copy the files below rather than editing them here.
 
 #### What PigTV vendors
 

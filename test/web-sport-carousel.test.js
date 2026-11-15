@@ -16,6 +16,6 @@ test('the kicker names the state and the league, never whose team it is', () => 
 test('the kicker is grey, red only when live, with an 8 px dot', () => {
     assert.match(rulesFor('.sp .fcard .kicker'), /color:\s*var\(--color-text-secondary\)/);
     assert.match(rulesFor('.sp .fcard .kicker'), /font-size:\s*11px/);
-    assert.match(rulesFor('.sp .fcard .kicker.live'), /color:\s*var\(--live\)/);
+    assert.match(rulesFor('.sp .fcard .kicker.live'), /color:\s*var\(--live-text\)/);
     assert.match(rulesFor('.sp .fcard .kicker .dot'), /width:\s*8px/);
 });

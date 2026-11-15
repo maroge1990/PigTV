@@ -3,7 +3,7 @@
    Every rule is under .sp (the page's root), so nothing here reaches another page. Brand 1.8 tokens from main.css;
    text 16 px (secondary 14 or 12, never under 12), targets 44 px, the one focus ring, reduced motion. */
 
-.sp { --live: var(--color-error); --raised: var(--color-bg-tertiary); --surface: var(--color-bg-secondary);
+.sp { --live: var(--color-error); --live-text: var(--color-error-text); --raised: var(--color-bg-tertiary); --surface: var(--color-bg-secondary);
   --sel: var(--color-accent-dim); --gutter: 32px; --disc: #5A5466;
   /* #326: iOS's league colours (Assets League*.colorset; no brand token), behind a monogram disc or a league badge */
   --lg-nfl: #013369; --lg-f1: #E10600; --lg-nba: #C9082A; --lg-afl: #0B3D91; --lg-cricket: #1F7A3A; --lg-epl: #3D195B;
@@ -75,7 +75,7 @@
 .sp .kicker { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
   color: var(--color-accent-text); white-space: nowrap; overflow: hidden; }
 .sp .kicker span { overflow: hidden; text-overflow: ellipsis; }
-.sp .kicker.live { color: var(--live); }
+.sp .kicker.live { color: var(--live-text); }
 .sp .dot { display: inline-block; flex: 0 0 auto; width: 12px; height: 12px; border-radius: 50%; background: var(--live); }
 .sp .hero .htitle { margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis; }
@@ -94,7 +94,7 @@
 .sp .brow .t { flex: 1; min-width: 0; font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sp .brow.sel .t { color: var(--color-accent-text); }
 .sp .brow .tr { font-size: 12px; font-weight: 600; color: var(--color-text-secondary); white-space: nowrap; }
-.sp .brow .tr.live { color: var(--live); }
+.sp .brow .tr.live { color: var(--live-text); }
 .sp .bmore { min-height: 18px; font-size: 12px; color: var(--color-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
 
 /* ---------- a sport's section: "Football ›", league rails of cards ---------- */
@@ -141,7 +141,7 @@
 .sp .star { color: var(--color-accent-text); font-size: 12px; line-height: 1; }
 .sp .row .star { margin-right: 4px; }
 .sp .cbot { display: flex; align-items: center; gap: 8px; margin-top: auto; padding-top: 4px; font-size: 12px; white-space: nowrap; min-width: 0; }
-.sp .cbot .clk { font-weight: 700; color: var(--live); overflow: hidden; text-overflow: ellipsis; }
+.sp .cbot .clk { font-weight: 700; color: var(--live-text); overflow: hidden; text-overflow: ellipsis; }
 .sp .cbot .when { font-weight: 700; }
 .sp .cbot .res { font-weight: 600; color: var(--color-text-secondary); }
 .sp .cbot .ch { margin-left: auto; color: var(--color-text-secondary); overflow: hidden; text-overflow: ellipsis; }
@@ -184,7 +184,7 @@
   border-radius: 22px; background: var(--raised); scroll-snap-align: start; }
 /* #326: iOS's carousel kicker is caption2 bold, secondary grey (red when live), an 8 pt dot */
 .sp .fcard .kicker { font-size: 11px; color: var(--color-text-secondary); }
-.sp .fcard .kicker.live { color: var(--live); }
+.sp .fcard .kicker.live { color: var(--live-text); }
 .sp .fcard .kicker .dot { width: 8px; height: 8px; }
 /* the card's body presses as iOS's does: 60 % and 98 % */
 .sp .fbody:active { opacity: .6; transform: scale(.98); }
@@ -229,7 +229,7 @@
 .sp .row .l1 .sc { margin-left: auto; padding-left: 10px; font-size: 16px; font-weight: 800; white-space: nowrap; }
 .sp .row .l2 { display: block; padding-left: 30px; margin-top: 2px; font-size: 13px; color: var(--color-text-secondary); white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis; }
-.sp .row .l2 .lv { color: var(--live); font-weight: 700; }
+.sp .row .l2 .lv { color: var(--live-text); font-weight: 700; }
 .sp .row .l2 .lv .dot { width: 7px; height: 7px; margin-right: 4px; vertical-align: 1px; }
 
 /* ---------- a sport's page (SportPageView on a computer, SportPhonePage on a phone) ---------- */
@@ -325,7 +325,7 @@
   border-radius: 16px; background: var(--raised); border: 0; text-align: left; }
 .sp .tile:hover { background: var(--color-hover-raised); }
 .sp .tile.live { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--live) 80%, transparent); }
-.sp .tile.live .ln { color: var(--live); }
+.sp .tile.live .ln { color: var(--live-text); }
 .sp .tile .tt { display: flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 700; white-space: nowrap; }
 .sp .tile .wh { font-size: 12px; color: var(--color-text-secondary); white-space: nowrap; }
 .sp .tile .ln { margin-top: auto; font-size: 12px; font-weight: 700; }
@@ -638,7 +638,7 @@
 .sp-win .rrow select:disabled { opacity: .5; }
 .sp-win .rsech { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .sp-win .rsech > span { font-size: 13px; color: var(--color-text-secondary); }
-.sp-win .rerr { margin: 10px 0 0; font-size: 14px; font-weight: 600; color: var(--color-warning); }
+.sp-win .rerr { margin: 10px 0 0; font-size: 14px; font-weight: 600; color: var(--color-warning-text); }
 @media (max-width: 768px) {
   .ui-dialog.sp-window { width: 100vw; max-width: 100vw; max-height: 90dvh; margin: auto 0 0; border-bottom: 0; border-radius: 20px 20px 0 0; }
   .ui-dialog.sp-window .ui-dialog-footer { flex-direction: column-reverse; }
