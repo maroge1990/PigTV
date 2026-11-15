@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { loadApi } = require('./helpers/webApi');
 
 // #9 (0358): changing a web player preference no longer writes a page-load copy of every setting back. The real
 // VideoPlayer script with the API stubbed. On 0357 saveSettings() PUT the whole object it loaded with the page, so a
@@ -25,6 +26,7 @@ function harness(serverSettings, { refuse = null, fetch = null, setTimeout = nul
             }
         } }
     });
+    loadApi(context);
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../public/js/components/VideoPlayer.js'), 'utf8'), context);
     const player = Object.create(context.window.VideoPlayer.prototype);
     player.getDefaultSettings = context.window.VideoPlayer.prototype.getDefaultSettings;

@@ -261,11 +261,7 @@ class App {
 
         try {
             // Verify token with server
-            const response = await fetch('/api/auth/me', {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
+            const response = await API.authFetch('/api/auth/me');
 
             if (!response.ok) {
                 throw new Error('Invalid token');
@@ -331,12 +327,7 @@ class App {
         if (this.player && this.player.handlePageHide) this.player.handlePageHide();
         const token = localStorage.getItem('authToken');
         if (token) {
-            await fetch('/api/auth/logout', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
+            await API.authFetch('/api/auth/logout', { method: 'POST' });
         }
         localStorage.removeItem('authToken');
         window.location.replace('/login.html');

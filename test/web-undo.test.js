@@ -5,6 +5,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { loadUi } = require('./helpers/webUi');
 const { createDocument, FakeEvent } = require('./helpers/fakeDom');
+const { loadApi } = require('./helpers/webApi');
 
 // #276 review (Codex high, Opus M2/M3, rig keyboard pass): UI.undoable is the one place a change waits for its Undo
 // notice. Each waiting change is sent exactly once: when the notice ends without Undo, or at once, with keepalive, when
@@ -89,6 +90,7 @@ test('sign-out sends what waits first, while the sign-in still works, and waits 
     context.localStorage = { getItem: () => token, removeItem: () => { token = null; log.push('token removed'); } };
     context.location = { replace: (u) => log.push(`to ${u}`) };
     context.fetch = async (url) => { log.push(`fetch ${url}`); return { ok: true }; };
+    loadApi(context);
     vm.runInContext(read('public/js/app.js'), context);
     let finish;
     UI.undoable('Recording deleted', { commit: (o) => { log.push(`commit keepalive=${o.keepalive} token=${context.localStorage.getItem()}`); return new Promise(r => { finish = r; }); } });
@@ -163,6 +165,7 @@ test('sign-out while a commit is still reading before it sends: it sends at once
     context.localStorage = { getItem: () => token, removeItem: () => { token = null; log.push('token removed'); } };
     context.location = { replace: (u) => log.push(`to ${u}`) };
     context.fetch = async (url) => { log.push(`fetch ${url}`); return { ok: true }; };
+    loadApi(context);
     vm.runInContext(read('public/js/app.js'), context);
     UI.undoable('Recording cancelled', { commit: async (ctl) => {
         ctl.hold();
@@ -184,6 +187,7 @@ test('sign-out while a request is on its way: not sent again, and logout waits f
     context.localStorage = { getItem: () => 'tok', removeItem: () => log.push('token removed') };
     context.location = { replace: () => {} };
     context.fetch = async (url) => { log.push(`fetch ${url}`); return { ok: true }; };
+    loadApi(context);
     vm.runInContext(read('public/js/app.js'), context);
     let sends = 0, answer;
     UI.undoable('Recording deleted', { commit: () => { sends++; log.push('DELETE'); return new Promise(r => { answer = r; }); } });

@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { loadApi } = require('./helpers/webApi');
 
 // PB5 (22 Oct review, 0235): the web player's resolve belongs to one play(). stop() and a newer
 // play() move a generation on (and abort the request): a late answer is then applied to nothing,
@@ -31,6 +32,7 @@ function makePlayer({ confirmAnswer = () => true, honourAbort = true } = {}) {
             });
         }
     });
+    loadApi(context);
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../public/js/components/VideoPlayer.js'), 'utf8'), context);
     const cls = () => ({ add() {}, remove() {}, contains: () => false });
     const played = [];

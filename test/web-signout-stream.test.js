@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { loadApi } = require('./helpers/webApi');
 
 // #320 review: signing out releases the playing stream while the token still works (the pagehide that follows would
 // otherwise send its DELETE without a sign-in and be refused, holding the provider's connection to the idle timeout).
@@ -16,6 +17,7 @@ test('signOut gives the session back with the token, before the token is removed
         fetch: async (url, init) => { calls.push([url, init.method, init.headers && init.headers.Authorization, store.has('authToken')]); return { ok: true }; },
         window: { location: { replace() {} } }
     });
+    loadApi(context);
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../public/js/app.js'), 'utf8'), context);
     const app = Object.create(vm.runInContext('App', context).prototype);
     app.player = { handlePageHide() { context.fetch('/api/transcode/s1', { method: 'DELETE', headers: { Authorization: `Bearer ${store.get('authToken')}` }, keepalive: true }); } };

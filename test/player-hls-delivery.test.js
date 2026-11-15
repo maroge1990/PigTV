@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { loadApi } = require('./helpers/webApi');
 
 // The real player script, with a clock, storage and fetch we control.
 function makePlayer({ stored = {}, storageThrows = false } = {}) {
@@ -29,6 +30,7 @@ function makePlayer({ stored = {}, storageThrows = false } = {}) {
             : { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: (k) => { delete store[k]; } },
         fetch: async (url, init) => { requests.push({ url, body: JSON.parse(init.body) }); return { ok: true, status: 200, json: async () => ({ strategy: 'transcode', container: 'hls', url: '/api/transcode/abc/stream.m3u8', sessionId: 'abc' }) }; }
     });
+    loadApi(context);
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../public/js/components/VideoPlayer.js'), 'utf8'), context);
 
     const reports = [];

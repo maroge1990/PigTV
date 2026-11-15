@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { loadApi } = require('./helpers/webApi');
 
 // #60 (AUD-WEB-5): the web player threw the server's resolve error away (`if (!res.ok) return null`), asked again
 // for every failure, and showed one generic sentence; a 401 (the web sign-in lasts 24 h) looked the same. Now the
@@ -18,6 +19,7 @@ function playerWith(answer) {
         fetch: async (url, init) => { calls.push(url); const r = answer(calls.length); return { ok: r.status < 300, status: r.status, json: async () => r.body }; }
     });
     context.window.location = location;
+    loadApi(context);
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../public/js/components/VideoPlayer.js'), 'utf8'), context);
     const errors = [];
     const player = Object.assign(Object.create(context.window.VideoPlayer.prototype), {

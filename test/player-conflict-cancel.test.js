@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { loadApi } = require('./helpers/webApi');
 
 // Answering "no" to "another device is watching" must stop the play outright.
 // It used to return null, which play() cannot tell apart from "this server has no
@@ -39,6 +40,7 @@ function makePlayer({ answer = false, unavailable = false, status = 404 } = {}) 
             return { status: 200, ok: true, json: async () => ({ strategy: 'transcode', container: 'hls', url: '/api/transcode/abc/stream.m3u8', sessionId: 'abc' }) };
         }
     });
+    loadApi(context);
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../public/js/components/VideoPlayer.js'), 'utf8'), context);
 
     const classList = () => {

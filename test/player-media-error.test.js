@@ -140,8 +140,8 @@ test('while hls.js is driving, the badge is left to it, but the error is still r
 });
 
 test('reporting never throws into playback, even with no network', () => {
-    const proto = loadPlayer({ API: { streamFetch: () => { throw new Error('offline'); } } });
+    const proto = loadPlayer({ API: { authFetch: () => { throw new Error('offline'); } } });
     assert.doesNotThrow(() => proto.reportClientEvent.call({}, { event: 'media-error' }));
-    const rejecting = loadPlayer({ API: { streamFetch: () => Promise.reject(new Error('offline')) } });
+    const rejecting = loadPlayer({ API: { authFetch: () => Promise.reject(new Error('offline')) } });
     assert.doesNotThrow(() => rejecting.reportClientEvent.call({}, { event: 'media-error' }));
 });

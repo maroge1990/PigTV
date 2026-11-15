@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { loadApi } = require('./helpers/webApi');
 
 const AUDIO_ERROR = 'PipelineStatus::PIPELINE_ERROR_DECODE: Failed to send audio packet for decoding: {timestamp:25066646 duration:21333 size:355 is_key_frame:1 encrypted:0}';
 const VIDEO_ERROR = 'PipelineStatus::PIPELINE_ERROR_DECODE: Failed to send video packet for decoding: {timestamp:1 size:99}';
@@ -18,6 +19,7 @@ function makePlayer({ message = AUDIO_ERROR, code = 3, ...state } = {}) {
         localStorage: { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, v) },
         fetch: async (url, opts) => { fetched.push({ url, body: JSON.parse(opts.body) }); return { status: 200, ok: true, json: async () => ({ strategy: 'transcode', container: 'hls', url: '/api/transcode/abc/stream.m3u8' }) }; }
     });
+    loadApi(context);
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../public/js/components/VideoPlayer.js'), 'utf8'), context);
     const plays = [];
     const reports = [];

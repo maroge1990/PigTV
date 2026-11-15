@@ -90,7 +90,7 @@ const ROWS = [
     { file: 'js/api.js', text: 'killAllSessions', why: '0017: settings reorganisation: transcode api group' },
     { file: 'js/api.js', text: 'compress:', why: '0023: light theme fix + manual compress: compress api method' },
     { file: 'js/api.js', text: 'withStreamToken', why: '0038: web client sends stream auth tokens: shared token helper exists' },
-    { file: 'js/api.js', text: 'streamFetch', why: '0038: web client sends stream auth tokens: authenticated fetch helper for transcode management calls' },
+    { file: 'js/api.js', text: 'authFetch(url, options = {})', why: '0038: web client sends stream auth tokens: authenticated fetch helper for transcode management calls (#64: API.authFetch, the one way)' },
     { file: 'js/api.js', bre: 'streamUrl: (id) => API.withStreamToken', why: '0045: native recording playback contract: web client sends token on recording stream URL' },
     { file: 'js/api.js', bre: 'downloadUrl: (id) => API.withStreamToken', why: '0045: native recording playback contract: web client sends token on recording download URL' },
     { file: 'js/api.js', bre: 'API.request(\'GET\', \'/library/categories\')', why: '0121: the web reads /api/library (W2.1): api.js has the library helpers' },

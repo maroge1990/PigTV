@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const { createDocument } = require('./helpers/fakeDom');
+const { loadApi } = require('./helpers/webApi');
 
 // #320 (4): closing the tab gives the stream back at once (a DELETE with keepalive), and a page restored from the
 // back/forward cache comes back to a Resume prompt, not a dead player. The real VideoPlayer script over a fake DOM.
@@ -32,6 +33,7 @@ function harness() {
     });
     context.window = context;
     context.app = { currentUser: { id: 5 }, currentPage: 'live', channelList: { findChannel: () => SEVEN, selectChannel() {} }, pages: {}, titleFor: () => 'Live TV · PigTV' };
+    loadApi(context);
     vm.runInContext(SOURCE, context);
     const player = Object.create(vm.runInContext('VideoPlayer', context).prototype);
     Object.assign(player, {

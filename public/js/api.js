@@ -17,17 +17,11 @@ const API = {
         // #276: a request sent while the page goes away (a change waiting for its Undo notice) outlives the page.
         if (keepalive) options.keepalive = true;
 
-        // Add authentication token if available
-        const token = localStorage.getItem('authToken');
-        if (token) {
-            options.headers['Authorization'] = `Bearer ${token}`;
-        }
-
         if (data) {
             options.body = JSON.stringify(data);
         }
 
-        const response = await fetch(`/api${endpoint}`, options);
+        const response = await API.authFetch(`/api${endpoint}`, options);
 
         let result;
         const contentType = response.headers.get('content-type');
@@ -73,12 +67,12 @@ const API = {
     },
 
     /**
-     * Plain fetch with the Authorization header attached when a token is
-     * available, for the handful of /api/transcode management calls that
-     * return their own response shape rather than API.request's envelope
-     * (and so call fetch directly instead of going through it).
+     * #64: the one way the web app sends a signed-in request: fetch with this browser's sign-in header when it has
+     * one, the caller's options (keepalive, signal, body) passed through untouched, and the Response returned as it
+     * comes. API.request is built on it; the player's playback calls (which read the status themselves: 409, 499,
+     * 401) and the app's sign-in check and sign-out use it directly.
      */
-    streamFetch(url, options = {}) {
+    authFetch(url, options = {}) {
         const token = localStorage.getItem('authToken');
         const headers = { ...(options.headers || {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) };
         return fetch(url, { ...options, headers });
@@ -229,8 +223,8 @@ const API = {
         // Mounted behind the same streamAuth middleware as every other
         // /api/transcode route (segments, playlists), which is always on (R01).
         // killAllSessions also needs an admin.
-        killSession: (id) => API.streamFetch(`/api/transcode/${encodeURIComponent(id)}`, { method: 'DELETE' }).then(r => r.json()),
-        killAllSessions: () => API.streamFetch('/api/transcode/sessions/all', { method: 'DELETE' }).then(r => r.json())
+        killSession: (id) => API.authFetch(`/api/transcode/${encodeURIComponent(id)}`, { method: 'DELETE' }).then(r => r.json()),
+        killAllSessions: () => API.authFetch('/api/transcode/sessions/all', { method: 'DELETE' }).then(r => r.json())
     },
 
     recordings: {

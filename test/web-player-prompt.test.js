@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const { createDocument, FakeEvent } = require('./helpers/fakeDom');
+const { loadApi } = require('./helpers/webApi');
 
 // #320 (6): the clash prompts are a banner inside the player, not confirm(): same words, two buttons, the action and
 // Cancel, resolving the same yes/no. Focus goes to the action, Escape cancels, a newer play or a stop cancels it.
@@ -33,6 +34,7 @@ function harness({ page = 'live', responses = [] } = {}) {
     });
     context.window = context;
     context.app = { currentPage: page };
+    loadApi(context);
     vm.runInContext(SOURCE, context);
     const VideoPlayer = vm.runInContext('VideoPlayer', context);
     const player = Object.create(VideoPlayer.prototype);

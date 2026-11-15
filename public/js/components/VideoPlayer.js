@@ -790,12 +790,9 @@ class VideoPlayer {
         }
 
         try {
-            const res = await fetch('/api/playback/resolve', {
+            const res = await API.authFetch('/api/playback/resolve', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(localStorage.getItem('authToken') ? { Authorization: `Bearer ${localStorage.getItem('authToken')}` } : {})
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body),
                 ...(signal ? { signal } : {})
             });
@@ -864,11 +861,7 @@ class VideoPlayer {
     /** PB5: give back a session started for a play that was stopped or replaced meanwhile. */
     releaseSession(sessionId) {
         try {
-            fetch(`/api/transcode/${sessionId}`, {
-                method: 'DELETE',
-                headers: localStorage.getItem('authToken')
-                    ? { Authorization: `Bearer ${localStorage.getItem('authToken')}` } : {}
-            });
+            API.authFetch(`/api/transcode/${sessionId}`, { method: 'DELETE' });
         } catch (err) { /* best effort, as stopTranscodeSession */ }
     }
 
@@ -894,10 +887,7 @@ class VideoPlayer {
         // #239 (0485): nothing to ask while the player is paused or the tab is hidden
         if (this.video.paused || document.hidden || !this.currentUrl) return;
         try {
-            const res = await fetch('/api/playback/conflict', {
-                headers: localStorage.getItem('authToken')
-                    ? { Authorization: `Bearer ${localStorage.getItem('authToken')}` } : {}
-            });
+            const res = await API.authFetch('/api/playback/conflict');
             if (!res.ok) return;
             const prompt = await res.json();
             if (!prompt || this._promptedFor === prompt.scheduleId) return;
@@ -922,13 +912,9 @@ class VideoPlayer {
                 // Live TV, not because it was declined: ask again at the next check.
                 this._promptedFor = null;
             } else {
-                await fetch('/api/playback/conflict/decline', {
+                await API.authFetch('/api/playback/conflict/decline', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        ...(localStorage.getItem('authToken')
-                            ? { Authorization: `Bearer ${localStorage.getItem('authToken')}` } : {})
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ scheduleId: prompt.scheduleId })
                 });
             }
@@ -1046,10 +1032,8 @@ class VideoPlayer {
             console.log('[Player] Stopping transcode session:', this.currentSessionId);
             try {
                 // Fire and forget cleanup
-                fetch(`/api/transcode/${this.currentSessionId}`, {
+                API.authFetch(`/api/transcode/${this.currentSessionId}`, {
                     method: 'DELETE',
-                    headers: localStorage.getItem('authToken')
-                        ? { Authorization: `Bearer ${localStorage.getItem('authToken')}` } : {},
                     // The page is going (#320): keepalive lets the browser finish this request after it has gone.
                     ...(keepalive ? { keepalive: true } : {})
                 });
@@ -1205,8 +1189,7 @@ class VideoPlayer {
     /** GET /api/playback/:id/terminal-status (0094): true only for `taken-over`; anything else (or no answer in 5 s) recovers. */
     async sessionWasTakenOver(sessionId) {
         try {
-            const token = localStorage.getItem('authToken');
-            const ask = fetch(`/api/playback/${encodeURIComponent(sessionId)}/terminal-status`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+            const ask = API.authFetch(`/api/playback/${encodeURIComponent(sessionId)}/terminal-status`)
                 .then(res => (res && res.ok ? res.json() : null)).catch(() => null);
             const answer = await Promise.race([ask, new Promise(resolve => setTimeout(() => resolve(null), 5000))]);
             return !!answer && answer.status === 'taken-over';
@@ -1882,7 +1865,7 @@ class VideoPlayer {
     /** Best-effort diagnostics to the server. Must never affect playback. */
     reportClientEvent(payload) {
         try {
-            API.streamFetch('/api/playback/client-event', {
+            API.authFetch('/api/playback/client-event', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)

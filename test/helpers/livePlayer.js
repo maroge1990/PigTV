@@ -6,6 +6,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { createDocument, FakeEvent } = require('./fakeDom');
 const { loadUi } = require('./webUi');
+const { loadApi } = require('./webApi');
 
 const SOURCE = fs.readFileSync(path.join(__dirname, '../../public/js/components/VideoPlayer.js'), 'utf8');
 
@@ -112,13 +113,16 @@ function makeLivePlayer({ terminal = () => 'none', resolve, page = 'live', extra
         Hls: FakeHls, fetch, confirm: () => false,
         CustomEvent: class { constructor(type, init = {}) { this.type = type; Object.assign(this, init); } },
         localStorage: { getItem: (k) => (storage.has(k) ? storage.get(k) : null), setItem: (k, v) => storage.set(k, String(v)), removeItem: (k) => storage.delete(k) },
-        API: { settings: { get: async () => ({}) }, withStreamToken: (u) => u, streamFetch: async () => ({}) },
+        API: { settings: { get: async () => ({}) }, withStreamToken: (u) => u },
         addEventListener: (t, fn) => { (windowListeners[t] ||= []).push(fn); },
         dispatchEvent: (ev) => { (windowListeners[ev.type] || []).forEach(fn => fn(ev)); return true; }
     });
     context.window = context;
     context.app = { currentUser: { id: 5 }, currentPage: page, pages: {}, titleFor: (p) => `${p} · PigTV` };
     loadUi(context);
+    loadApi(context);
+    const authFetch = context.API.authFetch; // diagnostics (client-event) stay out of `requests`, as before #64
+    context.API.authFetch = (url, init) => (url === '/api/playback/client-event' ? Promise.resolve({}) : authFetch(url, init));
     vm.runInContext(SOURCE, context);
     const VideoPlayer = vm.runInContext('VideoPlayer', context);
     const player = new VideoPlayer();
