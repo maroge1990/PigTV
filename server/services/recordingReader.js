@@ -11,7 +11,12 @@ const path = require('path');
 
 const CHILD = path.join(__dirname, 'recordingReaderChild.js');
 const tuning = { stallMs: 20000 }; // a test may shorten it
-const live = new Set(); // the children not yet exited (tests: none left behind)
+// At most this many readers at once, running or killed but not yet exited (a child held in the kernel by a hung
+// mount does not die until it answers): beyond it a request is a 503 at once, not one more process into the mount.
+// A slot is free only once its child has exited.
+const MAX_READERS = 8;
+const live = new Set(); // the children not yet exited
+const spawner = { spawn }; // tests stand in a child that never exits
 
 const unresponsive = () => Object.assign(new Error('The recordings folder is not responding'), { code: 'SHARE_UNRESPONSIVE' });
 
@@ -23,14 +28,19 @@ const unresponsive = () => Object.assign(new Error('The recordings folder is not
 function pipeRange(file, start, end, res) {
     return new Promise((resolve, reject) => {
         const expected = end - start + 1;
+        if (live.size >= MAX_READERS) {
+            console.warn(`[Recordings] ${live.size} readers of the share have not exited; this request is refused`);
+            return reject(unresponsive());
+        }
         let child;
         try {
-            child = spawn(process.execPath, [CHILD, String(file), String(start), String(end)], { stdio: ['ignore', 'pipe', 'ignore'] });
+            child = spawner.spawn(process.execPath, [CHILD, String(file), String(start), String(end)], { stdio: ['ignore', 'pipe', 'ignore'] });
         } catch (err) {
             return reject(err);
         }
         live.add(child);
         child.on('exit', () => live.delete(child));
+        child.on('error', () => { if (!child.pid) live.delete(child); }); // never started: nothing to wait for
         let got = 0, done = false, timer = null;
         const kill = () => { try { child.kill('SIGKILL'); } catch (e) { /* gone */ } };
         const finish = (err) => {
@@ -81,4 +91,4 @@ function pipeRange(file, start, end, res) {
     });
 }
 
-module.exports = { pipeRange, tuning, _live: live };
+module.exports = { pipeRange, tuning, MAX_READERS, _live: live, _spawner: spawner };

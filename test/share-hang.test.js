@@ -2292,3 +2292,52 @@ test('#318: a share that hangs mid-stream holds no pool thread (a healthy fs cal
         shareFs.reset();
     }
 });
+
+test('#318 (Codex round 1): at most 8 readers, killed-but-not-exited ones included; then a 503 at once; a slot frees only on an exit', async () => {
+    const { EventEmitter } = require('node:events');
+    const { PassThrough } = require('node:stream');
+    const reader = load('services/recordingReader');
+    const realSpawn = reader._spawner.spawn;
+    const stallWas = reader.tuning.stallMs;
+    const fakes = [];
+    // A reader held in the kernel by a hung mount: it sends nothing and SIGKILL does not end it.
+    reader._spawner.spawn = () => {
+        const child = Object.assign(new EventEmitter(), { pid: 90000 + fakes.length, stdout: new PassThrough(), kill() { this.killed = true; } });
+        fakes.push(child);
+        return child;
+    };
+    const app = express();
+    app.use('/api/recordings', load('routes/recordings'));
+    const srv = app.listen(0, '127.0.0.1');
+    await once(srv, 'listening');
+    const url = `http://127.0.0.1:${srv.address().port}/api/recordings`;
+    const rec = completedRecording(path.join(healthy, 'Cap.mp4'), 'Cap');
+    shareFs.reset();
+    reader.tuning.stallMs = 300;
+    try {
+        const first = await Promise.all(Array.from({ length: 8 }, (_, i) => fetch(`${url}/${rec.id}/${i % 2 ? 'download' : 'stream'}`)));
+        assert.deepEqual(first.map(r => r.status), Array(8).fill(503), 'each stalled reader: 503, nothing sent');
+        assert.equal(fakes.length, 8);
+        assert.ok(fakes.every(f => f.killed), 'each was killed');
+        assert.equal(reader._live.size, 8, 'killed but not exited: still counted');
+        for (const route of ['stream', 'download', 'media.mp4']) {
+            const at = Date.now();
+            const r = await fetch(`${url}/${rec.id}/${route}`);
+            assert.equal(r.status, 503, route);
+            assert.equal((await r.json()).error, 'The recordings folder is not responding');
+            assert.ok(Date.now() - at < 250, `${route}: refused at once (${Date.now() - at} ms), not after the stall time`);
+        }
+        assert.equal(fakes.length, 8, 'no ninth reader');
+        fakes[0].emit('exit', null, 'SIGKILL');
+        assert.equal(reader._live.size, 7);
+        assert.equal((await fetch(`${url}/${rec.id}/stream`)).status, 503);
+        assert.equal(fakes.length, 9, 'a slot freed by an exit is used again');
+    } finally {
+        for (const f of fakes) f.emit('exit', null, 'SIGKILL');
+        reader._spawner.spawn = realSpawn;
+        reader.tuning.stallMs = stallWas;
+        srv.closeAllConnections?.();
+        srv.close();
+        shareFs.reset();
+    }
+});

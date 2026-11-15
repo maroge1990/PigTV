@@ -82,7 +82,8 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   (`recordingReader.js` spawns `recordingReaderChild.js` with the file and the range; it writes them to stdout, piped to
   the response), never on the server's thread pool. The child is killed when the response closes or finishes, and when
   it sends nothing for 20 s while the client is ready for more (`stallMs`; a player that stops reading is not a stall):
-  the response is then cut, or answered 503 if nothing was sent. Range handling and headers are as before (the download
+  the response is then cut, or answered 503 if nothing was sent. At most 8 readers exist at once, killed ones that have
+  not exited included (`MAX_READERS`; a slot frees on the child's exit): beyond that a request is a 503 at once. Range handling and headers are as before (the download
   as `res.download` answered it); a file in appdata is read in-process. One finish or move per recording at a time. That remux's stall watchdog reads the file's size
   through it too, one check at a time; compression and preparation still read it in-process. `getRecordingsRoot()` only creates the final folder
   when its parent already exists. Settings → Recording → Storage refuses an unusable `recordingsPath` with 400 instead of
