@@ -138,12 +138,14 @@ test('detected hardware names are escaped in the Transcoding panel', async () =>
 test('provider names are escaped in the Manage content picker', async () => {
     const select = { innerHTML: '' };
     const ctx = context({ 'content-source-select': select }, {
-        'GET /api/sources': [{ id: 3, type: 'xtream', name: `Main ${MARKUP}` }, { id: 4, type: 'm3u', name: 'Backup & co' }]
+        // #63: the picker lists the primary (and a provider saved before roles), never a backup.
+        'GET /api/sources/providers': [{ id: 3, type: 'xtream', role: 'primary', name: `Main ${MARKUP}` }, { id: 4, type: 'm3u', name: 'Backup & co' }]
     });
     ctx.Icons = { chevronDown: '' };
     loadUi(ctx);
     vm.runInContext(js('components/SourceManager.js'), ctx);
     const manager = Object.create(ctx.window.SourceManager.prototype);
+    manager.loadContentTree = () => {};
     await manager.loadContentSources();
     assert.ok(!select.innerHTML.includes(MARKUP), select.innerHTML);
     assert.ok(select.innerHTML.includes('Main &lt;img src=x&gt; (Xtream)'), select.innerHTML);

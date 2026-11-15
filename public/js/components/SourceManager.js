@@ -206,18 +206,29 @@ class SourceManager {
      */
     async loadContentSources() {
         try {
-            const sources = await API.sources.getAll();
+            // #63: the primary only, and open on it. A backup's catalogue is always empty (backups never write
+            // playlist_items; their channels are under Providers › Backup links), so listing one offered an empty tree.
+            const providers = await API.sources.providers();
             const select = document.getElementById('content-source-select');
             if (!select) return;
-
-            // Keep the placeholder option
-            select.innerHTML = '<option value="">Select a provider…</option>';
-
-            sources.filter(s => s.type === 'xtream' || s.type === 'm3u').forEach(source => {
-                select.innerHTML += `<option value="${UI.escape(source.id)}">${UI.escape(source.name)} (${source.type === 'm3u' ? 'M3U' : 'Xtream'})</option>`;
-            });
+            const shown = (Array.isArray(providers) ? providers : [])
+                .filter(s => (s.type === 'xtream' || s.type === 'm3u') && s.role !== 'backup')
+                .sort((a, b) => (a.role === 'primary' ? 0 : 1) - (b.role === 'primary' ? 0 : 1) || a.id - b.id);
+            if (!shown.length) {
+                select.innerHTML = '<option value="">No provider yet</option>';
+                UI.setState(this.contentTree, 'empty',
+                    { title: 'No provider yet', detail: 'Add one under Settings → Providers. Its groups and channels show here once it has synced.' });
+                return;
+            }
+            select.innerHTML = shown.map(source =>
+                `<option value="${UI.escape(source.id)}">${UI.escape(source.name)} (${source.type === 'm3u' ? 'M3U' : 'Xtream'})</option>`).join('');
             // #128: coming back to this tab keeps the provider (and any unsaved ticks) on screen.
-            if (this.treeData?.sourceId) select.value = String(this.treeData.sourceId);
+            if (this.treeData?.sourceId && shown.some(s => String(s.id) === String(this.treeData.sourceId))) {
+                select.value = String(this.treeData.sourceId);
+            } else {
+                select.value = String(shown[0].id);
+                this.loadContentTree(shown[0].id);
+            }
         } catch (err) {
             console.error('Error loading content sources:', err);
             if (!this.treeData?.groups?.length) {
