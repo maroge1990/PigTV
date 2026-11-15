@@ -592,7 +592,22 @@ const Dialogs = (() => {
     const open = [];
     let seq = 0;
 
-    const top = () => open.length ? open[open.length - 1] : null;
+    /** #292: a dialog taken out of the page without close() fires no close event: forget it, so the page scrolls again. */
+    function prune() {
+        let changed = false;
+        for (let i = open.length - 1; i >= 0; i--) {
+            if (open[i].isConnected === false) { open.splice(i, 1); changed = true; }
+        }
+        if (changed && !open.length) lock(false);
+        return changed;
+    }
+    const top = () => { prune(); return open.length ? open[open.length - 1] : null; };
+    let watching = false;
+    function watch() {
+        if (watching || typeof MutationObserver === 'undefined' || typeof document === 'undefined' || !document.body) return;
+        watching = true;
+        new MutationObserver(() => { if (open.length && prune()) Toast.place(top()); }).observe(document.body, { childList: true, subtree: true });
+    }
 
     function lock(on) {
         if (typeof document === 'undefined' || !document.body || !document.body.classList) return;
@@ -607,8 +622,10 @@ const Dialogs = (() => {
                 if (el.open) return ctl;
                 if (options.parent !== false && !el.isConnected && typeof document !== 'undefined') document.body.appendChild(el);
                 ctl.opener = opener !== undefined ? opener : (ctl.opener || (typeof document !== 'undefined' ? document.activeElement : null));
+                prune();
                 el.showModal();
                 open.push(el);
+                watch();
                 lock(true);
                 Toast.place(el);
                 const first = el.querySelector('[autofocus]')
