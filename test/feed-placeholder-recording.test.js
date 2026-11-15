@@ -257,4 +257,19 @@ test('Codex high: a part is deleted only with every connection the placeholder\'
     assert.equal(engine._slatePart(entry(false)), false, 'not every connection was the placeholder\'s');
     fs.writeFileSync(path.join(dir, 'a000000.ts'), Buffer.alloc(224000)); // 448 kbps: a channel's rate
     assert.equal(engine._slatePart(entry(true)), false, 'recorded at a channel\'s rate: kept');
+    // Codex sign-off: a rate that cannot be measured keeps the part (fail closed), with recorded files present.
+    fs.writeFileSync(path.join(dir, 'a000000.ts'), Buffer.alloc(100000));
+    fs.renameSync(path.join(dir, 'archive.m3u8'), path.join(dir, 'archive.off'));
+    assert.equal(engine._slatePart(entry(true)), false, 'no playlist: kept');
+    fs.renameSync(path.join(dir, 'archive.off'), path.join(dir, 'archive.m3u8'));
+    fs.writeFileSync(path.join(dir, 'archive.m3u8'), '#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXTINF:4.000000,\na000000.ts\n#EXTINF:4.000000,\na000001.ts\n#EXT-X-ENDLIST\n');
+    fs.symlinkSync(path.join(dir, 'missing.ts'), path.join(dir, 'a000001.ts')); // a segment whose stat fails
+    assert.equal(engine._slatePart(entry(true)), false, 'a failed segment stat: kept');
+    assert.ok(fs.existsSync(path.join(dir, 'a000000.ts')));
+    // discardEpoch fails closed: its playlist cannot be rewritten (a folder in its way) -> nothing deleted.
+    const dir2 = path.join(sandbox, 'rec-unit2', 'e1');
+    fs.mkdirSync(path.join(dir2, 'archive.m3u8.tmp'), { recursive: true });
+    fs.writeFileSync(path.join(dir2, 'a000000.ts'), Buffer.alloc(1000));
+    assert.equal(segments.discardEpoch(99, dir2), false);
+    assert.ok(fs.existsSync(path.join(dir2, 'a000000.ts')), 'kept');
 });

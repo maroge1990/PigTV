@@ -1350,8 +1350,10 @@ function heldAgainst(entry, { failover, ranLong }) {
  */
 function slatePart(entry) {
     if (entry.feedLost?.reason !== 'placeholder' || entry.feedLost.onlyPlaceholder !== true) return false;
+    // Codex sign-off (high): fail closed - only a finite measured rate deletes; one that could not be measured (no
+    // playlist, no duration, a stat error) keeps the part.
     const kbps = segments.epochKbps(entry.outputPath);
-    return kbps === null || kbps < require('./feedPlaceholder').connectionLimitKbps(null);
+    return Number.isFinite(kbps) && kbps < require('./feedPlaceholder').connectionLimitKbps(null);
 }
 
 async function onSegmentExit(schedule, entry, exitCode) {

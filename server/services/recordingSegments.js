@@ -247,17 +247,23 @@ function epochKbps(epochDir) {
 function discardEpoch(recordingId, epochDir) {
     const m = EPOCH_RE.exec(path.basename(String(epochDir || '')));
     if (!m) return false;
+    // Fail closed (Codex sign-off): the playlist is emptied first; if that cannot be done nothing is deleted or stopped.
+    try {
+        const file = path.join(epochDir, 'archive.m3u8');
+        fs.writeFileSync(`${file}.tmp`, '#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:4\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-ENDLIST\n');
+        fs.renameSync(`${file}.tmp`, file);
+    } catch (e) { return false; }
     const key = `${recordingId}:${Number(m[1])}`;
     const follower = followers.get(key);
     if (follower && follower.proc && follower.proc !== 'starting') { try { follower.proc.kill('SIGKILL'); } catch (e) { /* gone */ } }
     followers.delete(key); // ensureView finds no first segment: none is started again
-    // Every archive segment, listed or not (one being written, or written as the capture stopped).
+    // Every archive segment, listed or not (one being written, or written as the capture stopped). One that cannot be
+    // removed is no longer listed, so it is in neither the MP4 nor the time recorded; the work folder goes at the end.
     try {
-        for (const name of fs.readdirSync(epochDir)) if (/^a\d{6}\.ts(\.tmp)?$/.test(name)) fs.unlinkSync(path.join(epochDir, name));
+        for (const name of fs.readdirSync(epochDir)) {
+            if (/^a\d{6}\.ts(\.tmp)?$/.test(name)) { try { fs.unlinkSync(path.join(epochDir, name)); } catch (e) { /* left */ } }
+        }
     } catch (e) { /* no folder */ }
-    try {
-        fs.writeFileSync(path.join(epochDir, 'archive.m3u8'), '#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:4\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-ENDLIST\n');
-    } catch (e) { return false; }
     for (const part of viewParts(epochDir)) {
         const file = path.join(epochDir, PART_FILES(part.k).playlist);
         try {
