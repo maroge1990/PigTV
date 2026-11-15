@@ -62,7 +62,10 @@ const ProviderFormat = {
     /** The sync_status row of a source ('all'), as { text, level }. */
     formatSync(row, now = Date.now()) {
         if (!row) return { text: 'Not synced yet', level: 'none' };
-        if (row.status === 'syncing') return { text: 'Syncing…', level: 'busy' };
+        // #63: the row's time is when this sync started, so a long first sync says how long it has been going.
+        if (row.status === 'syncing') {
+            return { text: Number.isFinite(row.last_sync) ? `Syncing… started ${ProviderFormat.ago(row.last_sync, now)}` : 'Syncing…', level: 'busy' };
+        }
         // #42: a much smaller list from the provider is held; the last good one stays.
         if (row.status === 'held') {
             return { text: `${row.error ? ProviderFormat.safeText(row.error) : 'Held: the last good list is kept'} (${ProviderFormat.ago(row.last_sync, now)})`, level: 'soon', held: true };
@@ -71,6 +74,26 @@ const ProviderFormat = {
             return { text: `Failed ${ProviderFormat.ago(row.last_sync, now)}${row.error ? `: ${ProviderFormat.safeText(row.error)}` : ''}`, level: 'error' };
         }
         return { text: `Synced ${ProviderFormat.ago(row.last_sync, now)}`, level: 'ok' };
+    },
+
+    /**
+     * #63: the wait before poll `n` (from 0) of a running sync: every 3 s for the first minute, then a little longer
+     * each time, up to 15 s. A first sync of a large list takes far longer than the 2 minutes the poll used to stop at.
+     */
+    pollDelay(n) {
+        return n < 20 ? 3000 : Math.min(15000, Math.round(3000 * Math.pow(1.1, n - 19)));
+    },
+
+    /**
+     * #63: whether poll `n` (from 0) goes on, given the source's { all, epg } sync rows: while the server says a sync
+     * runs, always; once the 'all' row is there and nothing runs, no; with no row yet (the sync has not started), for
+     * one minute (20 polls) and then no.
+     */
+    keepPolling(rows, n) {
+        const mine = rows || {};
+        if ([mine.all, mine.epg].some(r => r && r.status === 'syncing')) return true;
+        if (mine.all) return false;
+        return n < 19;
     },
 
     roleLabel(provider, backupIndex) {
@@ -465,7 +488,7 @@ class ProvidersSettings {
             const created = await API.sources.create(built.body);
             this.open.delete('new');
             await this.load();
-            if (created?.id) { this.cardStatus(created.id, 'Added. Syncing…'); this.polls.set(created.id, 40); this.pollSync(created.id); }
+            if (created?.id) { this.cardStatus(created.id, 'Added. Syncing…'); this.pollSync(created.id); }
             this.refreshChannels();
         } catch (err) {
             button.disabled = false;
@@ -486,7 +509,6 @@ class ProvidersSettings {
             await this.load();
             // Any change here starts a sync of the provider.
             this.cardStatus(p.id, 'Saved. Syncing…');
-            this.polls.set(p.id, 40);
             this.pollSync(p.id);
         } catch (err) {
             button.disabled = false;
@@ -510,7 +532,7 @@ class ProvidersSettings {
             const result = await API.sources.setOrder(ids);
             await this.load();
             this.setStatus(result?.primaryChanged ? 'Order saved. Syncing the providers that changed…' : 'Order saved');
-            if (result?.primaryChanged) for (const id of ids.slice(0, 2)) { this.polls.set(id, 60); this.pollSync(id); }
+            if (result?.primaryChanged) for (const id of ids.slice(0, 2)) this.pollSync(id);
             this.refreshChannels();
         } catch (err) {
             this.setStatus(UI.errorText(err, 'The order was not saved.'), true);
@@ -538,7 +560,6 @@ class ProvidersSettings {
         try {
             await API.sources.sync(p.id);
             this.cardStatus(p.id, 'Sync started');
-            this.polls.set(p.id, 40);
             this.pollSync(p.id);
         } catch (err) {
             this.cardStatus(p.id, UI.errorText(err, 'The sync could not be started.'), true);
@@ -554,7 +575,6 @@ class ProvidersSettings {
         try {
             await API.sources.sync(p.id, { acceptSmaller: true });
             this.cardStatus(p.id, 'Sync started');
-            this.polls.set(p.id, 40);
             this.pollSync(p.id);
         } catch (err) {
             this.cardStatus(p.id, UI.errorText(err, 'The sync could not be started.'), true);
@@ -624,12 +644,22 @@ class ProvidersSettings {
         button.disabled = false;
     }
 
-    /** Refresh one card's facts every few seconds until its sync has finished. */
+    /**
+     * Refresh one card's facts until its sync has finished. #63: as long as the server says it runs (it used to stop
+     * after 40 polls, 2 minutes), every 3 s at first and then gently less often (ProviderFormat.pollDelay). Asked again
+     * while it polls, it starts its count again rather than a second loop.
+     */
     pollSync(id) {
+        const running = this.polls.has(id);
+        this.polls.set(id, 0);
+        if (!running) this.nextPoll(id);
+    }
+
+    nextPoll(id) {
         setTimeout(async () => {
-            const left = this.polls.get(id) || 0;
-            if (left <= 0) return;
-            this.polls.set(id, left - 1);
+            const n = this.polls.get(id);
+            if (n === undefined) return;
+            this.polls.set(id, n + 1);
             try {
                 const rows = await API.sources.getStatus();
                 this.setSyncRows(rows);
@@ -640,11 +670,14 @@ class ProvidersSettings {
                 if (list) { const fresh = list.find(x => x.id === id); if (fresh && p) p.backupChannels = fresh.backupChannels; }
                 const info = document.getElementById(`provider-info-${id}`);
                 if (info && p) info.innerHTML = this.infoHtml(p);
-                const busy = [mine.all, mine.epg].some(r => r && r.status === 'syncing');
-                if (mine.all && !busy) { this.polls.delete(id); this.cardStatus(id, ''); return; }
-            } catch { /* try again */ }
-            this.pollSync(id);
-        }, 3000);
+                if (!ProviderFormat.keepPolling(mine, n)) {
+                    this.polls.delete(id);
+                    if (mine.all) { this.cardStatus(id, ''); this.refreshChannels(); } // the new channels reach Live TV
+                    return;
+                }
+            } catch { /* the server did not answer: try again, a little later each time */ }
+            this.nextPoll(id);
+        }, ProviderFormat.pollDelay(this.polls.get(id) || 0));
     }
 }
 
