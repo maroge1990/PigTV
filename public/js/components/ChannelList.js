@@ -714,7 +714,10 @@ class ChannelList {
      * Load channels (from all enabled sources, or the one selected)
      */
     async loadChannels() {
-        if (this.isLoading) return;
+        // #292: the latest request wins. A load that finished after a newer one began is dropped, so a selection made
+        // while a load was in flight is never ignored and the earlier load's rows are never drawn under it.
+        const generation = this._loadGeneration = (this._loadGeneration || 0) + 1;
+        const stale = () => generation !== this._loadGeneration;
         this.isLoading = true;
         this.currentRenderId = null; // Reset render tracking
 
@@ -729,6 +732,7 @@ class ChannelList {
                 API.library.allChannels(),
                 this.loadFavorites()
             ]);
+            if (stale()) return;
 
             const enabled = new Set(this.sources.filter(s => s.enabled).map(s => String(s.id)));
             const wanted = (sourceId) => (onlySource ? String(sourceId) === String(onlySource)
@@ -743,10 +747,11 @@ class ChannelList {
 
             this.render();
         } catch (err) {
+            if (stale()) return;
             console.error('Error loading channels:', err);
             UI.setState(this.container, 'error', 'The channel list could not be loaded.', { run: () => this.loadChannels() });
         } finally {
-            this.isLoading = false;
+            if (!stale()) this.isLoading = false;
         }
     }
 
