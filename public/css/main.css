@@ -2063,6 +2063,23 @@ body.ui-dialog-open {
 
 }
 
+/* #295: from 481 px the bar shows all its icons beside the lockup and the build number; at 481 to 520 px they
+   ran into the window's edge. Tighter links and a slightly smaller lockup keep the bar's own padding. */
+@media (min-width: 481px) and (max-width: 560px) {
+  .navbar-menu .nav-link {
+    padding-left: var(--space-xs);
+    padding-right: var(--space-xs);
+  }
+
+  .brand-lockup {
+    width: 104px;
+  }
+
+  .version-badge {
+    margin-left: var(--space-xs);
+  }
+}
+
 @media (max-width: 768px) {
 
   /* Tablet/Mobile landscape */
