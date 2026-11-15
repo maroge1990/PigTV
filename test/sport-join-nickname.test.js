@@ -211,3 +211,34 @@ test('#296 review: a recording\'s game link does not take a title that also name
     assert.equal(guideEnd.gameFor(schedule(`${french(g)}, puis ${french(later)}`, g.start), catalog), null);
     assert.equal(guideEnd.gameFor(schedule('Les Swans de Sydney c. les Cats de Geelong', AFL_AT), aflGames(AFL_AT + 4 * 3600e3)), null);
 });
+
+// #319 (Codex sign-off of Sport 1): the squad guard compared presence, not identity, so a women's game took a U21 or
+// reserves listing of the same clubs. A title joins by nickname only when its squad is the game's own.
+test('#319: the nickname join compares the squad itself: women, the age group and reserves must all agree', () => {
+    const start = Date.parse('2026-12-01T19:00:00Z');
+    const side = (id, name, nick, abbr) => ({ id, name, aliases: [name, nick, abbr], logo: null });
+    const game = (title, a, b) => ({ id: 'g', league: 'WSL', title, start,
+        competitors: [side('1', `Arsenal${a}`, 'Arsenal', 'ARS'), side('2', `Chelsea${b}`, 'Chelsea', 'CHE')] });
+    const joins = (g, title) => matchBroadcasts([g], [{ id: 'e', league: 'WSL', kind: 'event', title, start,
+        end: start + 2 * 3600e3, channels: [] }]).get('g').length === 1;
+    const women = game('Arsenal Women v Chelsea Women', ' Women', ' Women');
+    assert.equal(joins(women, 'Arsenal c. Chelsea U21'), false, 'women v U21');
+    assert.equal(joins(women, 'Arsenal c. Chelsea Reserves'), false, 'women v reserves');
+    assert.equal(joins(women, 'Arsenal (Femmes) c. Chelsea (Femmes) U21'), false, 'women v women U21');
+    assert.equal(joins(women, 'Arsenal (Femmes) c. Chelsea (Femmes) Réserves'), false, 'women v women reserves');
+    assert.equal(joins(women, 'Arsenal reçoit Chelsea'), false, 'women v senior (a title only the nickname join reads)');
+    assert.equal(joins(women, 'Arsenal Femenino c. Chelsea Femenino'), true, 'women v women, another language');
+    assert.equal(joins(women, 'Arsenal (Femmes) c. Chelsea (Femmes)'), true);
+    const u19 = game('Arsenal U19 v Chelsea U19', ' U19', ' U19');
+    assert.equal(joins(u19, 'Arsenal c. Chelsea U21'), false, 'U19 v U21');
+    assert.equal(joins(u19, 'Arsenal c. Chelsea U-19'), true, 'U19 v U19');
+    assert.equal(joins(u19, 'Arsenal (Femmes) c. Chelsea U19'), false, 'U19 v women U19');
+    const reserves = game('Arsenal Reserves v Chelsea Reserves', ' Reserves', ' Reserves');
+    assert.equal(joins(reserves, 'Arsenal c. Chelsea Réserves'), true, 'reserves v reserves');
+    assert.equal(joins(reserves, 'Arsenal c. Chelsea U21'), false, 'reserves v U21');
+    const senior = game('Arsenal v Chelsea', '', '');
+    for (const tag of ['(Femmes)', 'U21', 'U-19', 'Réserves', 'Espoirs']) assert.equal(joins(senior, `Arsenal c. Chelsea ${tag}`), false, tag);
+    assert.equal(joins(senior, 'Arsenal reçoit Chelsea'), true, 'senior v senior');
+    // exact names are not the nickname join: the English title still joins its game
+    assert.equal(joins(women, 'Arsenal Women v Chelsea Women'), true, 'exact names');
+});

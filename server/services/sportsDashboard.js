@@ -139,7 +139,14 @@ const ABBR_ALIAS_RE = /^[A-Z0-9]{2,4}$/;
 const nameFold = s => classify.normText(foldText(s).replace(/(^|[^\p{L}\p{N}])[ldjn]['’](?=\p{L})/gu, '$1 '));
 const says = (text, key) => text.includes(` ${key} `);
 const teamId = c => String(c.id ?? c.name ?? '');
-const SQUAD_RE = /(?:^| )(?:women|womens|woman|femmes?|feminin|feminine|feminines|mujeres|femenino|femenil|u ?\d\d|reserves?|espoirs)(?= |$)/;
+// #319: a squad is an identity, not a flag: women's (w), the age group (u19, u21...), reserves (r), espoirs. A title joins
+// only a game whose squad is the same: women's never joins women's U21 or reserves, U19 never U21, senior never any.
+const SQUAD_RE = /(?:^| )(?:(women|womens|woman|femmes?|feminin|feminine|feminines|mujeres|femenino|femenil)|u ?(\d\d)|(reserves?)|(espoirs))(?= |$)/g;
+function squadOf(text) {
+    const marks = new Set();
+    for (const m of text.matchAll(SQUAD_RE)) marks.add(m[1] ? 'w' : m[2] ? `u${m[2]}` : m[3] ? 'r' : 'espoirs');
+    return [...marks].sort().join(' ');
+}
 function leagueNames(games) {
     const keys = new Map();
     for (const game of games) for (const c of (Array.isArray(game?.competitors) ? game.competitors : [])) {
@@ -172,12 +179,12 @@ function namedByNickname(prepared, parsed) {
     if (ids[0] === ids[1] || !own[0].length || !own[1].length) return false;
     const longestFirst = [...own[0], ...own[1]].sort((a, b) => b.length - a.length);
     // Opus review of #296: a women's, under-age or reserve side's game ("Packers c. Bears (Femmes)", "U21") is not the
-    // senior one, unless the game itself is that side's
-    if (prepared.squad === undefined) prepared.squad = SQUAD_RE.test(nameFold([prepared.game.title,
+    // senior one, unless the game itself is that side's; #319: and the same side, not just any squad
+    if (prepared.squad === undefined) prepared.squad = squadOf(nameFold([prepared.game.title,
         ...sides.flatMap(c => [c.name, ...(Array.isArray(c.aliases) ? c.aliases : [])])].filter(t => typeof t === 'string').join(' ')));
     return guideTexts(parsed).some(text => {
         if (!own.every(keys => keys.some(k => says(text, k)))) return false;
-        if (!prepared.squad && SQUAD_RE.test(text)) return false;
+        if (squadOf(text) !== prepared.squad) return false;
         let rest = text;
         for (const k of longestFirst) while (says(rest, k)) rest = rest.replace(` ${k} `, ' | ');
         return !names.all.some(o => !ids.includes(o.id) && says(rest, o.k));

@@ -339,7 +339,9 @@ per-account revision settings and revalidated actions. Required Apple gates/revi
    A team game (not cricket) is joined by its pair of names as ESPN gives them in the title or any listing's title
    (#231), else (#296) by a title, accents and case folded, naming both teams by a name of theirs that no other team in
    the league's games shares ("Packers de Green Bay c. Bears de Chicago", RDS) and naming none of those other teams;
-   abbreviations and bare cities are not names there, a replay or highlights never joins. Unlike the NFL page's own
+   abbreviations and bare cities are not names there, a replay or highlights never joins, and the title's squad
+   (women's, the age group such as U19 or U21, reserves, espoirs) must be the game's own: a women's game never takes a
+   women's U21 or reserves title, U19 never U21, a senior game never a marked title (#319). Unlike the NFL page's own
    matcher (`sportPageNFL.channelsForGames`), it takes no city-only title, no one-team title and no airing from 2 h
    before kick-off; it does take abbreviations and a start up to 90 min after (`test/sport-join-nickname.test.js`).
 3. Allow one game to join many broadcasts and one long cricket broadcast to cover appropriate daily sessions;
