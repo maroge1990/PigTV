@@ -691,6 +691,92 @@ function usableLinks(primarySourceId, primaryKey) {
         .map(r => ({ backupSourceId: r.backup_source_id, streamId: r.backup_stream_id, method: r.method }));
 }
 
+// ---- same-provider copies (#332) -------------------------------------------------------------------------------
+
+/*
+ * A provider often lists one channel more than once with no "(Backup)" marker ("Sky Sports Main Event",
+ * "Sky Sports Main Event FHD", "ꜱᴋʏ ꜱᴘᴏʀᴛꜱ ᴍᴀɪɴ ᴇᴠᴇɴᴛ ᴴᴰ"): when one sends the provider's placeholder another often plays.
+ * A *copy* of a channel is another live item of the same source with a different identity (stable_id, else item_id) and
+ * either the same guide id (the admin's mapping in epg_mappings, keyed by source + identity, else the row's own tvg_id)
+ * or the same normalised name (copyName). Hidden items count. In playlist order. #331's channel audit measured this rule.
+ */
+
+// Small capital letters have no compatibility form (NFKD leaves them): folded by hand. Superscripts fold through NFKD.
+const SMALL_CAPS = { 'ᴀ': 'a', 'ʙ': 'b', 'ᴄ': 'c', 'ᴅ': 'd', 'ᴇ': 'e', 'ꜰ': 'f', 'ɢ': 'g', 'ʜ': 'h', 'ɪ': 'i', 'ᴊ': 'j',
+    'ᴋ': 'k', 'ʟ': 'l', 'ᴍ': 'm', 'ɴ': 'n', 'ᴏ': 'o', 'ᴘ': 'p', 'ꞯ': 'q', 'ʀ': 'r', 'ꜱ': 's', 'ᴛ': 't', 'ᴜ': 'u', 'ᴠ': 'v',
+    'ᴡ': 'w', 'ʏ': 'y', 'ᴢ': 'z' };
+const SMALL_CAPS_RE = new RegExp(`[${Object.keys(SMALL_CAPS).join('')}]`, 'g');
+
+/**
+ * A channel name reduced to what makes it that channel: superscript and small-capital letters folded to plain, lower
+ * case, "(backup)" and quality words (1080p, 720p50, uhd, 4k, fhd, hd, sd, hdr) removed, punctuation gone, spaces
+ * collapsed. "" when nothing is left (never a match).
+ */
+function copyName(name) {
+    return String(name || '')
+        .replace(SMALL_CAPS_RE, c => SMALL_CAPS[c])
+        .normalize('NFKD').replace(/[̀-ͯ]/g, '')
+        .toLowerCase()
+        .replace(/\(?\s*backup\s*\)?/g, ' ')
+        .replace(/\b\d{3,4}\s*[pi]\s*\d{0,3}\b/g, ' ')
+        .replace(/\b(?:uhd|4k|fhd|hd|sd|hdr)\b/g, ' ')
+        .replace(/[^\p{L}\p{N}]+/gu, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+// Per source: the index, rebuilt when the library changes (a sync, a hide or show, a mapping: libraryRev) or the
+// source's live list does (its row count), so a play costs two small reads.
+const copyIndexes = new Map(); // sourceId -> { stamp, byIdentity, byTvg, byName }
+
+function copyIndex(sourceId) {
+    const dbh = getDb();
+    const rev = (() => { try { return dbh.prepare(`SELECT value FROM meta WHERE key = 'library_rev'`).get()?.value || '0'; } catch { return '0'; } })();
+    const count = dbh.prepare(`SELECT COUNT(*) AS n FROM playlist_items WHERE source_id = ? AND type = 'live'`).get(sourceId).n;
+    const stamp = `${rev}|${count}`;
+    const had = copyIndexes.get(sourceId);
+    if (had && had.stamp === stamp) return had;
+    let mapped = false;
+    try { mapped = !!dbh.prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'epg_mappings'`).get(); } catch { mapped = false; }
+    const rows = dbh.prepare(`
+        SELECT p.item_id, p.stable_id, COALESCE(p.stable_id, p.item_id) AS identity, p.name,
+               ${mapped ? `COALESCE(NULLIF(m.tvg_id, ''), NULLIF(p.tvg_id, ''))` : `NULLIF(p.tvg_id, '')`} AS tvg
+        FROM playlist_items p
+        ${mapped ? 'LEFT JOIN epg_mappings m ON m.source_id = p.source_id AND m.channel_key = COALESCE(p.stable_id, p.item_id)' : ''}
+        WHERE p.source_id = ? AND p.type = 'live'
+        ORDER BY CASE WHEN p.sort_order IS NULL THEN 1 ELSE 0 END, p.sort_order, p.item_id
+    `).all(sourceId);
+    const byIdentity = new Map();
+    const byTvg = new Map();
+    const byName = new Map();
+    const add = (map, key, row) => { if (!key) return; if (!map.has(key)) map.set(key, []); map.get(key).push(row); };
+    for (const r of rows) {
+        if (byIdentity.has(r.identity)) continue; // one per identity: its first listing
+        const row = { identity: String(r.identity), itemId: String(r.item_id), name: r.name, tvg: r.tvg ? String(r.tvg) : null, nameKey: copyName(r.name), order: byIdentity.size };
+        byIdentity.set(row.identity, row);
+        add(byTvg, row.tvg, row);
+        add(byName, row.nameKey, row);
+    }
+    const index = { stamp, byIdentity, byTvg, byName };
+    copyIndexes.set(sourceId, index);
+    return index;
+}
+
+/**
+ * The copies of channel `identity` (COALESCE(stable_id, item_id)) on its own source, in playlist order:
+ * [{ identity, itemId, name }]. Never the channel itself; [] when it is not listed.
+ */
+function copiesOf(sourceId, identity) {
+    const index = copyIndex(Number(sourceId));
+    const self = index.byIdentity.get(String(identity));
+    if (!self) return [];
+    const found = new Map();
+    for (const r of [...(self.tvg ? index.byTvg.get(self.tvg) || [] : []), ...(self.nameKey ? index.byName.get(self.nameKey) || [] : [])]) {
+        if (r.identity !== self.identity) found.set(r.identity, r);
+    }
+    return [...found.values()].sort((a, b) => a.order - b.order).map(r => ({ identity: r.identity, itemId: r.itemId, name: r.name }));
+}
+
 // ---- the admin API's side (routes/links.js) ----------------------------------
 
 /** Re-rank one (channel, provider) after a decision: kept decisions first, as a relink would. */
@@ -882,6 +968,8 @@ module.exports = {
     describe, indexBackup, candidatesFor, siblingCandidatesFor, planLinks,
     // store
     relinkSource, relinkAll, removeFor, usableLinks, visibleChannels,
+    // #332: same-provider copies
+    copyName, copiesOf,
     // admin
     list, summary, setStatus, addManual, approvePending, rerank, linkById
 };

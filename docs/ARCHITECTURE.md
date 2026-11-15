@@ -246,8 +246,13 @@ Client events carry no session id, so the mapping is owner → last resolve (as 
   same-region name, and the primary's own "(Backup)" **siblings**; quality pairs with quality and event/PPV slots are never
   linked. A relink keeps `approved`/`rejected`/`manual` rows. **Only `auto`, `approved` and `manual` links are used.** The
   linker reads `LISTED_SQL` (it must see linked siblings); the guide reads `VISIBLE_SQL`, which hides them (0204/0205).
-- **Resolve** walks candidates: the primary (unless down, expired or this channel is quarantined there), its sibling, then
-  each backup in order. Admission is per provider (free, idle reclaim, own replacement); with none admitted the 409 is the
+- **Resolve** walks candidates: the primary (unless down, expired or this channel is quarantined there), its sibling, one
+  same-provider **copy** (#332), then each backup in order. A copy is another live listing of the channel on the same
+  source with a different identity and the same guide id (the admin's mapping, else the row's own) or the same
+  normalised name (`channelLinks.copyName`: small capitals and superscripts folded, lower case, "(backup)" and quality
+  words such as FHD, UHD, 4K, HDR, 1080p50 removed, punctuation gone), hidden ones too (`channelLinks.copiesOf`, rebuilt
+  when the library changes); the first in playlist order that is not held back, on a sibling's terms (no profile is keyed
+  by channel, so measured quality cannot order them yet). Admission is per provider (free, idle reclaim, own replacement); with none admitted the 409 is the
   first candidate's. A start that fails for a provider reason goes to the next candidate; anything else is returned. The
   0143 refusal retries (1.5 s + 3 s) apply only to the last candidate, earlier ones get one after 1 s; the whole resolve
   stays under 30 s and no candidate starts with less than 8 s left. **Breaker:** provider-reason failures on ≥2 channels in

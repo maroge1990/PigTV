@@ -203,7 +203,8 @@ async function routeFor(schedule) {
     } catch (e) {
         return single; // nothing to fail over to that plan can name: as before
     }
-    if (!plan || !plan.backupsConfigured) return single;
+    // #332: a channel with a same-provider copy is no longer single-candidate, backups or not.
+    if (!plan || (!plan.backupsConfigured && !plan.hasCopy)) return single;
     return {
         // #324: the channel each candidate plays, so a looping shared feed can look for another provider of it.
         candidates: plan.candidates.map(c => ({ ...c, ...(c.via === 'primary' ? { url: primaryUrl } : {}), channelRef: { sourceId: schedule.source_id, channelId: itemId } })),
@@ -2229,6 +2230,7 @@ module.exports = {
     _stallWatchCount: () => stallWatchdogs.size, // #274: no part's watchdog outlives it
     _stopTimeOf: stopTimeOf, // #217: the stop the hard stop and the stop checks read
     _chooseProvider: chooseProvider, // #137: which candidate a join-only start is given
+    _routeFor: routeFor, // #332: a recording's candidates (a channel with a same-provider copy is not single)
     segments
 };
 

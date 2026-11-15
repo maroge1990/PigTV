@@ -125,6 +125,8 @@ before(async () => {
                                          VALUES (?, ?, ?, 'live', ?, 'Sport', 0, ?, ?, ?)`);
     item.run(`${A.id}:pos_1`, A.id, 'pos_1', 'Sky Sports Main Event', 1, 'sme', `${base}/slate.ts`);
     item.run(`${A.id}:pos_2`, A.id, 'pos_2', 'TNT Sports 2', 2, 'tnt2', `${base}/turns.ts`);
+    // Another listing of Sky Sports Main Event by the same provider (#332: a copy), which plays.
+    item.run(`${A.id}:pos_3`, A.id, 'pos_3', 'Sky Sports Main Event FHD', 3, 'sme2', `${base}/live.ts`);
     routing.plan = async () => plan();
     await db.settings.update({ recordingsPath: path.join(sandbox, 'recordings'), minFreeSpaceGB: 0, maxConcurrentRecordings: 5,
         maxProviderStreams: 1, sharedIngestEnabled: true });
@@ -217,4 +219,16 @@ test('a part ended by the placeholder is held against the channel only, like a l
     const entry = { route: { multi: true, oneProvider: false }, stalled: false, feedLost: { reason: 'placeholder', providerReason: true, onlyPlaceholder: true } };
     assert.equal(engine._heldAgainst(entry, { failover: true, ranLong: false }), 'channel');
     assert.equal(engine._heldAgainst({ ...entry, feedLost: { reason: 'upstream-lost', providerReason: true } }, { failover: true, ranLong: false }), 'provider');
+});
+
+test('with a same-provider copy of the channel the recording carries on on the copy (the real plan)', async () => {
+    plan = () => realPlan(A.id, 'pos_1', Date.now(), { keepTrying: true });
+    const s = schedule('pos_1', 'sme', 'Sky Sports Main Event');
+    await until(() => (connections['/live.ts'] || 0) >= 1 && engine.listActive().some(r => r.id === s.id), 'carried on on the copy');
+    const [rec] = recordings.listBySchedule(s.id);
+    assert.equal(recordings.listBySchedule(s.id).length, 1, 'one recording');
+    await until(() => epochsOf(rec).some(e => e.n === 2 && e.count > 0), 'the copy records');
+    assert.deepEqual(epochsOf(rec)[0], { n: 1, count: 0 }, 'the slate part was not kept');
+    assert.equal(routing.isQuarantined(A.id, 'sme'), true);
+    await engine.cancelScheduled(s.id);
 });

@@ -153,6 +153,9 @@ before(async () => {
     item.run(`${A.id}:pos_2`, A.id, 'pos_2', 'TNT Sports 1', 2, 's2', `${base}/slate2.ts`);
     item.run(`${A.id}:pos_3`, A.id, 'pos_3', 'TNT Sports 2', 3, 's3', `${base}/turns.ts`);
     item.run(`${A.id}:pos_4`, A.id, 'pos_4', 'TNT Sports 3', 4, 's4', `${base}/longslate.ts`);
+    // TNT Sports 4 is listed twice by the same provider (no "(Backup)" marker): the second plays (#332 copies).
+    item.run(`${A.id}:pos_5`, A.id, 'pos_5', 'TNT Sports 4', 5, 's5', `${base}/slate5.ts`);
+    item.run(`${A.id}:pos_6`, A.id, 'pos_6', 'ᴛɴᴛ ꜱᴘᴏʀᴛꜱ 4 ᴴᴰ', 6, 's6', `${base}/real.ts`);
     // TNT Sports 1 has a backup on Dream 4K that plays.
     sqlite.getDb().prepare(`INSERT INTO backup_channels (source_id, stream_id, name, url_data) VALUES (?, '901', 'TNT Sports 1', ?)`).run(B.id, `${base}/real.ts`);
     sqlite.getDb().prepare(`INSERT INTO channel_links (primary_source_id, primary_key, backup_source_id, backup_stream_id, method, status, rank, updated_at)
@@ -394,4 +397,14 @@ test('a session is a placeholder suspect once its feed ended as one or had a sho
     assert.equal(placeholderSuspect({ feed: { ingest: { shortLowSeen: false, placeholder: null } } }), false);
     assert.equal(placeholderSuspect({ feedLost: { reason: 'upstream-lost' } }), false);
     assert.equal(placeholderSuspect(null), false);
+});
+
+test('with a same-provider copy of the channel (no backup) the play goes to the copy', async () => {
+    const r = await play('pos_5');
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.equal(r.body.provider.name, 'Strong8K');
+    assert.equal(r.body.provider.via, 'copy');
+    assert.equal(r.body.provider.failover, true);
+    assert.equal(routing.isPlaceholder(A.id, 's5'), true);
+    assert.equal(connections['/real.ts'], 1, 'the copy\'s stream');
 });

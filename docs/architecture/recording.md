@@ -114,7 +114,9 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   of the route the run began on, then wait for the tick (#284); why each capture ended is logged. With every provider of the channel held back
   (quarantined or down), a recording's route is all of them, the one that last failed longest ago first (`plan(..., { keepTrying })`,
   #288; by when each failed, not when its hold ends), so its retries go round the providers until one is back; after 10 min of an outage (nothing grown since the recording last grew) it tries at most once a minute, until a part grows again (`failoverTuning.backoffAfterMs`, `backoffEveryMs`, #288, Mark); a short
-  try on a multi route that ends without a provider reason is quarantined too (no breaker count), so the rotation goes on; a viewer's play still gets the primary alone. A capture whose
+  try on a multi route that ends without a provider reason is quarantined too (no breaker count), so the rotation goes on; a viewer's play still gets the primary alone.
+  A route is multi when backups are configured or (#332) the channel has a same-provider copy (`plan().hasCopy`, see
+  [`../ARCHITECTURE.md`](../ARCHITECTURE.md) › Resolve), so a channel listed twice by its only provider fails over to its other listing. A capture whose
   segments stop growing for 30 s (`failoverTuning.stallMs`, sampled every 5 s by its own `stallWatchdog`, one per run)
   is ended as stalled on every route (#274): with a backup it fails over, with one provider it continues on the same one
   as above. Only the failover counts toward its provider's breaker: a stall on a channel's only provider does not (#304, Mark), so it never shows that provider down nor sends its notice; that includes a channel with no backup link on a server that has backups (`route.oneProvider`, from `plan()`'s `channelProviders`: the stall is only quarantined). A refused or failed connection there still counts (0595). On a shared feed with one provider, a feed that has

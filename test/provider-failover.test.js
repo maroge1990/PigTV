@@ -198,6 +198,8 @@ const noUrl = (text, label) => {
 test('502 on the primary (ffmpeg): plays on the backup, provider.via "backup", failover true (C-J)', async () => {
     linkAll();
     sqlite.getDb().prepare("DELETE FROM channel_links WHERE backup_source_id = ?").run(A.id); // no sibling here
+    // #332: unlinked, the "(Backup)" listing is a same-provider copy (tried before the backups): held back here.
+    routing.quarantine(A.id, 's109');
     behaviour.set(url.A(101), '502');
     const r = await play('pos_1');
     assert.equal(r.status, 200, r.text);

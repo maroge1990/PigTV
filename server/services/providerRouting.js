@@ -7,6 +7,8 @@
  *      expired, or this channel is quarantined on it;
  *   2. its sibling, the primary's own "(Backup)" feed of the same channel (D5) - only
  *      when the primary is not down (a whole provider down takes its siblings with it);
+ *   2b. one same-provider copy (#332: another listing of the channel with the same guide id or
+ *      normalised name, channelLinks.copiesOf), on the same terms as a sibling;
  *   3. each enabled backup with a usable link (channelLinks.usableLinks: rank 1,
  *      auto/approved/manual), in priority order, skipping expired and down providers and
  *      quarantined links.
@@ -501,7 +503,18 @@ async function plan(sourceId, channelId, now = Date.now(), { keepTrying = false 
 
     let links = [];
     try { links = identity ? channelLinks.usableLinks(primaryId, identity.key) : []; } catch { links = []; }
+    // #332: the order is the primary, its siblings, one same-provider copy, then the backups. Siblings come first in
+    // `links`; the copy goes in where the first backup begins.
+    let copyPlaced = false;
+    const placeCopy = () => {
+        if (copyPlaced) return;
+        copyPlaced = true;
+        const siblings = new Set(links.filter(l => Number(l.backupSourceId) === primaryId).map(l => String(l.streamId)));
+        const copy = copyCandidate(primary, primarySource, { primaryDown, primaryExpired, siblings, keepTrying, now });
+        if (copy) (copy.held ? held : candidates).push(copy.candidate);
+    };
     for (const link of links) {
+        if (Number(link.backupSourceId) !== primaryId) placeCopy();
         const id = Number(link.backupSourceId);
         const streamId = String(link.streamId);
         let candidate = null;
@@ -527,6 +540,8 @@ async function plan(sourceId, channelId, now = Date.now(), { keepTrying = false 
         } catch { /* not a candidate */ }
     }
 
+    placeCopy();
+
     // Nowhere else to go: the primary, as it always was - or (#288, a recording) every one held back, the one held
     // back longest ago first, by when each last failed (a stable sort: route order breaks a tie).
     if (!candidates.length && keepTrying && held.length) {
@@ -544,12 +559,38 @@ async function plan(sourceId, channelId, now = Date.now(), { keepTrying = false 
     return {
         candidates,
         channelProviders,
+        // #332: the channel has a same-provider copy (in the walk or held back): a recording has somewhere else to go.
+        hasCopy: [...candidates, ...held].some(c => c.via === 'copy'),
         primaryKey,
         channelName: identity ? identity.name : null,
         primarySkipped,
         providerCount: new Set(candidates.map(c => c.providerId)).size,
         backupsConfigured
     };
+}
+
+/**
+ * #332: the channel's same-provider copy for the walk (channelLinks.copiesOf: the same guide id or normalised name, a
+ * different identity), ranked like a sibling: one per channel, the first in playlist order that is not held back
+ * (quarantined, or its provider down); with all held back, the first of them, as `held` (a recording's keepTrying).
+ * Never one that is already a sibling, never when the provider has expired. { candidate, held } or null.
+ */
+function copyCandidate(primary, primarySource, { primaryDown, primaryExpired, siblings, keepTrying, now }) {
+    if (primaryExpired) return null;
+    let copies = [];
+    try { copies = channelLinks.copiesOf(primary.providerId, primary.channelKey); } catch { copies = []; }
+    let firstHeld = null;
+    for (const copy of copies) {
+        if (siblings.has(copy.identity) || copy.identity === String(primary.channelKey)) continue;
+        let url = null;
+        try { url = siblingUrl(primarySource, copy.identity); } catch { url = null; }
+        if (!url || !isStreamUrl(url)) continue;
+        const candidate = { ...primary, via: 'copy', url, channelKey: copy.identity };
+        const skip = primaryDown || isQuarantined(primary.providerId, copy.identity, now);
+        if (!skip) return { candidate, held: false };
+        if (!firstHeld) firstHeld = candidate;
+    }
+    return firstHeld && keepTrying ? { candidate: firstHeld, held: true } : null;
 }
 
 /** The ordered candidates for a channel (see plan). */
