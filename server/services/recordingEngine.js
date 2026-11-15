@@ -1335,7 +1335,8 @@ function captureEndWhy(entry, exitCode) {
  * a feed repeating the same clip (#324: one channel's feed, the provider is up) are the channel's alone.
  */
 function heldAgainst(entry, { failover, ranLong }) {
-    const repeating = entry.feedLost?.reason === 'repeating';
+    // #332: the provider's placeholder is one channel's feed on a provider that is up, like a loop.
+    const repeating = entry.feedLost?.reason === 'repeating' || entry.feedLost?.reason === 'placeholder';
     if (failover && (repeating || (entry.route.oneProvider && entry.stalled))) return 'channel';
     if (failover) return 'provider';
     if (entry.route.multi && !ranLong) return 'channel';
@@ -1381,7 +1382,10 @@ async function onSegmentExit(schedule, entry, exitCode) {
         // a crash) is quarantined too, without a breaker count, so the next try goes to the next provider instead of
         // this one for the rest of the window. A run that lasted a minute is retried where it was, as before.
         const held = heldAgainst(entry, { failover, ranLong });
-        if (held === 'channel') providerRouting.quarantine(candidate?.providerId, candidate?.channelKey);
+        // #332: the placeholder's hold is its own, shorter one (the ingest set it; never lengthened to a failure's here).
+        const placeholder = entry.feedLost?.reason === 'placeholder';
+        if (held === 'channel' && placeholder) providerRouting.quarantine(candidate?.providerId, candidate?.channelKey, Date.now(), providerRouting.PLACEHOLDER_MS);
+        else if (held === 'channel') providerRouting.quarantine(candidate?.providerId, candidate?.channelKey);
         else if (held === 'provider') providerRouting.noteFailure(candidate, entry.route.primaryKey);
         console.warn(`[Recordings] #${entry.recordingId} ended early (${why})` +
             (entry.route.multi && candidate?.providerName ? ` on ${candidate.providerName}` : '') +
@@ -1394,8 +1398,14 @@ async function onSegmentExit(schedule, entry, exitCode) {
         // instead of counting another ("Gaps: 1, N s" for one outage, however many tries it took).
         // #288 (Opus L4): the outage runs from the recording's last growth; a part that grew starts a new one (the pace
         // goes back to normal), one that wrote nothing carries it on. continuePart backs off on a long one.
+        // #332 (D-59): a part whose feed was nothing but the provider's placeholder recorded no programme. Its segments
+        // (the slate) are removed, so the outage simply goes on: no gap closed, no slate in the recording. A part that
+        // recorded the programme before the placeholder came keeps everything, the few seconds of slate at its end too.
+        if (placeholder && entry.feedLost.onlyPlaceholder === true && segments.discardEpoch(entry.recordingId, entry.outputPath)) {
+            console.log(`[Recordings] #${entry.recordingId}: part ${entry.segmented.epoch} held only the provider's placeholder; not kept`);
+        }
         const grew = segments.epochSegmentCount(entry.outputPath) > 0;
-        const lostAt = Math.min(now, entry.lastGrowthAt ?? entry.spawnedAt ?? now);
+        const lostAt = Math.min(now, placeholder && entry.feedLost.onlyPlaceholder === true ? entry.spawnedAt ?? now : entry.lastGrowthAt ?? entry.spawnedAt ?? now);
         continuations.set(schedule.id, {
             schedule, nextPart: 1, lostAt, starting: false, waitingLogged: false,
             newGap: grew,

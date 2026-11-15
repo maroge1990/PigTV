@@ -226,6 +226,37 @@ function sealEpoch(epochDir) {
     } catch (e) { /* nothing was written in this epoch */ }
 }
 
+/**
+ * #332: an epoch whose feed was nothing but the provider's placeholder (a still slate) recorded no programme: its
+ * archive segments go and its playlist is left empty and ended, so the MP4 (stitchArchive) and the time recorded
+ * (recordedSeconds: the next epoch's offset) leave it out. Its watch copy (#17: one runs beside every capture) is
+ * stopped where it is and ended there: what it already made stays listed (an event playlist only grows), and nothing
+ * more is made of it. True when it was emptied.
+ */
+function discardEpoch(recordingId, epochDir) {
+    const m = EPOCH_RE.exec(path.basename(String(epochDir || '')));
+    if (!m) return false;
+    const key = `${recordingId}:${Number(m[1])}`;
+    const follower = followers.get(key);
+    if (follower && follower.proc && follower.proc !== 'starting') { try { follower.proc.kill('SIGKILL'); } catch (e) { /* gone */ } }
+    followers.delete(key); // ensureView finds no first segment: none is started again
+    // Every archive segment, listed or not (one being written, or written as the capture stopped).
+    try {
+        for (const name of fs.readdirSync(epochDir)) if (/^a\d{6}\.ts(\.tmp)?$/.test(name)) fs.unlinkSync(path.join(epochDir, name));
+    } catch (e) { /* no folder */ }
+    try {
+        fs.writeFileSync(path.join(epochDir, 'archive.m3u8'), '#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:4\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-ENDLIST\n');
+    } catch (e) { return false; }
+    for (const part of viewParts(epochDir)) {
+        const file = path.join(epochDir, PART_FILES(part.k).playlist);
+        try {
+            const text = fs.readFileSync(file, 'utf8');
+            if (!/#EXT-X-ENDLIST/.test(text)) { fs.writeFileSync(`${file}.tmp`, text.replace(/\s*$/, '\n#EXT-X-ENDLIST\n')); fs.renameSync(`${file}.tmp`, file); }
+        } catch (e) { /* the next request sees it as it is */ }
+    }
+    return true;
+}
+
 function sealAll(workDir) {
     for (const e of epochs(workDir)) sealEpoch(e.dir);
 }
@@ -425,11 +456,12 @@ function viewPlaylist(workDir, { captureOver = false } = {}) {
     const list = epochs(workDir);
     for (const [i, e] of list.entries()) {
         const archive = archiveOf(e.dir);
+        const view = viewOf(e.dir);
         // An epoch that recorded nothing. #288 (Opus M3): one whose ffmpeg was refused before its first segment has no
         // archive.m3u8 at all (never ended); it is over once a later epoch exists or the capture is, so it is skipped
-        // too, instead of holding the watch copy at the outage until the MP4 is made.
-        if (archive.segments.length === 0 && (archive.ended || i < list.length - 1 || captureOver)) continue;
-        const view = viewOf(e.dir);
+        // too, instead of holding the watch copy at the outage until the MP4 is made. #332: one emptied for holding only
+        // the provider's placeholder keeps what its watch copy had already made (listed once, an event playlist only grows).
+        if (archive.segments.length === 0 && view.segments.length === 0 && (archive.ended || i < list.length - 1 || captureOver)) continue;
         // #34: each part has its own init; a discontinuity before each epoch and each part after the first
         view.segments.forEach((s, i) => segments.push({
             name: `${e.name}/${s.name}`, duration: s.duration, map: `${e.name}/${s.init}`,
@@ -1069,7 +1101,7 @@ function status() {
 
 module.exports = {
     SEGMENT_SEC, workRoot, ioFor, workDirFor, isWorkDir, epochs, nextEpoch, captureInput, captureArgs, captureBytes, captureGrowth,
-    sealEpoch, sealAll, stitchArchive, recordedSeconds, archiveSegmentCount, epochSegmentCount,
+    sealEpoch, sealAll, stitchArchive, recordedSeconds, archiveSegmentCount, epochSegmentCount, discardEpoch,
     viewArgs, _resetFreeBytes,
     _partInput: partInput,
     _refreshPartInput: refreshPartInput,

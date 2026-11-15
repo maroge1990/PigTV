@@ -119,6 +119,15 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   is ended as stalled on every route (#274): with a backup it fails over, with one provider it continues on the same one
   as above. Only the failover counts toward its provider's breaker: a stall on a channel's only provider does not (#304, Mark), so it never shows that provider down nor sends its notice; that includes a channel with no backup link on a server that has backups (`route.oneProvider`, from `plan()`'s `channelProviders`: the stall is only quarantined). A refused or failed connection there still counts (0595). On a shared feed with one provider, a feed that has
   handed the capture nothing since it last grew is left to the ingest's own rule (one silence, one resume). Not `append_list`: each run's playlist is ffmpeg's own and the server joins them.
+  A shared feed ended as the **provider's placeholder** (#332, [`ingest.md`](ingest.md) › Placeholder feed: a still slate
+  on connections closed within a second) is an outage under D-59: the capture ends early like any other (held against the
+  channel only, for 3 min, like a loop; on a multi route the next try goes to another feed of the channel, else it waits
+  for the next tick and keeps trying until the stop time). A part whose feed was nothing but the placeholder from the
+  moment it joined (`onlyPlaceholder`) is emptied (`recordingSegments.discardEpoch`): its archive segments are deleted and
+  its playlist left empty and ended, so neither the MP4 nor the time recorded has any slate in it, and the outage's gap runs
+  on from that part's start. Its watch copy is stopped and ended where it is (what it had already made stays listed, about
+  a segment of slate in the watch copy only). A part that recorded the programme before the placeholder came keeps all of
+  it, including the slate it read before the feed ended (two short connections, typically about 2 s).
   The Apple TV's watch copy (fMP4, `hvc1`) is made by a **local follower ffmpeg** per epoch, only when someone asks
   (`GET /:id/watch`); it never touches the provider. The watch playlist skips an epoch that recorded nothing, also one refused before its first
   segment (no `archive.m3u8`) once a later epoch exists (#288). At the end the joined playlist is remuxed with preparation's own
