@@ -3670,7 +3670,7 @@ body.ui-dialog-open {
 .rec-tools .btn { min-height: 44px; }
 .rec-none { margin: 0; color: var(--color-text-secondary); display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); }
 
-.rec-tools .btn-danger { color: var(--color-error); }
+.rec-tools .btn-danger { color: var(--color-error-text); }
 .rec-tools .btn[disabled] { opacity: .5; cursor: default; }
 .rec-tile.is-picked { border-color: var(--color-accent); box-shadow: 0 0 0 1px var(--color-accent); }
 .rec-pick { position: absolute; top: var(--space-sm); left: var(--space-sm); z-index: 1; display: inline-flex; align-items: center; gap: var(--space-xs);
