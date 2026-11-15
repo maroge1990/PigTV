@@ -517,14 +517,17 @@ function evaluate({ now = Date.now() } = {}) {
                 const existing = paired(c) ? events.get(c) || null : episodes.resolved.get(c) || null;
                 if (existing) {
                     // F4: a moved programme's pending schedule follows it (the viewer's cancel just holds).
-                    if (existing.rule_id !== null && ['scheduled', 'waiting'].includes(existing.status)
+                    // #329 (Codex round 1, high): only this rule's own schedule: one it found already set (a viewer's, or
+                    // another rule's, by game or programme) is never changed by it.
+                    const own = existing.rule_id === rule.id;
+                    if (own && ['scheduled', 'waiting'].includes(existing.status)
                         && Math.abs(existing.program_start - c.start) > NEAR_MS) {
                         db().prepare(`UPDATE scheduled_recordings SET program_start = ?, program_end = ? WHERE id = ? AND status IN ('scheduled', 'waiting')`)
                             .run(c.start, c.end, existing.id);
                         console.log(`[Rules] Rule #${rule.id}: "${c.title}" moved in the guide; schedule #${existing.id} follows it`);
                     }
                     // #217: a team rule's schedule records until its game ends (an older one is linked now)
-                    if (c.gameId && !existing.sport_game_id && ['scheduled', 'waiting', 'recording'].includes(existing.status)) {
+                    if (own && c.gameId && !existing.sport_game_id && ['scheduled', 'waiting', 'recording'].includes(existing.status)) {
                         db().prepare('UPDATE scheduled_recordings SET sport_game_id = ? WHERE id = ? AND sport_game_id IS NULL').run(c.gameId, existing.id);
                     }
                     hit(rule.id, c.identity, existing.id);

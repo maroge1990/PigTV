@@ -198,3 +198,27 @@ test('#329 move: a schedule of the game made on C at the same time, and one alre
     assert.deepEqual([r.status, r.body.error], [409, 'Something else is already set to record on Kayo 3 at that time.']);
     assert.deepEqual([row(other.body.id), row(b.body.id)], [o, w]);
 });
+
+// Codex round 1 of #329 (high): a rule whose hit is a schedule it found already set (another rule's, or a viewer's)
+// then "reconciled" it as its own on every evaluation: moved it to the rule's airing time, linked its game.
+test('#329 rules: a rule never changes another rule\'s (or a viewer\'s) schedule of the game, however often it is evaluated', async () => {
+    const gameId = 'espn:australian-football/afl:2';
+    sqlite.getDb().prepare(`INSERT INTO epg_programs (channel_id, source_id, start_time, end_time, title, categories, flags, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run('ff', source.id, NOW + 20 * H, NOW + 23 * H, 'AFL: Collingwood v Essendon', '["Sport"]', 8, null);
+    dashboard.store().ingest([game(gameId, 'AFL', NOW + 20 * H + 10 * 60000, 'Collingwood', 'Essendon')], NOW);
+    sportsEvents.reset();
+    // Another rule's schedule of the game: on Fox Footy 2, an hour later than the airing the team rule picks.
+    const s = await call('POST', '/api/recordings/schedule', on('pos_2', 'Fox Footy 2', NOW + 21 * H, { gameId }));
+    assert.equal(s.status, 201);
+    const other = await call('POST', '/api/recordings/rules', { kind: 'team', match: 'Richmond', sport: 'australian football' });
+    sqlite.getDb().prepare('UPDATE scheduled_recordings SET rule_id = ? WHERE id = ?').run(other.body.id, s.body.id);
+    const before = row(s.body.id);
+    assert.deepEqual([before.channel_name, before.program_start, before.rule_id], ['Fox Footy 2', NOW + 21 * H, other.body.id]);
+    const team = await call('POST', '/api/recordings/rules', { kind: 'team', match: 'Collingwood', sport: 'australian football' });
+    assert.ok([200, 201].includes(team.status));
+    for (let i = 0; i < 3; i++) {
+        await load('services/recordingRules').evaluate();
+        assert.deepEqual(row(s.body.id), before, `evaluation ${i + 1}: left as it was`);
+    }
+    assert.equal(ofGame(gameId).length, 1, 'and no second schedule of the game');
+});
