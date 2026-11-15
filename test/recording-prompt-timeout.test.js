@@ -55,7 +55,19 @@ test('the first request only asks; it does not take the stream immediately', asy
     const verdict = await coordinator.requestForRecording(s, SETTINGS);
     assert.equal(verdict.allowed, false);
     assert.equal(verdict.prompted, true);
+    assert.equal(verdict.reason, 'Waiting: a viewer is using the provider\'s connection');
     assert.equal(transcodeSession.getAllSessions().length, 1, 'the viewer keeps their stream');
+});
+
+// #314: a recording waiting on a viewer nobody asked (or who has not answered) said "Viewer declined".
+test('#314: no viewer has answered: the reason says a viewer is using the connection, never that one declined', async () => {
+    await liveSession('device:tv');
+    const s = schedule();
+    await coordinator.requestForRecording(s, SETTINGS);
+    backdateDueSince(s.id, 1); // within the timeout: it still waits
+    const verdict = await coordinator.requestForRecording(s, SETTINGS);
+    assert.equal(verdict.allowed, false);
+    assert.equal(verdict.reason, 'Waiting: a viewer is using the provider\'s connection');
 });
 
 test('no answer within the timeout: the recording takes the stream', async () => {

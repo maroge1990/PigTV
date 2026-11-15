@@ -784,7 +784,7 @@ async function requestForRecording(schedule, settings = {}, providerId = undefin
     if (!existing) {
         prompts.set(schedule.id, { issuedAt: now, dueSince: now, declinedAt: null, schedule, providerId: providerId ?? null });
         console.log(`[Coordinator] Recording #${schedule.id} is waiting for the stream; asking the viewer`);
-        return { allowed: false, prompted: true, reason: 'Waiting for the viewer to stop playback' };
+        return { allowed: false, prompted: true, reason: VIEWER_USING };
     }
     if (!existing.dueSince) existing.dueSince = now; // became due only now; was only announced before
     existing.providerId = providerId ?? null; // the pool whose viewers are asked (pendingPrompt)
@@ -801,8 +801,14 @@ async function requestForRecording(schedule, settings = {}, providerId = undefin
         }
     }
 
-    return { allowed: false, prompted: false, reason: 'Viewer declined; waiting for playback to stop' };
+    // #314: "declined" only when a viewer really answered "Keep watching"; a prompt nobody has answered (or a client
+    // that cannot show one) is a viewer using the connection.
+    return { allowed: false, prompted: false, reason: existing.declinedAt ? VIEWER_DECLINED : VIEWER_USING };
 }
+
+// #314: why a due recording waits for a viewer (the schedule's `error` while it is `waiting`).
+const VIEWER_USING = 'Waiting: a viewer is using the provider\'s connection';
+const VIEWER_DECLINED = 'Viewer declined; waiting for playback to stop';
 
 /**
  * Could a recording start on this provider now without asking anybody? True when
