@@ -2153,3 +2153,142 @@ test('#289: a long-call helper that never spawned (no pid) is never counted as s
         shareFs.reset();
     }
 });
+
+// ---- #318: the bytes of a recording played or downloaded from the share are read by a child process ----
+
+test('#318: a share that hangs mid-stream holds no pool thread (a healthy fs call still answers); the reader stops after its stall time; healthy bytes and headers are as before', async () => {
+    const { execFileSync } = require('node:child_process');
+    let reader = null; // absent before #318: the proof runs this test against the old server too
+    try { reader = load('services/recordingReader'); } catch { /* old server */ }
+    const app = express();
+    app.use('/api/recordings', load('routes/recordings'));
+    // What the download answered before (res.download), for the comparison.
+    app.get('/ref/:id', (req, res) => {
+        const rec = load('db/recordingsDb').recordings.getById(Number(req.params.id));
+        res.download(rec.file_path, `${rec.title}${path.extname(rec.file_path)}`, { dotfiles: 'allow' });
+    });
+    app.use((err, req, res, next) => res.status(500).json({ error: 'Internal server error' })); // as server/index.js
+    const srv = app.listen(0, '127.0.0.1');
+    await once(srv, 'listening');
+    const base = `http://127.0.0.1:${srv.address().port}`;
+    const url = `${base}/api/recordings`;
+    const bytes = require('node:crypto').randomBytes(3 * 1024 * 1024 + 7);
+    const fine = completedRecording(path.join(healthy, 'Play-Fine.mp4'), 'Play “fine”');
+    const stalls = completedRecording(path.join(slowRecordings, 'Play-Stall.mp4'), 'Play stall');
+    real(() => { fs.writeFileSync(fine.file_path, bytes); fs.writeFileSync(stalls.file_path, bytes); });
+    const local = path.join(sandbox, 'pool-probe.txt');
+    fs.writeFileSync(local, 'healthy');
+
+    // The trap for a read in this process: once on, a read of a file on the slow share waits on a pool thread (a FIFO
+    // nobody writes to), as a read on a hung mount does. For the reader's child, the same from the first 256 KiB on.
+    const fifo = path.join(sandbox, 'hung.fifo');
+    execFileSync('mkfifo', [fifo]);
+    const fifoFd = fs.openSync(fifo, 'r+');
+    const shareFds = new Set();
+    let hangReads = false, hungReads = 0;
+    const realOpen = fs.open, realRead = fs.read;
+    fs.open = function (p, ...rest) {
+        const cb = rest.pop();
+        return realOpen.call(this, p, ...rest, (err, fd) => { if (!err && String(p).startsWith(slowShare)) shareFds.add(fd); cb(err, fd); });
+    };
+    fs.read = function (fd, buffer, ...rest) {
+        if (!hangReads || !shareFds.has(fd)) return realRead.call(this, fd, buffer, ...rest);
+        const cb = rest.pop();
+        hungReads++;
+        return realRead.call(this, fifoFd, buffer, 0, 1, null, (err) => { hungReads--; cb(err || new Error('released'), 0, buffer); });
+    };
+    const stallWas = reader?.tuning.stallMs;
+    const pool = Number(process.env.UV_THREADPOOL_SIZE) || 4;
+    const aborts = [];
+    shareFs.reset();
+    pooled.length = 0;
+    try {
+        // A healthy share: /stream, media.mp4 and /download, byte for byte.
+        const get = async (route, headers = {}, method = 'GET') => {
+            const r = await fetch(`${route}`, { headers, method });
+            const body = Buffer.from(await r.arrayBuffer());
+            const h = Object.fromEntries([...r.headers].filter(([k]) => !['date', 'connection', 'keep-alive'].includes(k)));
+            return { status: r.status, body, h };
+        };
+        for (const route of [`${url}/${fine.id}/stream`, `${url}/${fine.id}/media.mp4`]) {
+            const all = await get(route);
+            assert.equal(all.status, 200);
+            assert.ok(all.body.equals(bytes), 'the whole file, byte for byte');
+            assert.deepEqual([all.h['content-length'], all.h['content-type'], all.h['accept-ranges']], [String(bytes.length), 'video/mp4', 'bytes']);
+            for (const [range, from, to] of [['bytes=0-9', 0, 9], ['bytes=-5', bytes.length - 5, bytes.length - 1], ['bytes=1000000-', 1000000, bytes.length - 1],
+                ['bytes=5-99999999', 5, bytes.length - 1]]) {
+                const part = await get(route, { Range: range });
+                assert.equal(part.status, 206, range);
+                assert.equal(part.h['content-range'], `bytes ${from}-${to}/${bytes.length}`);
+                assert.equal(part.h['content-length'], String(to - from + 1));
+                assert.ok(part.body.equals(bytes.subarray(from, to + 1)), `${range}: byte for byte`);
+            }
+            assert.equal((await get(route, { Range: `bytes=${bytes.length}-` })).status, 416);
+            const head = await get(route, {}, 'HEAD');
+            assert.deepEqual([head.status, head.h['content-length']], [200, String(bytes.length)]);
+        }
+        const etag = (await get(`${base}/ref/${fine.id}`)).h.etag;
+        for (const headers of [{}, { Range: 'bytes=0-9' }, { Range: 'bytes=-5' }, { Range: 'bytes=990-99999999' }, { Range: 'bytes=x' },
+            { Range: 'bytes=0-1,5-6' }, { Range: 'bytes=0-1,2-6' }, { 'If-None-Match': etag }, { 'If-Modified-Since': new Date(Date.now() + 3600000).toUTCString() },
+            { Range: 'bytes=0-9', 'If-Range': '"nope"' }, { Range: 'bytes=0-9', 'If-Range': etag }]) {
+            for (const method of ['GET', 'HEAD']) {
+                const before = await get(`${base}/ref/${fine.id}`, headers, method);
+                const now = await get(`${url}/${fine.id}/download`, headers, method);
+                assert.deepEqual(now.h, before.h, `${method} ${JSON.stringify(headers)}: the same headers as res.download`);
+                assert.equal(now.status, before.status, `${method} ${JSON.stringify(headers)}`);
+                assert.ok(now.body.equals(before.body), `${method} ${JSON.stringify(headers)}: the same bytes`);
+            }
+        }
+        const past = await get(`${url}/${fine.id}/download`, { Range: `bytes=${bytes.length}-` });
+        assert.deepEqual([past.status, past.h['content-range']], [416, `bytes */${bytes.length}`], 'a range past the end: 416, as /stream (it was a 500)');
+        // The slow share answers its first range request, then hangs.
+        const first = await get(`${url}/${stalls.id}/stream`, { Range: 'bytes=0-9' });
+        assert.ok(first.status === 206 && first.body.equals(bytes.subarray(0, 10)));
+        hangReads = true;
+        process.env.PIGTV_TEST_READ_STALL_AFTER = String(64 * 1024);
+        if (reader) reader.tuning.stallMs = 4000;
+        const hanging = [];
+        for (let i = 0; i < pool; i++) {
+            const ac = new AbortController();
+            aborts.push(ac);
+            const route = i % 2 ? `${url}/${stalls.id}/download` : `${url}/${stalls.id}/stream`;
+            hanging.push(fetch(route, { headers: { Range: 'bytes=0-2000000' }, signal: ac.signal })
+                .then(r => r.arrayBuffer()).then(() => 'complete', () => 'cut'));
+        }
+        const settle = Date.now();
+        while (Date.now() - settle < 5000 && hungReads < pool && (reader?._live.size ?? 0) < pool) await new Promise(r => setTimeout(r, 25));
+        // A file call of the server's own, on a healthy disk, while those requests hang.
+        const at = Date.now();
+        const answered = await Promise.race([fs.promises.readFile(local, 'utf8'), new Promise(r => setTimeout(() => r('no answer'), 3000))]);
+        assert.equal(answered, 'healthy', `an fs call answered while ${pool} reads hung on the share (${hungReads} pool threads held)`);
+        assert.ok(Date.now() - at < 2000, `answered in ${Date.now() - at} ms`);
+        assert.equal(hungReads, 0, 'no read of the share on this process\'s pool');
+        assert.deepEqual(pooled.filter(p => p.includes('Play-Stall')), [], 'no stream opened on the share by this process');
+        // After the stall time the readers are killed and the responses cut.
+        assert.deepEqual(await Promise.all(hanging), Array(pool).fill('cut'));
+        for (let i = 0; i < 100 && reader._live.size; i++) await new Promise(r => setTimeout(r, 50));
+        assert.equal(reader._live.size, 0, 'every reader has exited');
+        // A client that goes kills its reader at once.
+        reader.tuning.stallMs = 60000;
+        const ac = new AbortController();
+        const gone = fetch(`${url}/${stalls.id}/stream`, { signal: ac.signal }).then(r => r.arrayBuffer()).catch(() => null);
+        for (let i = 0; i < 100 && !reader._live.size; i++) await new Promise(r => setTimeout(r, 20));
+        assert.equal(reader._live.size, 1);
+        ac.abort();
+        await gone;
+        for (let i = 0; i < 100 && reader._live.size; i++) await new Promise(r => setTimeout(r, 20));
+        assert.equal(reader._live.size, 0, 'killed when the response closed');
+    } finally {
+        delete process.env.PIGTV_TEST_READ_STALL_AFTER;
+        for (const ac of aborts) ac.abort();
+        if (reader) reader.tuning.stallMs = stallWas;
+        // Free any pool thread the trap holds (the old server's reads), one byte each.
+        for (let i = 0; i < 200 && hungReads > 0; i++) { fs.writeSync(fifoFd, Buffer.alloc(1)); await new Promise(r => setTimeout(r, 10)); }
+        fs.open = realOpen;
+        fs.read = realRead;
+        fs.closeSync(fifoFd);
+        srv.closeAllConnections?.();
+        srv.close();
+        shareFs.reset();
+    }
+});

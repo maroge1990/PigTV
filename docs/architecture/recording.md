@@ -77,8 +77,13 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   after each 1 MiB chunk (flushed to the share every 32 MiB), and no progress for 30 s (`copyStallMs`) kills it and is a
   stall as above; a deletion kills it too, and either way its partial goes once it has exited. The byte-for-byte check
   that adopts a file found on the share as a kept original (`shareFs.sameBytes`) runs the same way. Playing or
-  downloading a recording still reads its bytes on the server's thread pool, so a share that hangs mid-stream can hold
-  those threads; only the first check is bounded (503 when the share does not answer). One finish or move per recording at a time. That remux's stall watchdog reads the file's size
+  downloading a recording on the share (`/stream`, `media.mp4`, `/download`; #318): the first check is bounded (503 when
+  the share does not answer), and the bytes of each request are read by a child process of their own
+  (`recordingReader.js` spawns `recordingReaderChild.js` with the file and the range; it writes them to stdout, piped to
+  the response), never on the server's thread pool. The child is killed when the response closes or finishes, and when
+  it sends nothing for 20 s while the client is ready for more (`stallMs`; a player that stops reading is not a stall):
+  the response is then cut, or answered 503 if nothing was sent. Range handling and headers are as before (the download
+  as `res.download` answered it); a file in appdata is read in-process. One finish or move per recording at a time. That remux's stall watchdog reads the file's size
   through it too, one check at a time; compression and preparation still read it in-process. `getRecordingsRoot()` only creates the final folder
   when its parent already exists. Settings → Recording → Storage refuses an unusable `recordingsPath` with 400 instead of
   saving it silently (`services/recordingsFolder.js` `validateRecordingsPathSetting()`).

@@ -8,6 +8,8 @@ const { requireAuth } = require('../auth');
 const recordingEngine = require('../services/recordingEngine');
 const { recordings: recordingsDb } = require('../db/recordingsDb');
 const segments = require('../services/recordingSegments');
+const shareFs = require('../services/shareFs');
+const recordingReader = require('../services/recordingReader');
 const { buildMasterPlaylist } = require('../services/transcodeSession');
 const { withStreamToken } = require('./transcode');
 
@@ -37,6 +39,25 @@ async function sendFileRange(stream, res) {
         if (err.code === 'ERR_STREAM_PREMATURE_CLOSE' || res.destroyed) return;
         throw err;
     }
+}
+
+/**
+ * #318: bytes `start`..`end` of a recording to the response (its status and headers set). On the share they are read
+ * by a child process (recordingReader), so a share that hangs mid-stream holds none of libuv's pool threads; in
+ * appdata, which never hangs, as before. A HEAD request (or an empty file) gets the headers alone, as it always did.
+ */
+async function sendBytes(req, res, filePath, start, end) {
+    if (req.method === 'HEAD' || end < start) return res.end();
+    if (segments.ioFor(filePath) !== shareFs.local) {
+        try {
+            return await recordingReader.pipeRange(filePath, start, end, res);
+        } catch (err) { // nothing sent: the caller answers 503 or 500, without this file's headers
+            for (const name of ['Content-Disposition', 'Content-Type', 'Content-Length', 'Content-Range', 'Accept-Ranges', 'Cache-Control',
+                'Last-Modified', 'ETag']) res.removeHeader(name);
+            throw err;
+        }
+    }
+    await sendFileRange(fs.createReadStream(filePath, { start, end }), res);
 }
 
 // Serve a local file with HTTP Range support, for seeking. Shared by
@@ -79,15 +100,59 @@ async function serveWithRangeSupport(req, res, filePath, contentType) {
             'Content-Length': end - start + 1,
             'Content-Type': contentType
         });
-        await sendFileRange(fs.createReadStream(filePath, { start, end }), res);
+        await sendBytes(req, res, filePath, start, end);
     } else {
         res.set({
             'Content-Length': fileSize,
             'Content-Type': contentType,
             'Accept-Ranges': 'bytes'
         });
-        await sendFileRange(fs.createReadStream(filePath), res);
+        await sendBytes(req, res, filePath, 0, fileSize - 1);
     }
+}
+
+/**
+ * #318: a download as res.download (send) answered it, with the bytes through sendBytes: Content-Disposition, Content-Type
+ * by the extension, Accept-Ranges, Cache-Control, Last-Modified and a weak ETag of size and time; 304 for a conditional
+ * GET that is fresh; one range (several that overlap are combined; otherwise the whole file), honouring If-Range. Its
+ * stat is the bounded first check (#289). Two error answers send gave through the app's error handler (a 500) are now
+ * their own: 416 for a range past the end (with Content-Range, as /stream), 412 for a failed If-Match/If-Unmodified-Since.
+ */
+async function serveDownload(req, res, filePath, downloadName) {
+    const stat = await segments.ioFor(filePath).stat(filePath);
+    if (!stat) return res.status(404).json({ error: 'Recording file not found' });
+    const size = stat.size;
+    const mtime = new Date(Math.round(stat.mtimeMs)); // as fs.Stats makes its mtime
+    const etag = `W/"${size.toString(16)}-${mtime.getTime().toString(16)}"`;
+    const lastModified = mtime.toUTCString();
+    res.attachment(downloadName);
+    res.set({ 'Accept-Ranges': 'bytes', 'Cache-Control': 'public, max-age=0', 'Last-Modified': lastModified, ETag: etag });
+    const h = req.headers;
+    const date = (v) => (v ? Date.parse(v) : NaN);
+    if (h['if-match'] || h['if-unmodified-since'] || h['if-none-match'] || h['if-modified-since']) {
+        const tokens = (v) => String(v).split(',').map(t => t.trim()).filter(Boolean);
+        const failed = h['if-match']
+            ? h['if-match'] !== '*' && tokens(h['if-match']).every(m => m !== etag && m !== `W/${etag}` && `W/${m}` !== etag)
+            : !isNaN(date(h['if-unmodified-since'])) && date(lastModified) > date(h['if-unmodified-since']);
+        if (failed) return res.status(412).end();
+        if (req.fresh) return res.status(304).end();
+    }
+    let start = 0, end = size - 1;
+    if (h.range && /^ *bytes=/.test(h.range)) {
+        let ranges = req.range(size, { combine: true });
+        const ifRange = h['if-range'];
+        if (ifRange && !(ifRange.includes('"') ? ifRange.includes(etag) : date(lastModified) <= date(ifRange))) ranges = -2;
+        if (ranges === -1) {
+            res.set('Content-Range', `bytes */${size}`);
+            return res.status(416).end();
+        }
+        if (ranges !== -2 && ranges.length === 1) {
+            ({ start, end } = ranges[0]);
+            res.status(206).set('Content-Range', `bytes ${start}-${end}/${size}`);
+        }
+    }
+    res.set('Content-Length', String(end - start + 1));
+    await sendBytes(req, res, filePath, start, end);
 }
 
 // Stream a recording for playback, with HTTP Range support for seeking
@@ -190,10 +255,10 @@ router.get('/:id/download', async (req, res) => {
         if (!rec || !rec.file_path) {
             return res.status(404).json({ error: 'Recording file not found' });
         }
-        if (!(await fileThere(rec.file_path))) return res.status(404).json({ error: 'Recording file not found' });
         const downloadName = `${rec.title || 'recording'}${path.extname(rec.file_path)}`;
-        res.download(rec.file_path, downloadName, { dotfiles: 'allow' });
+        await serveDownload(req, res, rec.file_path, downloadName);
     } catch (err) {
+        if (res.headersSent) return;
         if (isUnresponsive(err)) return res.status(503).json({ error: NOT_RESPONDING });
         res.status(500).json({ error: err.message });
     }
