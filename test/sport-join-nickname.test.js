@@ -226,7 +226,7 @@ test('#319: the nickname join compares the squad itself: women, the age group an
     assert.equal(joins(women, 'Arsenal c. Chelsea Reserves'), false, 'women v reserves');
     assert.equal(joins(women, 'Arsenal (Femmes) c. Chelsea (Femmes) U21'), false, 'women v women U21');
     assert.equal(joins(women, 'Arsenal (Femmes) c. Chelsea (Femmes) Réserves'), false, 'women v women reserves');
-    assert.equal(joins(women, 'Arsenal reçoit Chelsea'), false, 'women v senior (a title only the nickname join reads)');
+    assert.equal(joins(women, 'Arsenal reçoit Chelsea'), true, 'a title naming no squad joins as before (WBBL guides leave "Women" out)');
     assert.equal(joins(women, 'Arsenal Femenino c. Chelsea Femenino'), true, 'women v women, another language');
     assert.equal(joins(women, 'Arsenal (Femmes) c. Chelsea (Femmes)'), true);
     const u19 = game('Arsenal U19 v Chelsea U19', ' U19', ' U19');

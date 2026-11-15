@@ -140,7 +140,8 @@ const nameFold = s => classify.normText(foldText(s).replace(/(^|[^\p{L}\p{N}])[l
 const says = (text, key) => text.includes(` ${key} `);
 const teamId = c => String(c.id ?? c.name ?? '');
 // #319: a squad is an identity, not a flag: women's (w), the age group (u19, u21...), reserves (r), espoirs. A title joins
-// only a game whose squad is the same: women's never joins women's U21 or reserves, U19 never U21, senior never any.
+// only a game whose squad is the same: women's never joins women's U21 or reserves, U19 never U21, senior never any;
+// a title naming no squad joins as before (guides often leave "Women" out).
 const SQUAD_RE = /(?:^| )(?:(women|womens|woman|femmes?|feminin|feminine|feminines|mujeres|femenino|femenil)|u ?(\d\d)|(reserves?)|(espoirs))(?= |$)/g;
 function squadOf(text) {
     const marks = new Set();
@@ -184,7 +185,10 @@ function namedByNickname(prepared, parsed) {
         ...sides.flatMap(c => [c.name, ...(Array.isArray(c.aliases) ? c.aliases : [])])].filter(t => typeof t === 'string').join(' ')));
     return guideTexts(parsed).some(text => {
         if (!own.every(keys => keys.some(k => says(text, k)))) return false;
-        if (squadOf(text) !== prepared.squad) return false;
+        // A title that names no squad may still be a women's or youth game's own ("WBBL: Sixers v Renegades"); one that names
+        // a squad must name the game's
+        const squad = squadOf(text);
+        if (squad && squad !== prepared.squad) return false;
         let rest = text;
         for (const k of longestFirst) while (says(rest, k)) rest = rest.replace(` ${k} `, ' | ');
         return !names.all.some(o => !ids.includes(o.id) && says(rest, o.k));
