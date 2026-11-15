@@ -5,44 +5,44 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 15 Nov 2026, the web upgrade session (batches Web 2, Web 3, Web 4 and the feed
-loop; nothing unpushed).*
+*Overwritten at the end of every session. 15 Nov 2026, the sport and web parity session (batches Sport parity, Sport 2,
+Web Sport windows and Web leftovers; nothing unpushed).*
 
-- **Running:** production is on server **0632** (`:latest`); main is at **0695** and reaches production at Mark's next
-  Force Update (D-58). `:release` is still **v0579** (D-45). Apple **246** is on TestFlight (tvOS and iOS). Next builds:
-  server **0696**, Apple **247**.
-- **Web 2, server 0633 to 0649 (#320 open for Mark's device check, #322 closed, D-63):** no station numbers; player keys
-  only on Live TV; Safari fullscreen; closing the tab frees the stream; last channel with Resume, the tab title and Media
-  Session; in-player clash prompts. Re-encodes at fixed values (1080p, medium, auto mix), hardware and User-Agent in an
-  admin-only Advanced block, no web upscaling. Evidence: `docs/evidence/2026-11-14-web2/`.
-- **Web 3, server 0650 to 0664 (#323 closed):** the web Sport section ported from the Apple apps to Mark's approved mocks
-  (front page, sport, league, F1, cricket, events, the record menu); hidden scores stay out of the page and its
-  accessibility tree (rig: checked in the page source and the tree). Evidence: `docs/evidence/2026-11-14-web3/`.
-- **Web 4, server 0665 to 0676 (#321 closed, #62 open for Mark's device check):** the player reconnects as the Apple one
-  does (rig: a paused provider came back on the backup in 48 s), Favourite, Record, Audio and Last channel, a Now playing
-  bar; the Guide's programme menu, programme search and record marks; recordings prepare before playing, watch from the
-  start, Find breaks. Evidence: `docs/evidence/2026-11-14-web4/`.
-- **Feed loop, server 0677 to 0695 (#324, open for the real feed):** captured FOX Footy on Strong8K looping a 36 s clip
-  (14 Nov, Mark's OK). A feed whose picture and sound repeat is ended and switched to another provider when every viewer
-  can move (channel-only quarantine); with nowhere to go it plays on and Status says so. Feeds without a known sound track
-  are not checked (Mark). Four sign-off highs in the sound handling were fixed on Mark's say-so. Evidence:
-  `docs/evidence/2026-11-15-feed-loop/`.
-- **Decisions waiting on Mark:** #232 (Top Shelf); the Appdata Backup setting; #240; #266's rows; #295's colour point;
-  whether to tag `:release`; the Force Update to bring 0695 to production.
-- **Open investigation:** #3 (sound out of step on the iPad): the relay join measured clean; the device meter (#267) and
-  the marker (#268) are filed, not built (Mark).
-- Earlier sessions' batches are in their evidence folders under `docs/evidence/` and in git history.
+- **Running:** production ran **0695** after Mark's Force Update on 15 Nov (it started clean: database copied before the
+  0632 to 0695 migrations, no errors, no feed-loop "repeating" lines). main is at **0757**: everything below reaches
+  production at his next Force Update (D-58). `:release` is still **v0579** (D-45). Apple **246** on TestFlight. Next
+  builds: server **0758**, Apple **247**. Brand kit **1.9.1** (PigBrand 102e200: status text colours).
+- **Sport parity, server 0696 to 0711 (#325 closed, #326 open for Mark's check):** the Sport page fills the window; the
+  web Sport pages and cards look like iOS (iPad layout on wide windows, iPhone under 768 px; the league page embedded
+  under a sport's banner; ⋯ on hover with right-click). Evidence: `docs/evidence/2026-11-15-sport-parity/`.
+- **Sport 2, server 0712 to 0723 (#297 closed; #282 open for the Apple check; #291 item 2 done; #29 re-measured):** F1,
+  Cricket and Events pages take status from the score collector and hold back results for a delayed account; a game past
+  its guide slot stays in /api/sports/events until the final; with scores off the front page shows the fixture list's
+  games as upcoming cards. Production's settings (read only): relay, standby, shared ingest and renewal are on, so #291's
+  other items are playback work. Evidence: `docs/evidence/2026-11-15-sport2/`.
+- **Web Sport windows, server 0724 to 0734 (#327 open for Mark's check):** ‹ › on card rails; iOS's game details and
+  record page (choose the channel; When it stops: ESPN's end via the game id, #217); Save never makes a second recording.
+  Evidence: `docs/evidence/2026-11-15-web-sport-windows/`.
+- **Web leftovers, server 0735 to 0757 (#62, #63, #64, #130, #292, #295):** Recordings new-only series rules, search, sort,
+  bulk delete; one Settings save model (Settings.js split under `pages/settings/`), one signed-in fetch (`API.authFetch`),
+  a sign-out that always signs out; Live TV first-run checklist then a slim banner (Mark); brand 1.9.1 status text; the
+  channel list race, notices, dialogs and layout leftovers. Evidence: `docs/evidence/2026-11-15-web-leftovers/`.
+- **Decisions waiting on Mark:** #328 (Events fields under a score delay while live); #232 (Top Shelf); the Appdata Backup
+  setting; #240; whether to tag `:release`; a short probe of the six unlabelled "Sky Sports F1" channels for Sport 3.
+- **Open investigation:** #3 (sound out of step on the iPad): the device meter (#267) and the marker (#268) are filed, not
+  built (Mark).
 
 ## Now
 
-Batches regrouped on 12 Nov 2026 after the audit; the web upgrade (#320 to #324) is done. Order within a section is the
-order to take them.
+Order within a section is the order to take them.
 
-1. **Sport 2, one source for the sport pages:** #297 · #282 · #29's re-measure; then #291 (after a read of production's
-   settings; its item 2 is partly wrong, see the issue).
-2. **Sport 3, pickers:** #265 step 2 · #266 (server and Apple), once Mark confirms the rows.
-3. **Web leftovers:** #63 first run · #64 Settings.js and sign-out · #292 · #295 · #62's rest (series "new only",
-   search, sort, bulk delete).
+1. **Sport 3, pickers:** #265 step 2 (quality from the measured stream, `channel_profiles`) · #266 (group true copies).
+   Production has six visible channels named exactly "Sky Sports F1" (USA guide 1, UK guide 2, Sport Networks 3) with no
+   quality word: measured labels first, then grouping. Channels never played need a short probe: ask Mark (a real
+   provider connection).
+2. **Recording safety:** #329 (a server-side guard against two schedules of one game) · #330 (test a provider before
+   saving it; `/estimate` errors through `redact()`).
+3. **Relay and playback leftovers:** #291 items 1, 3, 4, 5 (capture first, full Codex rule).
 
 ## Later (each needs a capture, a real provider, a device or a design choice first)
 
@@ -56,7 +56,8 @@ order to take them.
 ## Waiting on Mark (no code is waiting; steps are on each issue)
 
 - **Device passes, on production 0632 (includes 0577) and a TestFlight build from 218 (Apple 1's items need one from 239):**
-  - Web, after a Force Update to 0695: #320 · #62; the feed loop (#324) on a real looping channel.
+  - Web, after a Force Update to 0757: #320 · #62 · #326 · #327 · #63; the feed loop (#324) on a real looping channel;
+    #282 on the Apple apps with scores off (rig).
   - Playback: #5 · #6 · #7 · #14 · #18 · #19 · #33 · #37 · #46 · #49.
   - Recording day: #12 · #17 · #31 · #32 · #217 · #246 · #260 (P0) · #271 · #274.
   - Sport: #20 · #191 to #199 · #200 to #202 · #204 · #205 · #210 to #216 · #218 · #223 · #230 · #233 · #234 · #261 ·
