@@ -3441,6 +3441,13 @@ body.ui-dialog-open {
 .rec-actions .btn, .rec-form .btn { min-height: 40px; font-size: var(--text-sm); white-space: nowrap; justify-content: center; }
 .rec-actions .btn-more { width: 40px; padding: 0; font-size: var(--text-lg); line-height: 1; }
 
+/* Recorded: search, sort and select above the cards (#62) */
+.rec-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-md); }
+.rec-tools .rec-search { flex: 1 1 220px; }
+.rec-tools .rec-sort { flex: 0 0 auto; }
+.rec-tools .btn { min-height: 44px; }
+.rec-none { margin: 0; color: var(--color-text-secondary); display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); }
+
 /* Recorded: a wrapping grid of picture cards. A programme image fills the picture; a channel logo (or the
    placeholder) is shown whole on a plain raised surface, never stretched or cropped. */
 .rec-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--space-md); }

@@ -11,6 +11,8 @@
 const REC_PLAY_ICON = '<svg class="icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
 
 class RecordingsPage {
+    static SORTS = [['newest', 'Newest first'], ['oldest', 'Oldest first'], ['title', 'Title A–Z']];
+
     constructor(app) {
         this.app = app;
         const $ = (id) => document.getElementById(id);
@@ -35,6 +37,8 @@ class RecordingsPage {
         // Deletes waiting for their Undo notice to end, by key: 'recording:3', 'schedule:7' (a cancel or a recent
         // problem: the same request), 'rule:2'. A pending item is never drawn, whatever a refresh brings back.
         this.pending = new Map();
+        // #62: how Recorded is shown. Kept across redraws and refreshes; not saved.
+        this.view = { query: '', sort: 'newest' };
         this.init();
     }
 
@@ -183,9 +187,38 @@ class RecordingsPage {
                 { label: 'Open the TV Guide', run: () => this.openGuide(), primary: true }, { className: 'rec-empty' });
             return;
         }
-        put(this.recordedCount, `<span class="pig-amount">${items.length}</span> ${items.length === 1 ? 'programme' : 'programmes'}`);
+        const shown = this.arrange(items);
+        const filtering = this.view.query.trim() !== '';
+        put(this.recordedCount, filtering
+            ? `<span class="pig-amount">${shown.length}</span> of <span class="pig-amount">${items.length}</span>`
+            : `<span class="pig-amount">${items.length}</span> ${items.length === 1 ? 'programme' : 'programmes'}`);
         const primary = this.primaryId(items);
-        el.innerHTML = `<div class="rec-grid">${items.map(item => this.tileHtml(item, primary)).join('')}</div>`;
+        const body = shown.length
+            ? `<div class="rec-grid">${shown.map(item => this.tileHtml(item, primary)).join('')}</div>`
+            : `<p class="rec-none" role="status">No recording matches “${UI.escape(this.view.query.trim())}”. <button type="button" class="btn btn-secondary" data-action="clear-search" data-id="q">Clear search</button></p>`;
+        el.innerHTML = this.toolsHtml() + body;
+        const search = el.querySelectorAll('[data-action="search"]')[0];
+        if (search) search.addEventListener('input', () => {
+            this.view.query = search.value;
+            this.drawRecorded();
+            const again = el.querySelectorAll('[data-action="search"]')[0];
+            if (again && again.focus) { again.focus({ preventScroll: true }); if (again.setSelectionRange) again.setSelectionRange(again.value.length, again.value.length); }
+        });
+        el.querySelectorAll('[data-action="clear-search"]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                this.view.query = '';
+                this.drawRecorded();
+                const again = el.querySelectorAll('[data-action="search"]')[0];
+                if (again && again.focus) again.focus({ preventScroll: true });
+            });
+        });
+        const sort = el.querySelectorAll('[data-action="sort"]')[0];
+        if (sort) sort.addEventListener('change', () => {
+            this.view.sort = sort.value;
+            this.drawRecorded();
+            const again = el.querySelectorAll('[data-action="sort"]')[0];
+            if (again && again.focus) again.focus({ preventScroll: true });
+        });
         el.querySelectorAll('[data-action="play"]').forEach(btn => {
             btn.addEventListener('click', () => this.play(btn.dataset.id));
         });
@@ -207,6 +240,35 @@ class RecordingsPage {
             this.recordedFoot.hidden = false;
             this.recordedFoot.innerHTML = 'Nothing is scheduled to record. Choose Record on a programme in the TV Guide.';
         }
+    }
+
+    /** #62: the search box and the sort choice above the cards. */
+    toolsHtml() {
+        const e = UI.escape;
+        const options = RecordingsPage.SORTS.map(([value, label]) =>
+            `<option value="${value}"${this.view.sort === value ? ' selected' : ''}>${label}</option>`).join('');
+        return `<div class="rec-tools">
+            <input type="search" class="rec-input rec-search" data-action="search" data-id="q" value="${e(this.view.query)}" maxlength="120"
+                placeholder="Search recordings" aria-label="Search recordings by title" autocomplete="off">
+            <select class="rec-input rec-sort" data-action="sort" data-id="sort" aria-label="Sort recordings">${options}</select>
+        </div>`;
+    }
+
+    /**
+     * #62: the recordings that match the search (a title containing the words, any case) in the chosen order. Newest
+     * first puts a recording in progress first, as the Apple Recordings tab does; the other orders are plain.
+     */
+    arrange(items) {
+        const words = this.view.query.trim().toLowerCase();
+        const rows = words ? items.filter(r => String(r.title || '').toLowerCase().includes(words)) : [...items];
+        const started = (r) => Number(r.started_at) || 0;
+        const newest = (a, b) => (started(b) - started(a)) || (Number(b.id) - Number(a.id));
+        const sorts = {
+            newest: (a, b) => ((b.status === 'recording') - (a.status === 'recording')) || newest(a, b),
+            oldest: (a, b) => (started(a) - started(b)) || (Number(a.id) - Number(b.id)),
+            title: (a, b) => String(a.title || '').localeCompare(String(b.title || ''), undefined, { sensitivity: 'base', numeric: true }) || newest(a, b)
+        };
+        return rows.sort(sorts[this.view.sort] || sorts.newest);
     }
 
     /** The one rose Play: the newest completed recording not yet watched. */

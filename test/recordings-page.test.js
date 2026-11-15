@@ -214,9 +214,9 @@ test('0207: the library shows a progress bar part-way through with the time left
     const page = new context.RecordingsPage({});
     const base = { channel_name: 'ABC', status: 'completed', duration_sec: 1000, file_size_bytes: 1 };
     page.renderRecordings([
-        { ...base, id: 1, title: 'Half', position_sec: 500, watched: false },
-        { ...base, id: 2, title: 'Done', position_sec: 990, watched: true },
-        { ...base, id: 3, title: 'Fresh', position_sec: 0, watched: false }
+        { ...base, id: 1, started_at: 30, title: 'Half', position_sec: 500, watched: false },
+        { ...base, id: 2, started_at: 20, title: 'Done', position_sec: 990, watched: true },
+        { ...base, id: 3, started_at: 10, title: 'Fresh', position_sec: 0, watched: false }
     ]);
     const html = elements['recordings-list'].innerHTML;
     const rows = html.split('class="rec-tile"').slice(1);
