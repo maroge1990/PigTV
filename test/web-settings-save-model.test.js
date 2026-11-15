@@ -19,9 +19,9 @@ function page({ update }) {
         addEventListener(t, fn) { (this.listeners[t] ||= []).push(fn); }
     });
     const fire = async (id) => {
-        // As a browser does: every listener runs at once, none waits for another's save.
-        await Promise.all((el(id).listeners.change || []).map(fn => fn()));
-        await new Promise(resolve => setImmediate(resolve)); // a listener that does not return its save
+        // As a browser does: every listener runs at once, and nothing waits for a save (a test's answer may be held).
+        (el(id).listeners.change || []).forEach(fn => fn());
+        await new Promise(resolve => setImmediate(resolve));
     };
     const sent = [];
     const context = vm.createContext({
@@ -95,4 +95,58 @@ test('recovery put back after a refused save frees the standby switch again', as
     assert.equal(el('setting-relay-enabled').checked, true, 'recovery is back on');
     assert.equal(el('setting-standby-enabled').disabled, false, 'so the standby is not greyed out');
     assert.equal(toasts.length, 1, 'one notice: the standby was saved off');
+});
+
+// Codex review (medium): each save captured the value before it, and saves of one setting overlapped. auto → nvenc →
+// vaapi with vaapi saved and nvenc then refused put the list and the player back to auto while the server held vaapi.
+// Now saves of a setting go one at a time, and a failure goes back to the last value the server confirmed.
+function deferredUpdate() {
+    const waiting = [];
+    const update = (body) => new Promise((resolve, reject) => waiting.push({ body, ok: () => resolve({ ...body }), no: (m) => reject(refused(m)) }));
+    return { update, waiting };
+}
+const settle = () => new Promise(resolve => setImmediate(resolve));
+
+test('a later change waits for the earlier save; an earlier failure does not undo a later success', async () => {
+    const d = deferredUpdate();
+    const { settings, el, fire, toasts } = page({ update: d.update });
+    settings.initTranscodingSettings();
+    el('setting-hw-encoder').value = 'nvenc'; await fire('setting-hw-encoder');
+    el('setting-hw-encoder').value = 'vaapi'; await fire('setting-hw-encoder');
+    assert.equal(d.waiting.length, 1, 'the second save is not sent while the first is on its way');
+    d.waiting[0].no('nvenc is not available'); await settle();
+    assert.equal(el('setting-hw-encoder').value, 'vaapi', 'a newer change is waiting: the list is left alone');
+    assert.match(toasts[0][0], /nvenc is not available\.$/, 'it says the earlier one failed, not that the list is back');
+    assert.equal(d.waiting.length, 2);
+    d.waiting[1].ok(); await settle();
+    assert.equal(el('setting-hw-encoder').value, 'vaapi');
+    assert.equal(settings.app.player.settings.hwEncoder, 'vaapi', 'the player keeps what the server holds');
+    assert.equal(toasts.length, 1);
+});
+
+test('a later failure goes back to the last confirmed value, never to one from before a success', async () => {
+    const d = deferredUpdate();
+    const { settings, el, fire, toasts } = page({ update: d.update });
+    settings.initTranscodingSettings();
+    el('setting-hw-encoder').value = 'nvenc'; await fire('setting-hw-encoder');
+    el('setting-hw-encoder').value = 'vaapi'; await fire('setting-hw-encoder');
+    d.waiting[0].ok(); await settle();
+    d.waiting[1].no('vaapi is not available'); await settle();
+    assert.equal(el('setting-hw-encoder').value, 'nvenc', 'back to the saved nvenc, not to auto');
+    assert.equal(settings.app.player.settings.hwEncoder, 'nvenc');
+    assert.match(toasts[0][0], /It is back to how it was\.$/);
+});
+
+test('two failures in a row go back to the value the server held, not to the first refused one', async () => {
+    const d = deferredUpdate();
+    const { settings, el, fire, toasts } = page({ update: d.update });
+    settings.initTranscodingSettings();
+    el('setting-hw-encoder').value = 'nvenc'; await fire('setting-hw-encoder');
+    el('setting-hw-encoder').value = 'vaapi'; await fire('setting-hw-encoder');
+    d.waiting[0].no('no nvenc'); await settle();
+    d.waiting[1].no('no vaapi'); await settle();
+    assert.deepEqual(d.waiting.map(w => w.body.hwEncoder), ['nvenc', 'vaapi'], 'sent in the order made');
+    assert.equal(el('setting-hw-encoder').value, 'auto', 'auto, as the server holds it, not the refused nvenc');
+    assert.equal(settings.app.player.settings.hwEncoder, 'auto');
+    assert.equal(toasts.length, 2);
 });

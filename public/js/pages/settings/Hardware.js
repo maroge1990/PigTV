@@ -9,8 +9,9 @@ Object.assign(SettingsPage.prototype, {
             const el = document.getElementById(id);
             if (!el) return;
             el.addEventListener('change', () => this.saveOnChange({
-                save: () => API.settings.update({ [key]: el.checked }),
-                revert: () => { el.checked = !el.checked; if (after) after(); }
+                key, value: el.checked, saved: !el.checked,
+                save: (v) => API.settings.update({ [key]: v }).then(() => v),
+                show: (v) => { el.checked = v; if (after) after(); }
             }));
         };
         bind('setting-vaapi-hw-decode', 'vaapiHwDecode');
@@ -22,7 +23,7 @@ Object.assign(SettingsPage.prototype, {
         const shared = document.getElementById('setting-shared-ingest');
         // A switch that cannot run is turned off and saved off (below); if that save fails it stays off here, as the
         // server treats it while the switch it needs is off, and the notice says to check it.
-        const saveOff = (key) => this.saveOnChange({ save: () => API.settings.update({ [key]: false }), tail: 'Check it before you rely on it.' });
+        const saveOff = (key) => this.saveOnChange({ key, value: false, saved: true, save: (v) => API.settings.update({ [key]: v }).then(() => v), tail: 'Check it before you rely on it.' });
         // #65 (0360): like the standby (0203), a renewal switch that cannot run is unticked and saved off, not left
         // ticked and greyed, which read as "still on".
         const syncRenewalAvailability = async () => {

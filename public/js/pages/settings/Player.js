@@ -5,30 +5,32 @@
 Object.assign(SettingsPage.prototype, {
     /**
      * #9 (0358): one setting at a time, and the result shown: "Saved" next to the page's status. #64: saved like every
-     * other single control (saveOnChange): if the server refuses it, the control and the player's copy go back to the
-     * value it holds and a notice says why. `shown` turns a stored value into what the control shows; `after` runs once
+     * other single control (saveOnChange): one save of a key at a time; if the latest is refused, the control and the
+     * player's copy go back to the last value the server confirmed and a notice says why. `shown` turns a stored value into what the control shows; `after` runs once
      * it is back (a field that depends on it).
      */
     async savePlayerSetting(key, control, { shown = (v) => v ?? '', after = null } = {}) {
         const player = this.app.player;
         const settings = player.settings;
-        const previous = settings[key];
         const value = control.type === 'checkbox' ? control.checked : control.value;
+        const saved = settings[key]; // what the server holds, while nothing for this key is on its way
         settings[key] = value;
         return this.saveOnChange({
+            key: `player:${key}`, value, saved,
             status: document.getElementById('playback-settings-status'),
-            save: async () => {
+            save: async (v, latest) => {
                 // This browser's own preferences (the arrow keys) the player keeps itself; the rest go to the server
-                // one key at a time, and what it saved is what the player keeps.
-                if ((player.constructor?.LOCAL_KEYS || []).includes(key)) return player.saveSettings([key]);
-                const saved = await API.settings.update({ [key]: value });
-                if (saved && typeof saved === 'object' && key in saved) settings[key] = saved[key];
-                return saved;
+                // one key at a time, and what it saved is what the player keeps (unless a newer change is on its way).
+                if ((player.constructor?.LOCAL_KEYS || []).includes(key)) { await player.saveSettings([key]); return v; }
+                const answer = await API.settings.update({ [key]: v });
+                const kept = answer && typeof answer === 'object' && key in answer ? answer[key] : v;
+                if (latest()) settings[key] = kept;
+                return kept;
             },
-            revert: () => {
-                settings[key] = previous;
-                if (control.type === 'checkbox') control.checked = previous === true;
-                else control.value = shown(previous);
+            show: (v) => {
+                settings[key] = v;
+                if (control.type === 'checkbox') control.checked = v === true;
+                else control.value = shown(v);
                 if (after) after();
             }
         });

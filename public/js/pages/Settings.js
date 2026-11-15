@@ -78,23 +78,45 @@ class SettingsPage {
     /**
      * #64: the one save model for a single switch or list in Settings: it saves the moment it is changed (a form of
      * several fields, such as a provider, a user or the recording settings, has a Save button instead). `save()` does
-     * the saving and throws on failure. If it fails, `revert()` puts the control back to the value the server holds and
-     * a notice says why, and that it is back; never a silent flip-back. `status` (optional) says "Saved" when it worked.
+     * the saving and throws on failure; a notice says why, never a silent flip-back. `status` (optional) says "Saved".
+     *
+     * Saves of one setting (`key`) go one at a time, in the order made, and the page keeps the last value the server
+     * confirmed (`saved`: what it held before this change, used when nothing for the key is on its way). Only the
+     * latest change decides what the control shows: if it fails, `show(value)` puts the control (and any copy) back to
+     * that confirmed value, never to one captured before a later success. An earlier change that fails while a later
+     * one waits only says so. `save(value, latest)` may resolve the value the server kept (else `value` counts);
+     * `latest()` says whether no newer change has been made since. Without `show` (a switch turned off because another was) nothing is put back.
      * Resolves true when saved.
      */
-    async saveOnChange({ save, revert = null, status = null, tail = 'It is back to how it was.' }) {
-        try {
-            await save();
-        } catch (err) {
-            if (revert) {
-                try { revert(); } catch (e) { console.error('Could not put the setting back:', e); }
+    saveOnChange({ key, value, saved, save, show = null, status = null, tail = 'It is back to how it was.' }) {
+        const states = (this._saveStates ||= new Map());
+        let st = states.get(key);
+        if (!st) states.set(key, (st = { confirmed: saved, seq: 0, pending: 0, chain: Promise.resolve() }));
+        else if (!st.pending) st.confirmed = saved; // idle: what was loaded since is the truth
+        const mine = ++st.seq;
+        st.pending++;
+        const run = async () => {
+            const latest = () => mine === st.seq;
+            try {
+                const answer = await save(value, latest);
+                st.confirmed = answer !== undefined ? answer : value;
+                if (latest() && status) { status.textContent = 'Saved'; status.classList?.toggle('error', false); }
+                return true;
+            } catch (err) {
+                const putBack = latest() && show;
+                if (putBack) {
+                    try { show(st.confirmed); } catch (e) { console.error('Could not put the setting back:', e); }
+                }
+                if (latest() && status) { status.textContent = ''; status.classList?.toggle('error', false); }
+                UI.toast(SettingsPage.notSavedText(err, putBack || !show ? tail : ''), { kind: 'error' });
+                return false;
+            } finally {
+                st.pending--;
             }
-            if (status) { status.textContent = ''; status.classList?.toggle('error', false); }
-            UI.toast(SettingsPage.notSavedText(err, tail), { kind: 'error' });
-            return false;
-        }
-        if (status) { status.textContent = 'Saved'; status.classList?.toggle('error', false); }
-        return true;
+        };
+        const result = st.chain.then(run);
+        st.chain = result.catch(() => {});
+        return result;
     }
 
     /**
