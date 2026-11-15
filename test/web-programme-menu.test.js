@@ -90,6 +90,24 @@ test('Record every episode adds a series rule; the buffers sit under an Options 
     assert.equal(calls[0][0], 'addRule');
     assert.deepEqual({ kind: calls[0][1].kind, match: calls[0][1].match, sourceId: calls[0][1].sourceId, channelId: calls[0][1].channelId,
         pre: calls[0][1].preBufferMin, post: calls[0][1].postBufferMin }, { kind: 'series', match: 'Evening News', sourceId: 1, channelId: 'pos_4', pre: 2, post: 10 });
+    assert.strictEqual(calls[0][1].newOnly, false, 'every episode sends newOnly false, as the Apple app does');
+});
+
+test('#62: Record every new episode sends the same rule with newOnly true, and nothing else differs', async () => {
+    const { document, guide, calls } = browser();
+    await guide.showProgramDetails(programme());
+    assert.match(dialogEl(document).querySelector('.ui-dialog-footer').innerHTML, />Record every new episode<[\s\S]*>Record every episode</);
+    button(document, 'record-pre-buffer').value = '2'; button(document, 'record-post-buffer').value = '10';
+    button(document, 'modal-record-series-new').onclick({});
+    await new Promise((r) => setImmediate(r));
+    await guide.showProgramDetails(programme());
+    button(document, 'record-pre-buffer').value = '2'; button(document, 'record-post-buffer').value = '10';
+    button(document, 'modal-record-series').onclick({});
+    await new Promise((r) => setImmediate(r));
+    const [a, b] = calls.filter(c => c[0] === 'addRule').map(c => c[1]);
+    assert.strictEqual(a.newOnly, true);
+    assert.strictEqual(b.newOnly, false);
+    assert.deepEqual({ ...a, newOnly: 0 }, { ...b, newOnly: 0 });
 });
 
 test('a bad buffer opens Options and sends nothing; the description is escaped', async () => {

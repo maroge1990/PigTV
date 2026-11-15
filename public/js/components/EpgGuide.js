@@ -1076,7 +1076,8 @@ class EpgGuide {
         if (onAir) actions.push(['modal-watch', 'Watch now']);
         if (scheduled) actions.push(['modal-cancel-recording', scheduled.status === 'recording' ? 'Stop recording' : 'Cancel recording']);
         else if (canRecord) actions.push(['modal-record', 'Record']);
-        if (canRecord) actions.push(['modal-record-series', 'Record every episode']);
+        // #62: as the Apple app's Record page: every new episode (newOnly true) or every episode, repeats too (false).
+        if (canRecord) actions.push(['modal-record-series-new', 'Record every new episode'], ['modal-record-series', 'Record every episode']);
         footer.innerHTML = actions.map(([id, label], i) => `<button class="btn ${i === 0 ? 'btn-primary' : 'btn-secondary'}" id="${id}">${label}</button>`).join('')
             + '<button class="btn btn-secondary" id="modal-close" data-dialog-close>Close</button>';
 
@@ -1144,15 +1145,15 @@ class EpgGuide {
                 this.syncRecordingMarks?.();
                 close();
             };
-            // R5: every airing of this title on this channel.
-            footer.querySelector('#modal-record-series').onclick = async () => {
+            // R5: every airing of this title on this channel; #62: `newOnly` is always sent, as the Apple app sends it.
+            const addSeries = (newOnly) => async () => {
                 const chosen = buffers();
                 if (!chosen) return;
                 const { preBufferMin, postBufferMin } = chosen;
                 try {
                     const rule = await API.recordings.addRule({ kind: 'series', match: data.title, sourceId: parseInt(data.sourceId, 10),
-                        channelId: data.channelId, channelName: data.channelName, preBufferMin, postBufferMin });
-                    UI.toast(`Series rule added: ${data.title} (${rule.scheduled || 0} scheduled)`);
+                        channelId: data.channelId, channelName: data.channelName, preBufferMin, postBufferMin, newOnly });
+                    UI.toast(`Series rule added: ${data.title}${newOnly ? ' (new episodes only)' : ''} (${rule.scheduled || 0} scheduled)`);
                 } catch (err) {
                     UI.toast(UI.errorText(err, 'Could not add the series rule.'), { kind: 'error' });
                 }
@@ -1160,6 +1161,8 @@ class EpgGuide {
                 this.syncRecordingMarks?.();
                 close();
             };
+            footer.querySelector('#modal-record-series-new').onclick = addSeries(true);
+            footer.querySelector('#modal-record-series').onclick = addSeries(false);
         }
     }
 
