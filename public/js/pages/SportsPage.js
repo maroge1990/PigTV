@@ -849,6 +849,16 @@ class SportsPage {
 
     /** A channel's identity in the channel list (never a stored position). */
     static channelKey(c) { return `${c.sourceId}:${c.stableId || c.id}`; }
+    /**
+     * Whether a `recordings/scheduled` row records on channel `c` (ARCHITECTURE › Channel identity): a row with a stable
+     * id matches only that stable id, never its stored pos_N (a playlist reorder moves positions); a row without one
+     * matches by position.
+     */
+    static rowOnChannel(r, c) {
+        if (!r || !c || Number(r.source_id) !== Number(c.sourceId)) return false;
+        if (r.channel_stable_id) return !!c.stableId && String(c.stableId) === String(r.channel_stable_id);
+        return String(c.id) === String(r.channel_item_id);
+    }
     /** A channel's own airing of the game (C-R #20), else the game's on its best channel. */
     airing(g, c) {
         const ev = SportView.event(g);
@@ -1071,7 +1081,7 @@ class SportsPage {
             else {
                 st.schedule = row;
                 // the page shows the channel the schedule records, never another one (RecordPlan.bind)
-                const at = st.airings.findIndex(x => x.key === `${row.source_id}:${row.channel_stable_id || row.channel_item_id}`);
+                const at = st.airings.findIndex(x => x.key && SportsPage.rowOnChannel(row, x.c));
                 if (at >= 0) st.index = at;
                 else if (row.channel_name && Number.isFinite(row.program_start) && Number.isFinite(row.program_end)) {
                     st.airings = [...st.airings, { c: { name: row.channel_name }, key: null, start: row.program_start, end: row.program_end }];
@@ -1099,8 +1109,8 @@ class SportsPage {
         const named = SportsPage.recordingOf(this.game(g.id) || g);
         const byId = named && rows.find(r => active(r) && r.id === named.id);
         if (byId) return byId;
-        const airings = (g.channels || []).map(c => ({ keys: [SportsPage.channelKey(c), `${c.sourceId}:${c.id}`], ...this.airing(g, c) }));
-        return rows.find(r => active(r) && airings.some(a => (a.keys.includes(`${r.source_id}:${r.channel_stable_id || r.channel_item_id}`) || a.keys.includes(`${r.source_id}:${r.channel_item_id}`))
+        const airings = (g.channels || []).map(c => ({ c, ...this.airing(g, c) }));
+        return rows.find(r => active(r) && airings.some(a => SportsPage.rowOnChannel(r, a.c)
             && r.program_start < a.end && r.program_end > a.start)) || null;
     }
     /** What Save changes sends (RecordPlan.change): only what changed, Start early not once it records; null when nothing has. */
