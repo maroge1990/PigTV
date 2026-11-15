@@ -107,18 +107,49 @@ test('the timer pauses while the pointer is over the notice or focus is inside i
     assert.equal(open().length, 1, 'held open while focus is inside');
 });
 
-test('one at a time: a new notice replaces the current one, of either kind', () => {
+test('one info notice at a time; a new error replaces the earlier error; either kind replaces its own', () => {
     const { UI, open, text } = browser();
     UI.toast('First');
     UI.toast('Second');
     assert.deepEqual(text(), ['Second']);
     UI.toast('Broken', { kind: 'error' });
-    assert.deepEqual(text(), ['Broken']);
-    assert.equal(open().length, 1);
-    UI.toast('Third');
-    assert.deepEqual(text(), ['Third']);
+    UI.toast('Broken again', { kind: 'error' });
+    assert.deepEqual(text(), ['Second', 'Broken again']);
     mock.timers.tick(5100);
-    assert.equal(open().length, 0, 'the replaced notices left no timer that closes the new one early or late');
+    assert.deepEqual(text(), ['Broken again'], 'the info notice leaves by itself; the error stays');
+    assert.equal(open().length, 1);
+});
+
+// #292 (2): an error notice is not replaced by a notice that follows it.
+test('an error notice stays when an info notice follows it, with its own onEnd not called', () => {
+    const { UI, text } = browser();
+    const ends = [];
+    UI.toast('Could not save', { kind: 'error', onEnd: (why) => ends.push(why) });
+    UI.toast('Saved elsewhere');
+    UI.toast('Another', { action: { label: 'Undo', run() {} } });
+    assert.ok(text().includes('Could not save'), 'the error is still shown');
+    assert.deepEqual(ends, []);
+    mock.timers.tick(11000);
+    assert.deepEqual(text(), ['Could not save']);
+});
+
+// #292 (3): the close button hides, so focus must not stay on it.
+test('closing an error with its button does not leave focus on the hidden button', () => {
+    const { UI, document, open } = browser();
+    const page = document.createElement('section');
+    page.className = 'page active';
+    const h = document.createElement('h2');
+    page.appendChild(h);
+    document.body.appendChild(page);
+    UI.toast('Could not save', { kind: 'error' });
+    const pill = open()[0];
+    const close = pill.querySelector('.ui-toast-close');
+    close.focus();
+    assert.equal(document.activeElement, close);
+    close.dispatchEvent(new FakeEvent('click'));
+    assert.equal(open().length, 0);
+    assert.notEqual(document.activeElement, close, 'focus left the hidden close button');
+    assert.equal(document.activeElement, h, 'it went to the page heading');
 });
 
 test('the action runs and closes the notice; a rejected action shows an error notice', async () => {

@@ -320,7 +320,10 @@ const StateBlock = (() => {
 
 const Toast = (() => {
     const INFO_MS = 5000, ACTION_MS = 10000;
-    let parts = null, current = null, hovering = false, focusInside = false;
+    // One notice per kind (#292): an error stays until it is closed or another error replaces it; an info notice that
+    // follows it shows beside it and never takes it away.
+    let parts = null, hovering = false, focusInside = false;
+    const cur = { info: null, error: null };
 
     const hasPage = () => typeof document !== 'undefined' && !!document.createElement && !!document.body;
 
@@ -343,15 +346,17 @@ const Toast = (() => {
         pill.appendChild(text);
         pill.appendChild(action);
         pill.appendChild(close);
-        close.addEventListener('click', () => closeCurrent());
-        pill.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeCurrent(); });
-        pill.addEventListener('mouseenter', () => { hovering = true; pause(); });
-        pill.addEventListener('mouseleave', () => { hovering = false; resume(); });
-        pill.addEventListener('focusin', () => { focusInside = true; pause(); });
-        pill.addEventListener('focusout', (e) => {
-            if (e.relatedTarget && pill.contains && pill.contains(e.relatedTarget)) return;
-            focusInside = false; resume();
-        });
+        close.addEventListener('click', () => closeCurrent(kind));
+        pill.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeCurrent(kind); });
+        if (kind === 'info') {
+            pill.addEventListener('mouseenter', () => { hovering = true; pause(); });
+            pill.addEventListener('mouseleave', () => { hovering = false; resume(); });
+            pill.addEventListener('focusin', () => { focusInside = true; pause(); });
+            pill.addEventListener('focusout', (e) => {
+                if (e.relatedTarget && pill.contains && pill.contains(e.relatedTarget)) return;
+                focusInside = false; resume();
+            });
+        }
         return { pill, text, action, close };
     }
 
@@ -377,33 +382,40 @@ const Toast = (() => {
     }
 
     function arm(ms) {
-        clearTimeout(current.timer);
-        current.remaining = ms;
-        current.startedAt = Date.now();
-        current.timer = setTimeout(() => closeCurrent('timeout'), ms);
+        const c = cur.info;
+        clearTimeout(c.timer);
+        c.remaining = ms;
+        c.startedAt = Date.now();
+        c.timer = setTimeout(() => closeCurrent('info', 'timeout'), ms);
     }
     function pause() {
-        if (!current || current.kind !== 'info' || !current.timer) return;
-        clearTimeout(current.timer);
-        current.timer = null;
-        current.remaining = Math.max(current.remaining - (Date.now() - current.startedAt), 1000);
+        const c = cur.info;
+        if (!c || !c.timer) return;
+        clearTimeout(c.timer);
+        c.timer = null;
+        c.remaining = Math.max(c.remaining - (Date.now() - c.startedAt), 1000);
     }
     function resume() {
-        if (!current || current.kind !== 'info' || current.timer || hovering || focusInside) return;
-        arm(current.remaining);
+        const c = cur.info;
+        if (!c || c.timer || hovering || focusInside) return;
+        arm(c.remaining);
     }
 
-    function closeCurrent(why = 'closed') {
-        if (!current) return;
-        const { pill, text, action } = current.part;
-        const onEnd = current.onEnd;
-        clearTimeout(current.timer);
+    function closeCurrent(kind, why = 'closed') {
+        const c = cur[kind];
+        if (!c) return;
+        const { pill, text, action } = c.part;
+        const onEnd = c.onEnd;
+        // #292: a button about to be hidden must not keep focus (a notice with an onEnd gives focus back itself).
+        const held = typeof document !== 'undefined' && !!document.activeElement && !!pill.contains && pill.contains(document.activeElement);
+        clearTimeout(c.timer);
         pill.classList.remove('is-open');
         text.textContent = '';
         action.hidden = true;
         action.onclick = null;
-        current = null;
-        hovering = false; focusInside = false;
+        cur[kind] = null;
+        if (kind === 'info') { hovering = false; focusInside = false; }
+        if (held && !onEnd) Focus.move(null);
         if (typeof onEnd === 'function') {
             try { onEnd(why); } catch (err) { console.error('Notice onEnd failed:', err); }
         }
@@ -413,7 +425,7 @@ const Toast = (() => {
         const p = ensure();
         if (!p) return null;
         const kind = options.kind === 'error' ? 'error' : 'info';
-        closeCurrent('replaced');
+        closeCurrent(kind, 'replaced');
         const part = p[kind];
         const act = options.action && options.action.label ? options.action : null;
         part.text.textContent = String(message ?? '');
@@ -421,7 +433,7 @@ const Toast = (() => {
             part.action.textContent = String(act.label);
             part.action.hidden = false;
             part.action.onclick = () => {
-                closeCurrent('action');
+                closeCurrent(kind, 'action');
                 let result;
                 try { result = act.run && act.run(); } catch (err) { result = Promise.reject(err); }
                 if (result && typeof result.then === 'function') {
@@ -432,15 +444,15 @@ const Toast = (() => {
             part.action.hidden = true;
             part.action.onclick = null;
         }
-        current = { kind, part, timer: null, remaining: 0, startedAt: 0, onEnd: options.onEnd };
+        const mine = { kind, part, timer: null, remaining: 0, startedAt: 0, onEnd: options.onEnd };
+        cur[kind] = mine;
         place(Dialogs.top());
         part.pill.classList.add('is-open');
         if (kind === 'info') arm(act ? ACTION_MS : INFO_MS);
-        const mine = current;
         return {
-            close: () => { if (current === mine) closeCurrent(); },
+            close: () => { if (cur[kind] === mine) closeCurrent(kind); },
             /** Put focus on the action (Undo), for a keyboard user. */
-            focusAction: () => { if (current === mine && act && part.action.focus) part.action.focus(); },
+            focusAction: () => { if (cur[kind] === mine && act && part.action.focus) part.action.focus(); },
             /** Whether `el` is inside this notice's pill (focus there means the notice is the user's place). */
             contains: (el) => !!el && !!part.pill.contains && part.pill.contains(el)
         };
