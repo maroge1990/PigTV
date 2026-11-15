@@ -697,8 +697,9 @@ function usableLinks(primarySourceId, primaryKey) {
  * A provider often lists one channel more than once with no "(Backup)" marker ("Sky Sports Main Event",
  * "Sky Sports Main Event FHD", "ꜱᴋʏ ꜱᴘᴏʀᴛꜱ ᴍᴀɪɴ ᴇᴠᴇɴᴛ ᴴᴰ"): when one sends the provider's placeholder another often plays.
  * A *copy* of a channel is another live item of the same source with a different identity (stable_id, else item_id) and
- * either the same guide id (the admin's mapping in epg_mappings, keyed by source + identity, else the row's own tvg_id)
- * or the same normalised name (copyName). Hidden items count. In playlist order. #331's channel audit measured this rule.
+ * the same normalised name (copyName). When both have a guide id (the admin's mapping in epg_mappings, keyed by source +
+ * identity, else the row's own tvg_id) and they differ, it is not a copy (a regional variant); a shared guide id alone
+ * never makes one ("Sky Sports 1" and "SKY SPORTS +" sit under one id). Hidden items count. In playlist order.
  */
 
 // Small capital letters have no compatibility form (NFKD leaves them): folded by hand. Superscripts fold through NFKD.
@@ -711,6 +712,9 @@ const SMALL_CAPS_RE = new RegExp(`[${Object.keys(SMALL_CAPS).join('')}]`, 'g');
  * A channel name reduced to what makes it that channel: superscript and small-capital letters folded to plain, lower
  * case, "(backup)" and quality words (1080p, 720p50, uhd, 4k, fhd, hd, sd, hdr) removed, punctuation gone, spaces
  * collapsed. "" when nothing is left (never a match).
+ * Where it differs from #331's audit (scripts/channel-audit.js normaliseName): the audit deletes superscript and
+ * small-capital characters, here they are folded to plain letters first (so "ᴴᴰ" is then removed as "hd" and
+ * "ꜱᴋʏ ꜱᴘᴏʀᴛꜱ" reads "sky sports"); and "hdr" is a quality word here, not there.
  */
 function copyName(name) {
     return String(name || '')
@@ -727,7 +731,7 @@ function copyName(name) {
 
 // Per source: the index, rebuilt when the library changes (a sync, a hide or show, a mapping: libraryRev) or the
 // source's live list does (its row count), so a play costs two small reads.
-const copyIndexes = new Map(); // sourceId -> { stamp, byIdentity, byTvg, byName }
+const copyIndexes = new Map(); // sourceId -> { stamp, byIdentity, byName }
 
 function copyIndex(sourceId) {
     const dbh = getDb();
@@ -747,17 +751,15 @@ function copyIndex(sourceId) {
         ORDER BY CASE WHEN p.sort_order IS NULL THEN 1 ELSE 0 END, p.sort_order, p.item_id
     `).all(sourceId);
     const byIdentity = new Map();
-    const byTvg = new Map();
     const byName = new Map();
     const add = (map, key, row) => { if (!key) return; if (!map.has(key)) map.set(key, []); map.get(key).push(row); };
     for (const r of rows) {
         if (byIdentity.has(r.identity)) continue; // one per identity: its first listing
         const row = { identity: String(r.identity), itemId: String(r.item_id), name: r.name, tvg: r.tvg ? String(r.tvg) : null, nameKey: copyName(r.name), order: byIdentity.size };
         byIdentity.set(row.identity, row);
-        add(byTvg, row.tvg, row);
         add(byName, row.nameKey, row);
     }
-    const index = { stamp, byIdentity, byTvg, byName };
+    const index = { stamp, byIdentity, byName };
     copyIndexes.set(sourceId, index);
     return index;
 }
@@ -770,11 +772,10 @@ function copiesOf(sourceId, identity) {
     const index = copyIndex(Number(sourceId));
     const self = index.byIdentity.get(String(identity));
     if (!self) return [];
-    const found = new Map();
-    for (const r of [...(self.tvg ? index.byTvg.get(self.tvg) || [] : []), ...(self.nameKey ? index.byName.get(self.nameKey) || [] : [])]) {
-        if (r.identity !== self.identity) found.set(r.identity, r);
-    }
-    return [...found.values()].sort((a, b) => a.order - b.order).map(r => ({ identity: r.identity, itemId: r.itemId, name: r.name }));
+    if (!self.nameKey) return [];
+    return (index.byName.get(self.nameKey) || [])
+        .filter(r => r.identity !== self.identity && !(self.tvg && r.tvg && self.tvg !== r.tvg))
+        .map(r => ({ identity: r.identity, itemId: r.itemId, name: r.name }));
 }
 
 // ---- the admin API's side (routes/links.js) ----------------------------------

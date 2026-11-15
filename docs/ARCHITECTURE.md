@@ -248,9 +248,10 @@ Client events carry no session id, so the mapping is owner → last resolve (as 
   linker reads `LISTED_SQL` (it must see linked siblings); the guide reads `VISIBLE_SQL`, which hides them (0204/0205).
 - **Resolve** walks candidates: the primary (unless down, expired or this channel is quarantined there), its sibling, one
   same-provider **copy** (#332), then each backup in order. A copy is another live listing of the channel on the same
-  source with a different identity and the same guide id (the admin's mapping, else the row's own) or the same
-  normalised name (`channelLinks.copyName`: small capitals and superscripts folded, lower case, "(backup)" and quality
-  words such as FHD, UHD, 4K, HDR, 1080p50 removed, punctuation gone), hidden ones too (`channelLinks.copiesOf`, rebuilt
+  source with a different identity and the same normalised name (`channelLinks.copyName`: small capitals and
+  superscripts folded, lower case, "(backup)" and quality words such as FHD, UHD, 4K, HDR, 1080p50 removed, punctuation
+  gone); not when both have a guide id (the admin's mapping, else the row's own) and they differ (a regional variant),
+  and a shared guide id alone never makes one; hidden ones too (`channelLinks.copiesOf`, rebuilt
   when the library changes); the first in playlist order that is not held back, on a sibling's terms (no profile is keyed
   by channel, so measured quality cannot order them yet). Admission is per provider (free, idle reclaim, own replacement); with none admitted the 409 is the
   first candidate's. A start that fails for a provider reason goes to the next candidate; anything else is returned. The

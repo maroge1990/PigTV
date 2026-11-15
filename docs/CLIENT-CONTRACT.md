@@ -276,7 +276,7 @@ work is in `docs/architecture/sports.md` › Recognition; the shape the client r
 A channel resolve (`sourceId` + `channelId`) carries
 `provider: { id, name, role: "primary"|"backup", via: "primary"|"sibling"|"copy"|"backup", failover: Bool }`.
 - A sibling is the primary's own "(Backup)" feed: `role: "primary"`, `via: "sibling"`. Since #332 a **copy** (another listing
-  of the channel by the same provider, without a "(Backup)" marker) is `role: "primary"`, `via: "copy"`; the client only
+  of the channel by the same provider under the same name, without a "(Backup)" marker or a different guide id) is `role: "primary"`, `via: "copy"`; the client only
   decodes `via` (an unknown value is fine).
 - `failover` is true when an earlier candidate failed or the primary was skipped (down, expired, or this channel failed
   there in the last 10 min). Being full is not a failover.

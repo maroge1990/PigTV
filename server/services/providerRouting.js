@@ -7,8 +7,8 @@
  *      expired, or this channel is quarantined on it;
  *   2. its sibling, the primary's own "(Backup)" feed of the same channel (D5) - only
  *      when the primary is not down (a whole provider down takes its siblings with it);
- *   2b. one same-provider copy (#332: another listing of the channel with the same guide id or
- *      normalised name, channelLinks.copiesOf), on the same terms as a sibling;
+ *   2b. one same-provider copy (#332: another listing of the channel with the same normalised
+ *      name and no different guide id, channelLinks.copiesOf), on the same terms as a sibling;
  *   3. each enabled backup with a usable link (channelLinks.usableLinks: rank 1,
  *      auto/approved/manual), in priority order, skipping expired and down providers and
  *      quarantined links.
@@ -570,8 +570,8 @@ async function plan(sourceId, channelId, now = Date.now(), { keepTrying = false 
 }
 
 /**
- * #332: the channel's same-provider copy for the walk (channelLinks.copiesOf: the same guide id or normalised name, a
- * different identity), ranked like a sibling: one per channel, the first in playlist order that is not held back
+ * #332: the channel's same-provider copy for the walk (channelLinks.copiesOf: the same normalised name, no different
+ * guide id, a different identity), ranked like a sibling: one per channel, the first in playlist order that is not held back
  * (quarantined, or its provider down); with all held back, the first of them, as `held` (a recording's keepTrying).
  * Never one that is already a sibling, never when the provider has expired. { candidate, held } or null.
  */
