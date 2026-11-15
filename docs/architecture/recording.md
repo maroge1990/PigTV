@@ -126,7 +126,8 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   on connections closed within a second) is an outage under D-59: the capture ends early like any other (held against the
   channel only, for 3 min, like a loop; on a multi route the next try goes to another feed of the channel, else it waits
   for the next tick and keeps trying until the stop time). A part whose feed was nothing but the placeholder from the
-  moment it joined (`onlyPlaceholder`) is emptied (`recordingSegments.discardEpoch`): its archive segments are deleted and
+  moment it joined (`onlyPlaceholder`) and recorded under 250 kbps (`recordingSegments.epochKbps`; the positive evidence
+  a delete needs, else the part is kept and the end is only an outage) is emptied (`recordingSegments.discardEpoch`): its archive segments are deleted and
   its playlist left empty and ended, so neither the MP4 nor the time recorded has any slate in it, and the outage's gap runs
   on from that part's start. Its watch copy is stopped and ended where it is (what it had already made stays listed, about
   a segment of slate in the watch copy only). A part that recorded the programme before the placeholder came keeps all of

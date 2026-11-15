@@ -9,8 +9,10 @@
  *
  * The rule, pure (ingest.js keeps the count per feed):
  *   - a connection is *short and low-rate* when it ended within SHORT_CONNECTION_MS of its first MPEG-TS, having
- *     delivered data at an average rate below blankKbps(height) - the same threshold as the 20 s blank-picture check
- *     (transcodeSession.checkPicture, 0191): 500 kbps, 250 below 720p, PIGTV_BLANK_KBPS overrides. The rate is the
+ *     delivered data at an average rate below connectionLimitKbps(height) - the 20 s blank-picture check's threshold
+ *     (transcodeSession.checkPicture, 0191: 500 kbps, 250 below 720p, PIGTV_BLANK_KBPS overrides), and the lower one
+ *     (250) when the height is not known (Codex #332 high: a recording-only feed has none, and a real 448 kbps 400p
+ *     channel with two short drops must not be taken for the slate, ~193 kbps). The rate is the
  *     bytes over the longer of the connection's wall time and the media time its PCR covered, so a slate sent in one
  *     burst is measured by the seconds it holds, not the milliseconds it took to arrive.
  *   - PLACEHOLDER_RUN such connections in a row make the feed a placeholder. Any other connection (long, or at a
@@ -36,6 +38,12 @@ function blankKbps(height) {
     return height && height < 720 ? 250 : UNKNOWN_HEIGHT_KBPS;
 }
 
+/** The short-connection rule's threshold: blankKbps for a known height, else the lower (below-720p) one. */
+function connectionLimitKbps(height) {
+    const h = Number(height) || 0;
+    return blankKbps(h > 0 ? h : 1);
+}
+
 /** A connection's average rate in kbps: { bytes, wallMs, mediaSec } -> bytes over the longer of the two times. */
 function connectionKbps({ bytes = 0, wallMs = 0, mediaSec = 0 } = {}) {
     const sec = Math.max((Number(wallMs) || 0) / 1000, Number(mediaSec) || 0);
@@ -46,7 +54,7 @@ function connectionKbps({ bytes = 0, wallMs = 0, mediaSec = 0 } = {}) {
 /** Did this connection end soon after it started, at a rate a channel never has? */
 function isShortLowRate(conn, { height = null, shortMs = SHORT_CONNECTION_MS } = {}) {
     if (!conn || !(Number(conn.wallMs) <= shortMs)) return false;
-    return connectionKbps(conn) < blankKbps(Number(height) || 0);
+    return connectionKbps(conn) < connectionLimitKbps(height);
 }
 
 /** The run of short low-rate connections after `conn` ended: one more, or back to 0. */
@@ -81,5 +89,5 @@ function blankIsPlaceholder({ shortLowSeen = false, width = null, height = null,
 
 module.exports = {
     SHORT_CONNECTION_MS, PLACEHOLDER_RUN, PLACEHOLDER_SHAPE, UNKNOWN_HEIGHT_KBPS,
-    blankKbps, connectionKbps, isShortLowRate, nextRun, isPlaceholderRun, hasPlaceholderShape, blankIsPlaceholder
+    blankKbps, connectionLimitKbps, connectionKbps, isShortLowRate, nextRun, isPlaceholderRun, hasPlaceholderShape, blankIsPlaceholder
 };

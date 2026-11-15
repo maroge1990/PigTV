@@ -226,6 +226,17 @@ function sealEpoch(epochDir) {
     } catch (e) { /* nothing was written in this epoch */ }
 }
 
+/** #332: an epoch's recorded rate in kbps (its segment bytes over their listed seconds), or null with nothing listed. */
+function epochKbps(epochDir) {
+    const seconds = lengthOf(archiveOf(epochDir));
+    if (!(seconds > 0)) return null;
+    let bytes = 0;
+    try {
+        for (const name of fs.readdirSync(epochDir)) if (/^a\d{6}\.ts$/.test(name)) bytes += fs.statSync(path.join(epochDir, name)).size;
+    } catch (e) { return null; }
+    return bytes * 8 / seconds / 1000;
+}
+
 /**
  * #332: an epoch whose feed was nothing but the provider's placeholder (a still slate) recorded no programme: its
  * archive segments go and its playlist is left empty and ended, so the MP4 (stitchArchive) and the time recorded
@@ -1101,7 +1112,7 @@ function status() {
 
 module.exports = {
     SEGMENT_SEC, workRoot, ioFor, workDirFor, isWorkDir, epochs, nextEpoch, captureInput, captureArgs, captureBytes, captureGrowth,
-    sealEpoch, sealAll, stitchArchive, recordedSeconds, archiveSegmentCount, epochSegmentCount, discardEpoch,
+    sealEpoch, sealAll, stitchArchive, recordedSeconds, archiveSegmentCount, epochSegmentCount, discardEpoch, epochKbps,
     viewArgs, _resetFreeBytes,
     _partInput: partInput,
     _refreshPartInput: refreshPartInput,

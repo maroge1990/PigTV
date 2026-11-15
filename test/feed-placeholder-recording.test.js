@@ -92,13 +92,13 @@ const SLATE = media(0, 1, 1); // ~150 kbps for 1 s
 let server, base, A, B;
 let connections = {};
 let slateOver = false;
-function channel(res, untilMs = null) {
+function channel(res, untilMs = null, perTick = 8) {
     let t = 0;
     const started = Date.now();
     const timer = setInterval(() => {
         if (res.destroyed) return clearInterval(timer);
         if (untilMs && Date.now() - started >= untilMs) { clearInterval(timer); return res.end(); }
-        res.write(media(t, 0.02, 8)); t += 0.02;
+        res.write(media(t, 0.02, perTick)); t += 0.02;
     }, 20);
     res.on('close', () => clearInterval(timer));
 }
@@ -113,6 +113,7 @@ before(async () => {
         res.writeHead(200, { 'Content-Type': 'video/mp2t' });
         if (req.url === '/slate.ts') return slateOver ? channel(res) : slate(res);
         if (req.url === '/turns.ts') return connections[req.url] === 1 ? channel(res, 1500) : slate(res);
+        if (req.url === '/drops.ts') return channel(res, 1000, 3); // a real 451 kbps (400p) channel whose connections drop after 1 s
         return channel(res);
     });
     server.listen(0, '127.0.0.1');
@@ -127,6 +128,7 @@ before(async () => {
     item.run(`${A.id}:pos_2`, A.id, 'pos_2', 'TNT Sports 2', 2, 'tnt2', `${base}/turns.ts`);
     // Another listing of Sky Sports Main Event by the same provider (#332: a copy), which plays.
     item.run(`${A.id}:pos_3`, A.id, 'pos_3', 'Sky Sports Main Event FHD', 3, 'sme2', `${base}/live.ts`);
+    item.run(`${A.id}:pos_4`, A.id, 'pos_4', 'Racing 400p', 4, 'low', `${base}/drops.ts`);
     routing.plan = async () => plan();
     await db.settings.update({ recordingsPath: path.join(sandbox, 'recordings'), minFreeSpaceGB: 0, maxConcurrentRecordings: 5,
         maxProviderStreams: 1, sharedIngestEnabled: true });
@@ -231,4 +233,28 @@ test('with a same-provider copy of the channel the recording carries on on the c
     assert.deepEqual(epochsOf(rec)[0], { n: 1, count: 0 }, 'the slate part was not kept');
     assert.equal(routing.isQuarantined(A.id, 'sme'), true);
     await engine.cancelScheduled(s.id);
+});
+
+test('Codex high: a recording-only real 448 kbps feed with short drops keeps its programme and is not quarantined', async () => {
+    plan = () => ({ candidates: [{ ...candA('/drops.ts'), channelKey: 'low', channelName: 'Racing 400p' }], primaryKey: 'low', channelName: 'Racing 400p', backupsConfigured: false, channelProviders: 1 });
+    const s = schedule('pos_4', 'low', 'Racing 400p');
+    await until(() => (connections['/drops.ts'] || 0) >= 3, 'three connections, each dropped after 1 s');
+    const [rec] = recordings.listBySchedule(s.id);
+    assert.ok(epochsOf(rec).some(e => e.count > 0), 'its programme is recorded');
+    assert.equal(epochsOf(rec)[0].count, 1, 'the first part is kept');
+    assert.equal(routing.isPlaceholder(A.id, 'low'), false);
+    assert.equal(routing.isQuarantined(A.id, 'low'), false);
+    await engine.cancelScheduled(s.id);
+});
+
+test('Codex high: a part is deleted only with every connection the placeholder\'s AND a recorded rate under 250 kbps', () => {
+    const dir = path.join(sandbox, 'rec-unit', 'e1');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'archive.m3u8'), '#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXTINF:4.000000,\na000000.ts\n#EXT-X-ENDLIST\n');
+    const entry = (onlyPlaceholder) => ({ outputPath: dir, feedLost: { reason: 'placeholder', providerReason: true, onlyPlaceholder } });
+    fs.writeFileSync(path.join(dir, 'a000000.ts'), Buffer.alloc(100000)); // 200 kbps over 4 s: the slate's rate
+    assert.equal(engine._slatePart(entry(true)), true);
+    assert.equal(engine._slatePart(entry(false)), false, 'not every connection was the placeholder\'s');
+    fs.writeFileSync(path.join(dir, 'a000000.ts'), Buffer.alloc(224000)); // 448 kbps: a channel's rate
+    assert.equal(engine._slatePart(entry(true)), false, 'recorded at a channel\'s rate: kept');
 });

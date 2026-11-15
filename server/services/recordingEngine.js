@@ -1344,6 +1344,16 @@ function heldAgainst(entry, { failover, ranLong }) {
     return null;
 }
 
+/**
+ * #332 (Codex high): did this part record nothing but the provider's placeholder? Its feed ended as one with every
+ * connection of the part in the placeholder's run, and its recorded rate is under the lower blank threshold.
+ */
+function slatePart(entry) {
+    if (entry.feedLost?.reason !== 'placeholder' || entry.feedLost.onlyPlaceholder !== true) return false;
+    const kbps = segments.epochKbps(entry.outputPath);
+    return kbps === null || kbps < require('./feedPlaceholder').connectionLimitKbps(null);
+}
+
 async function onSegmentExit(schedule, entry, exitCode) {
     segments.sealEpoch(entry.outputPath);
     if (active.get(schedule.id) === entry) active.delete(schedule.id);
@@ -1402,11 +1412,15 @@ async function onSegmentExit(schedule, entry, exitCode) {
         // #332 (D-59): a part whose feed was nothing but the provider's placeholder recorded no programme. Its segments
         // (the slate) are removed, so the outage simply goes on: no gap closed, no slate in the recording. A part that
         // recorded the programme before the placeholder came keeps everything, the few seconds of slate at its end too.
-        if (placeholder && entry.feedLost.onlyPlaceholder === true && segments.discardEpoch(entry.recordingId, entry.outputPath)) {
+        // Codex #332 high: deleting needs positive evidence - every connection of the part was the placeholder's
+        // (onlyPlaceholder) AND what the part recorded stays under the lower blank threshold (250 kbps); else it is kept
+        // and the end is only an outage.
+        const slateOnly = placeholder && slatePart(entry);
+        if (slateOnly && segments.discardEpoch(entry.recordingId, entry.outputPath)) {
             console.log(`[Recordings] #${entry.recordingId}: part ${entry.segmented.epoch} held only the provider's placeholder; not kept`);
         }
         const grew = segments.epochSegmentCount(entry.outputPath) > 0;
-        const lostAt = Math.min(now, placeholder && entry.feedLost.onlyPlaceholder === true ? entry.spawnedAt ?? now : entry.lastGrowthAt ?? entry.spawnedAt ?? now);
+        const lostAt = Math.min(now, slateOnly ? entry.spawnedAt ?? now : entry.lastGrowthAt ?? entry.spawnedAt ?? now);
         continuations.set(schedule.id, {
             schedule, nextPart: 1, lostAt, starting: false, waitingLogged: false,
             newGap: grew,
@@ -2224,6 +2238,7 @@ module.exports = {
     _reconcileOnStartup: reconcileOnStartup, // R3: what a restart does to a recording in progress
     _failoverTuning: failoverTuning,
     _heldAgainst: heldAgainst,
+    _slatePart: slatePart,
     _recordingWouldUse: recordingWouldUse,
     _activeEntry: (id) => active.get(Number(id)), // tests: the running capture of a schedule
     _askToStop: askToStop,

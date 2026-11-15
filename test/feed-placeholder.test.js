@@ -219,6 +219,11 @@ test('the rule: a short connection at a blank picture\'s rate counts; two in a r
     assert.equal(rule.isShortLowRate({ bytes: 56000, wallMs: 1000, mediaSec: 1 }, { height: 400 }), false);
     assert.equal(rule.blankKbps(400), 250);
     assert.equal(rule.blankKbps(null), 500);
+    // Codex high: the height not known (a recording-only feed), the lower threshold: a real 448 kbps channel with short
+    // drops is not the slate; the slate (~193 kbps) still is.
+    assert.equal(rule.connectionLimitKbps(null), 250);
+    assert.equal(rule.isShortLowRate({ bytes: 56000, wallMs: 1000, mediaSec: 1 }), false);
+    assert.equal(rule.isShortLowRate({ bytes: 56000, wallMs: 1000, mediaSec: 1 }, { height: 1080 }), true, 'at 1080p 448 kbps is under 500');
     // The run: one more, or back to nothing; two in a row is the placeholder.
     assert.equal(rule.nextRun(0, slateConn), 1);
     assert.equal(rule.nextRun(1, slateConn), 2);
@@ -286,6 +291,17 @@ test('a real low-bitrate feed (451 kbps) whose connections last is never the pla
     assert.equal(short.endReason, null);
     assert.equal(short.ingest.placeholderRun, 0);
     short.leave();
+    ingest.closeAll('next');
+    connections = {};
+
+    // The same with no height at all (a recording reads it): the lower threshold, so not the placeholder either.
+    const unknown = await ingest.subscribe({ ...ingest.sourceFor(cand('/real.ts?drop=400', 's8'), await settingsNow()), purpose: 'recording' });
+    unknown.resume();
+    await until(() => (connections['/real.ts'] || 0) >= 3 && unknown.ingest.state === 'live', 'three short connections, no height');
+    assert.equal(unknown.endReason, null);
+    assert.equal(unknown.ingest.placeholderRun, 0);
+    assert.equal(routing.isQuarantined(A.id, 's8'), false);
+    unknown.leave();
 });
 
 test('PIGTV_INGEST_PLACEHOLDER_CHECK=0 (tuning.placeholderCheck off) leaves the feed reconnecting as before', async () => {
