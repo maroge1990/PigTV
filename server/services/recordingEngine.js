@@ -16,7 +16,7 @@ const { scheduled: scheduledDb, recordings: recordingsDb } = require('../db/reco
 const { getDb } = require('../db/sqlite');
 const coordinator = require('./streamCoordinator');
 const { formatLocalStamp, sanitizeForFs } = require('./recordingNames');
-const { redact } = require('../redact');
+const { stripUrls } = require('../redact'); // #315: logged and stored error texts carry no host or port
 const { checkRecordingsFolder, checkRecordingsFolderAsync, refusalMessage, TINY_FS_BYTES } = require('./recordingsFolder');
 const shareFs = require('./shareFs'); // #8: file calls on the recordings share, off the event loop
 const providerRouting = require('./providerRouting');
@@ -260,7 +260,7 @@ async function feedFor(settings, candidate, route = null) {
         feed.loopFilter = (c) => recordingWouldUse(route, c, settings);
         return feed;
     } catch (err) {
-        console.warn(`[Recordings] Shared ingest not used for this recording: ${redact(err.message)}`);
+        console.warn(`[Recordings] Shared ingest not used for this recording: ${stripUrls(err.message, [candidate.url])}`);
         return null;
     }
 }
@@ -1172,6 +1172,7 @@ function spawnPart(schedule, settings, { recordingId, outputPath, route, index, 
     const now = Date.now();
     const entry = {
         proc, recordingId, stderrTail: [], hardStopTimer: null, providerId: candidate.providerId ?? null,
+        inputUrl: candidate.url, // #315: only to take its host out of a logged or stored ffmpeg line
         schedule, route, index, outputPath, lease, segmented,
         spawnedAt: now, lastSize: 0, lastGrowthAt: now, played: false,
         stopRequested: false, stalled: false,
@@ -1263,7 +1264,7 @@ function captureEndWhy(entry, exitCode) {
     if (entry.feedLost?.reason) parts.push(`the shared feed ended: ${entry.feedLost.reason}`);
     parts.push(exitCode === null || exitCode === undefined ? 'ffmpeg was stopped' : `ffmpeg exit ${exitCode}`);
     const last = (entry.stderrTail || []).filter(l => l.trim()).slice(-1)[0];
-    if (last) parts.push(`"${redact(last.trim()).slice(0, 160)}"`);
+    if (last) parts.push(`"${stripUrls(last.trim(), [entry.inputUrl]).slice(0, 160)}"`);
     return parts.join('; ');
 }
 
@@ -1351,7 +1352,7 @@ async function onSegmentExit(schedule, entry, exitCode) {
         return continuePart(schedule.id).catch(err =>
             console.error(`[Recordings] Could not continue schedule #${schedule.id}:`, err.message));
     }
-    endSegmentCapture(schedule.id, entry.recordingId, { exitCode, stderrTail: entry.stderrTail });
+    endSegmentCapture(schedule.id, entry.recordingId, { exitCode, stderrTail: entry.stderrTail, inputUrl: entry.inputUrl });
 }
 
 /**
@@ -1359,7 +1360,7 @@ async function onSegmentExit(schedule, entry, exitCode) {
  * the recording waits for its MP4 (status stays 'recording', segment_state 'finishing', and it
  * can still be watched from the start); with none, both have failed.
  */
-function endSegmentCapture(scheduleId, recordingId, { exitCode = null, stderrTail = [], why = null } = {}) {
+function endSegmentCapture(scheduleId, recordingId, { exitCode = null, stderrTail = [], why = null, inputUrl = null } = {}) {
     if (active.get(scheduleId)?.recordingId === recordingId) active.delete(scheduleId);
     const rec = recordingsDb.getById(recordingId);
     if (!rec) return;
@@ -1376,7 +1377,7 @@ function endSegmentCapture(scheduleId, recordingId, { exitCode = null, stderrTai
         segments.processQueue().catch(err => console.error('[Recordings] Finishing queue error:', err.message));
         return;
     }
-    const error = redact((stderrTail || []).slice(-10).join('\n')) || (exitCode === null ? 'Nothing was recorded.' : `ffmpeg exited with code ${exitCode}`);
+    const error = stripUrls((stderrTail || []).slice(-10).join('\n'), [inputUrl]) || (exitCode === null ? 'Nothing was recorded.' : `ffmpeg exited with code ${exitCode}`);
     recordingsDb.setSegmentFields(recordingId, { status: 'failed', segment_state: 'failed', ended_at: Date.now(), error });
     segments.removeWork(rec).catch(() => {});
     setScheduleStatus(scheduleId, 'failed', { error: why ? `Recording failed: ${why}` : `Recording failed (exit code ${exitCode})` });
@@ -2145,6 +2146,7 @@ module.exports = {
     // Test seams: stand-ins for ffmpeg/ffprobe (the same object recordingMedia uses), one job
     // each without the queues' timing, and the failover timings (0177).
     _nativeTools: media.nativeTools,
+    _captureEndWhy: captureEndWhy, // #315
     _compressRecording: post.compressRecording,
     _prepareRecording: media.prepareRecording,
     _setPrepareQueue: media._setPrepareQueue,

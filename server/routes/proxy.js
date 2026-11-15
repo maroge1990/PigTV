@@ -15,7 +15,7 @@ const { STATUS_CODES } = require('http');
 const router = express.Router();
 const { Readable } = require('stream');
 const { pipeline } = require('stream/promises');
-const { redact } = require('../redact');
+const { redact, stripUrls } = require('../redact');
 const playbackHandles = require('../services/playbackHandles');
 
 /**
@@ -26,6 +26,7 @@ const playbackHandles = require('../services/playbackHandles');
 router.get('/stream', async (req, res) => {
     const maxRetries = 2;
     let lastError = null;
+    let target = null; // the address, for taking its host out of a logged error (#315)
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
@@ -40,6 +41,7 @@ router.get('/stream', async (req, res) => {
                 return res.status(400).json({ error: 'Playback handle required' });
             }
             const url = playbackHandles.resolveHandle(req.query.h);
+            target = url;
             if (!url) {
                 return res.status(404).json({ error: 'Unknown or expired playback handle' });
             }
@@ -80,7 +82,8 @@ router.get('/stream', async (req, res) => {
                 // the stream address with its credentials: neither is logged nor sent. The status
                 // code says what happened; the reason is the standard one for it.
                 const reason = STATUS_CODES[response.status] || 'Error';
-                console.error(`Upstream error for ${redact(url).substring(0, 80)}...: ${response.status} ${reason}`);
+                // #315: the proxy has no provider id, so the line names no address at all (not even its host).
+                console.error(`[Proxy] Upstream error: ${response.status} ${reason}`);
                 try { await response.body?.cancel(); } catch (e) { /* already gone */ }
                 return res.status(response.status).send(`Failed to fetch stream: ${reason}`);
             }
@@ -138,7 +141,7 @@ router.get('/stream', async (req, res) => {
 
                 const buffer = Buffer.concat(chunks);
                 const finalUrl = response.url || url;
-                console.log(`[Proxy] Processing HLS manifest from: ${redact(finalUrl).substring(0, 80)}...`);
+                console.log('[Proxy] Processing an HLS manifest'); // #315: no address
                 res.set('Content-Type', 'application/vnd.apple.mpegurl');
 
                 let manifest = buffer.toString('utf-8');
@@ -219,14 +222,14 @@ router.get('/stream', async (req, res) => {
                 // The headers are sent, so there is nothing to retry and no error to
                 // send: a client that left mid-stream is the usual reason.
                 if (err.code !== 'ERR_STREAM_PREMATURE_CLOSE' && err.name !== 'AbortError') {
-                    console.warn(`[Proxy] Stream ended early: ${redact(err.message)}`);
+                    console.warn(`[Proxy] Stream ended early: ${stripUrls(err.message, [url])}`);
                 }
             }
             return; // Success - exit the retry loop
 
         } catch (err) {
             lastError = err;
-            console.error(`Stream proxy error (attempt ${attempt}/${maxRetries}):`, redact(err.code || err.cause?.code || err.message));
+            console.error(`Stream proxy error (attempt ${attempt}/${maxRetries}):`, stripUrls(err.code || err.cause?.code || err.message, [target]));
             if (attempt < maxRetries) {
                 console.log('[Proxy] Retrying after error...');
                 await new Promise(r => setTimeout(r, 500));

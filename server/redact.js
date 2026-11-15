@@ -44,10 +44,33 @@ function redact(value) {
     return s;
 }
 
-/** #307: redact(), then every URL left in the text replaced outright (host and port included) for a log line. */
-function stripUrls(value) {
+/** The host names of the given addresses (a bare host name is taken as it is). */
+function hostsOf(known) {
+    const hosts = new Set();
+    for (const k of [].concat(known || [])) {
+        if (!k) continue;
+        let host = null;
+        try { host = new URL(String(k)).hostname; } catch { host = /^[\w.-]+$/.test(String(k)) ? String(k) : null; }
+        host = host && host.replace(/^\[|\]$/g, '');
+        if (host && host.length >= 3) hosts.add(host);
+    }
+    return [...hosts];
+}
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * #307: redact(), then every URL left in the text replaced outright (host and port included) for a log line.
+ * #315: also every bare IPv4 address (with its port), and the host of each address in `known` (the stream or
+ * provider address the text is about) wherever it appears without a scheme, as ffmpeg's "Failed to resolve
+ * hostname ..." and a socket error's "connect ECONNREFUSED host:port" do.
+ */
+function stripUrls(value, known) {
     if (value == null) return value;
-    return redact(value).replace(/\b[a-z][a-z0-9+.-]*:\/\/\S+/gi, '[url removed]');
+    let s = redact(value).replace(/\b[a-z][a-z0-9+.-]*:\/\/\S+/gi, '[url removed]');
+    for (const host of hostsOf(known)) {
+        s = s.replace(new RegExp(`${escapeRe(host)}(?::\\d+)?`, 'gi'), '[host]');
+    }
+    return s.replace(/\b\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?\b/g, '[host]');
 }
 
 module.exports = { redact, stripUrls };

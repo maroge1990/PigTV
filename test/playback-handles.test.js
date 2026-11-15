@@ -165,7 +165,7 @@ test('a direct resolve always hands out an opaque handle', async () => {
     assert.match(decision.url, /^\/api\/proxy\/stream\?h=[0-9a-f]{32}$/);
 });
 
-test('the proxy\'s log lines pass the provider URL through redact()', async () => {
+test('the proxy\'s log lines carry no provider URL (redact(), and #315: no address at all)', async () => {
     const h = load('services/playbackHandles').createHandle(`${upstreamBase}/live/secretuser/secretpass/404.ts`);
     const lines = [];
     const realError = console.error;
@@ -177,5 +177,6 @@ test('the proxy\'s log lines pass the provider URL through redact()', async () =
     const upstreamLine = lines.find(l => l.includes('Upstream error'));
     assert.ok(upstreamLine, lines.join('\n'));
     assert.ok(!/secretuser|secretpass/.test(upstreamLine), `credentials in the log: ${upstreamLine}`);
-    assert.match(upstreamLine, /\/live\/\*\*\*\/\*\*\*\/404\.ts/);
+    assert.match(upstreamLine, /404 Not Found/);
+    assert.doesNotMatch(upstreamLine, /:\/\/|127\.0\.0\.1|\/live\//, '#315: not even the redacted address');
 });

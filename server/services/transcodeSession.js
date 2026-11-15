@@ -15,7 +15,7 @@ const { isStreamUrl, NOT_A_STREAM_URL } = require('./streamUrl');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs').promises;
-const { redact } = require('../redact');
+const { stripUrls } = require('../redact');
 const { providerLabel } = require('../providerLabel');
 const crypto = require('crypto');
 const EventEmitter = require('events');
@@ -258,7 +258,7 @@ class TranscodeSession extends EventEmitter {
                 // PB1: stopped meanwhile, or the ingest was closed under us (released, shutdown): a
                 // cancellation, never a reason to open a connection of our own.
                 if (this.ended() || err.ingestCancelled) return this.abandonStart(null);
-                console.warn(`[TranscodeSession ${this.id}] Shared ingest not used: ${redact(err.message)}`);
+                console.warn(`[TranscodeSession ${this.id}] Shared ingest not used: ${stripUrls(err.message, [this.url])}`);
                 this.options.ingestSource = null;
             }
             // PB1: the subscription arrived after a stop or cleanup: give it straight back.
@@ -275,7 +275,8 @@ class TranscodeSession extends EventEmitter {
         // Build FFmpeg arguments for HLS output
         const args = this.buildFFmpegArgs();
 
-        console.log(`[TranscodeSession ${this.id}] Command: ${this.options.ffmpegPath} ${redact(args.join(' '))}`);
+        // #315: the input address is the provider's: its host and port are left out of the log, as every logged ffmpeg line.
+        console.log(`[TranscodeSession ${this.id}] Command: ${this.options.ffmpegPath} ${stripUrls(args.join(' '), [this.url])}`);
 
         try {
             this.process = spawn(this.options.ffmpegPath, args, {
@@ -306,7 +307,7 @@ class TranscodeSession extends EventEmitter {
                 if (lines.length > 1) {
                     lines.slice(0, -1).forEach(line => {
                         if (line.trim()) {
-                            console.log(`[FFmpeg ${this.id}] ${redact(line)}`);
+                            console.log(`[FFmpeg ${this.id}] ${stripUrls(line, [this.url])}`);
                             this.stderrTail.push(line.trim());
                             if (this.stderrTail.length > 20) this.stderrTail.shift();
                             this.noteStderrLine(line);
@@ -319,7 +320,7 @@ class TranscodeSession extends EventEmitter {
             // arrive without a trailing newline; keep them for failureReason().
             this.process.stderr.on('end', () => {
                 if (stderrBuffer.trim()) {
-                    console.log(`[FFmpeg ${this.id}] ${redact(stderrBuffer)}`);
+                    console.log(`[FFmpeg ${this.id}] ${stripUrls(stderrBuffer, [this.url])}`);
                     this.stderrTail.push(stderrBuffer.trim());
                     if (this.stderrTail.length > 20) this.stderrTail.shift();
                 }
@@ -1235,7 +1236,7 @@ class TranscodeSession extends EventEmitter {
         console.error(`[TranscodeSession ${this.id}] Releasing stalled session${this.options.channelName ? ` for "${this.options.channelName}"` : ''} on ${providerLabel(this.options.providerId)}`);
         if (this.stderrTail.length) {
             console.error(`[TranscodeSession ${this.id}] Last ffmpeg output:`);
-            this.stderrTail.forEach(line => console.error(`[TranscodeSession ${this.id}]   ${redact(line)}`));
+            this.stderrTail.forEach(line => console.error(`[TranscodeSession ${this.id}]   ${stripUrls(line, [this.url])}`));
         }
         // Drop it from the registry before waiting on ffmpeg to die, so the
         // coordinator stops counting it straight away rather than after
@@ -1436,7 +1437,7 @@ class TranscodeSession extends EventEmitter {
         console.error(`[TranscodeSession ${this.id}]   spawned -> first ffmpeg output: ${since(t.spawned, t.firstOutput)}`);
         if (this.stderrTail.length) {
             console.error(`[TranscodeSession ${this.id}] Last ffmpeg output:`);
-            this.stderrTail.forEach(line => console.error(`[TranscodeSession ${this.id}] ${redact(line)}`));
+            this.stderrTail.forEach(line => console.error(`[TranscodeSession ${this.id}] ${stripUrls(line, [this.url])}`));
         }
     }
 

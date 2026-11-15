@@ -5,7 +5,7 @@ const { refreshChannelNumbers } = require('./channelNumbers');
 const { stableChannelId, providerStreamId, summarise } = require('./stableIds');
 const { sources, settings } = require('../db'); // For source config and settings
 const xtreamApi = require('./xtreamApi');
-const { redact } = require('../redact');
+const { stripUrls } = require('../redact'); // #315: logged error texts carry no host or port
 const { providerLabel } = require('../providerLabel');
 const m3uParser = require('./m3uParser');
 const backupChannels = require('./backupChannels');
@@ -382,7 +382,7 @@ class SyncService {
             payRelink(backupId, seq); // I-7: ran to the end
         } catch (e) {
             if (e && e.code !== 'MODULE_NOT_FOUND') {
-                console.warn('[Sync] Relink failed:', redact(e.message));
+                console.warn('[Sync] Relink failed:', stripUrls(e.message));
                 // I-7: the debt stays recorded; the next sync, scheduled or not, relinks even if nothing changed.
                 try { if (relinkIsOwed()) console.warn('[Sync] Failover links are owed: the next sync relinks'); } catch { /* best-effort */ }
             }
@@ -498,6 +498,7 @@ class SyncService {
         activeSyncs.add(sourceId);
         const relinkRunsBefore = this._relinkRuns;
         let ran = false; // I-7: the sync got past its checks (a missing or disabled source settles nothing)
+        let known = []; // #315: the source's addresses, whose hosts a logged or stored error never shows
 
         try {
             const db = getDb();
@@ -506,6 +507,7 @@ class SyncService {
             if (!source) {
                 throw new Error(`Source ${sourceId} not found`);
             }
+            known = [source.url, source.epgUrl, source.idOverlayUrl];
 
             console.log(`[Sync] Starting sync for source ${source.name} (ID: ${sourceId})`);
 
@@ -566,12 +568,13 @@ class SyncService {
             console.log(`[Sync] Completed sync for source ${source.name}`);
 
         } catch (err) {
-            console.error(`[Sync] Failed sync for source ${sourceId}:`, err);
-            this.updateSyncStatus(sourceId, 'all', 'error', err.message);
+            // #315: a fetch error can quote the provider's address: the log and the stored status carry none of it.
+            console.error(`[Sync] Failed sync for source ${sourceId}: ${stripUrls(err && (err.stack || err.message), known)}`);
+            this.updateSyncStatus(sourceId, 'all', 'error', stripUrls(err && err.message, known));
         } finally {
             // I-7: a relink owed from an earlier sync runs now if this one relinked nothing (held, failed or unchanged).
             if (ran) {
-                try { await this.settleRelinkDebt(relinkRunsBefore); } catch (e) { console.warn('[Sync] Owed relink failed:', redact(e && e.message)); }
+                try { await this.settleRelinkDebt(relinkRunsBefore); } catch (e) { console.warn('[Sync] Owed relink failed:', stripUrls(e && e.message)); }
             }
             activeSyncs.delete(sourceId);
         }
@@ -697,7 +700,7 @@ class SyncService {
                 return;
             }
             // The address can carry a login: it is never stored or logged.
-            const message = String(redact(e && e.message)).replace(/\bhttps?:\/\/\S+/gi, '[address]').slice(0, 200);
+            const message = String(stripUrls(e && e.message, [url, source.url])).slice(0, 200);
             console.warn(`[Sync] Guide for ${source.name} failed, keeping the previous one: ${message}`);
             this.updateSyncStatus(source.id, 'epg', 'error', message);
         }
@@ -728,7 +731,7 @@ class SyncService {
                 await require('./rawChannels').fetchFor(source);
             }
         } catch (e) {
-            console.warn('[Sync] Raw list fetch failed:', redact(e && e.message));
+            console.warn('[Sync] Raw list fetch failed:', stripUrls(e && e.message, [source.url]));
         }
         // #237: an unchanged playlist moved no channel, so there is nothing to relink for it.
         if (changed) await this.relink(null);
@@ -856,7 +859,7 @@ class SyncService {
             await rawChannels.fetchMissing(await sources.getAll(), source.id);
             rawOk = true;
         } catch (e) {
-            console.warn('[Sync] Raw rows after backup sync failed:', redact(e && e.message));
+            console.warn('[Sync] Raw rows after backup sync failed:', stripUrls(e && e.message, [source.url]));
         }
         if (rawOk) feedCheck.remember(source.id, 'backup', hash); // only a write that finished whole is the last good one
 
@@ -901,7 +904,7 @@ class SyncService {
             console.log(`[Sync] Backup ${source.name}: ${added} channels the playlist leaves out were added from the provider's own list`);
             return require('./rawChannels').toRows(cats, streams);
         } catch (e) {
-            console.warn(`[Sync] The provider's own list for ${source.name} could not be read, using the playlist alone: ${redact(e && e.message)}`);
+            console.warn(`[Sync] The provider's own list for ${source.name} could not be read, using the playlist alone: ${stripUrls(e && e.message, [source.url])}`);
             return null;
         }
     }
@@ -923,7 +926,7 @@ class SyncService {
             }
             return map;
         } catch (e) {
-            console.warn(`[Sync] Overlay for ${source.name} failed, keeping the previous ids: ${redact(e && e.message)}`);
+            console.warn(`[Sync] Overlay for ${source.name} failed, keeping the previous ids: ${stripUrls(e && e.message, [source.url, source.idOverlayUrl])}`);
             return backupChannels.overlayOf(source.id);
         }
     }

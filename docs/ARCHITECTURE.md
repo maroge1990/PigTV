@@ -178,6 +178,14 @@ before 0154 is fetched again on its first `size=full`/`640` request.
 
 Logo downloads have one deadline to the last byte (0249).
 
+## Log lines and provider addresses
+
+The container log names a provider by its name, never by its address (#307). `redact()` (`server/redact.js`) masks a login
+wherever an address is printed or returned; `stripUrls(text, known)` goes further for a log line: every URL, every bare IPv4
+address and the host (with port) of each `known` address are replaced (#315). ffmpeg's command line, its stderr lines and the
+tails a stalled or timed-out session prints, the proxy's lines (it knows no provider, so they name no address at all), a failed
+sync's log line and stored error, and error texts that can quote an address all go through it.
+
 ## Status page and channel health
 
 **Status page** (0124): the admin page "Status" = `GET /api/status` (admin): live sessions with channel names, active

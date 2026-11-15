@@ -65,3 +65,35 @@ test('PB4: a fetch that fails quoting its address - the log and the JSON error c
     assert.deepEqual(body, { error: 'Stream proxy failed after retries' });
     for (const line of [JSON.stringify(body), ...logs]) assert.ok(!line.includes(SECRET), `leaks: ${line}`);
 });
+
+// #315: the proxy has no provider id, so its lines name no address at all: no host, no port.
+test('#315: the upstream-error, manifest and proxy-error lines carry no host or port', async () => {
+    const port = String(upstream.address().port);
+    logs.length = 0;
+    await (await fetch(`${proxyBase}/api/proxy/stream?h=${handles.createHandle(`${upstreamBase}/live/bob/${SECRET}/1.ts`)}`)).text();
+    assert.ok(logs.some(l => l.includes('403 Forbidden')), logs.join('\n'));
+    for (const line of logs) assert.ok(!line.includes('127.0.0.1') && !line.includes(port), `host in: ${line}`);
+
+    // A fetch that fails: undici's error is a bare code, but a message quoting the host:port is stripped too.
+    logs.length = 0;
+    await (await fetch(`${proxyBase}/api/proxy/stream?h=${handles.createHandle('http://bob:x@127.0.0.1:9/live.ts')}`)).text();
+    assert.ok(logs.some(l => /Stream proxy error/.test(l)), logs.join('\n'));
+    for (const line of logs) assert.ok(!line.includes('127.0.0.1'), `host in: ${line}`);
+});
+
+test('#315: an HLS manifest is logged without its address', async () => {
+    const hls = http.createServer((req, res) => {
+        res.writeHead(200, { 'Content-Type': 'application/vnd.apple.mpegurl' });
+        res.end('#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXTINF:2,\nseg1.ts\n');
+    }).listen(0, '127.0.0.1');
+    await once(hls, 'listening');
+    const port = String(hls.address().port);
+    try {
+        logs.length = 0;
+        await (await fetch(`${proxyBase}/api/proxy/stream?h=${handles.createHandle(`http://127.0.0.1:${port}/live/bob/${SECRET}/7.m3u8`)}`)).text();
+        assert.ok(logs.some(l => /HLS manifest/.test(l)), logs.join('\n'));
+        for (const line of logs) assert.ok(!line.includes('127.0.0.1') && !line.includes(port), `host in: ${line}`);
+    } finally {
+        hls.closeAllConnections(); hls.close();
+    }
+});

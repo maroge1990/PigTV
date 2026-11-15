@@ -30,7 +30,7 @@ const channelProfiles = require('./channelProfiles');
 const { MESSAGES: FAILURE_TEXT } = require('./playbackErrors');
 const playbackHandles = require('./playbackHandles');
 const playbackEvents = require('./playbackEvents');
-const { redact, stripUrls } = require('../redact');
+const { stripUrls } = require('../redact');
 const { providerLabel } = require('../providerLabel');
 const db = require('../db');
 
@@ -114,7 +114,7 @@ async function probedAnalysis({ url, ffprobePath, userAgent, caps, cacheKey, dea
             if (err.ingestCancelled) throw supersededError();
             // Not MPEG-TS, a file, or refused: today's probe (which meets a refusal itself, with
             // today's C-B text and failover), and the session reads the URL too.
-            console.log(`[Playback] shared ingest not used: ${redact(err.message)}`);
+            console.log(`[Playback] shared ingest not used: ${stripUrls(err.message, [url])}`);
             ingestSource.refused = true;
         }
     }

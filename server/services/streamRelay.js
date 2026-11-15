@@ -27,7 +27,7 @@
  */
 const fs = require('fs').promises;
 const path = require('path');
-const { redact } = require('../redact');
+const { stripUrls } = require('../redact'); // #315: logged error texts carry no host or port
 const { parseFrameRate } = require('./streamProbe');
 const { parseMediaPlaylist, renderMediaPlaylist } = require('./hlsPlaylist');
 const { startOnFirstFree, SKIP, STOP } = require('./playbackStart');
@@ -123,7 +123,7 @@ class Relay {
         this.standbyAt = now + STANDBY_DELAY_MS;
         this.active = this.addLeg(front, ctx.candidate);
         this.timer = setInterval(() => {
-            this.tick().catch(err => console.warn(`[Relay ${this.id}] tick failed: ${redact(err && err.message)}`));
+            this.tick().catch(err => console.warn(`[Relay ${this.id}] tick failed: ${stripUrls(err && err.message)}`));
         }, TICK_MS);
         if (typeof this.timer.unref === 'function') this.timer.unref();
         this.log(`following "${ctx.channelName || 'channel'}" on ${this.providerOf(this.active)}${this.standbyOn ? ' (standby on)' : ''}`);
@@ -197,7 +197,7 @@ class Relay {
             const pin = feed.ingest.subscribe({ purpose: 'renewal-pin', owner: this.ctx.owner });
             pin.resume();
             this.switchOver('reconnected; renewing its timeline', 'reconnected', pin)
-                .catch(err => { this.log(`timeline restart failed: ${redact(err.message)}`); this.close('timeline restart failed', true); });
+                .catch(err => { this.log(`timeline restart failed: ${stripUrls(err.message)}`); this.close('timeline restart failed', true); });
         });
         session.once('lost', (info) => { leg.lost = info || { how: 'exit', providerReason: false }; });
         // #324 (Codex high): a looping feed is ended only for a provider this relay would switch to (startCold and the
@@ -511,7 +511,7 @@ class Relay {
             await sessionsModule().removeSession(leg.session.id);
             await leg.session.cleanup(); // when the registry no longer had it (a stall): idempotent
         } catch (err) {
-            console.warn(`[Relay ${this.id}] could not stop a leg: ${redact(err && err.message)}`);
+            console.warn(`[Relay ${this.id}] could not stop a leg: ${stripUrls(err && err.message)}`);
         }
         if (files) this.removeLegFiles(leg);
     }
@@ -588,7 +588,7 @@ class Relay {
             if (routing().isProviderFailure(err)) {
                 try { routing().noteStartFailure(candidate, ctx.primaryKey); } catch (e) { /* observation only */ }
             }
-            this.log(`${candidate.providerName} could not start: ${redact(err && err.message).split('. ')[0]}`);
+            this.log(`${candidate.providerName} could not start: ${String(stripUrls(err && err.message, [candidate.url])).split('. ')[0]}`);
             return null;
         }
         const session = decision && decision.sessionId ? sessionsModule().getSession(decision.sessionId) : null;
@@ -637,7 +637,7 @@ class Relay {
             // C-2: the running recordings could not be read (a database error): nobody is admitted
             // on this attempt, as a recording may hold the connection. Not a crash; logged once.
             admissionFailed: (err) => {
-                this.log(`could not count the provider's connections (${redact(err && err.message)}); not started`);
+                this.log(`could not count the provider's connections (${stripUrls(err && err.message)}); not started`);
             },
             // A renewal pin's connection this relay gave up to its own next leg (0318): if that leg
             // fails, the primary may still be started again (Codex review of 0318).
@@ -677,7 +677,7 @@ class Relay {
         this.startingStandby = true;
         // In the background: the playing leg is still followed while this probes and starts.
         this.startStandby()
-            .catch(err => console.warn(`[Relay ${this.id}] standby failed: ${redact(err && err.message)}`))
+            .catch(err => console.warn(`[Relay ${this.id}] standby failed: ${stripUrls(err && err.message)}`))
             .finally(() => { this.startingStandby = false; this.standbyAt = Date.now() + STANDBY_RETRY_MS; });
     }
 
