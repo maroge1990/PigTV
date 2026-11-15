@@ -38,7 +38,7 @@ class RecordingsPage {
         // problem: the same request), 'rule:2'. A pending item is never drawn, whatever a refresh brings back.
         this.pending = new Map();
         // #62: how Recorded is shown. Kept across redraws and refreshes; not saved.
-        this.view = { query: '', sort: 'newest' };
+        this.view = { query: '', sort: 'newest', selecting: false, selected: new Set() };
         this.init();
     }
 
@@ -219,6 +219,29 @@ class RecordingsPage {
             const again = el.querySelectorAll('[data-action="sort"]')[0];
             if (again && again.focus) again.focus({ preventScroll: true });
         });
+        const back = (action, id) => {
+            const again = [...el.querySelectorAll(`[data-action="${action}"]`)].find(x => x.dataset.id === id);
+            if (again && again.focus) again.focus({ preventScroll: true });
+        };
+        el.querySelectorAll('[data-action="select-mode"]').forEach(btn => btn.addEventListener('click', () => {
+            this.view.selecting = !this.view.selecting;
+            this.view.selected = new Set();
+            this.drawRecorded();
+            back('select-mode', 'select');
+        }));
+        el.querySelectorAll('[data-action="select-all"]').forEach(btn => btn.addEventListener('click', () => {
+            const ids = this.selectableIds();
+            const every = ids.length > 0 && this.selectedIds().length === ids.length;
+            this.view.selected = new Set(every ? [] : ids);
+            this.drawRecorded();
+            back('select-all', 'all');
+        }));
+        el.querySelectorAll('[data-action="pick"]').forEach(box => box.addEventListener('change', () => {
+            if (box.checked) this.view.selected.add(String(box.dataset.id)); else this.view.selected.delete(String(box.dataset.id));
+            this.drawRecorded();
+            back('pick', box.dataset.id);
+        }));
+        el.querySelectorAll('[data-action="delete-selected"]').forEach(btn => btn.addEventListener('click', () => this.deleteSelected()));
         el.querySelectorAll('[data-action="play"]').forEach(btn => {
             btn.addEventListener('click', () => this.play(btn.dataset.id));
         });
@@ -251,7 +274,32 @@ class RecordingsPage {
             <input type="search" class="rec-input rec-search" data-action="search" data-id="q" value="${e(this.view.query)}" maxlength="120"
                 placeholder="Search recordings" aria-label="Search recordings by title" autocomplete="off">
             <select class="rec-input rec-sort" data-action="sort" data-id="sort" aria-label="Sort recordings">${options}</select>
+            ${this.view.selecting ? this.selectingHtml() : '<button type="button" class="btn btn-secondary" data-action="select-mode" data-id="select">Select</button>'}
         </div>`;
+    }
+
+    /** #62: the controls of select mode; the count is of the recordings shown and ticked. */
+    selectingHtml() {
+        const n = this.selectedIds().length;
+        const all = this.selectableIds().length;
+        return `<span class="rec-count" role="status" aria-live="polite">${n === 0 ? 'None selected' : `<span class="pig-amount">${n}</span> selected`}</span>
+            <button type="button" class="btn btn-secondary" data-action="select-all" data-id="all">${n && n === all ? 'Select none' : 'Select all'}</button>
+            <button type="button" class="btn btn-secondary btn-danger" data-action="delete-selected" data-id="delete"${n ? '' : ' disabled'}>Delete${n ? ` ${n}` : ''}</button>
+            <button type="button" class="btn btn-secondary" data-action="select-mode" data-id="select">Done</button>`;
+    }
+
+    /** A recording can be picked unless it is still being recorded (Stop is how that ends). */
+    pickable(item) { return item.status === 'completed' || item.status === 'failed'; }
+
+    /** Ids of the pickable recordings shown now (after the search). */
+    selectableIds() {
+        return this.arrange(this.visible(this.data.recordings, 'recording')).filter(r => this.pickable(r)).map(r => String(r.id));
+    }
+
+    /** Ids ticked and still shown, never one in progress. */
+    selectedIds() {
+        const shown = new Set(this.selectableIds());
+        return [...this.view.selected].filter(id => shown.has(id));
     }
 
     /**
@@ -344,7 +392,11 @@ class RecordingsPage {
                     : ''))
               + `<button type="button" class="btn btn-secondary btn-more" data-action="more" data-id="${id}" aria-haspopup="menu" aria-expanded="false" aria-label="More for ${e(item.title)}">⋯</button>`;
 
-        return `<article class="rec-tile" data-id="${id}">${art}${bar}<div class="rec-tile-body">
+        const pick = !this.view.selecting ? '' : (this.pickable(item)
+            ? `<label class="rec-pick"><input type="checkbox" data-action="pick" data-id="${id}" aria-label="Select ${e(item.title)}"${this.view.selected.has(String(item.id)) ? ' checked' : ''}></label>`
+            : '<span class="rec-pick is-off" title="Still recording: use Stop in Coming up">Recording</span>');
+        const picked = this.view.selecting && this.view.selected.has(String(item.id)) ? ' is-picked' : '';
+        return `<article class="rec-tile${picked}" data-id="${id}">${pick}${art}${bar}<div class="rec-tile-body">
             <h4 class="rec-title" title="${e(item.title)}">${e(item.title)}</h4>
             <div class="rec-meta">${meta}</div>
             <div class="rec-tags">${tags.join('')}</div>
@@ -641,7 +693,7 @@ class RecordingsPage {
      * with keepalive, so a page left while it is on its way does not drop it. A cancel first checks the recording has
      * not started; it holds its request meanwhile and stops waiting for a fresh read once the page is going.
      */
-    async commitPending(key, ctl = {}) {
+    async commitPending(key, ctl = {}, { refresh = true } = {}) {
         const leaving = () => !!(ctl.leaving ?? ctl.keepalive);
         const entry = this.pending.get(key);
         if (!entry || entry.committing) { ctl.dispatched?.(); return; }
@@ -672,7 +724,7 @@ class RecordingsPage {
         this.forget(key);
         this.pending.delete(key);
         this.draw();
-        if (!leaving()) await this.refresh();
+        if (refresh && !leaving()) await this.refresh();
     }
 
     /**
@@ -712,6 +764,39 @@ class RecordingsPage {
     deleteRecording(id) {
         this.defer({ key: `recording:${id}`, message: 'Recording deleted', failText: 'Could not delete it',
             path: `/recordings/${id}` });
+    }
+
+    /**
+     * #62: delete the ticked recordings with one confirmation and one 10-second Undo for all of them, like a single
+     * delete. A recording in progress is never ticked (nor sent here if it started meanwhile); Stop ends it.
+     */
+    deleteSelected() {
+        const byId = new Map((this.data.recordings || []).map(r => [String(r.id), r]));
+        const ids = this.selectedIds().filter(id => byId.get(id) && this.pickable(byId.get(id)));
+        if (!ids.length) return;
+        if (!confirm(ids.length === 1 ? 'Delete this recording?' : `Delete these ${ids.length} recordings?`)) return;
+        this.view.selecting = false;
+        this.view.selected = new Set();
+        this.deleteRecordings(ids);
+    }
+
+    deleteRecordings(ids) {
+        const keys = ids.map(id => `recording:${id}`);
+        const near = this.neighbour(keys[keys.length - 1]);
+        ids.forEach((id, i) => this.pending.set(keys[i], { key: keys[i], failText: 'Could not delete it', path: `/recordings/${id}`, committing: false, cancel: false }));
+        this.draw();
+        const survivor = () => { const k = near && !this.pending.has(near) ? near : null; return k ? this.controlOf(k) : null; };
+        UI.undoable(ids.length === 1 ? 'Recording deleted' : `${ids.length} recordings deleted`, {
+            undo: () => {
+                for (const k of keys) { const entry = this.pending.get(k); if (entry && !entry.committing) this.pending.delete(k); }
+                this.draw();
+            },
+            commit: async (ctl) => {
+                await Promise.all(keys.map(k => this.commitPending(k, ctl, { refresh: false })));
+                if (!(ctl.leaving ?? ctl.keepalive)) await this.refresh();
+            },
+            focus: { undo: () => this.controlOf(keys[0]), end: () => survivor() || this.landingOf(keys[0]) }
+        });
     }
 
     // Its recordings that have not started are cancelled by the server; anything recorded is kept.

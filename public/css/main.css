@@ -3448,6 +3448,16 @@ body.ui-dialog-open {
 .rec-tools .btn { min-height: 44px; }
 .rec-none { margin: 0; color: var(--color-text-secondary); display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); }
 
+.rec-tools .btn-danger { color: var(--color-error); }
+.rec-tools .btn[disabled] { opacity: .5; cursor: default; }
+.rec-tile { position: relative; }
+.rec-tile.is-picked { border-color: var(--color-accent); box-shadow: 0 0 0 1px var(--color-accent); }
+.rec-pick { position: absolute; top: var(--space-sm); left: var(--space-sm); z-index: 1; display: inline-flex; align-items: center; gap: var(--space-xs);
+  min-width: 44px; min-height: 44px; justify-content: center; padding: var(--space-xs) var(--space-sm); font-size: var(--text-xs); font-weight: 600;
+  color: var(--color-text-primary); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); cursor: pointer; }
+.rec-pick.is-off { color: var(--color-text-secondary); cursor: default; }
+.rec-pick input { width: 20px; height: 20px; margin: 0; accent-color: var(--color-accent); }
+
 /* Recorded: a wrapping grid of picture cards. A programme image fills the picture; a channel logo (or the
    placeholder) is shown whole on a plain raised surface, never stretched or cropped. */
 .rec-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--space-md); }
