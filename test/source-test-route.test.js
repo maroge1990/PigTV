@@ -188,3 +188,37 @@ test('#330: POST /estimate returns its error without the address or the login', 
         console.error = saved;
     }
 });
+
+/** A local provider that answers every request with this status, content type and body. */
+async function answering(status, type, body) {
+    const s = http.createServer((req, res) => { res.writeHead(status, { 'Content-Type': type }); res.end(body); }).listen(0, '127.0.0.1');
+    await once(s, 'listening');
+    return { url: `http://127.0.0.1:${s.address().port}`, close: () => { s.closeAllConnections(); s.close(); } };
+}
+
+test('#330 (Codex high): a malformed account reply that starts with a bare login reaches neither the reply nor the log', async () => {
+    const leak = 'bareuser330 barepass330';
+    const fakeUp = await answering(200, 'application/json', `${leak} {not json`);
+    const logs = [];
+    const saved = { warn: console.warn, error: console.error };
+    console.warn = console.error = (...a) => logs.push(a.join(' '));
+    try {
+        const r = await call('/api/sources/test', { type: 'xtream', url: fakeUp.url, username: 'u', password: 'p' });
+        assert.deepEqual(r.data, { success: false, error: 'The server answered, but not with account information' });
+        for (const text of [r.text, ...logs]) assert.ok(!/bareuser330|barepass330/.test(text), `leaks: ${text}`);
+    } finally {
+        Object.assign(console, saved);
+        fakeUp.close();
+    }
+});
+
+test('#330 (Codex medium): an M3U or guide marker inside a refused answer is not a pass', async () => {
+    for (const [type, status, body] of [['m3u', 401, '#EXTM3U\n'], ['m3u', 500, '#EXTM3U\n'], ['epg', 403, '<?xml version="1.0"?><tv></tv>']]) {
+        const fakeUp = await answering(status, 'text/plain', body);
+        try {
+            const r = await call('/api/sources/test', { type, url: `${fakeUp.url}/x` });
+            assert.equal(r.data.success, false, `${type} ${status}`);
+            assert.match(r.data.error, new RegExp(`^The server answered ${status}`));
+        } finally { fakeUp.close(); }
+    }
+});

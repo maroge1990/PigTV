@@ -36,14 +36,22 @@ async function readStart(response, max) {
     return Buffer.concat(chunks).toString('utf8');
 }
 
-/** A plain sentence for the admin: never an address, a host or a login. */
+/** A failure whose text is ours alone (no upstream body, status text or address in it). */
+const fixed = (message) => Object.assign(new Error(message), { fixedText: true });
+
+/**
+ * A plain sentence for the admin: never an address, a host, a login or any of the provider's own text. Only our own
+ * sentences, a timeout and a socket error code are passed on; anything else (a JSON parse error quoting the body, a
+ * library's message) becomes one fixed sentence.
+ */
 function failureText(err, url) {
     if (err && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
         return `The server did not answer within ${Math.round(limits.timeoutMs / 1000)} seconds`;
     }
     const code = err && err.cause && err.cause.code;
     if (code) return `Could not reach the server (${stripUrls(String(code), [url])})`;
-    return stripUrls(err && err.message, [url]) || 'The connection test failed';
+    if (err && err.fixedText) return stripUrls(err.message, [url]);
+    return 'The connection test failed';
 }
 
 /** Test `{ type, url, username, password }`; never throws. */
@@ -55,9 +63,15 @@ async function testSource({ type, url, username, password } = {}) {
             const response = await providerFetch(apiUrl, 'api', {}, options);
             if (!response.ok) {
                 await response.body?.cancel().catch(() => {});
-                throw new Error(`The server answered ${response.status} ${STATUS_CODES[response.status] || ''}`.trim());
+                throw fixed(`The server answered ${response.status} ${STATUS_CODES[response.status] || ''}`.trim());
             }
-            const account = providerAccounts.parseAccountReply(await response.json());
+            let body;
+            try { body = await response.json(); } catch { throw fixed('The server answered, but not with account information'); }
+            let account;
+            try { account = providerAccounts.parseAccountReply(body); } catch (e) {
+                // parseAccountReply's own two sentences; never the body.
+                throw fixed(/rejected the login/.test(e && e.message) ? 'The provider rejected the login' : 'The server answered, but not with account information');
+            }
             return {
                 success: true,
                 status: account.status,
@@ -68,6 +82,10 @@ async function testSource({ type, url, username, password } = {}) {
             };
         }
         const response = await providerFetch(String(url), type === 'epg' ? 'guide' : 'playlist', {}, options);
+        if (!response.ok) {
+            await response.body?.cancel().catch(() => {});
+            throw fixed(`The server answered ${response.status} ${STATUS_CODES[response.status] || ''}`.trim());
+        }
         const text = await readStart(response, limits.sniffBytes);
         if (type === 'm3u') {
             const isValid = text.includes('#EXTM3U');

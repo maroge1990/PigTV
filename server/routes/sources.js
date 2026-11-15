@@ -514,7 +514,7 @@ router.post('/:id/test', async (req, res) => {
         res.json(result);
     } catch (err) {
         console.error('Error testing source:', stripUrls(err && err.message));
-        res.json({ success: false, error: stripUrls(err && err.message) || 'The connection test failed' });
+        res.json({ success: false, error: 'The connection test failed' }); // never a library's or provider's own text
     }
 });
 
