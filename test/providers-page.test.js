@@ -241,7 +241,7 @@ test('0181: a provider that is the same account as another shows a red warning n
     assert.ok(out.includes("Same server and login as Dream4K: these count as one connection. Check this provider's settings."));
     assert.ok(out.includes('Same server and login as Trex &lt;i&gt;: these'), 'the name is escaped');
     assert.match(out, /class="provider-warning provider-error"/, 'in the error colour');
-    assert.ok(/providers[^"]*ProvidersSettings\.js\?v=5/.test(html) || /ProvidersSettings\.js\?v=5/.test(html), 'the script version was bumped');
+    assert.ok(Number((html.match(/ProvidersSettings\.js\?v=(\d+)/) || [])[1]) >= 5, 'the script version was bumped (to 5 or later)');
 });
 
 const formCard = (values) => ({ querySelector: (sel) => { const m = /data-field="(\w+)"/.exec(sel); return m && m[1] in values ? { value: values[m[1]] } : null; } });

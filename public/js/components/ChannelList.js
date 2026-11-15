@@ -348,6 +348,7 @@ class ChannelList {
         this.currentBatch = 0;
         this.batchSize = 100; // Number of groups to render per batch
         this.container.innerHTML = ''; // Clear container
+        this.firstRun?.stop(); // #63: the first-run checklist only redraws itself while the empty state below asks it to
 
         const groupedChannels = {};
 
@@ -422,7 +423,16 @@ class ChannelList {
                 ? { title: 'No channels match your search', detail: 'Try a different search term.' }
                 : this.sources.length > 0
                     ? { title: 'No channels to show', detail: 'Choose what to show under Settings → Channels → Manage content.' }
-                    : { title: 'No channels yet', detail: 'Add a provider in Settings to get started.' };
+                    : window.app?.currentUser?.role === 'admin'
+                        ? { title: 'No channels yet', detail: 'Add a provider in Settings to get started.' }
+                        : { title: 'No channels yet', detail: 'Ask your admin to add a provider.' };
+            // #63: an admin with no channels at all gets the first-run checklist (components/FirstRun.js) until the first
+            // provider's first sync has worked; after that, the plain empty state above.
+            if (!searchTerm && this.channels.length === 0 && typeof FirstRun !== 'undefined' && FirstRun.isAdmin()) {
+                this.firstRun ||= new FirstRun({ onSynced: () => this.reloadAfterFirstSync() });
+                this.firstRun.show(this.container, text);
+                return;
+            }
             UI.setState(this.container, 'empty', text);
             return;
         }
@@ -647,6 +657,12 @@ class ChannelList {
 
         container.innerHTML = this.groupChannelsHtml(groupName);
         container.querySelectorAll('.channel-item').forEach(item => this.attachChannelListeners(item));
+    }
+
+    /** #63: the first sync finished while the first-run checklist was up: list the channels it brought. */
+    async reloadAfterFirstSync() {
+        await this.loadSources();
+        await this.loadChannels();
     }
 
     /**

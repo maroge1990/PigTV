@@ -44,7 +44,7 @@ test('errorText: what could not be done; the server\'s sentence only when it wor
 
 test('no raw err.message is appended to a notice or a status line anywhere in the pages', () => {
     const files = ['app.js', ...SETTINGS_FILES, 'pages/ProvidersSettings.js', 'pages/BackupLinksSettings.js', 'pages/RecordingsPage.js', 'pages/SportSettings.js',
-        'pages/StatusPage.js', 'components/SourceManager.js', 'components/ChannelList.js', 'components/EpgGuide.js'];
+        'pages/StatusPage.js', 'components/SourceManager.js', 'components/ChannelList.js', 'components/EpgGuide.js', 'components/FirstRun.js'];
     const raw = [];
     for (const f of files) {
         read(`public/js/${f}`).split('\n').forEach((line, i) => {

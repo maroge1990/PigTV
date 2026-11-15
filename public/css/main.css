@@ -2001,6 +2001,113 @@ body.ui-dialog-open {
   text-decoration: none;
 }
 
+/* #63: the first-run checklist on Live TV, where the empty channel list was (components/FirstRun.js). */
+.first-run {
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--space-md);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.first-run-title {
+  margin: 0;
+  font-size: var(--text-lg);
+  color: var(--color-text-primary);
+}
+
+.first-run-lead {
+  margin: var(--space-xs) 0 var(--space-md);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.first-run-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.first-run-step {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+}
+
+.first-run-mark {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.first-run-step.is-current .first-run-mark {
+  border-color: var(--color-accent);
+  color: var(--color-accent-text);
+}
+
+/* A tick drawn with borders: no glyph in the markup. */
+.first-run-step.is-done .first-run-mark {
+  background: var(--color-success);
+  border-color: var(--color-success);
+}
+
+.first-run-step.is-done .first-run-mark::after {
+  content: '';
+  width: 6px;
+  height: 11px;
+  border: solid var(--color-bg-secondary);
+  border-width: 0 2px 2px 0;
+  transform: translateY(-2px) rotate(45deg);
+}
+
+.first-run-step.is-busy .first-run-mark {
+  border-top-color: var(--color-accent);
+  animation: spin 1s linear infinite;
+}
+
+.first-run-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
+.first-run-step-title {
+  font-size: var(--text-md);
+  color: var(--color-text-primary);
+}
+
+.first-run-step.is-done .first-run-step-title {
+  color: var(--color-text-muted);
+}
+
+.first-run-detail {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.first-run-detail.error {
+  color: var(--color-error-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .first-run-step.is-busy .first-run-mark { animation: none; }
+}
+
 .state-block-spinner {
   display: inline-block;
   width: 20px;
