@@ -2501,6 +2501,69 @@ body.ui-dialog-open {
     padding: var(--space-sm) var(--space-xs);
   }
 
+  /* #295: nothing in the admin tables scrolls sideways on a phone. The users table drops its Created column and lets its
+     buttons wrap; the backup links summary (nine columns) reads as one block per provider, each number with its label. */
+  .user-table:has(#user-list) :is(th, td):nth-child(3) {
+    display: none;
+  }
+
+  .user-table:has(#user-list) td .btn {
+    margin: var(--space-2xs) var(--space-xs) var(--space-2xs) 0;
+  }
+
+  .user-table:has(#user-list) td > div {
+    flex-wrap: wrap;
+  }
+
+  #links-summary .status-table,
+  #links-summary .status-table tbody,
+  #links-summary .status-table tr,
+  #links-summary .status-table td {
+    display: block;
+  }
+
+  #links-summary .status-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  #links-summary .status-table tr {
+    border-bottom: 1px solid var(--color-border);
+    padding: var(--space-xs) 0;
+  }
+
+  #links-summary .status-table td {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-md);
+    border: 0;
+  }
+
+  #links-summary .status-table td:first-child {
+    font-weight: 600;
+    color: var(--color-text-primary);
+  }
+
+  #links-summary .status-table td:not(:first-child)::before {
+    color: var(--color-text-muted);
+  }
+
+  #links-summary .status-table td:nth-child(2)::before { content: 'Auto'; }
+  #links-summary .status-table td:nth-child(3)::before { content: 'Needs review'; }
+  #links-summary .status-table td:nth-child(4)::before { content: 'Approved'; }
+  #links-summary .status-table td:nth-child(5)::before { content: 'Manual'; }
+  #links-summary .status-table td:nth-child(6)::before { content: 'Rejected'; }
+  #links-summary .status-table td:nth-child(7)::before { content: 'Broken'; }
+  #links-summary .status-table td:nth-child(8)::before { content: 'Channels linked'; }
+  #links-summary .status-table td:nth-child(9)::before { content: 'Without a link'; }
+
+  .links-table td.link-channel {
+    min-width: 140px;
+  }
+
   /* The idle "Select a channel" line does not peek out beside the open channel drawer. */
   .channel-sidebar.active ~ .player-section .overlay-content {
     visibility: hidden;

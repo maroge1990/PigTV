@@ -30,7 +30,7 @@ function rules() {
                 i = j;
             } else {
                 const close = css.indexOf('}', open);
-                out.push({ media, selectors: head.split(',').map(s => s.trim()), body: css.slice(open + 1, close) });
+                out.push({ media, selectors: head.split(/,(?![^(]*\))/).map(s => s.trim()), body: css.slice(open + 1, close) });
                 i = close + 1;
             }
         }
@@ -47,4 +47,16 @@ test('#295: the top bar fits from 481 to 560 px (tighter links and lockup)', () 
     assert.match(links[0].body, /padding-left:\s*var\(--space-xs\)/);
     const lockup = find('.brand-lockup', /min-width:\s*481px/);
     assert.ok(lockup.length && /width:\s*104px/.test(lockup[0].body), 'a smaller lockup in that range');
+});
+
+const phone = /max-width:\s*480px/;
+
+test('#295: on a phone the backup links summary reads as blocks and the users table drops Created', () => {
+    const block = ALL.filter(r => phone.test(r.media) && r.selectors.includes('#links-summary .status-table td'));
+    assert.ok(block.length && /display:\s*flex/.test(block[block.length - 1].body), 'summary cells are label/value lines');
+    assert.ok(ALL.some(r => phone.test(r.media) && r.selectors.includes('#links-summary .status-table td:nth-child(8)::before')), 'every count has its label');
+    const created = ALL.find(r => phone.test(r.media) && r.selectors.some(s => /#user-list\) :is\(th, td\):nth-child\(3\)/.test(s)));
+    assert.ok(created && /display:\s*none/.test(created.body), 'the Created column is dropped on a phone');
+    const chan = ALL.find(r => phone.test(r.media) && r.selectors.includes('.links-table td.link-channel'));
+    assert.ok(chan && /min-width:\s*140px/.test(chan.body), 'the backup links channel column is narrower on a phone');
 });
