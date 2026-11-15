@@ -60,3 +60,31 @@ test('#295: on a phone the backup links summary reads as blocks and the users ta
     const chan = ALL.find(r => phone.test(r.media) && r.selectors.includes('.links-table td.link-channel'));
     assert.ok(chan && /min-width:\s*140px/.test(chan.body), 'the backup links channel column is narrower on a phone');
 });
+
+const coarse = /pointer:\s*coarse/;
+
+test('#295: the off switch has the control border, not the hairline', () => {
+    const slider = find('.toggle-slider')[0];
+    assert.match(slider.body, /border:\s*1px solid var\(--color-control-border\)/);
+});
+
+test('#295: on touch, <summary> toggles, guide cells and bare Settings fields are 44 px', () => {
+    const summary = ALL.find(r => coarse.test(r.media) && r.selectors.includes('summary'));
+    assert.ok(summary && /min-height:\s*44px/.test(summary.body), 'summary');
+    const cell = ALL.find(r => coarse.test(r.media) && r.selectors.includes('.epg-program'));
+    assert.ok(cell && /min-height:\s*44px/.test(cell.body), 'guide cell');
+    const bare = ALL.find(r => coarse.test(r.media) && r.selectors.includes('.settings-section select:not([class])'));
+    assert.ok(bare && /min-height:\s*44px/.test(bare.body), 'bare field');
+});
+
+test('#295: bare Settings fields have padding so the text does not touch the border', () => {
+    const bare = find('.settings-section select:not([class])').find(r => !r.media);
+    assert.ok(bare, 'a rule for fields with no class');
+    assert.match(bare.body, /padding:\s*var\(--space-xs\) var\(--space-md\)/);
+    assert.match(bare.body, /min-height:\s*36px/);
+});
+
+test('#295: Providers > Groups never imported keeps the tick box beside the name on a phone', () => {
+    const row = ALL.find(r => phone.test(r.media) && r.selectors.includes('.setting-item.import-exclusion'));
+    assert.ok(row && /display:\s*grid/.test(row.body) && /grid-template-columns:\s*auto 1fr/.test(row.body));
+});

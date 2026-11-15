@@ -1312,7 +1312,8 @@ video::cue {
   right: 0;
   bottom: 0;
   background: var(--color-bg-tertiary);
-  border: 1px solid var(--color-border);
+  /* #295: the off switch's edge is the control border (3:1 against its row), as every other field's. */
+  border: 1px solid var(--color-control-border);
   border-radius: var(--radius-full);
   transition: background var(--transition-fast);
 }
@@ -2466,6 +2467,18 @@ body.ui-dialog-open {
     /* Move label to top */
   }
 
+  /* #295: Providers > "Groups never imported": the tick box stays beside the group's name, with its size under it. */
+  .setting-item.import-exclusion {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    column-gap: var(--space-sm);
+  }
+
+  .import-exclusion .hint {
+    grid-column: 2;
+  }
+
   .btn {
     padding: var(--space-xs) var(--space-sm);
   }
@@ -2665,6 +2678,24 @@ body.ui-dialog-open {
   .form-input,
   .source-select,
   .settings-section select {
+    min-height: 44px;
+  }
+
+  .settings-section input:is([type="text"], [type="number"], [type="password"], [type="email"], [type="url"]):not([class]),
+  .settings-section select:not([class]) {
+    min-height: 44px;
+  }
+
+  /* #295: the disclosure toggles and the guide's programme cells (the guide's rows are 60 px, so 44 px fits). */
+  summary {
+    display: list-item;
+    box-sizing: border-box;
+    min-height: 44px;
+    padding-block: 11px;
+  }
+
+  .epg-program {
+    box-sizing: border-box;
     min-height: 44px;
   }
 
@@ -4228,6 +4259,17 @@ body.ui-dialog-open {
   border-radius: var(--radius-sm);
 }
 .settings-section input::placeholder { color: var(--color-text-muted); }
+/* #295: the fields with no class of their own (Recording, Playback, Sport, notifications) were about 24 px tall with the
+   text on the border: they get the main forms' padding, size and border. */
+.settings-section input:is([type="text"], [type="number"], [type="password"], [type="email"], [type="url"]):not([class]),
+.settings-section select:not([class]) {
+  box-sizing: border-box;
+  min-height: 36px;
+  padding: var(--space-xs) var(--space-md);
+  border-width: 1px;
+  font-size: var(--text-md);
+  font-family: inherit;
+}
 .record-options input[type="number"] {
   background: var(--color-bg-tertiary);
   border: 1px solid var(--color-border);
