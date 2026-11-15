@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const { loadUi } = require('./helpers/webUi');
+const { SETTINGS_FILES, settingsSource } = require('./helpers/settingsPage');
 
 // #276 (findings B4-B6, C2, C9, C12-C14 of the 10 Nov audit): the words, the figures, Undo in place of questions, where am
 // I (title and address), no waits on the input path, inline validation, and the guide's column resize by pointer. The
@@ -42,7 +43,7 @@ test('errorText: what could not be done; the server\'s sentence only when it wor
 });
 
 test('no raw err.message is appended to a notice or a status line anywhere in the pages', () => {
-    const files = ['app.js', 'pages/Settings.js', 'pages/ProvidersSettings.js', 'pages/BackupLinksSettings.js', 'pages/RecordingsPage.js', 'pages/SportSettings.js',
+    const files = ['app.js', ...SETTINGS_FILES, 'pages/ProvidersSettings.js', 'pages/BackupLinksSettings.js', 'pages/RecordingsPage.js', 'pages/SportSettings.js',
         'pages/StatusPage.js', 'components/SourceManager.js', 'components/ChannelList.js', 'components/EpgGuide.js'];
     const raw = [];
     for (const f of files) {
@@ -131,19 +132,19 @@ test('UI.undoable: the change is already made; Undo puts it back and nothing is 
 test('the Settings confirm that sat on an Undo is gone: undoing automatic mappings happens at once', async () => {
     const c = sandbox({ document: { getElementById: () => null, addEventListener() {}, querySelectorAll: () => [] },
         confirm: () => { throw new Error('asked'); }, API: { epg: { autoMapUndo: async (b) => { c.undone = b; return { removed: 3 }; } } } });
-    vm.runInContext(read('public/js/pages/Settings.js'), c);
+    vm.runInContext(settingsSource(), c);
     const page = Object.create(c.window.SettingsPage.prototype);
     const statuses = [];
     Object.assign(page, { loadEpgMatching: async () => {}, previewAutoMap: async () => {}, setEpgStatus: (t) => statuses.push(t) });
     await page.undoAutoMap('b1');
     assert.equal(c.undone, 'b1');
     assert.match(statuses[0], /^3 automatic mappings undone\./);
-    assert.doesNotMatch(read('public/js/pages/Settings.js'), /confirm\('Undo these automatic mappings/);
+    assert.doesNotMatch(settingsSource(), /confirm\('Undo these automatic mappings/);
 });
 
 test('no question is left for an action that can be put back; the ones that cannot name the action and what goes with it', () => {
     const asks = {};
-    for (const f of ['pages/Settings.js', 'pages/ProvidersSettings.js', 'pages/BackupLinksSettings.js', 'pages/SportSettings.js', 'pages/StatusPage.js', 'pages/RecordingsPage.js']) {
+    for (const f of [...SETTINGS_FILES, 'pages/ProvidersSettings.js', 'pages/BackupLinksSettings.js', 'pages/SportSettings.js', 'pages/StatusPage.js', 'pages/RecordingsPage.js']) {
         const src = read(`public/js/${f}`);
         asks[f] = [...src.matchAll(/(?:window\.)?confirm\(\s*([`'"])([\s\S]*?)\1/g)].map((m) => m[2]);
     }
@@ -169,7 +170,7 @@ function appWithSettings() {
     const c = sandbox({ document: doc, API: {}, history: { pushState: (s, _, u) => { calls.push(['push', plain(s), u]); c.window.location.hash = u; }, replaceState: (s, _, u) => { calls.push(['replace', plain(s), u]); c.window.location.hash = u; } } });
     c.window.location = { hash: '' };
     vm.runInContext(read('public/js/app.js'), c);
-    vm.runInContext(read('public/js/pages/Settings.js'), c);
+    vm.runInContext(settingsSource(), c);
     const app = vm.runInContext('Object.create(App.prototype)', c);
     const settings = Object.create(c.window.SettingsPage.prototype);
     const panels = [];
@@ -278,7 +279,7 @@ test('C2: the drawer closes in the tap, the guide does not sleep, the details op
     assert.doesNotMatch(details, /await API\.settings\.get\(\)/);
     assert.doesNotMatch(guide.slice(guide.indexOf('this.searchInput.addEventListener')), /^[^;]*debounce/, 'guide search');
     assert.doesNotMatch(read('public/js/components/ChannelList.js'), /searchInput\.addEventListener\('input', UI\.debounce/);
-    const settings = read('public/js/pages/Settings.js');
+    const settings = settingsSource();
     assert.doesNotMatch(settings, /lineup-search'\);\s*search\?\.addEventListener\('input', UI\.debounce/);
     assert.doesNotMatch(settings, /filter\?\.addEventListener\('input', UI\.debounce/);
     assert.match(settings, /search\?\.addEventListener\('input', UI\.debounce\(\(\) => this\.searchEpgChannels/, 'the network search keeps its pause');
@@ -319,7 +320,7 @@ test('Recording settings: a bad number is refused with a message beside it and n
     const doc = { ...fakeDocument(), getElementById: (id) => (inputs[id] ||= fakeInput({ id, value: '', min: '0', max: '60', checked: false })),
         querySelector: () => null };
     const c = sandbox({ document: doc, API: { settings: { update: async (b) => { saved.push(b); } } } });
-    vm.runInContext(read('public/js/pages/Settings.js'), c);
+    vm.runInContext(settingsSource(), c);
     const page = Object.create(c.window.SettingsPage.prototype);
     const set = (id, value, min, max) => Object.assign(doc.getElementById(id), { value, min: String(min), max: String(max) });
     const fill = (over = {}) => {
@@ -347,7 +348,7 @@ test('Recording settings: a bad number is refused with a message beside it and n
 test('Channel numbers: a duplicate is flagged as it is typed, and Save stays off while one exists', () => {
     const c = sandbox({ document: { ...fakeDocument(), getElementById: (id) => (id === 'lineup-save' ? save : id === 'lineup-status' ? status : null) } });
     const save = { disabled: true }, status = { textContent: '', classList: { toggle() {} } };
-    vm.runInContext(read('public/js/pages/Settings.js'), c);
+    vm.runInContext(settingsSource(), c);
     const page = Object.create(c.window.SettingsPage.prototype);
     Object.assign(page, { lineup: [{ sourceId: 1, id: 'a', name: 'BBC One', number: 1 }, { sourceId: 1, id: 'b', name: 'Sky News', number: 2 }, { sourceId: 1, id: 'c', name: 'Fox', number: 505 }],
         lineupEdits: new Map(), lineupQuery: '' });
@@ -373,7 +374,7 @@ test('a failed switch save in Settings says so when it flips back', async () => 
     const toggles = {};
     const el = (id) => (toggles[id] ||= { id, checked: false, listeners: {}, addEventListener(t, fn) { this.listeners[t] = fn; }, disabled: false });
     const c = sandbox({ document: { getElementById: el, addEventListener() {}, querySelectorAll: () => [] }, API: { settings: { update: async () => { throw new Error('offline'); } } } });
-    vm.runInContext(read('public/js/pages/Settings.js'), c);
+    vm.runInContext(settingsSource(), c);
     const page = Object.create(c.window.SettingsPage.prototype);
     page.initHwDecodeSettings();
     const sw = el('setting-vaapi-hw-decode');

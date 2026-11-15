@@ -2,6 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { SETTINGS_FILES, settingsSource } = require('./helpers/settingsPage');
 
 // #65 (0360): settings that misled or set traps. The page's own text, read from the files the browser loads.
 const read = (f) => fs.readFileSync(path.join(__dirname, '../public', f), 'utf8');
@@ -26,6 +27,6 @@ test('deleting a provider says it removes favourites, numbers and scheduled reco
 });
 
 test('a renewal switch that cannot run is unticked and saved off, as the standby is', () => {
-    const js = read('js/pages/Settings.js');
+    const js = settingsSource();
     assert.match(js, /if \(renewal\.disabled && renewal\.checked\) \{\s*renewal\.checked = false;\s*try \{ await API\.settings\.update\(\{ ingestReconnectRenewal: false \}\)/);
 });

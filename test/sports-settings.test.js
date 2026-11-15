@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const { loadUi } = require('./helpers/webUi');
+const { SETTINGS_FILES, settingsSource } = require('./helpers/settingsPage');
 
 // 0149 (contract C-I): Settings -> Sports. The followed leagues (GET /api/sports/follow; read-only since D-42, the
 // keyword list retired) and a preview of the recognised events (GET /api/sports/preview) with the rule that matched
@@ -34,7 +35,7 @@ function harness(replies) {
     loadUi(context);
     vm.runInContext(js('api.js'), context);
     loadUi(context);
-    vm.runInContext(js('pages/Settings.js'), context);
+    vm.runInContext(settingsSource(), context);
     const settings = Object.create(context.SettingsPage.prototype);
     return { settings, elements, requests };
 }

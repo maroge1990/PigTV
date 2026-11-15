@@ -22,6 +22,7 @@ process.chdir(sandbox);
 
 const load = p => require(path.join(sandbox, 'server', p));
 const { loadUi } = require('./helpers/webUi');
+const { SETTINGS_FILES, settingsSource } = require('./helpers/settingsPage');
 const db = load('db');
 const auth = load('auth');
 const sqlite = load('db/sqlite');
@@ -236,7 +237,7 @@ test('the web Settings panel lists unmatched channels with candidate buttons and
     loadUi(context);
     vm.runInContext(js('api.js'), context);
     loadUi(context);
-    vm.runInContext(js('pages/Settings.js'), context);
+    vm.runInContext(settingsSource(), context);
     const settings = Object.create(context.SettingsPage.prototype);
     Object.assign(settings, { epgUnmatched: [], epgMappings: [], epgFilter: '', epgSelected: null, epgSearchResults: [] });
 

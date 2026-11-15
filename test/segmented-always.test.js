@@ -15,6 +15,7 @@ process.env.PIGTV_DB_BACKUPS = '0';
 
 const db = require(path.join(sandbox, 'server', 'db'));
 const sqlite = require(path.join(sandbox, 'server', 'db', 'sqlite'));
+const { SETTINGS_FILES, settingsSource } = require('./helpers/settingsPage');
 
 after(() => {
     try { sqlite.getDb().close(); } catch { /* closed */ }
@@ -39,5 +40,5 @@ test('0494: a stored "off" is dropped once, and no later write or stored value t
 test('0494: the web no longer offers the switch', () => {
     const root = path.join(__dirname, '..', 'public');
     assert.ok(!fs.readFileSync(path.join(root, 'index.html'), 'utf8').includes('dvr-setting-segmented'));
-    assert.ok(!fs.readFileSync(path.join(root, 'js', 'pages', 'Settings.js'), 'utf8').includes('segmentedRecordings'));
+    assert.ok(!settingsSource().includes('segmentedRecordings'));
 });

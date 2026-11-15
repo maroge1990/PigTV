@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const UI = require('../public/js/ui.js');
 const { FakeEvent, createDocument } = require('./helpers/fakeDom');
+const { SETTINGS_FILES, settingsSource } = require('./helpers/settingsPage');
 
 // #276 (B3): loading, empty and load-error are one set, drawn by UI.stateBlock / UI.setState (public/js/ui.js).
 const ROOT = path.join(__dirname, '../public');
@@ -73,7 +74,7 @@ test('UI.setState: { colspan } puts the block in one table row; a container with
 
 const IN_SCOPE = [
     'js/components/ChannelList.js', 'js/components/EpgGuide.js', 'js/components/SourceManager.js',
-    'js/pages/StatusPage.js', 'js/pages/Settings.js', 'js/pages/ProvidersSettings.js',
+    'js/pages/StatusPage.js', ...SETTINGS_FILES.map((f) => `js/${f}`), 'js/pages/ProvidersSettings.js',
     'js/pages/BackupLinksSettings.js', 'js/pages/SportSettings.js', 'js/pages/RecordingsPage.js', 'index.html'
 ];
 /** #276: no page is exempt any more (Recordings was the last). */
@@ -118,19 +119,19 @@ const LOAD_ERRORS = [
     ['js/components/SourceManager.js', 'The groups and channels could not be loaded.'],
     ['js/pages/StatusPage.js', 'The server status could not be loaded.'],
     ['js/pages/StatusPage.js', 'The guide categories could not be loaded.'],
-    ['js/pages/Settings.js', 'The channel numbers could not be loaded.'],
-    ['js/pages/Settings.js', 'The guide matching list could not be loaded.'],
-    ['js/pages/Settings.js', 'The followed leagues could not be loaded.'],
-    ['js/pages/Settings.js', 'The sport preview could not be loaded.'],
-    ['js/pages/Settings.js', 'The groups could not be loaded.'],
-    ['js/pages/Settings.js', 'The providers could not be loaded.'],
-    ['js/pages/Settings.js', 'The signed-in devices could not be loaded.'],
-    ['js/pages/Settings.js', 'The users could not be loaded.'],
-    ['js/pages/Settings.js', 'The hardware information could not be loaded.'],
-    ['js/pages/Settings.js', 'The recording settings could not be loaded.'],
-    ['js/pages/Settings.js', 'The playback settings could not be loaded.'],
-    ['js/pages/Settings.js', 'The last sync time could not be loaded.'],
-    ['js/pages/Settings.js', 'The auto-map preview could not be loaded.'],
+    ['js/pages/settings/Lineup.js', 'The channel numbers could not be loaded.'],
+    ['js/pages/settings/EpgMatching.js', 'The guide matching list could not be loaded.'],
+    ['js/pages/settings/SportPreview.js', 'The followed leagues could not be loaded.'],
+    ['js/pages/settings/SportPreview.js', 'The sport preview could not be loaded.'],
+    ['js/pages/settings/ImportExclusions.js', 'The groups could not be loaded.'],
+    ['js/pages/settings/ImportExclusions.js', 'The providers could not be loaded.'],
+    ['js/pages/settings/Devices.js', 'The signed-in devices could not be loaded.'],
+    ['js/pages/settings/Users.js', 'The users could not be loaded.'],
+    ['js/pages/settings/Hardware.js', 'The hardware information could not be loaded.'],
+    ['js/pages/settings/Recording.js', 'The recording settings could not be loaded.'],
+    ['js/pages/settings/Transcoding.js', 'The playback settings could not be loaded.'],
+    ['js/pages/settings/Player.js', 'The last sync time could not be loaded.'],
+    ['js/pages/settings/EpgMatching.js', 'The auto-map preview could not be loaded.'],
     ['js/pages/ProvidersSettings.js', 'The providers could not be loaded.'],
     ['js/pages/BackupLinksSettings.js', 'The backup links could not be loaded.'],
     ['js/pages/BackupLinksSettings.js', 'The channels could not be loaded.'],
@@ -182,7 +183,7 @@ test('Settings → transcoding: controls stay disabled until GET /api/settings a
         API: { settings: { get: () => answer } } });
     ctx.window = ctx;
     loadUi(ctx);
-    vm.runInContext(read('js/pages/Settings.js'), ctx);
+    vm.runInContext(settingsSource(), ctx);
     const page = Object.create(ctx.SettingsPage.prototype);
     ctx.SettingsPage.lockPanel(panel, 'loading');
     assert.equal(attrs['aria-busy'], 'true');

@@ -2,6 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { SETTINGS_FILES, settingsSource } = require('./helpers/settingsPage');
 
 // The web app's string checks, moved out of scripts/verify-build.sh (#275) so that editing the web app does not mean
 // editing a shell script. Each row says: this file must contain (or, with absent: true, must NOT contain) this text,
@@ -198,23 +199,23 @@ const ROWS = [
     { file: 'js/pages/RecordingsPage.js', text: 'renderRecentProblems(items)', why: '0156: schedule observability and recent problems: the web Recordings page has a Recent problems section' },
 
     // public/js/pages/Settings.js
-    { file: 'js/pages/Settings.js', text: 'loadUiSettings', why: '0009: Movies/Series toggle (removed with Movies/Series in 0122): UI load handler (theme)' },
-    { file: 'js/pages/Settings.js', text: 'loadRecordingSettings', why: '0017: settings reorganisation: recording handlers' },
-    { file: 'js/pages/Settings.js', text: 'loadUiSettings', why: '0017: settings reorganisation: ui handlers' },
-    { file: 'js/pages/Settings.js', bre: 'API.lineup.get()', why: '0123: channel-number editor (Settings -> Channel numbers): the panel reads GET /api/lineup' },
+    { file: 'js/pages/settings/Appearance.js', text: 'loadUiSettings', why: '0009: Movies/Series toggle (removed with Movies/Series in 0122): UI load handler (theme)' },
+    { file: 'js/pages/settings/Recording.js', text: 'loadRecordingSettings', why: '0017: settings reorganisation: recording handlers' },
+    { file: 'js/pages/settings/Appearance.js', text: 'loadUiSettings', why: '0017: settings reorganisation: ui handlers' },
+    { file: 'js/pages/settings/Lineup.js', bre: 'API.lineup.get()', why: '0123: channel-number editor (Settings -> Channel numbers): the panel reads GET /api/lineup' },
     { file: 'js/pages/Settings.js', bre: 'if (panel === \'lineup\' && !this.lineupEdits?.size) this.loadLineup();', why: '0123: channel-number editor (Settings -> Channel numbers): and loads when the panel opens (unless numbers are typed but unsaved, #128)' },
-    { file: 'js/pages/Settings.js', bre: 'this.setLineupStatus(UI.errorText(err', why: '0123: channel-number editor (Settings -> Channel numbers): the server\'s validation error is shown' },
-    { file: 'js/pages/Settings.js', text: 'async loadEpgMatching()', why: '0134: EPG matching (S4.2): which loads the unmatched list' },
+    { file: 'js/pages/settings/Lineup.js', bre: 'this.setLineupStatus(UI.errorText(err', why: '0123: channel-number editor (Settings -> Channel numbers): the server\'s validation error is shown' },
+    { file: 'js/pages/settings/EpgMatching.js', text: 'async loadEpgMatching()', why: '0134: EPG matching (S4.2): which loads the unmatched list' },
     { file: 'js/pages/Settings.js', bre: 'if (this.isAdmin()) this.loadSports();', why: '0149: web Settings -> Sports (C-I): loaded when the tab opens (the preview is admin-only)' },
     { file: 'js/pages/Settings.js', bre: 'this.sportFollow.load();', why: '0149: web Settings -> Sports (C-I): and filled when the tab opens' },
-    { file: 'js/pages/Settings.js', bre: 'await this.loadSportsPreview();', why: '0149: web Settings -> Sports (C-I): the preview loads with the tab' },
-    { file: 'js/pages/Settings.js', bre: 'this.sportsOpenKinds = new Set(\\[\'event\', \'replay\'\\]);', why: '0151: web Settings -> Sports preview grouped by kind: events and replays open, the rest collapsed' },
-    { file: 'js/pages/Settings.js', bre: '\\[\'placeholder\', \'Placeholders\'\\]', why: '0151: web Settings -> Sports preview grouped by kind: grouped by kind' },
-    { file: 'js/pages/Settings.js', text: 'guide title', why: '0151: web Settings -> Sports preview grouped by kind: the merged guide titles are listed' },
+    { file: 'js/pages/settings/SportPreview.js', bre: 'await this.loadSportsPreview();', why: '0149: web Settings -> Sports (C-I): the preview loads with the tab' },
+    { file: 'js/pages/settings/SportPreview.js', bre: 'this.sportsOpenKinds = new Set(\\[\'event\', \'replay\'\\]);', why: '0151: web Settings -> Sports preview grouped by kind: events and replays open, the rest collapsed' },
+    { file: 'js/pages/settings/SportPreview.js', bre: '\\[\'placeholder\', \'Placeholders\'\\]', why: '0151: web Settings -> Sports preview grouped by kind: grouped by kind' },
+    { file: 'js/pages/settings/SportPreview.js', text: 'guide title', why: '0151: web Settings -> Sports preview grouped by kind: the merged guide titles are listed' },
     { file: 'js/pages/Settings.js', bre: 'this.providers = new ProvidersSettings();', why: '0172: the provider admin pages (multi-provider P4): Settings builds the Providers panel' },
     { file: 'js/pages/Settings.js', bre: 'this.backupLinks = new BackupLinksSettings();', why: '0172: the provider admin pages (multi-provider P4): and the Backup links panel' },
-    { file: 'js/pages/Settings.js', text: 'bind(\'setting-warm-next-channel\', \'warmNextChannel\');', why: 'R11: the warming switch is in Settings: and saves it' },
-    { file: 'js/pages/Settings.js', bre: 'standby.checked = s.standbyEnabled === true && s.relayEnabled === true;', why: '0203: TS captures; audio re-encoded and decode-checked: Hot standby never shows ticked while recovery is off' },
+    { file: 'js/pages/settings/Hardware.js', text: 'bind(\'setting-warm-next-channel\', \'warmNextChannel\');', why: 'R11: the warming switch is in Settings: and saves it' },
+    { file: 'js/pages/settings/Hardware.js', bre: 'standby.checked = s.standbyEnabled === true && s.relayEnabled === true;', why: '0203: TS captures; audio re-encoded and decode-checked: Hot standby never shows ticked while recovery is off' },
 
     // public/js/pages/StatusPage.js
     { file: 'js/pages/StatusPage.js', text: 'data-kill-all', why: '0008+0014: M3U sort order + ID fix: stop-all button (Status page)' },
@@ -352,7 +353,8 @@ for (const file of [...new Set(ROWS.map((r) => r.file))]) {
 // that only log. The tables below are the rules; an allow-list names what is deliberately kept, and why.
 
 const JS_FILES = ['app.js', 'api.js', 'ui.js', 'providerReminders.js', 'recordingsFeed.js']
-    .concat(fs.readdirSync(path.join(__dirname, '../public/js/pages')).map((f) => `pages/${f}`))
+    .concat(fs.readdirSync(path.join(__dirname, '../public/js/pages')).filter((f) => f.endsWith('.js')).map((f) => `pages/${f}`))
+    .concat(SETTINGS_FILES.filter((f) => f.startsWith('pages/settings/')))
     .concat(fs.readdirSync(path.join(__dirname, '../public/js/components')).map((f) => `components/${f}`));
 // VideoPlayer.js is outside this batch (its "✓ Copied!" and the strings it returns to Settings are listed in #276).
 const WORDS_JS = JS_FILES.filter((f) => f !== 'components/VideoPlayer.js');
@@ -499,7 +501,7 @@ test('#276 one rose button (btn-primary) per screen; a per-row action is never r
         'pages/SportSettings.js': [1, 'Follow this sport'],
         'components/EpgGuide.js': [1, 'Record in the programme dialog'],
         'components/SourceManager.js': [0, 'Show on a new group is a per-row action'],
-        'components/ChannelList.js': [0, ''], 'pages/Settings.js': [0, ''], 'pages/StatusPage.js': [0, ''], 'pages/BackupLinksSettings.js': [0, ''], 'ui.js': [1, 'a state block\'s action may ask for primary: true']
+        'components/ChannelList.js': [0, ''], 'pages/Settings.js': [0, ''], ...Object.fromEntries(SETTINGS_FILES.map((f) => [f, [0, '']])), 'pages/StatusPage.js': [0, ''], 'pages/BackupLinksSettings.js': [0, ''], 'ui.js': [1, 'a state block\'s action may ask for primary: true']
     };
     for (const [file, [max, why]] of Object.entries(SCRIPT_PRIMARIES)) {
         const n = (read(`js/${file}`).replace(/\/\/.*$/gm, '').match(/btn-primary/g) || []).length;

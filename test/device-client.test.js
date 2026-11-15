@@ -21,6 +21,7 @@ const sqlite = require(path.join(sandbox, 'server/db/sqlite'));
 const auth = require(path.join(sandbox, 'server/auth'));
 const devices = require(path.join(sandbox, 'server/services/deviceAuth'));
 const { loadUi } = require('./helpers/webUi');
+const { SETTINGS_FILES, settingsSource } = require('./helpers/settingsPage');
 
 const TV = 'PigTV/84 (tvOS 26.1; AppleTV14,1)';
 let server, base, owner;
@@ -93,7 +94,7 @@ test('a device that never sent the header has no app; an odd or hostile header i
 });
 
 test('Settings → Devices shows the device kind, OS and app build, and says when the app has not reported one', async () => {
-    const js = fs.readFileSync(path.join(__dirname, '../public/js/pages/Settings.js'), 'utf8');
+    const js = settingsSource();
     const list = { innerHTML: '', querySelectorAll: () => [] };
     const ctx = vm.createContext({
         console, localStorage: { getItem: () => 'tok' },
@@ -139,7 +140,7 @@ test('a code waiting for approval names the device asking for it; an unknown or 
 });
 
 test('Settings → Devices names the asking device once a whole code is typed', async () => {
-    const js = fs.readFileSync(path.join(__dirname, '../public/js/pages/Settings.js'), 'utf8');
+    const js = settingsSource();
     const input = { value: '7km q2x' };
     const status = { textContent: '' };
     const asked = [];

@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { SETTINGS_FILES, settingsSource } = require('./helpers/settingsPage');
 
 // #322 (Mark, 14 Nov 2026): the hardware encoder, GPU decode, CPU scale and User-Agent controls are in one Advanced
 // block under Settings → Playback, shown only to admins. They keep working; a viewer never sees them.
@@ -28,7 +29,7 @@ function page(role) {
     const ctx = vm.createContext({ console, document: { getElementById: (id) => (id === 'transcode-advanced' ? advanced : null) } });
     ctx.window = ctx;
     require('./helpers/webUi').loadUi(ctx);
-    vm.runInContext(read('js/pages/Settings.js'), ctx);
+    vm.runInContext(settingsSource(), ctx);
     const p = Object.create(ctx.SettingsPage.prototype);
     p.app = { currentUser: { role } };
     return { p, advanced };
@@ -41,5 +42,5 @@ test('only an admin is shown the Advanced block', () => {
     const admin = page('admin');
     admin.p.showAdminOnly();
     assert.equal(admin.advanced.hidden, false);
-    assert.match(read('js/pages/Settings.js'), /this\.showAdminOnly\(\);/, 'show() applies it');
+    assert.match(settingsSource(), /this\.showAdminOnly\(\);/, 'show() applies it');
 });

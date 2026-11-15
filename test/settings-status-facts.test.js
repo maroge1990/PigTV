@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const { loadUi } = require('./helpers/webUi');
+const { SETTINGS_FILES, settingsSource } = require('./helpers/settingsPage');
 
 // #61: facts the server already had that the web never showed. The real Settings.js with a recorded fetch.
 const js = (file) => fs.readFileSync(path.join(__dirname, '../public/js', file), 'utf8');
@@ -24,7 +25,7 @@ function settingsPage(elements, routes, calls) {
     loadUi(ctx);
     vm.runInContext(js('api.js'), ctx);
     loadUi(ctx);
-    vm.runInContext(js('pages/Settings.js'), ctx);
+    vm.runInContext(settingsSource(), ctx);
     return Object.create(ctx.SettingsPage.prototype);
 }
 

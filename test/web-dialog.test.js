@@ -5,6 +5,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { loadUi } = require('./helpers/webUi');
 const { createDocument, FakeEvent } = require('./helpers/fakeDom');
+const { SETTINGS_FILES, settingsSource } = require('./helpers/settingsPage');
 
 // #275: one dialog. UI.dialog is a native <dialog> opened with showModal: Escape (the `cancel` event) and a click on the
 // backdrop close it, focus goes back to what opened it, and it is labelled. The pages' dialogs all open through it.
@@ -123,7 +124,7 @@ test('The backup-link picker opens through UI.dialog; Cancel, Escape and a chose
 
 function editUserPage(extraApi = {}) {
     const updates = [];
-    const { context, document } = browser(['pages/Settings.js'], { API: { users: { update: async (...a) => { updates.push(a); if (extraApi.fail) throw new Error('nope'); }, getAll: async () => [] } } });
+    const { context, document } = browser(SETTINGS_FILES, { API: { users: { update: async (...a) => { updates.push(a); if (extraApi.fail) throw new Error('nope'); }, getAll: async () => [] } } });
     // The markup of index.html's Edit user dialog, as the elements the page looks up.
     const make = (tag, id, parent, props = {}) => { const e = document.createElement(tag); if (id) e.id = id; Object.assign(e, props); parent.appendChild(e); return e; };
     const dlg = make('dialog', 'edit-user-modal', document.body);

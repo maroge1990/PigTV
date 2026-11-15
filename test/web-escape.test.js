@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const { loadUi } = require('./helpers/webUi');
+const { SETTINGS_FILES, settingsSource } = require('./helpers/settingsPage');
 
 // Names that come from the server (paired device names, usernames and emails,
 // provider names, detected hardware names, recording artwork and status) are
@@ -75,7 +76,7 @@ function context(elements, routes) {
 function settingsPage(elements, routes) {
     const ctx = context(elements, routes);
     loadUi(ctx);
-    vm.runInContext(js('pages/Settings.js'), ctx);
+    vm.runInContext(settingsSource(), ctx);
     return Object.create(ctx.SettingsPage.prototype);
 }
 
