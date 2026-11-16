@@ -21,7 +21,6 @@ const programmeFields = require('./programmeFields');
 const MIN_Q = 2;
 const MAX_Q = 100;
 const EVENT_HOURS = 72;
-const PROGRAMME_PAGE = 200; // candidates read at a time
 const PROGRAMME_SCAN_MAX = 5000; // candidates read at most per search
 
 /** q trimmed, or an error text when it is not 2-100 characters. */
@@ -150,27 +149,24 @@ async function search({ q, limit, userId, now = Date.now(), channelRow, decorate
     const programmes = [];
     const airings = new Set();
     const liveIndex = programmeFields.liveIndex();
-    // Matches on hidden or unknown channels, and a second guide's copy of an airing, are skipped: page through the
-    // candidates until `limit` are kept or the matches run out (bounded, so a common word cannot walk the whole guide).
-    for (let offset = 0; programmes.length < limit && offset < PROGRAMME_SCAN_MAX; offset += PROGRAMME_PAGE) {
-        const page = await programmeSearch.search(q, { now, max: PROGRAMME_PAGE, offset });
-        for (const p of page) {
-            if (programmes.length >= limit) break;
-            const entry = byTvg.get(p.channel_id)?.[0];
-            if (!entry) continue; // no visible channel shows it
-            const airing = `${entry.key}\u0001${p.start_time}`;
-            if (airings.has(airing)) continue; // two guides list the same airing
-            airings.add(airing);
-            const channel = rowFor(entry);
-            programmes.push({
-                channel,
-                title: p.title,
-                start: p.start_time,
-                end: p.end_time,
-                ...programmeFields.extras(p, channel, liveIndex)
-            });
-        }
-        if (page.length < PROGRAMME_PAGE) break;
+    // Matches on hidden or unknown channels, and a second guide's copy of an airing, are skipped as the one statement's
+    // rows stream past, until `limit` are kept or the matches run out (at most PROGRAMME_SCAN_MAX rows read).
+    let read = 0;
+    for (const p of await programmeSearch.matches(q, { now })) {
+        if (programmes.length >= limit || ++read > PROGRAMME_SCAN_MAX) break;
+        const entry = byTvg.get(p.channel_id)?.[0];
+        if (!entry) continue; // no visible channel shows it
+        const airing = `${entry.key}\u0001${p.start_time}`;
+        if (airings.has(airing)) continue; // two guides list the same airing
+        airings.add(airing);
+        const channel = rowFor(entry);
+        programmes.push({
+            channel,
+            title: p.title,
+            start: p.start_time,
+            end: p.end_time,
+            ...programmeFields.extras(p, channel, liveIndex)
+        });
     }
     programmeFields.applyImages(programmes);
     decorate([...rowsByKey.values()]);

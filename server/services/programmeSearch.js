@@ -18,7 +18,7 @@ const SLICE = 5000;
 const SIG_KEY = 'epg_search_sig';
 const AHEAD_MS = 8 * 24 * 3600 * 1000; // the LIKE fallback looks this far ahead
 let building = null; // the running build's promise
-const stats = { builds: 0, lastBuildMs: 0, lastRows: 0 };
+const stats = { builds: 0, lastBuildMs: 0, lastRows: 0, queries: 0 };
 
 const FTS_SQL = (name) => `CREATE VIRTUAL TABLE ${name} USING fts5(title, subtitle, tokenize = 'unicode61 remove_diacritics 2', prefix = '2 3')`;
 
@@ -129,21 +129,23 @@ function likeAnywhere(text) {
 
 /**
  * The epg_live rows ({ id, channel_id, source_id, title, start_time, end_time, flags, data }) matching `q` that have not
- * ended at `now`, soonest first, at most `max` after skipping `offset` (a caller pages through them). Builds the index first if it has to.
+ * ended at `now`, soonest first, as one statement's iterator: the caller reads only as far as it needs (and a `break`
+ * ends the statement). Builds the index first if it has to. `stats.queries` counts the statements run.
  */
-async function search(q, { now = Date.now(), max = 200, offset = 0 } = {}) {
+async function matches(q, { now = Date.now() } = {}) {
     const db = getDb();
     const list = words(q);
+    stats.queries++;
     if (!list.length) {
         return db.prepare(`SELECT id, channel_id, source_id, title, start_time, end_time, flags, data FROM epg_live
             WHERE end_time > ? AND start_time < ? AND title LIKE ? ESCAPE '\\'
-            ORDER BY start_time ASC, id ASC LIMIT ? OFFSET ?`).all(now, now + AHEAD_MS, likeAnywhere(String(q).trim()), max, offset);
+            ORDER BY start_time ASC, id ASC`).iterate(now, now + AHEAD_MS, likeAnywhere(String(q).trim()));
     }
     await ensureIndex();
     return db.prepare(`SELECT p.id, p.channel_id, p.source_id, p.title, p.start_time, p.end_time, p.flags, p.data
         FROM epg_search s JOIN epg_live p ON p.id = s.rowid
         WHERE epg_search MATCH ? AND p.end_time > ?
-        ORDER BY p.start_time ASC, p.id ASC LIMIT ? OFFSET ?`).all(ftsQuery(list), now, max, offset);
+        ORDER BY p.start_time ASC, p.id ASC`).iterate(ftsQuery(list), now);
 }
 
-module.exports = { search, scheduleRebuild, ensureIndex, isCurrent, signature, words, likeAnywhere, stats, _building: () => building };
+module.exports = { matches, scheduleRebuild, ensureIndex, isCurrent, signature, words, likeAnywhere, stats, _building: () => building };

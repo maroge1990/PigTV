@@ -22,6 +22,7 @@ const db = load('db');
 const auth = load('auth');
 const sqlite = load('db/sqlite');
 const sync = load('services/syncService');
+const perf = require('./helpers/perf'); // a speed budget: see helpers/perf.js
 
 const H = 3600000;
 const M = 60000;
@@ -235,4 +236,25 @@ test('#57: programme search keeps looking past matches on hidden channels (more 
     })();
     const body = await search('quokka', '&limit=1');
     assert.deepEqual(body.programmes.map(p => [p.title, p.channel.name, p.start]), [['Quokka Watch', 'Entertainment One', NOW + 20 * H]]);
+});
+
+test('#57: one search runs one programme statement, however many matches it reads past', async () => {
+    const ps = load('services/programmeSearch');
+    const before = ps.stats.queries ?? 0;
+    await search('quokka', '&limit=1');
+    assert.equal(ps.stats.queries - before, 1);
+});
+
+test('#57: a large guide whose matches are mostly on a hidden channel answers quickly', perf, async () => {
+    const add = sqlite.getDb().prepare(`INSERT INTO epg_programs (channel_id, source_id, start_time, end_time, title, gen) VALUES (?, 97, ?, ?, ?, 0)`);
+    sqlite.getDb().transaction(() => {
+        for (let i = 0; i < 50000; i++) add.run('hid', NOW + H + i * 1000, NOW + H + i * 1000 + M, 'Wombat Hour');
+        add.run('ent', NOW + 30 * M, NOW + 40 * M, 'Wombat Hour');
+    })();
+    await search('wombat', '&limit=5'); // builds the index (not timed)
+    const t0 = process.hrtime.bigint();
+    const body = await search('wombat', '&limit=5');
+    const ms = Number(process.hrtime.bigint() - t0) / 1e6;
+    assert.deepEqual(body.programmes.map(p => p.channel.name), ['Entertainment One']);
+    assert.ok(ms < 1500, `one search over 50,000 matches took ${Math.round(ms)} ms (budget 1500)`);
 });
