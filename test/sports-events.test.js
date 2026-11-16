@@ -234,7 +234,7 @@ test('#297: a game still being played past its guide slot stays in /events, live
         assert.deepEqual([listed.kind, listed.live, listed.end, listed.start], ['event', true, minute + 10 * M, NOW - 3 * H]);
         assert.deepEqual(listed.channels.map(c => [c.name, c.start, c.end]), [['Fox Sports 505 SD', NOW - 3 * H, minute + 10 * M]], 'the channel it was on, rolled on');
         assert.deepEqual(Object.keys(listed).sort(), ['aliases', 'channels', 'end', 'id', 'kind', 'league', 'live', 'start', 'title'], 'C-I\'s shape, nothing added');
-        assert.deepEqual(Object.keys(listed.channels[0]).sort(), ['end', 'id', 'logo', 'name', 'number', 'quality', 'sourceId', 'stableId', 'start']);
+        assert.deepEqual(Object.keys(listed.channels[0]).sort(), ['end', 'id', 'logo', 'name', 'nameKey', 'number', 'quality', 'sourceId', 'stableId', 'start']);
         // the serialised answer (GET /events) is the same, at its minute
         const r = await ev.eventsResponse({ hours: 6, pastSlot: true, userId: adminUser.id, now: NOW });
         assert.deepEqual(JSON.parse(r.body.toString()), await ev.eventsFor({ hours: 6, pastSlot: true, userId: adminUser.id, now: minute }));
@@ -439,7 +439,7 @@ test('channels are ordered by quality, then health ok, then favourite, then guid
     assert.deepEqual(find(body, 'NFL')[0].channels.map(c => c.quality), ['UHD', 'HD', 'SD']);
     const nflSky = find(body, 'NFL')[0].channels[0];
     // #20 (0337): plus the channel's own airing times, additive.
-    assert.deepEqual(Object.keys(nflSky).sort(), ['end', 'id', 'logo', 'name', 'number', 'quality', 'sourceId', 'stableId', 'start']);
+    assert.deepEqual(Object.keys(nflSky).sort(), ['end', 'id', 'logo', 'name', 'nameKey', 'number', 'quality', 'sourceId', 'stableId', 'start']);
     assert.equal(nflSky.sourceId, source.id);
     assert.equal(typeof nflSky.number, 'number');
 
@@ -912,6 +912,55 @@ test('a measured channel carries measured { label, fps }; an unmeasured one has 
         }
     } finally {
         d.prepare('DELETE FROM channel_measurements').run();
+        load('services/sportsEvents').reset();
+    }
+});
+
+// D-65: copies sharing a nameKey are ordered best first by measured quality then fps (unmeasured after measured, in
+// their old order); a name never moves ahead of another, so channels[0] is the preferred name's best measured copy.
+// The old order was the name's quality tag only, and channels carried no nameKey.
+test('within a name, copies go best measured first; names keep their order; unmeasured last', () => {
+    const { bestWithinName, nameKey } = load('services/channelMeasurements');
+    assert.equal(nameKey('UK| SKY SPORTS F1 ᵁᴴᴰ'), 'uk| sky sports f1');
+    assert.equal(nameKey('Sky Sports Main Event 1080p50'), 'sky sports main event');
+    assert.equal(nameKey('HDTV Classics'), 'hdtv classics');
+    const ch = (id, name, measured) => ({ id, name, nameKey: nameKey(name), ...(measured ? { measured } : {}) });
+    const order = [
+        ch('a', 'Sky Sports F1 UHD', { label: '1080', fps: 25 }),
+        ch('b', 'Sky Sports F1 FHD'),
+        ch('x', 'Kayo 1 HD', { label: '4K', fps: 50 }),
+        ch('c', 'Sky Sports F1 HD', { label: '1080', fps: 50 }),
+        ch('d', 'Sky Sports F1', { label: '4K', fps: 50 }),
+        ch('e', 'Sky Sports F1 SD'),
+        ch('y', 'Kayo 1')
+    ];
+    assert.deepEqual(bestWithinName(order).map(c => c.id), ['d', 'c', 'x', 'a', 'b', 'e', 'y']);
+});
+
+test('C-I: within the preferred name its best measured copy is channels[0]; other names keep their place; nameKey on every channel', async () => {
+    const d = sqlite.getDb();
+    // a second copy of "Sky Sports" (same guide id), listed after it by the name's tag (HD after UHD)
+    const sky = d.prepare(`SELECT * FROM playlist_items WHERE name = 'Sky Sports UHD'`).get();
+    d.prepare(`INSERT INTO playlist_items (id, source_id, item_id, type, name, category_id, is_hidden, sort_order, stable_id, stream_url, tvg_id, data)
+               VALUES (?, ?, 'copy_sky', 'live', 'Sky Sports HD', ?, 0, ?, 's-copy-sky', 'http://provider.invalid/live/user/pass/399.ts', ?, ?)`)
+        .run(`${sky.source_id}:copy_sky`, sky.source_id, sky.category_id, (sky.sort_order || 0) + 100, sky.tvg_id, sky.data);
+    const ins = d.prepare(`INSERT INTO channel_measurements (source_id, channel_key, height, fps, kbps, measured_at, source) VALUES (?, ?, ?, ?, 1, 1, 'audit')`);
+    ins.run(sky.source_id, sky.stable_id || sky.item_id, 1080, 25);
+    ins.run(sky.source_id, 's-copy-sky', 2160, 50);
+    const espn2 = d.prepare(`SELECT source_id, COALESCE(stable_id, item_id) AS k FROM playlist_items WHERE name = 'ESPN 2 HD'`).get();
+    ins.run(espn2.source_id, espn2.k, 2160, 60);
+    try {
+        for (const query of ['', '?hours=24']) {
+            const nfl = find(await events(query), 'NFL')[0].channels;
+            // the old order: Sky Sports UHD, ESPN 2 HD, Sky Sports HD (both HD tags, guide order), Fox Sports 505 SD. The two
+            // Sky copies swap within the places their name holds; ESPN 2 (4K 60) stays where it was.
+            assert.deepEqual(nfl.map(c => c.name), ['Sky Sports HD', 'ESPN 2 HD', 'Sky Sports UHD', 'Fox Sports 505 SD'],
+                `${query}: the 4K copy leads its name; no name moves ahead of another`);
+            assert.deepEqual(nfl.map(c => c.nameKey), ['sky sports', 'espn 2', 'sky sports', 'fox sports 505']);
+        }
+    } finally {
+        d.prepare('DELETE FROM channel_measurements').run();
+        d.prepare(`DELETE FROM playlist_items WHERE item_id = 'copy_sky'`).run();
         load('services/sportsEvents').reset();
     }
 });

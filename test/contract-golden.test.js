@@ -418,11 +418,11 @@ test('follows, catalog, names, suggestions and the front page (sports, follows, 
     const nfln = channelOf('US| NFL NETWORK HD');
     const guideEvents = [
         { id: 'ev-afl', league: 'AFL', title: 'Collingwood v Carlton', kind: 'event', start: clashFirst.program_start, end: clashFirst.program_end, live: false,
-            channels: [{ sourceId: source.id, id: footy.item_id, stableId: footy.stable_id, name: footy.name, number: 9, logo: null, quality: 'HD', measured: { label: '1080', fps: 50 },
+            channels: [{ sourceId: source.id, id: footy.item_id, stableId: footy.stable_id, name: footy.name, number: 9, logo: null, quality: 'HD', nameKey: 'golden channel', measured: { label: '1080', fps: 50 },
                 start: clashFirst.program_start, end: clashFirst.program_end }] },
         // The game's coverage began 20 min before its start, 10 min away (#203): onAir
         { id: 'ev-kc', league: 'NFL', title: 'Chiefs v Bills', kind: 'event', start: now - 20 * MIN, end: now + 4 * H, live: false,
-            channels: [{ sourceId: source.id, id: nfln.item_id, stableId: nfln.stable_id, name: nfln.name, number: 12, logo: null, quality: 'HD', measured: { label: '1080', fps: 50 }, start: now - 20 * MIN, end: now + 4 * H }] }
+            channels: [{ sourceId: source.id, id: nfln.item_id, stableId: nfln.stable_id, name: nfln.name, number: 12, logo: null, quality: 'HD', nameKey: 'golden channel', measured: { label: '1080', fps: 50 }, start: now - 20 * MIN, end: now + 4 * H }] }
     ];
     // The losing schedule is the card's recording: put the AFL airing on the later schedule's channel instead.
     const cricket = channelOf('AU| FOX CRICKET HD');

@@ -36,6 +36,7 @@
  */
 const { qualityLabel, qualityRank } = require('./channelQuality');
 const channelMeasurements = require('./channelMeasurements');
+const { bestWithinName } = channelMeasurements;
 const crypto = require('crypto');
 const path = require('path');
 const { Worker } = require('worker_threads');
@@ -931,11 +932,11 @@ function overrunOut(ev, now, isFav, end, withRule = false) {
 
 /** One cached event as C-I answers it: its channels best first (quality, health ok, favourite, guide order). */
 function eventOut(ev, now, isFav, withRule = false) {
-    const channels = ev.channels.slice().sort((a, b) =>
+    const channels = bestWithinName(ev.channels.slice().sort((a, b) =>
         qualityRank(a.quality) - qualityRank(b.quality)
         || healthRank(a.health) - healthRank(b.health)
         || (isFav(b) ? 1 : 0) - (isFav(a) ? 1 : 0)
-        || a.order - b.order);
+        || a.order - b.order));
     const out = {
         id: ev.id,
         kind: ev.kind,
@@ -947,7 +948,7 @@ function eventOut(ev, now, isFav, withRule = false) {
         live: ev.start <= now && now < ev.end,
         channels: channels.map(ch => ({
             sourceId: ch.sourceId, id: ch.id, stableId: ch.stableId, name: ch.name,
-            number: ch.number, logo: ch.logo, quality: ch.quality, ...(ch.measured ? { measured: ch.measured } : {}), ...ownTimes(ev, ch)
+            number: ch.number, logo: ch.logo, quality: ch.quality, nameKey: ch.nameKey, ...(ch.measured ? { measured: ch.measured } : {}), ...ownTimes(ev, ch)
         }))
     };
     if (withRule) { out.rule = ev.rule; out.match = ev.match; out.kindRule = ev.kindRule; }
@@ -1053,7 +1054,7 @@ let responseBytes = 0;
 
 const channelJson = (ch) => JSON.stringify({
     sourceId: ch.sourceId, id: ch.id, stableId: ch.stableId, name: ch.name,
-    number: ch.number, logo: ch.logo, quality: ch.quality, ...(ch.measured ? { measured: ch.measured } : {})
+    number: ch.number, logo: ch.logo, quality: ch.quality, nameKey: ch.nameKey, ...(ch.measured ? { measured: ch.measured } : {})
 });
 const favKeysOf = (ch) => [`${ch.sourceId}:${ch.stableId || ch.id}`, `${ch.sourceId}:${ch.id}`];
 const byBaseOrder = (a, b) => qualityRank(a.quality) - qualityRank(b.quality)
@@ -1082,7 +1083,7 @@ async function prepareBuilt(built) {
     for (let i = 0; i < sorted.length; i++) {
         const ev = sorted[i];
         for (const ch of ev.channels) if (!jsons.has(ch)) jsons.set(ch, channelJson(ch));
-        const channels = ev.channels.slice().sort(byBaseOrder);
+        const channels = bestWithinName(ev.channels.slice().sort(byBaseOrder));
         const entry = {
             ev, kind: KIND_ORDER[ev.kind],
             head: JSON.stringify({ id: ev.id, kind: ev.kind, title: ev.title, aliases: ev.aliases, league: ev.league, start: ev.start, end: ev.end })
@@ -1114,11 +1115,11 @@ function favouriteTails(prep, favs, favSig) {
     for (const k of favs) {
         for (const entry of prep.byFav.get(k) || []) {
             if (tails.has(entry)) continue;
-            const channels = entry.ev.channels.slice().sort((a, b) =>
+            const channels = bestWithinName(entry.ev.channels.slice().sort((a, b) =>
                 qualityRank(a.quality) - qualityRank(b.quality)
                 || healthRank(a.health) - healthRank(b.health)
                 || (isFav(b) ? 1 : 0) - (isFav(a) ? 1 : 0)
-                || a.order - b.order);
+                || a.order - b.order));
             tails.set(entry, channelsTail(entry.ev, channels, prep.jsons));
         }
     }

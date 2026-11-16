@@ -126,6 +126,37 @@ function importAudit(text, db = getDb()) {
     return out;
 }
 
+// Quality words in a channel's name (UHD, FHD, HD, SD, HDR, 4K, 1080p50, 720p, 50fps, superscript ᵁᴴᴰ …): the copies
+// of one channel ("Sky Sports F1 UHD", "Sky Sports F1 HD", "Sky Sports F1") share one name key (D-65's picker rows).
+// The web's SportView.baseName is the same rule.
+const QUALITY_WORDS = /[\s\-_|]*[([]?\b(?:u?hd|fhd|sd|hdr(?:10)?|[48]k|\d{3,4}[pi](?:\s?\d{2})?|\d{2}\s?fps)\b[)\]]?/gi;
+const SUPERSCRIPT_TAGS = /ᵁᴴᴰ|ᶠᴴᴰ|ᴴᴰ|ˢᴰ/g;
+/** A channel's name with its quality words removed (region prefix kept), lower case: the picker groups copies by it. */
+function nameKey(name) {
+    const raw = String(name || '');
+    const folded = raw.replace(SUPERSCRIPT_TAGS, ' ').replace(QUALITY_WORDS, ' ').replace(/\s+/g, ' ').trim();
+    return (folded || raw.trim()).toLowerCase();
+}
+
+const MEASURED_RANK = { '4K': 0, '1080': 1, '720': 2, SD: 3 };
+/**
+ * D-65: within each name (nameKey), copies best first by measured label then fps, unmeasured after measured (each kept
+ * in its existing relative order). The positions a name holds do not change, so names keep their order and channels[0]
+ * is the preferred name's best measured copy. Returns a new array; `keyOf(ch)` gives a channel's name key.
+ */
+function bestWithinName(channels, keyOf = (ch) => ch.nameKey ?? nameKey(ch.name)) {
+    const slots = new Map();
+    channels.forEach((ch, i) => { const k = keyOf(ch); if (!slots.has(k)) slots.set(k, []); slots.get(k).push(i); });
+    const rank = (ch) => (ch.measured && ch.measured.label in MEASURED_RANK ? MEASURED_RANK[ch.measured.label] * 1000 - (ch.measured.fps || 0) : Infinity);
+    const out = channels.slice();
+    for (const at of slots.values()) {
+        if (at.length < 2) continue;
+        const sorted = at.map(i => channels[i]).map((ch, n) => ({ ch, n })).sort((a, b) => (rank(a.ch) - rank(b.ch)) || (a.n - b.n));
+        at.forEach((i, n) => { out[i] = sorted[n].ch; });
+    }
+    return out;
+}
+
 /** Every stored measurement: Map "sourceId:key" -> { label, fps }. Empty on any error (a read-only worker, no table). */
 function all(db) {
     const map = new Map();
@@ -138,8 +169,9 @@ function all(db) {
     return map;
 }
 
-/** Set `measured` on channel objects ({ sourceId, stableId, id }) that have one; leave the others without it. */
+/** Set `measured` on channel objects ({ sourceId, stableId, id }) that have one, and every one's `nameKey`. */
 function applyMeasured(rows, db) {
+    for (const r of rows) r.nameKey = nameKey(r.name);
     const map = all(db);
     if (!map.size) return rows;
     for (const r of rows) {
@@ -149,4 +181,4 @@ function applyMeasured(rows, db) {
     return rows;
 }
 
-module.exports = { labelFor, roundFps, measuredOf, record, recordPlay, forgetPlay, auditMeasurement, importAudit, all, applyMeasured };
+module.exports = { labelFor, roundFps, measuredOf, record, recordPlay, forgetPlay, auditMeasurement, importAudit, all, applyMeasured, nameKey, bestWithinName };

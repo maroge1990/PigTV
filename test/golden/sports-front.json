@@ -6,7 +6,7 @@
       "logo": null,
       "name": "Green Bay Packers",
       "sport": "American football",
-      "start": 1793487600000,
+      "start": 1793488320000,
       "state": "live"
     },
     {
@@ -58,7 +58,7 @@
       "freshness": "fresh",
       "id": "espn:football/nfl:401",
       "league": "NFL",
-      "observedAt": 1793491080000,
+      "observedAt": 1793491860000,
       "progress": {
         "clock": "5:00",
         "period": 2
@@ -71,7 +71,7 @@
       "situation": {
         "down": 3
       },
-      "start": 1793487600000,
+      "start": 1793488320000,
       "status": "live",
       "title": "Packers v Bears"
     },
@@ -81,7 +81,7 @@
       "canWatch": true,
       "channels": [
         {
-          "end": 1793505600000,
+          "end": 1793506320000,
           "id": "1013",
           "logo": null,
           "measured": {
@@ -89,11 +89,12 @@
             "label": "1080"
           },
           "name": "US| NFL NETWORK HD",
+          "nameKey": "golden channel",
           "number": 12,
           "quality": "HD",
           "sourceId": 1,
           "stableId": "s1013",
-          "start": 1793490000000
+          "start": 1793490720000
         }
       ],
       "circuit": null,
@@ -112,9 +113,9 @@
       "end": null,
       "events": [
         {
-          "end": 1793505600000,
+          "end": 1793506320000,
           "id": "ev-kc",
-          "start": 1793490000000
+          "start": 1793490720000
         }
       ],
       "followed": false,
@@ -122,11 +123,11 @@
       "freshness": "fresh",
       "id": "espn:football/nfl:406",
       "league": "NFL",
-      "observedAt": 1793491080000,
+      "observedAt": 1793491860000,
       "onAir": true,
       "progress": {},
       "session": null,
-      "start": 1793491800000,
+      "start": 1793492520000,
       "status": "scheduled",
       "title": "Kansas City Chiefs v Buffalo Bills"
     },
@@ -144,6 +145,7 @@
             "label": "1080"
           },
           "name": "AU| FOX CRICKET HD",
+          "nameKey": "golden channel",
           "number": 9,
           "quality": "HD",
           "sourceId": 1,
@@ -180,7 +182,7 @@
       "freshness": "fresh",
       "id": "espn:australian-football/afl:1",
       "league": "AFL",
-      "observedAt": 1793491080000,
+      "observedAt": 1793491860000,
       "progress": {},
       "recording": {
         "clashesWith": [
@@ -209,10 +211,10 @@
       "freshness": "fresh",
       "id": "espn:racing/f1:1",
       "league": "F1",
-      "observedAt": 1793491080000,
+      "observedAt": 1793491860000,
       "progress": {},
       "session": "Race",
-      "start": 1793584800000,
+      "start": 1793585520000,
       "status": "scheduled",
       "title": "Grand Prix"
     }
@@ -222,7 +224,7 @@
     "gameId": "espn:football/nfl:401",
     "reason": "follow-live"
   },
-  "now": 1793491200000,
+  "now": 1793491920000,
   "rails": [
     {
       "gameIds": [
@@ -249,7 +251,7 @@
       "live": 2,
       "next": {
         "gameId": "espn:football/nfl:406",
-        "start": 1793491800000
+        "start": 1793492520000
       },
       "sport": "American football"
     },

@@ -14,6 +14,7 @@
             "label": "1080"
           },
           "name": "AU| FOX CRICKET HD",
+          "nameKey": "au| fox cricket",
           "number": 4,
           "quality": "HD",
           "sourceId": 1,
@@ -29,6 +30,7 @@
             "label": "1080"
           },
           "name": "UK| SKY SPORTS CRICKET HD",
+          "nameKey": "uk| sky sports cricket",
           "number": 11,
           "quality": "HD",
           "sourceId": 1,
@@ -59,6 +61,7 @@
             "label": "1080"
           },
           "name": "UK| SKY SPORTS F1 UHD/4K",
+          "nameKey": "uk| sky sports f1 /",
           "number": 15,
           "quality": "UHD",
           "sourceId": 1,
@@ -74,6 +77,7 @@
             "label": "1080"
           },
           "name": "UK| SKY SPORTS F1 FHD",
+          "nameKey": "uk| sky sports f1",
           "number": 12,
           "quality": "FHD",
           "sourceId": 1,
@@ -90,5 +94,5 @@
       "title": "Mexico City Grand Prix"
     }
   ],
-  "now": 1793491140000
+  "now": 1793491920000
 }

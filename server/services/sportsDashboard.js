@@ -259,6 +259,7 @@ function channelsFor(events, now, includeUpcoming=false, times=false, ongoing=fa
             seen.add(key);
             // Explicit projection: no upstream URL, alias prose, internal fields or credentials reach the client.
             out.push({sourceId:c.sourceId,id:c.id,stableId:c.stableId || null,name:c.name,number:c.number || null,logo:c.logo || null,quality:c.quality || null,
+                ...(c.nameKey ? {nameKey:c.nameKey} : {}),
                 ...(c.measured ? {measured:{label:c.measured.label,fps:c.measured.fps ?? null}} : {}), // #265 step 2 (D-65)
                 // 0381: the channel's own airing bounds (C-I), only when asked for (the front page).
                 ...(times ? {start:Number.isFinite(c.start) ? c.start : null,end:extended ?? (Number.isFinite(c.end) ? c.end : null)} : {}),

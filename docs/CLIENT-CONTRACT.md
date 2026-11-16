@@ -245,6 +245,10 @@ work is in `docs/architecture/sports.md` › Recognition; the shape the client r
   - `channels`: best first (quality UHD, FHD, HD, untagged, SD; health ok, favourite, guide order). `channels[0]` plays through the ordinary resolve.
   - Since #265 step 2 (D-65, additive) a channel the server has measured also carries `measured: { label, fps }` (C-X);
     absent when never measured. Every projection of C-I channels (C-O/C-R cards, the sport pages) keeps it.
+  - With it (D-65, additive) every channel carries `nameKey` (C-X), and copies sharing a `nameKey` are ordered best first
+    by measured `label` then `fps` (unmeasured after measured, keeping their order) within the places that name already
+    held: names never change order, so `channels[0]` is the preferred channel's best measured copy (the default for Watch,
+    Record and rules).
   - Since 0337 (#20, additive) each channel also carries `start` and `end` (ms): when **that channel's** airing of the
     event runs. The event's own `start`/`end` span every channel's airing (merged), so Watch eligibility, Record and
     "Watch when it starts" on a chosen channel use the channel's times; absent from an older server (use the event's).
@@ -1148,4 +1152,7 @@ number (25, 30, 50, 60), or null when unknown. A measurement comes from the chan
 `scripts/import-channel-audit.js <results.jsonl>`; blank and failed rows ignored) or from a play on the channel's own
 provider (`services/channelMeasurements.js`); the newest wins. Keyed on source + `stableId` (else `id`). `quality` stays
 the name's label, unchanged, for an older client and for a channel never measured (D-65's dashed badge). Clients: the
-D-65 picker groups copies by name with one chip per `label` + `fps`; the D-67 player badge shows it.
+D-65 picker groups copies by `nameKey` with one chip per `label` + `fps`; the D-67 player badge shows it.
+The same objects always carry `nameKey`: the name with its quality words (UHD, FHD, HD, SD, HDR, 4K, 1080p50, 720p, 50fps,
+superscript ᵁᴴᴰ…) removed, region prefix kept, lower case (`"uk| sky sports f1"`); copies with the same key are one
+picker row. A client groups by it when present (an older server: the same rule on the name).
