@@ -74,7 +74,9 @@ test('audio: AAC (any flavour) and MP2 are re-encoded to AAC-LC, AC-3 is copied 
     const aac = engine.buildNativeRemuxArgs('i', 'o', { video: 'h264', audio: 'aac', audioChannels: 2 });
     assert.ok(!aac.includes('aac_adtstoasc'), 'no longer copied');
     assert.deepEqual(aac.slice(aac.indexOf('-c:a'), aac.indexOf('-c:a') + 4), ['-c:a', 'aac', '-profile:a', 'aac_low']);
-    assert.ok(aac.includes('aresample=async=1:first_pts=0'), 'gaps from a reconnect are absorbed');
+    assert.ok(aac.includes('aresample=async=1'), 'gaps from a reconnect are absorbed');
+    assert.ok(!aac.some(a => /first_pts/.test(a)), '#333: a rebuilt audio filter does not pad from 0 again');
+    assert.match(aac[aac.indexOf('-bsf:a') + 1], /^setts=/, '#333: no audio packet starts before the previous one ends');
     assert.deepEqual(aac.slice(aac.indexOf('-ac'), aac.indexOf('-ac') + 2), ['-ac', '2']);
     const surround = engine.buildNativeRemuxArgs('i', 'o', { video: 'h264', audio: 'aac', audioChannels: 6 });
     assert.deepEqual(surround.slice(surround.indexOf('-ac'), surround.indexOf('-ac') + 4), ['-ac', '6', '-b:a', '384k'], '5.1 stays 5.1');

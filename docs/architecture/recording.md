@@ -146,7 +146,12 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   (`GET /:id/watch`); it never touches the provider. The watch playlist skips an epoch that recorded nothing, also one refused before its first
   segment (no `archive.m3u8`) once a later epoch exists (#288). At the end the joined playlist is remuxed with preparation's own
   arguments straight onto the share under `.partial`, checked (`checkPrepared`), renamed, `native_status` ready; then the
-  work folder goes. Share down: the MP4 waits in the work folder (`segment_state` `moving`, playable) and moves every
+  work folder goes. Those arguments (`buildNativeRemuxArgs`) copy the video and AC-3/E-AC-3 and re-encode any other
+  audio to AAC-LC through `aresample=async=1`, never with `first_pts=0` (#333): audio that changes format at a join (or
+  mid-part) rebuilds ffmpeg's audio filter, and `first_pts=0` then padded silence from 0 behind what was written
+  (~850,000 one-tick AAC packets in the 16 Nov NFL recording; its sound stopped on the iPad). `-bsf:a setts` moves an
+  audio packet that would start before the previous one ends (the rebuilt filter's first, up to a frame early) to that
+  end: one packet per AAC frame, at most a frame's shift per such join. Share down: the MP4 waits in the work folder (`segment_state` `moving`, playable) and moves every
   15 min; three failed remuxes deliver the joined `.ts` instead. Appdata gets the health and free-space checks; the share is
   not needed to start. Appdata below half the minimum free space ends every segmented recording, running or waiting
   between parts, with what it has (schedule error "Stopped early: free space in appdata ran low (N GB free)"), and one

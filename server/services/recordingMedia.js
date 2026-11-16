@@ -215,6 +215,12 @@ async function readyNativePlaybackPath(rec) {
  * native-compatible MP4 for this recording. Returns the file path to serve.
  */
 /**
+ * #333: the re-encoded audio's packets never start before the previous one ends (setts: the later of a packet's own
+ * time and the previous packet's end, in the encoder's time base). A no-op for audio whose timestamps already run on.
+ */
+const AUDIO_TIMELINE = 'setts=pts=max(PTS\\,PREV_OUTPTS+PREV_OUTDURATION):dts=max(DTS\\,PREV_OUTDTS+PREV_OUTDURATION)';
+
+/**
  * The ffmpeg arguments for a stream-copy remux of a recording into an
  * AVPlayer-playable MP4. Pure, so the flag decisions can be tested.
  */
@@ -236,10 +242,16 @@ function buildNativeRemuxArgs(input, output, codecs = {}) {
     // its own header, so decoding from it and encoding once is right whatever changes.
     // aresample=async absorbs the gaps and jumps a reconnect leaves. Audio is small: this
     // costs seconds per hour of recording. MP2 (DVB) was already re-encoded for AVPlayer.
+    // #333: no first_pts=0. Audio that changes format (rate, channels: a segmented recording's join to the provider's
+    // placeholder, an ad break's HE-AAC) makes ffmpeg build its audio filter again, and first_pts=0 then padded silence
+    // from 0 to that point, behind what was already written: ~850,000 AAC packets of one tick at two joins, and
+    // AVPlayer's sound stopped. The new filter starts at the input's own timestamps instead; the encoder can still meet
+    // them up to a frame early (the old filter's last frame), and AUDIO_TIMELINE moves such a packet to where the
+    // previous one ends, so no packet is cut to a tick. Unchanged audio never meets it (the filter is never rebuilt).
     if (audio !== 'ac3' && audio !== 'eac3') {
         const channels = Math.min(Math.max(parseInt(codecs.audioChannels, 10) || 2, 1), 6);
         args.push('-c:a', 'aac', '-profile:a', 'aac_low', '-ar', '48000', '-ac', String(channels),
-            '-b:a', channels > 2 ? '384k' : '192k', '-af', 'aresample=async=1:first_pts=0');
+            '-b:a', channels > 2 ? '384k' : '192k', '-af', 'aresample=async=1', '-bsf:a', AUDIO_TIMELINE);
     }
 
     // -f is explicit because the output is written under a temporary name.
