@@ -1086,17 +1086,19 @@ class RecordingsPage {
         }
         video.addEventListener('timeupdate', update);
         video.addEventListener('ended', () => { state.finished = true; update(); });
-        // Codex (medium): Safari's own HLS says nothing when the playlist closes while the viewer is behind; the server is
-        // asked every 30 s whether it is still recording (/watch: 409 or recording false once it has finished).
+        // Codex (medium): Safari's own HLS says nothing when the playlist closes while the viewer is behind; every 30 s the
+        // active list (/recordings/active, what recordingsFeed polls; rows are schedules, `recording_id` this recording)
+        // says whether it is still recording: gone from it, or not 'recording' there, it has finished.
         const check = () => {
             state.poll = setTimeout(async () => {
                 if (overlay._goLive !== state || state.finished || id === null) return;
                 try {
-                    const answer = await API.recordings.watch(id);
-                    if (answer && answer.recording === false) state.finished = true;
-                } catch (err) {
-                    if (err && err.status === 409) state.finished = true;
-                }
+                    const rows = await API.recordings.getActive();
+                    if (Array.isArray(rows)) {
+                        const row = rows.find(r => r && String(r.recording_id) === String(id));
+                        if (!row || row.status !== 'recording') state.finished = true;
+                    }
+                } catch (err) { /* unknown: asked again in 30 s */ }
                 if (overlay._goLive !== state) return;
                 if (state.finished) { hideNote(); update(); } else check();
             }, RecordingsPage.LIVE_CHECK_MS);

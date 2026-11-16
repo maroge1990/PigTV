@@ -130,9 +130,15 @@ test('#335: Go to live jumps to the newest point, says so with Back to h:mm:ss f
     assert.equal(note.hidden, true);
 });
 
-test('#335 (Codex medium): the recording finishing is learned from the server every 30 s, with no \'ended\' and playback still behind', async () => {
-    let finished = false;
-    const t = make((url) => (url.includes('/watch') && finished ? json({ error: 'finished' }, 409) : watching(url)));
+test('#335 (Codex medium): the recording finishing is learned from the active list every 30 s, with no \'ended\' and playback still behind', async () => {
+    let finished = false, watches = 0;
+    // /recordings/active lists schedules; `recording_id` is the recording played (2), another one records too
+    const t = make((url) => {
+        if (url.includes('/recordings/active')) return json([{ id: 40, recording_id: 9, status: 'recording' },
+            ...(finished ? [] : [{ id: 41, recording_id: 2, status: 'recording' }])]);
+        if (url.includes('/watch')) watches++;
+        return watching(url);
+    });
     await t.page.play(2, { watch: true });
     await settle();
     const button = t.part('.go-live-btn');
@@ -148,6 +154,7 @@ test('#335 (Codex medium): the recording finishing is learned from the server ev
     t.video().fire('timeupdate');
     assert.equal(button.hidden, true, 'the server says it has finished: Go to live goes at once');
     assert.equal(due().length, 0, 'no more checks');
+    assert.equal(watches, 1, '/watch (a view and a probe on the server) is asked only to open the player');
     // closing the player stops the checks of a recording still recording
     finished = false;
     const u = make(watching);
