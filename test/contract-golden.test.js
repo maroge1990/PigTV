@@ -398,7 +398,7 @@ test('follows, catalog, names, suggestions and the front page (sports, follows, 
 
     // The collector's cards (as sport-front.test.js ingests them) and the guide's events for them (C-I's seam).
     const now = Date.now();
-    const packers = team('9', 'Packers', ['Green Bay Packers', 'Packers', 'GB']);
+    const packers = { ...team('9', 'Packers', ['Green Bay Packers', 'Packers', 'GB']), abbreviation: 'GB' }; // #334: ESPN's code
     const pies = team('1', 'Collingwood', ['Collingwood', 'Magpies']);
     dashboard.store().ingest([
         game('espn:football/nfl:401', 'NFL', now - H, [packers, team('3', 'Bears')], liveSnap()),

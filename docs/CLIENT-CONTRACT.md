@@ -504,7 +504,7 @@ They answer `Cache-Control: private, no-store`; no shared response cache or clie
   epoch milliseconds. Since 0316, `leagues` lists followed canonical leagues even when no catalog/guide games exist;
   clients retain empty named shelves and rolling-72h filters rather than implying the sport was unfollowed. A game has `{id, league, title, start, end, session, circuit, format, competitors, status, freshness,
   observedAt, progress, availability, broadcastStatus, channels, events, canWatch}`. `end`, `session`, `circuit`, `format`
-  and `observedAt` may be null. `competitors` are `{id,name,logo}`; logos use the existing cached `/api/logo/<key>` route.
+  and `observedAt` may be null. `competitors` are `{id,name,logo}`, plus `abbreviation` (ESPN's team code, `"ARI"`; since 0788, #334, absent when unknown); logos use the existing cached `/api/logo/<key>` route.
   F1 competitors are empty: its title/session/circuit identify the event; it never carries positions, scores or timing.
 - Source-qualified game IDs remain stable across score updates; they are not playback handles. `events` contains
   matched C-I `{id,start,end}` references for the existing details/record workflow. `channels` uses C-I's channel shape,
@@ -804,7 +804,8 @@ turns it off) and C-I's guide events. The legacy C-O routes and `features.sports
     carries `followedSides`: the competitor indices the household follows (`[1]`, or `[0, 1]`), matched as `followed`
     is (names, aliases, abbreviations); absent for a driver or a game with no followed side. Clients star those sides.
 - Badges: `competitors[].logo` is a logo-cache path when the feed has one; the client shows it beside every score and
-  team name, the monogram disc only as a fallback. The hero band's backdrop is the F1 circuit map (C-P `info.map`) for a
+  team name, the monogram disc only as a fallback. `competitors[].abbreviation` (C-O, #334) is the team code a score bug
+  shows; absent when unknown, when a client uses the name's first three letters. The hero band's backdrop is the F1 circuit map (C-P `info.map`) for a
   race, else the hero team's badge, faded.
 - Following (0381): `GET/PUT /api/sports/pages/preferences` becomes `{ spoilerFree, sports: [league, …], teams: {
   [league]: [name, …] }, following: { F1, NFL } }`. `sports` is the ordered list of followed sports (canonical league

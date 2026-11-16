@@ -674,7 +674,8 @@ function scheduleGames(db, leagues) {
             continue;
         }
         if (!Array.isArray(rec.teams) || rec.teams.length !== 2 || !rec.teams.every(t => /^\d{1,12}$/.test(String(t?.id ?? '')))) continue;
-        const competitors = rec.teams.map(t => ({ id: String(t.id), name: t.displayName || t.name || '', aliases: teamAliases(t), logo: t.logo || null }));
+        const competitors = rec.teams.map(t => ({ id: String(t.id), name: t.displayName || t.name || '', aliases: teamAliases(t), logo: t.logo || null,
+            ...(typeof t.abbreviation === 'string' && t.abbreviation.trim() ? { abbreviation: t.abbreviation.trim().slice(0, 12) } : {}) }));
         if (competitors.some(c => !c.name) || competitors[0].id === competitors[1].id) continue;
         seen.add(id);
         out.push({ id, league: row.league, start: rec.start, end, title: competitors.map(c => c.name).join(' v '), competitors,

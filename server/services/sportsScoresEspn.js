@@ -62,6 +62,8 @@ function normalize(json, league, source) {
             const competitors = league === 'F1' ? [] : sides.map(t => ({
                 id: id(t.team.id ?? t.id), name: text(t.team.displayName || t.team.name),
                 aliases: teamAliases(t.team),
+                // #334 (C-O additive): ESPN's team code ("ARI"), what a score bug shows; absent when ESPN gives none
+                ...(text(t.team.abbreviation, 12) ? { abbreviation: text(t.team.abbreviation, 12) } : {}),
                 // #223: a team schedule's competitors carry `logos`, not `logo`
                 logo: logo(t.team.logo) || (Array.isArray(t.team.logos) ? logo(t.team.logos[0]?.href) : null)
             }));

@@ -37,6 +37,7 @@
       "circuit": null,
       "competitors": [
         {
+          "abbreviation": "GB",
           "id": "9",
           "logo": null,
           "name": "Packers"

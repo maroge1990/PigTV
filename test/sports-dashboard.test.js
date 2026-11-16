@@ -564,3 +564,22 @@ test('#223: the front page shows a followed team\'s next game past 72 hours (nex
     assert.deepEqual(dashboard.buildDashboard(s, opts({ NFL: ['Green Bay Packers'] })).games.map(x => [x.id, x.nextRound]),
         [['espn:football/nfl:701', undefined]], 'a team playing inside the window: nothing more');
 });
+
+// #334 (C-O additive): a card's competitors carry ESPN's team code, what the web's live-games list shows; absent when unknown.
+test('#334: competitors carry ESPN\'s abbreviation from the feed to the card, and none when ESPN gives none or a bad one', () => {
+    const p = structuredClone(sample('NFL-final'));
+    const [a, b] = p.events[0].competitions[0].competitors;
+    a.team.abbreviation = 'ARI';
+    b.team.abbreviation = '<script>';
+    const [g] = espn.normalize(p, 'NFL', 'football/nfl');
+    assert.equal(g.competitors[0].abbreviation, 'ARI');
+    const s = store();
+    s.ingest([{ ...g, start: NOW - H }], NOW - 1000);
+    const card = dashboard.buildDashboard(s, { now: NOW, userId: '1', events: [] }).games.find(x => x.id === g.id);
+    assert.ok(card, 'the game is on the dashboard');
+    assert.equal(card.competitors[0].abbreviation, 'ARI');
+    assert.ok(!('abbreviation' in card.competitors[1]), 'a code that is not a team code is left out');
+    delete a.team.abbreviation;
+    const [plain] = espn.normalize(p, 'NFL', 'football/nfl');
+    assert.ok(!('abbreviation' in plain.competitors[0]), 'absent when ESPN gives none');
+});

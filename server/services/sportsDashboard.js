@@ -57,6 +57,8 @@ function timezone() {
     try { localDay(Date.now(),zone);return zone; } catch { return 'Australia/Melbourne'; }
 }
 const norm = v => classify.parseSide(v)?.tokens.join(' ') || '';
+/** #334: a team code as a score bug shows it ("ARI", "BRI-W"), or null. */
+const teamCode = v => typeof v === 'string' && /^[A-Za-z0-9&.'-]{1,8}$/.test(v.trim()) ? v.trim() : null;
 // 0404 (#206): MotoGP's sessions as its own feed names them. F1's reader folds "Qualifying 1" and "2" into one (they are
 // 25 minutes apart, so the window can't tell them apart) and reads "Grand Prix - Warm Up" as the race.
 const MOTOGP_QUALIFYING_RE = /(?:^| )(?:qualifying|q) ?([12])(?= |$)/;
@@ -416,7 +418,8 @@ function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagu
         const liveChannels=terminal ? [] : channelsFor(airings,now,false,channelTimes,extend,endedMatches.get(g.id));
         const channels=liveChannels.length ? liveChannels : terminal ? [] : channelsFor(airings,now,true,channelTimes);
         const card={id:g.id,league:g.league,title:g.title,start:g.start,end:g.end,session:g.session,circuit:g.circuit,format:g.format || null,
-            competitors:g.competitors.map(({id,name,logo})=>({id,name,logo})),
+            // #334 (C-O additive): `abbreviation`, ESPN's team code, only when the catalogue has a plausible one.
+            competitors:g.competitors.map(({id,name,logo,abbreviation})=>({id,name,logo,...(teamCode(abbreviation) ? {abbreviation:teamCode(abbreviation)} : {})})),
             status:projectedState, ...(fresh && selected.data.breakLabel ? {breakLabel:selected.data.breakLabel}:{}),
             // 0464 (#235): a final from today is fresh: its result does not change, and clients draw scores only when fresh.
             freshness:!selected ? 'buffering' : shown ? 'fresh' : 'stale',observedAt:at,
