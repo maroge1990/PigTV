@@ -226,6 +226,12 @@ function sealEpoch(epochDir) {
     } catch (e) { /* nothing was written in this epoch */ }
 }
 
+/** #333: an epoch's listed media seconds, or null when nothing is listed (or its playlist cannot be read). */
+function epochSeconds(epochDir) {
+    const seconds = lengthOf(archiveOf(epochDir));
+    return seconds > 0 ? seconds : null;
+}
+
 /** #332: an epoch's recorded rate in kbps (its segment bytes over their listed seconds), or null with nothing listed. */
 function epochKbps(epochDir) {
     const seconds = lengthOf(archiveOf(epochDir));
@@ -1118,7 +1124,7 @@ function status() {
 
 module.exports = {
     SEGMENT_SEC, workRoot, ioFor, workDirFor, isWorkDir, epochs, nextEpoch, captureInput, captureArgs, captureBytes, captureGrowth,
-    sealEpoch, sealAll, stitchArchive, recordedSeconds, archiveSegmentCount, epochSegmentCount, discardEpoch, epochKbps,
+    sealEpoch, sealAll, stitchArchive, recordedSeconds, archiveSegmentCount, epochSegmentCount, discardEpoch, epochKbps, epochSeconds,
     viewArgs, _resetFreeBytes,
     _partInput: partInput,
     _refreshPartInput: refreshPartInput,

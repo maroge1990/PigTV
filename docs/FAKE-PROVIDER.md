@@ -12,7 +12,8 @@ node scripts/fake-provider.js --port 8091 --profile b --channels 0   # a second 
 In PigTV (Settings → Providers) add an **Xtream** source: URL `http://<host>:8090`, username `pigtv`, password `fake`.
 A second one added is a backup; profile b's channels link to a's automatically (same guide ids, "UK| X" = "UK: X").
 Start the server with `PIGTV_SPORT_FIXTURES=0` so sport stays offline too. `GET /fake/status` shows what is running;
-`POST /fake/fail?stream=<id>&mode=close|stall|404|ok` breaks a channel while it plays. `--help` lists every option.
+`POST /fake/fail?stream=<id>&mode=close|stall|404|file|ok` breaks a channel while it plays (`file`: each connection
+gets a finite 10-minute still file with a length, sent at once, as a provider's placeholder can be: #333). `--help` lists every option.
 
 **Streams** start on the first reader, are shared by every reader of the channel (a late joiner starts on a packet
 boundary) and stop `--linger-ms` (5 s) after the last leaves. H.264 640x360 25 fps at a constant 600 kbit/s (above the

@@ -20,7 +20,8 @@
  *   /logos/<id>.png            a plain coloured square per channel
  *   /art/<key>.png             a programme's artwork (the guide's <icon> on sport programmes)
  *   GET /fake/status           what is running (readers, ffmpeg pids, bytes); no login
- *   POST /fake/fail?stream=<id>&mode=close|stall|404|ok   break a channel while it plays
+ *   POST /fake/fail?stream=<id>&mode=close|stall|404|file|ok   break a channel while it plays (file: every connection
+ *                              is answered with a finite 10-minute still placeholder, Content-Length set, sent at once: #333)
  *
  * --profile b is a second provider with other names ("VIP: SKY SPORTS F1 SD"), other stream ids
  * and the same guide ids, for running two instances as a primary and a backup. Its TEST channels
@@ -507,7 +508,7 @@ function createFakeProvider(options = {}) {
     };
     const feeds = new Map();
     const feedOf = (channel) => { if (!feeds.has(channel.id)) feeds.set(channel.id, new Feed(channel, ctx)); return feeds.get(channel.id); };
-    const overrides = new Map(); // stream id -> 'stall' | '404' (POST /fake/fail)
+    const overrides = new Map(); // stream id -> 'stall' | '404' | 'file' (POST /fake/fail)
     const tsConnections = new Set();
     const connectionCount = () => tsConnections.size + ctx.hls.size;
     const requests = { api: 0, m3u: 0, xmltv: 0, live: 0, refused: 0 };
@@ -603,6 +604,7 @@ function createFakeProvider(options = {}) {
             ctx.log(`refused ${channel.id}: ${connectionCount()} of ${o.maxConnections} connections in use`);
             return send(res, 403, 'text/plain', 'Maximum connections reached');
         }
+        if (override === 'file') return placeholderFile(res);
         res.writeHead(200, { 'Content-Type': 'video/mp2t', 'Cache-Control': 'no-store' });
         const feed = feedOf(channel);
         const kind = override === 'stall' ? 'stall-now' : channel.kind;
@@ -623,6 +625,28 @@ function createFakeProvider(options = {}) {
         const done = () => { if (tsConnections.delete(conn)) feed.remove(reader); };
         res.on('close', done);
         feed.add(reader);
+    }
+
+    /**
+     * #333: what a provider answers on a live channel it has nothing on: a finite still 10-minute file with a length, sent
+     * as fast as the reader takes it. Made once (10 s encoded, looped by a copy), kept in tmpDir.
+     */
+    let placeholderPath = null;
+    function placeholderFile(res) {
+        if (!placeholderPath) {
+            const clip = path.join(tmpDir, 'placeholder-clip.ts');
+            const file = path.join(tmpDir, 'placeholder.ts');
+            const run = (args) => spawnSync(ctx.ffmpegPath, ['-hide_banner', '-loglevel', 'error', '-y', ...args], { stdio: 'ignore' }).status === 0;
+            const ok = run(['-f', 'lavfi', '-i', 'color=c=0x203040:size=320x180:rate=30:duration=10', '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000:duration=10',
+                '-map', '0:v', '-map', '1:a', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-g', '60', '-b:v', '40k',
+                '-c:a', 'aac', '-b:a', '32k', '-ac', '1', '-f', 'mpegts', clip])
+                && run(['-stream_loop', '59', '-i', clip, '-c', 'copy', '-f', 'mpegts', file]);
+            if (!ok) return send(res, 503, 'text/plain', 'Could not make the placeholder file');
+            placeholderPath = file;
+        }
+        const size = fs.statSync(placeholderPath).size;
+        res.writeHead(200, { 'Content-Type': 'video/mp2t', 'Content-Length': String(size), 'Cache-Control': 'no-store' });
+        fs.createReadStream(placeholderPath).pipe(res);
     }
 
     function hlsPlaylist(req, res, channel) {
@@ -673,7 +697,7 @@ function createFakeProvider(options = {}) {
     function fail(res, q) {
         const c = byId.get(String(q.get('stream')));
         const mode = q.get('mode');
-        if (!c || !['close', 'stall', '404', 'ok'].includes(mode)) return send(res, 400, 'text/plain', 'stream=<id>&mode=close|stall|404|ok');
+        if (!c || !['close', 'stall', '404', 'file', 'ok'].includes(mode)) return send(res, 400, 'text/plain', 'stream=<id>&mode=close|stall|404|file|ok');
         if (mode === 'ok') overrides.delete(c.id); else if (mode !== 'close') overrides.set(c.id, mode);
         for (const conn of [...tsConnections].filter(x => x.channel === c.id)) {
             if (mode === 'stall') conn.reader.stalled = true; else if (mode !== 'ok') conn.res.destroy();

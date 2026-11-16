@@ -21,6 +21,7 @@ const EXPECTED_SKIP = [
     'test/ingest-join-avsync.test.js',
     'test/logo-alpha.test.js',
     'test/recording-codec-probe.test.js',
+    'test/recording-placeholder-file.test.js',
     'test/recording-segments-media.test.js',
     'test/shared-session-accounting.test.js',
 ];

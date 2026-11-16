@@ -299,7 +299,7 @@ class Ingest extends EventEmitter {
             if (this.state === 'connecting' && res.headers['content-length'] !== undefined) {
                 gone = true;
                 res.destroy();
-                return this.refuse('a file with a length, not a live stream');
+                return this.refuse('a file with a length, not a live stream', false, { finite: true }); // #333: a recording notes it
             }
             req.setTimeout(0);
             res.on('data', (chunk) => {
@@ -510,9 +510,9 @@ class Ingest extends EventEmitter {
         this.onUpstreamGone(why);
     }
 
-    refuse(why, providerReason = false) {
+    refuse(why, providerReason = false, extra = {}) {
         this.log(`not used: ${why}`);
-        const err = Object.assign(new Error(`Shared ingest not used: ${why}`), { providerReason, ingestRefused: true });
+        const err = Object.assign(new Error(`Shared ingest not used: ${why}`), { providerReason, ingestRefused: true }, extra);
         this._rejectReady(err);
         this.close(why, { providerReason });
     }

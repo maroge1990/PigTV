@@ -61,6 +61,15 @@ const failoverTuning = {
     backoffEveryMs: 60 * 1000
 };
 
+// #333: a direct capture (not the shared ingest) that reads media this many times faster than real time is reading a
+// file, not the live channel (the provider's 10-minute placeholder read at 216x). A live stream is never ahead of real
+// time by more than its connect burst, so the floor of media read (minMediaSec; minMediaSecFinite once the shared ingest
+// saw an answer with a length on this candidate) keeps a burst out. Checked while the part runs, from checkAfterMs to
+// checkUntilMs of it, and once more over the whole part when it ends.
+const fastReadTuning = { ratio: 3, minMediaSec: 60, minMediaSecFinite: 12, checkAfterMs: 10 * 1000, checkUntilMs: 60 * 1000 };
+// #333: candidates the shared ingest refused as a file with a length (feedFor), read once by the direct capture's spawn.
+const finiteAnswers = new WeakSet();
+
 let tickTimer = null;
 let tickRunning = false;
 // scheduledId -> { proc, recordingId, hardStopTimer, stderrTail: [] }
@@ -262,6 +271,7 @@ async function feedFor(settings, candidate, route = null) {
         return feed;
     } catch (err) {
         console.warn(`[Recordings] Shared ingest not used for this recording: ${stripUrls(err.message, [candidate.url])}`);
+        if (err.finite === true) finiteAnswers.add(candidate); // #333: the direct capture's answer is likely a file too
         return null;
     }
 }
@@ -1235,7 +1245,9 @@ function spawnPart(schedule, settings, { recordingId, outputPath, route, index, 
         // Wave 5: the shared feed it reads (null: its own connection), and why that feed ended.
         feed, ingestKey: feed ? ingest.keyOf(feed.ingest.pool, candidate.url) : null, feedLost: null,
         // #274: what the feed had handed over when the capture last grew (here: when the part started); captureActivity.
-        feedBytesAtGrowth: feed ? feed.bytesOut : null
+        feedBytesAtGrowth: feed ? feed.bytesOut : null,
+        // #333: the shared ingest refused this candidate as a file with a length; set once the part reads a file (fastReadOf).
+        finiteAnswer: !feed && finiteAnswers.delete(candidate), fastRead: null
     };
     active.set(schedule.id, entry);
     watchForStall(entry);
@@ -1317,6 +1329,7 @@ async function onPartExit(schedule, entry, exitCode) {
 function captureEndWhy(entry, exitCode) {
     const parts = [];
     if (entry.stalled) parts.push('no data');
+    if (entry.fastRead) parts.push(`the provider sent a file, not the live channel (${entry.fastRead.mediaSec} s of media in ${entry.fastRead.wallSec} s)`);
     if (entry.feedLost?.reason) parts.push(`the shared feed ended: ${entry.feedLost.reason}`);
     parts.push(exitCode === null || exitCode === undefined ? 'ffmpeg was stopped' : `ffmpeg exit ${exitCode}`);
     const last = (entry.stderrTail || []).filter(l => l.trim()).slice(-1)[0];
@@ -1336,8 +1349,8 @@ function captureEndWhy(entry, exitCode) {
  * a feed repeating the same clip (#324: one channel's feed, the provider is up) are the channel's alone.
  */
 function heldAgainst(entry, { failover, ranLong }) {
-    // #332: the provider's placeholder is one channel's feed on a provider that is up, like a loop.
-    const repeating = entry.feedLost?.reason === 'repeating' || entry.feedLost?.reason === 'placeholder';
+    // #332: the provider's placeholder is one channel's feed on a provider that is up, like a loop; so is its file (#333).
+    const repeating = entry.feedLost?.reason === 'repeating' || entry.feedLost?.reason === 'placeholder' || !!entry.fastRead;
     if (failover && (repeating || (entry.route.oneProvider && entry.stalled))) return 'channel';
     if (failover) return 'provider';
     if (entry.route.multi && !ranLong) return 'channel';
@@ -1349,6 +1362,9 @@ function heldAgainst(entry, { failover, ranLong }) {
  * connection of the part in the placeholder's run, and its recorded rate is under the lower blank threshold.
  */
 function slatePart(entry) {
+    // #333: a direct capture measured reading a file at fastReadTuning.ratio times real time or more (fastReadOf: finite
+    // numbers only) is the provider's placeholder file from its first byte: that measure is the positive evidence.
+    if (entry.fastRead) return Number.isFinite(entry.fastRead.mediaSec) && Number.isFinite(entry.fastRead.wallSec);
     if (entry.feedLost?.reason !== 'placeholder' || entry.feedLost.onlyPlaceholder !== true) return false;
     // Codex sign-off (high): fail closed - only a finite measured rate deletes; one that could not be measured (no
     // playlist, no duration, a stat error) keeps the part.
@@ -1368,7 +1384,15 @@ async function onSegmentExit(schedule, entry, exitCode) {
         return;
     }
     const unrequested = !entry.stopRequested && now < currentStopTime(schedule) - failoverTuning.endGraceMs;
-    const providerReason = entry.stalled || providerFailureIn(entry.stderrTail) || entry.feedLost?.providerReason === true;
+    // #333: a direct capture that read a file faster than real time over the whole part (the placeholder sent at once).
+    if (unrequested && !entry.fastRead) {
+        entry.fastRead = fastReadOf(entry, now);
+        if (entry.fastRead) {
+            console.warn(`[Recordings] #${entry.recordingId}: part ${entry.segmented.epoch} read a file, not the live channel ` +
+                `(${entry.fastRead.mediaSec} s of media in ${entry.fastRead.wallSec} s${entry.fastRead.finiteAnswer ? '; the provider answered with a length' : ''})`);
+        }
+    }
+    const providerReason = entry.stalled || providerFailureIn(entry.stderrTail) || entry.feedLost?.providerReason === true || !!entry.fastRead;
     // #260 (0499): why this capture ended, always logged (the São Paulo GP's said nothing).
     const why = captureEndWhy(entry, exitCode);
     if (unrequested) {
@@ -1396,7 +1420,10 @@ async function onSegmentExit(schedule, entry, exitCode) {
         // this one for the rest of the window. A run that lasted a minute is retried where it was, as before.
         const held = heldAgainst(entry, { failover, ranLong });
         // #332: the placeholder's hold is its own, shorter one (the ingest set it; never lengthened to a failure's here).
-        const placeholder = entry.feedLost?.reason === 'placeholder';
+        const placeholder = entry.feedLost?.reason === 'placeholder' || !!entry.fastRead;
+        // #333: the provider's placeholder file is noted as #332's placeholder (held back 3 min on any route, no breaker
+        // count; a viewer's play is told so); the shared ingest notes its own.
+        if (entry.fastRead) providerRouting.notePlaceholder(candidate?.providerId, candidate?.channelKey);
         if (held === 'channel' && placeholder) providerRouting.quarantine(candidate?.providerId, candidate?.channelKey, Date.now(), providerRouting.PLACEHOLDER_MS);
         else if (held === 'channel') providerRouting.quarantine(candidate?.providerId, candidate?.channelKey);
         else if (held === 'provider') providerRouting.noteFailure(candidate, entry.route.primaryKey);
@@ -1419,7 +1446,7 @@ async function onSegmentExit(schedule, entry, exitCode) {
         // and the end is only an outage.
         const slateOnly = placeholder && slatePart(entry);
         if (slateOnly && segments.discardEpoch(entry.recordingId, entry.outputPath)) {
-            console.log(`[Recordings] #${entry.recordingId}: part ${entry.segmented.epoch} held only the provider's placeholder; not kept`);
+            console.log(`[Recordings] #${entry.recordingId}: part ${entry.segmented.epoch} held only the provider's placeholder${entry.fastRead ? ' (a file)' : ''}; not kept`);
         }
         const grew = segments.epochSegmentCount(entry.outputPath) > 0;
         const lostAt = Math.min(now, slateOnly ? entry.spawnedAt ?? now : entry.lastGrowthAt ?? entry.spawnedAt ?? now);
@@ -1578,6 +1605,35 @@ function watchForStall(entry) {
     stallWatchdogs.add(entry.stallWatchdog);
 }
 
+/**
+ * #333: is this direct capture reading a file rather than the live channel? Its epoch's listed media against the wall
+ * time since its spawn: { mediaSec, wallSec, finiteAnswer } when it ran at least fastReadTuning.ratio times real time
+ * over at least the floor of media, else null (also when nothing could be measured: fail closed). A shared feed is the
+ * ingest's to judge (#332).
+ */
+function fastReadOf(entry, now = Date.now()) {
+    if (entry.feed) return null;
+    const mediaSec = segments.epochSeconds(entry.outputPath);
+    const wallSec = (now - entry.spawnedAt) / 1000;
+    if (!Number.isFinite(mediaSec) || !(wallSec > 0)) return null;
+    const floor = entry.finiteAnswer ? fastReadTuning.minMediaSecFinite : fastReadTuning.minMediaSec;
+    if (mediaSec < floor || mediaSec < fastReadTuning.ratio * wallSec) return null;
+    return { mediaSec: Math.round(mediaSec), wallSec: Math.round(wallSec * 10) / 10, finiteAnswer: entry.finiteAnswer === true };
+}
+
+/** #333: the watchdog's sample, early in a direct capture: one reading a file is ended at once (onSegmentExit drops it). */
+function checkFastRead(entry, now) {
+    if (entry.fastRead || entry.feed || entry.stopRequested) return;
+    const ran = now - entry.spawnedAt;
+    if (ran < fastReadTuning.checkAfterMs || ran > fastReadTuning.checkUntilMs) return;
+    const fast = fastReadOf(entry, now);
+    if (!fast) return;
+    entry.fastRead = fast;
+    console.warn(`[Recordings] #${entry.recordingId}: part ${entry.segmented?.epoch} is reading a file, not the live channel ` +
+        `(${fast.mediaSec} s of media in ${fast.wallSec} s); ending it`);
+    askToStop(entry);
+}
+
 /** The part has ended, or a stop was asked for: its watchdog goes (it never outlives its part). */
 function stopStallWatch(entry) {
     if (!entry.stallWatchdog) return;
@@ -1601,6 +1657,7 @@ function stopStallWatch(entry) {
  */
 async function captureActivity(entry) {
     const now = Date.now();
+    checkFastRead(entry, now); // #333
     // Read before the size: bytes handed over while it is read count as after the growth (never an excuse).
     const fedBefore = entry.feed ? entry.feed.bytesOut : null;
     const size = await captureSize(entry);
@@ -2241,6 +2298,7 @@ module.exports = {
     _failoverTuning: failoverTuning,
     _heldAgainst: heldAgainst,
     _slatePart: slatePart,
+    _fastReadOf: fastReadOf, _checkFastRead: checkFastRead, _fastReadTuning: fastReadTuning,
     _recordingWouldUse: recordingWouldUse,
     _activeEntry: (id) => active.get(Number(id)), // tests: the running capture of a schedule
     _askToStop: askToStop,
