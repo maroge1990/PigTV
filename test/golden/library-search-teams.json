@@ -1,0 +1,71 @@
+{
+  "channels": [],
+  "events": [
+    {
+      "aliases": [
+        "AFL: Collingwood v Carlton"
+      ],
+      "channels": [
+        {
+          "end": 1793498100000,
+          "id": "1010",
+          "logo": "/api/logo/<key>",
+          "measured": {
+            "fps": 50,
+            "label": "1080"
+          },
+          "name": "AU| FOX FOOTY HD",
+          "nameKey": "au| fox footy",
+          "number": 5,
+          "quality": "HD",
+          "sourceId": 1,
+          "stableId": "s1010",
+          "start": 1793489100000
+        }
+      ],
+      "end": 1793498100000,
+      "id": "<session>",
+      "kind": "event",
+      "league": "AFL",
+      "live": true,
+      "start": 1793489100000,
+      "title": "Collingwood v Carlton"
+    }
+  ],
+  "programmes": [
+    {
+      "channel": {
+        "category": "102",
+        "health": null,
+        "id": "1010",
+        "logo": "/api/logo/<key>",
+        "measured": {
+          "fps": 50,
+          "label": "1080"
+        },
+        "name": "AU| FOX FOOTY HD",
+        "nameKey": "au| fox footy",
+        "number": 5,
+        "quality": "HD",
+        "sourceId": 1,
+        "stableId": "s1010",
+        "tvgId": "foxfooty.au"
+      },
+      "end": 1793498100000,
+      "image": "/api/logo/<key>",
+      "live": true,
+      "start": 1793489100000,
+      "title": "AFL: Collingwood v Carlton"
+    }
+  ],
+  "q": "collingwood",
+  "recordings": [],
+  "teams": [
+    {
+      "followed": true,
+      "id": "17",
+      "league": "AFL",
+      "name": "Collingwood"
+    }
+  ]
+}

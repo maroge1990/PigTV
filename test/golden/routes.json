@@ -14,6 +14,21 @@
     "route": "/api/library/guide?limit=4",
     "status": 200
   },
+  "library-search": {
+    "method": "GET",
+    "route": "/api/library/search?q=australia",
+    "status": 200
+  },
+  "library-search-recordings": {
+    "method": "GET",
+    "route": "/api/library/search?q=golden",
+    "status": 200
+  },
+  "library-search-teams": {
+    "method": "GET",
+    "route": "/api/library/search?q=collingwood",
+    "status": 200
+  },
   "playback-resolve-200": {
     "method": "POST",
     "route": "/api/playback/resolve",

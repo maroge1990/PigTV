@@ -1,0 +1,173 @@
+{
+  "channels": [],
+  "events": [
+    {
+      "aliases": [
+        "Australia v India - 1st Test, Day 2"
+      ],
+      "channels": [
+        {
+          "end": 1793505300000,
+          "id": "1011",
+          "logo": "/api/logo/<key>",
+          "measured": {
+            "fps": 50,
+            "label": "1080"
+          },
+          "name": "AU| FOX CRICKET HD",
+          "nameKey": "au| fox cricket",
+          "number": 4,
+          "quality": "HD",
+          "sourceId": 1,
+          "stableId": "s1011",
+          "start": 1793480100000
+        },
+        {
+          "end": 1793505300000,
+          "id": "1007",
+          "logo": "/api/logo/<key>",
+          "measured": {
+            "fps": 50,
+            "label": "1080"
+          },
+          "name": "UK| SKY SPORTS CRICKET HD",
+          "nameKey": "uk| sky sports cricket",
+          "number": 11,
+          "quality": "HD",
+          "sourceId": 1,
+          "stableId": "s1007",
+          "start": 1793480100000
+        }
+      ],
+      "end": 1793505300000,
+      "id": "<session>",
+      "kind": "event",
+      "league": "Cricket",
+      "live": true,
+      "start": 1793480100000,
+      "title": "Australia v India"
+    },
+    {
+      "aliases": [
+        "Australia v India - 1st Test, Day 3"
+      ],
+      "channels": [
+        {
+          "end": 1793591700000,
+          "id": "1011",
+          "logo": "/api/logo/<key>",
+          "measured": {
+            "fps": 50,
+            "label": "1080"
+          },
+          "name": "AU| FOX CRICKET HD",
+          "nameKey": "au| fox cricket",
+          "number": 4,
+          "quality": "HD",
+          "sourceId": 1,
+          "stableId": "s1011",
+          "start": 1793566500000
+        },
+        {
+          "end": 1793591700000,
+          "id": "1007",
+          "logo": "/api/logo/<key>",
+          "measured": {
+            "fps": 50,
+            "label": "1080"
+          },
+          "name": "UK| SKY SPORTS CRICKET HD",
+          "nameKey": "uk| sky sports cricket",
+          "number": 11,
+          "quality": "HD",
+          "sourceId": 1,
+          "stableId": "s1007",
+          "start": 1793566500000
+        }
+      ],
+      "end": 1793591700000,
+      "id": "<session>",
+      "kind": "event",
+      "league": "Cricket",
+      "live": false,
+      "start": 1793566500000,
+      "title": "Australia v India"
+    }
+  ],
+  "programmes": [
+    {
+      "channel": {
+        "category": "101",
+        "health": null,
+        "id": "1007",
+        "logo": "/api/logo/<key>",
+        "measured": {
+          "fps": 50,
+          "label": "1080"
+        },
+        "name": "UK| SKY SPORTS CRICKET HD",
+        "nameKey": "uk| sky sports cricket",
+        "number": 11,
+        "quality": "HD",
+        "sourceId": 1,
+        "stableId": "s1007",
+        "tvgId": "skysportscricket.uk"
+      },
+      "end": 1793505300000,
+      "image": "/api/logo/<key>",
+      "live": true,
+      "start": 1793480100000,
+      "title": "Australia v India - 1st Test, Day 2"
+    },
+    {
+      "channel": {
+        "category": "102",
+        "health": null,
+        "id": "1011",
+        "logo": "/api/logo/<key>",
+        "measured": {
+          "fps": 50,
+          "label": "1080"
+        },
+        "name": "AU| FOX CRICKET HD",
+        "nameKey": "au| fox cricket",
+        "number": 4,
+        "quality": "HD",
+        "sourceId": 1,
+        "stableId": "s1011",
+        "tvgId": "foxcricket.au"
+      },
+      "end": 1793505300000,
+      "image": "/api/logo/<key>",
+      "live": true,
+      "start": 1793480100000,
+      "title": "Australia v India - 1st Test, Day 2"
+    },
+    {
+      "channel": {
+        "category": "105",
+        "health": null,
+        "id": "1020",
+        "logo": "/api/logo/<key>",
+        "measured": {
+          "fps": 50,
+          "label": "1080"
+        },
+        "name": "AU| CHANNEL 9 HD",
+        "nameKey": "au| channel 9",
+        "number": 3,
+        "quality": "HD",
+        "sourceId": 1,
+        "stableId": "s1020",
+        "tvgId": "nine.au"
+      },
+      "end": 1793501700000,
+      "episode": "S4 E1",
+      "start": 1793498100000,
+      "title": "Gardening Australia"
+    }
+  ],
+  "q": "australia",
+  "recordings": [],
+  "teams": []
+}

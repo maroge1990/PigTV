@@ -25,6 +25,8 @@ const { qualityLabel } = require('../services/channelQuality');
 const channelMeasurements = require('../services/channelMeasurements');
 const sportCategories = require('../services/sportCategories');
 const programmeFields = require('../services/programmeFields');
+const librarySearch = require('../services/librarySearch');
+const { likeAnywhere } = require('../services/programmeSearch');
 
 // The longest programme the guide will still show when it began before the
 // window. Every EPG query bounds start_time from below by this, because the
@@ -282,7 +284,8 @@ router.get('/channels', (req, res) => {
         const params = [];
 
         if (category) { where.push('p.category_id = ?'); params.push(category); }
-        if (search) { where.push('p.name LIKE ?'); params.push(`%${search}%`); }
+        // #57: % and _ in what was typed are themselves, not wildcards.
+        if (search) { where.push("p.name LIKE ? ESCAPE '\\'"); params.push(likeAnywhere(search)); }
 
         const clause = where.join(' AND ');
         const total = db.prepare(`SELECT COUNT(*) n FROM playlist_items p WHERE ${clause}`).get(...params).n;
@@ -512,6 +515,29 @@ router.get('/guide', (req, res) => {
         res.json({ total, limit, offset, start, end, now, channels, nextCursor });
     } catch (err) {
         res.status(500).json({ error: err.message });
+    }
+});
+
+/**
+ * GET /api/library/search?q=&limit=   (#57, C-Y)
+ * Channels, programmes (on now or later), sport events, teams and recordings matching q (trimmed, 2-100 characters,
+ * else 400), each list at most `limit` (default 20, at most 50). services/librarySearch.js says how each is found.
+ */
+router.get('/search', async (req, res) => {
+    const { q, error } = librarySearch.checkQuery(req.query.q);
+    if (error) return res.status(400).json({ error });
+    try {
+        const limit = clamp(req.query.limit, 1, 50, 20);
+        res.json(await librarySearch.search({
+            q, limit, userId: req.user.id,
+            channelRow: guideChannelRow,
+            decorate: decorateGuideChannels,
+            // C-I's own channel decoration (EPG logo fallback, the logo cache), so the events are as /sports/events has them.
+            decorateChannels: require('./sports').decorateChannels
+        }));
+    } catch (err) {
+        console.error('[Library] search failed:', err.message);
+        res.status(500).json({ error: 'Could not search' });
     }
 });
 

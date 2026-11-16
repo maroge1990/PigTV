@@ -552,6 +552,19 @@ test('resolve: 200 on the fake provider, a C-B provider error, and the 409 anoth
     assert.equal(busy.body.conflict?.type, 'viewer-in-progress');
 });
 
+// ---- #57 (C-Y): search ------------------------------------------------------------------------------------------
+
+test('search: channels, programmes, events, teams and recordings for one query', async () => {
+    const body = await get('library-search', '/api/library/search?q=australia');
+    assert.ok(body.programmes.length && body.events.length, 'the fake guide has Australia playing');
+    assert.doesNotMatch(JSON.stringify(body), /https?:\/\//, 'no provider address');
+    const recorded = await get('library-search-recordings', '/api/library/search?q=golden');
+    assert.equal(recorded.recordings.length, 2, 'the finished and the in-progress recording');
+    const teams = await get('library-search-teams', '/api/library/search?q=collingwood');
+    assert.deepEqual(teams.teams.map(t => [t.name, t.league, t.followed]), [['Collingwood', 'AFL', true]]);
+    assert.doesNotMatch(JSON.stringify([recorded, teams]), /https?:\/\//, 'no provider address');
+});
+
 test('every golden was produced, nothing asked a host other than this one', () => {
     assert.deepEqual(offHost, [], 'no request leaves the machine');
     const routes = path.join(GOLDEN, 'routes.json');

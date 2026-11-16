@@ -368,4 +368,7 @@ router.get('/categories', requireAdmin, (req, res) => {
     }
 });
 
+// #57: the library search decorates the sport events' channels the same way.
+router.decorateChannels = decorateChannels;
+
 module.exports = router;

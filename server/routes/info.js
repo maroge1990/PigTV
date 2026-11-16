@@ -114,7 +114,8 @@ async function sendInfo(req, res) {
             livePause: true, // 0468 (#37): POST /api/playback/:id/pause keeps a paused live play's stream up to 30 min
             // R6: /api/recordings and /api/recordings/scheduled rows carry `image` (the programme's
             // artwork from the guide, /api/logo/<key>, or null).
-            recordingArtwork: true
+            recordingArtwork: true,
+            librarySearch: true // #57 (C-Y): GET /api/library/search
         },
 
         // R12: whether the admin has switched channel warming on (the warmNextChannel setting).

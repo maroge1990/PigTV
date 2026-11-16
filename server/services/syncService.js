@@ -1261,6 +1261,8 @@ class SyncService {
             // rather than leaving the first request after this sync to pay for a
             // synchronous build inline.
             try { require('./sportsEvents').scheduleRebuild(); } catch (e) { /* best-effort */ }
+            // #57: the programme search index follows the guide that just landed (built in the background, swapped whole).
+            try { require('./programmeSearch').scheduleRebuild(); } catch (e) { /* best-effort */ }
             // R4: a recording's end follows the guide that just landed.
             try { require('./recordingEngine').followGuide(); } catch (e) { /* best-effort */ }
             // R5: recording rules act on the guide that just landed.

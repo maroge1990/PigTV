@@ -63,6 +63,7 @@ live parts of `SWIFT-CLIENT-HANDOFF.md` on 13 October 2026; their history (the C
 | `recordingWatchLive` | 0218 | `GET /api/recordings/:id/watch`; recording rows carry `watch_live` (C-L) | "Watch from start" on a recording in progress |
 | `recordingRules` | 0219 | `/api/recordings/rules` (C-M); `recordings/scheduled` rows carry `rule_id` | "Record every game" / "Record series", rules in Recordings |
 | `recordingArtwork` | 0220 | `recordings` and `recordings/scheduled` rows carry `image` (C-N) | Programme artwork on recording tiles |
+| `librarySearch` | #57 | `GET /api/library/search` (C-Y) | Search from the top bar's magnifier (D-66) |
 
 Never sent since 0204 (the tuner model was removed): `timeshift`, `recordingHls`. The client still decodes them as absent.
 
@@ -171,6 +172,7 @@ build 27), and `audioEncode: true` on the one fallback after a `'fmt?'` decode f
 | C-R Sport front page | `sportFront` | 0381 | (sport rebuild) |
 | C-S Sport pages: Cricket | `sportPageCricket` | 0383 | (sport rebuild) |
 | C-T Sport pages: any team league | `sportPageLeagues` | 0388 | (sport rebuild) |
+| C-Y Search | `librarySearch` | #57 | (D-66) |
 
 C-A to C-K are implemented on both sides and verified on devices (results in `docs/archive/TEST-BLOCK-2026-10-13.md`). C-L
 onwards are not verified yet.
@@ -1164,3 +1166,30 @@ D-65 picker groups copies by `nameKey` with one chip per `label` + `fps`; the D-
 The same objects always carry `nameKey`: the name with its quality words (UHD, FHD, HD, SD, HDR, 4K, 1080p50, 720p, 50fps,
 superscript ᵁᴴᴰ…) removed, region prefix kept, lower case (`"uk| sky sports f1"`); copies with the same key are one
 picker row. A client groups by it when present (an older server: the same rule on the name).
+
+### C-Y. Search. Flag: `librarySearch` (#57, D-66)
+
+`GET /api/library/search?q=<text>&limit=<n>` (any signed-in user, as the other `library` routes). `q` is trimmed and must
+be 2–100 characters, else 400 `{ error }`; `limit` 1–50, default 20, applies to each list. Answer:
+`{ q, channels, programmes, events, teams, recordings }` (`q` the trimmed text):
+- `channels`: visible channels whose name has every word of `q` (case and accents aside), in guide order, at most once
+  each. Each is a `library/guide` channel row without `programmes` (`id, sourceId, name, logo, category, tvgId,
+  stableId, number, quality, health`, and `measured`/`nameKey` as C-X).
+- `programmes`: `[{ channel, title, subtitle?, episode?, start, end, live?, new?, image? }]`, on now or later only,
+  soonest first (`start`/`end` in ms). Found by a word index over the guide's titles and subtitles: every word of `q`
+  must begin a word of the title or subtitle (`doc wh` finds "Doctor Who"); a `q` with no letter or digit in it matches
+  the title as typed (`%` and `_` are literal). `channel` is the same row shape as `channels`, the best visible copy
+  that shows it (quality UHD, FHD, HD, untagged, SD, then guide order); a programme no visible channel shows is left
+  out. `subtitle`, `episode`, `live`, `new` and `image` are the #56 fields (§2, `library/guide` programmes), each absent
+  when unknown; `image` is always `/api/logo/<key>`.
+- `events`: C-I event objects (the `GET /api/sports/events` shape, channels best first) of kind `event` (no replays) in
+  the next 72 h and not yet over, whose `title` or one of its `aliases` has every word of `q`; soonest `start` first.
+- `teams`: `[{ id, name, league, logo?, followed }]` from the leagues' rosters the server keeps (C-U `names`' teams):
+  `id` the roster's id (a string), `name` its display name, `league` the canonical league, `logo` `/api/logo/<key>` when
+  it has one, `followed` whether the asking account follows that name in the league's sport (C-U). Followed first, then
+  by name. Follow with C-U's `PUT /api/sports/follows`.
+- `recordings`: rows as `GET /api/recordings` lists them (with `image`, `watch_live`, `position_sec`, `watched`) whose
+  `status` is `completed` or `recording` and whose `title` has every word of `q`; newest first.
+
+The index is rebuilt in the background when a guide sync lands and built on the first search after a start, so the
+first search can take a little longer. A server without the flag answers the generic 404 `No such API endpoint`.

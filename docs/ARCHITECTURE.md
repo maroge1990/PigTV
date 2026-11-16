@@ -119,6 +119,10 @@ The `channelNumbers` flag is always sent (its off switch went in 0204).
 **Guide and library.**
 - Query **`epg_live`**, never `epg_programs`. A sync loads generation active+1, flips it in one statement, then deletes the old
   one in slices; a failed feed leaves the guide untouched.
+- **Search** (#57, C-Y, `programmeSearch.js`, `librarySearch.js`): an FTS5 table `epg_search` (rowid = programme id) over the
+  active generations' programmes not yet ended, rebuilt whole in the background at each guide swap (written as
+  `epg_search_next` in slices, then renamed in), and on the first search when meta `epg_search_sig` (each source's active
+  generation and newest id) no longer matches. Hits are joined back to `epg_live`, so a stale row never shows.
 - **An unchanged feed is not rewritten** (#237, `feedCheck.js`): the playlist (M3U) and guide are downloaded to a temp file
   and fingerprinted first (the host's ETag / Last-Modified, asked back as a conditional request, and a SHA-256), stored in
   `meta` `feed:<id>:<kind>` after a good write. The scheduled and start-up syncs skip a feed that matches, with one log line;
