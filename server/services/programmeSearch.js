@@ -129,21 +129,21 @@ function likeAnywhere(text) {
 
 /**
  * The epg_live rows ({ id, channel_id, source_id, title, start_time, end_time, flags, data }) matching `q` that have not
- * ended at `now`, soonest first, at most `max`. Builds the index first if it has to.
+ * ended at `now`, soonest first, at most `max` after skipping `offset` (a caller pages through them). Builds the index first if it has to.
  */
-async function search(q, { now = Date.now(), max = 200 } = {}) {
+async function search(q, { now = Date.now(), max = 200, offset = 0 } = {}) {
     const db = getDb();
     const list = words(q);
     if (!list.length) {
         return db.prepare(`SELECT id, channel_id, source_id, title, start_time, end_time, flags, data FROM epg_live
             WHERE end_time > ? AND start_time < ? AND title LIKE ? ESCAPE '\\'
-            ORDER BY start_time ASC, id ASC LIMIT ?`).all(now, now + AHEAD_MS, likeAnywhere(String(q).trim()), max);
+            ORDER BY start_time ASC, id ASC LIMIT ? OFFSET ?`).all(now, now + AHEAD_MS, likeAnywhere(String(q).trim()), max, offset);
     }
     await ensureIndex();
     return db.prepare(`SELECT p.id, p.channel_id, p.source_id, p.title, p.start_time, p.end_time, p.flags, p.data
         FROM epg_search s JOIN epg_live p ON p.id = s.rowid
         WHERE epg_search MATCH ? AND p.end_time > ?
-        ORDER BY p.start_time ASC, p.id ASC LIMIT ?`).all(ftsQuery(list), now, max);
+        ORDER BY p.start_time ASC, p.id ASC LIMIT ? OFFSET ?`).all(ftsQuery(list), now, max, offset);
 }
 
 module.exports = { search, scheduleRebuild, ensureIndex, isCurrent, signature, words, likeAnywhere, stats, _building: () => building };

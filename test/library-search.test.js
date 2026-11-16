@@ -226,3 +226,13 @@ test('#57: the index is built on the first search, and rebuilt when a guide swap
     assert.deepEqual((await search('zebra')).programmes.length, 1);
     assert.ok(ps.isCurrent());
 });
+
+test('#57: programme search keeps looking past matches on hidden channels (more than one page of them)', async () => {
+    const add = sqlite.getDb().prepare(`INSERT INTO epg_programs (channel_id, source_id, start_time, end_time, title, gen) VALUES (?, 98, ?, ?, ?, 0)`);
+    sqlite.getDb().transaction(() => {
+        for (let i = 0; i < 450; i++) add.run('hid', NOW + H + i * M, NOW + H + (i + 1) * M, 'Quokka Watch');
+        add.run('ent', NOW + 20 * H, NOW + 21 * H, 'Quokka Watch');
+    })();
+    const body = await search('quokka', '&limit=1');
+    assert.deepEqual(body.programmes.map(p => [p.title, p.channel.name, p.start]), [['Quokka Watch', 'Entertainment One', NOW + 20 * H]]);
+});
