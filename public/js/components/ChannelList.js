@@ -1203,9 +1203,9 @@ class ChannelList {
         return `<div class="channel-item game-item${active ? ' active' : ''}" data-game-id="${e(g.id)}">`
             + `<div class="gi-bug">${bug}</div>`
             + `<div class="channel-info gi-info" role="button" tabindex="0" data-key-activate aria-label="${e(`Play ${label}`)}"${active ? ' aria-current="true"' : ''}>`
-            + `<div class="channel-name">${e(g.league || '')}</div>`
+            // every row two lines here, the same height (Mark): Recording joins the league line
+            + `<div class="channel-name">${e(g.league || '')}${recording ? '<span class="gi-rec"> · Recording</span>' : ''}</div>`
             + `<div class="channel-program">${e(clock)}</div>`
-            + (recording ? '<span class="gi-rec">Recording</span>' : '')
             + '</div></div>';
     }
 

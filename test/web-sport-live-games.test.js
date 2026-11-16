@@ -69,7 +69,7 @@ test('scores hidden: the account\'s choice unknown or hidden, the answer spoiler
     const html = cl.container.innerHTML;
     const ars = html.slice(html.indexOf('data-game-id="ars"'), html.indexOf('data-game-id="pen"'));
     assert.doesNotMatch(ars, />47<|>31</, 'a recording game shows no score');
-    assert.match(ars, /<span class="gi-rec">Recording<\/span>/);
+    assert.match(ars, /<div class="channel-name">EPL<span class="gi-rec"> · Recording<\/span><\/div>/, 'Recording on the league line');
     const pen = html.slice(html.indexOf('data-game-id="pen"'), html.indexOf('data-game-id="nfl"'));
     assert.match(pen, /<span class="gi-score"><\/span>/, 'no score from the server: an empty score column');
     assert.doesNotMatch(pen, /gi-rec/);
@@ -150,5 +150,31 @@ test('a long score keeps to its column: cricket\'s overs and AFL\'s goals.behind
     assert.match(html, /class="gi-score">50<\/span>/);
     assert.doesNotMatch(html, /class="gi-score">[^<]*\(/, 'no bracketed detail in the score column');
     assert.match(cri, /aria-label="Play Australia v South Africa, 245\/6 \(45\.2\) to 180\/3 \(31\.4 ov\)/, 'a screen reader hears the whole score');
+    stop(cl);
+});
+
+test('every row is the same height: two lines on the right, a one-line title, a fixed row height (Mark, D-67)', () => {
+    const front = answer();
+    Object.assign(front.games.find(g => g.id === 'f1'), { status: 'live', start: Date.now() - 600000 });
+    front.games.find(g => g.id === 'nfl').recording = { scheduleId: 9, status: 'recording', ruleId: null };
+    const { cl } = list({ front });
+    const html = cl.container.innerHTML;
+    for (const id of rows(html)) {
+        const at = html.indexOf(`data-game-id="${id}"`), next = html.indexOf('data-game-id=', at + 1);
+        const row = html.slice(at, next < 0 ? undefined : next);
+        const info = row.slice(row.indexOf('gi-info'));
+        assert.equal((info.match(/<div class="channel-(name|program)">/g) || []).length, 2, `${id}: league line and clock line only`);
+        assert.doesNotMatch(info, /<\/div><span class="gi-rec"/, `${id}: no third line`);
+    }
+    const css = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'public/css/sport.css'), 'utf8');
+    const rule = (sel) => { const m = css.match(new RegExp(`\\.live-games \\.${sel} \\{([^}]*)\\}`)); return m ? m[1] : ''; };
+    assert.match(rule('gi-title'), /white-space: nowrap/, 'the title keeps to one line');
+    assert.match(rule('gi-title'), /text-overflow: ellipsis/);
+    assert.doesNotMatch(rule('gi-title'), /line-clamp/);
+    // the row's padding is the channel row's (it changes with the screen); its content is one fixed height for every game
+    const h = rule('gi-bug').match(/(?:^|;|\s)height: (\d+px)/);
+    assert.ok(h, 'the score bug has a fixed height');
+    assert.match(rule('gi-info'), new RegExp(`(^|;|\\s)height: ${h[1]}`), 'the right block has the same height');
+    assert.match(rule('gi-info'), /overflow: hidden/);
     stop(cl);
 });
