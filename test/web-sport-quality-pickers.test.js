@@ -23,9 +23,9 @@ const SKY = [
     { sourceId: 1, stableId: 's1', id: '101', name: 'Stan Sport 1', ...air }
 ];
 
-async function harness({ phone = false } = {}) {
+async function harness({ phone = false, channels = SKY } = {}) {
     const f = answer();
-    f.games.find(g => g.id === 'ars').channels = SKY.map(c => ({ ...c }));
+    f.games.find(g => g.id === 'ars').channels = channels.map(c => ({ ...c }));
     const b = browser({ request: async (m, url) => (url === '/sports/front' ? f : url === '/sports/pages/preferences' ? { spoilerFree: false } : url === '/recordings/scheduled' ? [] : {}),
         recordings: { schedule: async () => ({}) } });
     b.context.matchMedia = (q) => ({ matches: phone && /max-width/.test(q), addEventListener() {} });
@@ -50,7 +50,7 @@ async function harness({ phone = false } = {}) {
 }
 const plain = (o) => JSON.parse(JSON.stringify(o));
 /** Each quality badge or chip in `html` as "label fps [accent] [dashed] [→ its channel or #index]". */
-const chipsOf = (html) => [...html.matchAll(/<(button|span) (class="qb[^"]*"[^>]*)>([^<]*)(?:<i class="pig-amount">(\d+)<\/i>)?<\/\1>/g)].map(m => {
+const chipsOf = (html) => [...html.matchAll(/<(button|span) (class="qb[^"]*"[^>]*)>([^<]*)(?:<i class="pig-amount">(\d+)<\/i>)?(?:<small class="pig-amount">[^<]*<\/small>)?<\/\1>/g)].map(m => {
     const attr = (k) => (m[2].match(new RegExp(`\\b${k}="([^"]*)"`)) || [])[1];
     const cls = attr('class'), ch = attr('data-channel'), ix = attr('data-index');
     return `${m[3]}${m[4] ? ` ${m[4]}` : ''}${/\btop\b/.test(cls) ? ' accent' : ''}${/\bguess\b/.test(cls) ? ' dashed' : ''}${ch ? ` → ${ch}` : ix ? ` → #${ix}` : ''}`;
@@ -141,4 +141,28 @@ test('the server\'s nameKey decides the rows when it is sent (both clients group
         { sourceId: 1, id: '3', name: 'Kayo 1 HD', nameKey: 'kayo one' }, { sourceId: 1, id: '4', name: 'Kayo 1', nameKey: 'kayo 1' }
     ]);
     assert.deepEqual(plain(rows.map(r => [r.key, r.chips.flatMap(c => c.channels.map(x => x.id))])), [['fox sports', ['2', '1']], ['kayo one', ['3']], ['kayo 1', ['4']]]);
+});
+
+// Codex (medium): copies of one name in the same quality but on different airings (C-I's own start/end per channel)
+// were folded into one chip, so only the first could be recorded. They fold only when the airing is the same too;
+// a different airing is its own chip, with its start time when that differs from the row's.
+test('same name and quality on different airings: two chips, both can be recorded or watched', async () => {
+    const h = await harness({ channels: [
+        { sourceId: 1, stableId: 'u1', id: '201', name: 'Sky Sports F1 HD', measured: { label: '1080', fps: 50 }, start: NOW - H, end: NOW + 2 * H },
+        { sourceId: 1, stableId: 'u2', id: '202', name: 'Sky Sports F1', measured: { label: '1080', fps: 50 }, start: NOW - H / 2, end: NOW + 3 * H }
+    ] });
+    const ars = h.p.game('ars');
+    h.p.openRecord('ars');
+    const html = h.body();
+    const chips = chipsOf(html.slice(html.indexOf('class="qchips"')));
+    assert.equal(chips.length, 2, 'not folded');
+    assert.deepEqual(chips.map(c => c.split(' → ')[1]), ['#0', '#1'], 'each airing schedulable');
+    assert.match(html, /data-index="1"[^>]*aria-label="Record Sky Sports F1 in 1080 at 50 fps, starting [^"]+"[^>]*>1080<i class="pig-amount">50<\/i><small class="pig-amount">[^<]+<\/small>/, 'the later airing says when it starts');
+    h.press({ 'data-act': 'r-on', 'data-index': '1' });
+    assert.match(h.body(), /<span class="rmeta pig-amount">[^<]* · Sky Sports F1<\/span>/, 'the second airing chosen');
+    // the watch pickers keep them apart too
+    h.dialog().close();
+    h.p.openDetails('ars');
+    assert.deepEqual(chipsOf(h.body().slice(h.body().indexOf('class="qchips"'))).map(c => c.split(' → ')[1]), ['1:u1', '1:u2']);
+    assert.match(h.p.menuMarkup(ars), /data-channel="1:u2" aria-label="Watch Sky Sports F1 in 1080 at 50 fps, starting /);
 });

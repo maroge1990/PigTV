@@ -1503,7 +1503,7 @@ const SportView = (() => {
     }
     /**
      * The picker's rows: one per channel name (quality words aside: the server's `nameKey`, else the same rule here), in the order the server ranked the channels (best
-     * first), each with its chips best first; copies with the same quality and frame rate fold into one chip, whose
+     * first), each with its chips best first; copies with the same quality, frame rate and airing fold into one chip, whose
      * `channels` keep the server's order (the first is the one a chip plays or records).
      * @returns {{ key, name, chips: { key, q, channels }[] }[]}
      */
@@ -1513,19 +1513,21 @@ const SportView = (() => {
             const name = baseName(c.name), key = typeof c.nameKey === 'string' && c.nameKey ? c.nameKey : name.toLowerCase(); // the server's key when sent
             let row = rows.get(key);
             if (!row) rows.set(key, row = { key, name, chips: [] });
-            const q = qualityOf(c), chipKey = `${q.measured ? 'm' : 'n'}:${q.label || ''}:${q.fps || ''}`;
+            // copies fold only when their own airing (C-I start/end) is the same too: one airing more is a chip of its own
+            const start = Number.isFinite(c.start) ? c.start : null, end = Number.isFinite(c.end) ? c.end : null;
+            const q = qualityOf(c), chipKey = `${q.measured ? 'm' : 'n'}:${q.label || ''}:${q.fps || ''}:${start ?? ''}:${end ?? ''}`;
             let chip = row.chips.find(x => x.key === chipKey);
-            if (!chip) row.chips.push(chip = { key: chipKey, q, channels: [] });
+            if (!chip) row.chips.push(chip = { key: chipKey, q, start, end, channels: [] });
             chip.channels.push(c);
         }
         for (const row of rows.values()) row.chips.sort((a, b) => qualityRank(a.q) - qualityRank(b.q));
         return [...rows.values()];
     }
     /** D-65's badge: "4K" accent, the others subtle, then the frame rate; an unmeasured quality dashed; null with no label. */
-    function qualityBadge(q, { tag = 'span', attrs = '', cls = '' } = {}) {
+    function qualityBadge(q, { tag = 'span', attrs = '', cls = '', note = '' } = {}) {
         const text = q.label || '?';
         const title = q.measured ? `Measured ${q.label}${q.fps ? ` at ${q.fps} fps` : ''}` : q.label ? `${q.label} from the channel’s name (not measured yet)` : 'Quality not measured yet';
-        return `<${tag} class="qb${q.measured && q.label === '4K' ? ' top' : ''}${q.measured ? '' : ' guess'}${cls ? ` ${cls}` : ''}"${attrs} title="${e(title)}">${e(text)}${q.fps ? `<i class="pig-amount">${e(q.fps)}</i>` : ''}</${tag}>`;
+        return `<${tag} class="qb${q.measured && q.label === '4K' ? ' top' : ''}${q.measured ? '' : ' guess'}${cls ? ` ${cls}` : ''}"${attrs} title="${e(title)}">${e(text)}${q.fps ? `<i class="pig-amount">${e(q.fps)}</i>` : ''}${note ? `<small class="pig-amount">${e(note)}</small>` : ''}</${tag}>`;
     }
     /** A single copy's badge, as the old `quality` tag: only when there is a label to show. */
     const copyBadge = (c) => { const q = qualityOf(c); return q.label ? qualityBadge(q) : ''; };
