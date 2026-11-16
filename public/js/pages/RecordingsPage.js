@@ -1059,7 +1059,7 @@ class RecordingsPage {
         const note = overlay.querySelector('.go-live-note');
         const back = overlay.querySelector('.go-live-back');
         if (!button || !video) return;
-        const state = overlay._goLive = { finished: false, from: null, timer: null, poll: null };
+        const state = overlay._goLive = { finished: false, away: false, from: null, timer: null, poll: null };
         // the newest point: hls.js's live edge, else the end of what can be seeked less a few seconds
         const newest = () => {
             const hls = overlay._hls;
@@ -1074,7 +1074,7 @@ class RecordingsPage {
         const update = () => {
             if (overlay._goLive !== state) return;
             const edge = newest();
-            button.hidden = state.finished || edge === null || edge - (Number(video.currentTime) || 0) <= RecordingsPage.NEAR_LIVE_SEC;
+            button.hidden = state.finished || state.away || edge === null || edge - (Number(video.currentTime) || 0) <= RecordingsPage.NEAR_LIVE_SEC;
         };
         const hideNote = () => { clearTimeout(state.timer); state.timer = null; if (note) note.hidden = true; };
         state.update = update;
@@ -1088,7 +1088,9 @@ class RecordingsPage {
         video.addEventListener('ended', () => { state.finished = true; update(); });
         // Codex (medium): Safari's own HLS says nothing when the playlist closes while the viewer is behind; every 30 s the
         // active list (/recordings/active, what recordingsFeed polls; rows are schedules, `recording_id` this recording)
-        // says whether it is still recording: gone from it, or not 'recording' there, it has finished.
+        // says whether it is recording now. Absent, or not 'recording' there, only hides Go to live (`away`): a recording
+        // waiting to continue after a provider outage is left out of that list, and comes back. Finished is only what
+        // the media says (the playlist closed, 'ended').
         const check = () => {
             state.poll = setTimeout(async () => {
                 if (overlay._goLive !== state || state.finished || id === null) return;
@@ -1096,11 +1098,12 @@ class RecordingsPage {
                     const rows = await API.recordings.getActive();
                     if (Array.isArray(rows)) {
                         const row = rows.find(r => r && String(r.recording_id) === String(id));
-                        if (!row || row.status !== 'recording') state.finished = true;
+                        state.away = !row || row.status !== 'recording';
                     }
-                } catch (err) { /* unknown: asked again in 30 s */ }
+                } catch (err) { /* unknown: as it was, asked again in 30 s */ }
                 if (overlay._goLive !== state) return;
-                if (state.finished) { hideNote(); update(); } else check();
+                update();
+                if (!state.finished) check();
             }, RecordingsPage.LIVE_CHECK_MS);
         };
         check();

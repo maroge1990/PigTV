@@ -130,12 +130,13 @@ test('#335: Go to live jumps to the newest point, says so with Back to h:mm:ss f
     assert.equal(note.hidden, true);
 });
 
-test('#335 (Codex medium): the recording finishing is learned from the active list every 30 s, with no \'ended\' and playback still behind', async () => {
-    let finished = false, watches = 0;
-    // /recordings/active lists schedules; `recording_id` is the recording played (2), another one records too
+test('#335 (Codex medium): the active list, every 30 s: missing or not recording hides Go to live, back and recording shows it again', async () => {
+    let listed = 'recording', watches = 0;
+    // /recordings/active lists schedules; `recording_id` is the recording played (2), another one records too. A
+    // recording waiting to continue after a provider outage is left out of it for a while (`listed` null).
     const t = make((url) => {
         if (url.includes('/recordings/active')) return json([{ id: 40, recording_id: 9, status: 'recording' },
-            ...(finished ? [] : [{ id: 41, recording_id: 2, status: 'recording' }])]);
+            ...(listed ? [{ id: 41, recording_id: 2, status: listed }] : [])]);
         if (url.includes('/watch')) watches++;
         return watching(url);
     });
@@ -144,23 +145,30 @@ test('#335 (Codex medium): the recording finishing is learned from the active li
     const button = t.part('.go-live-btn');
     assert.equal(button.hidden, false);
     const due = () => t.timers.filter(x => x.ms === 30000 && !x.done);
-    assert.equal(due().length, 1, 'a check every 30 s');
-    const first = due()[0]; first.done = true; await first.fn(); await settle();
+    const poll = async () => { const d = due(); assert.equal(d.length, 1, 'one check every 30 s'); d[0].done = true; await d[0].fn(); await settle(); };
+    await poll();
     assert.equal(button.hidden, false, 'still recording: still offered');
-    finished = true;
-    const next = due();
-    assert.equal(next.length, 1, 'checked again');
-    next[0].done = true; await next[0].fn(); await settle();
+    listed = null;
+    await poll();
+    assert.equal(button.hidden, true, 'missing from the active list (no \'ended\', still behind): hidden at once');
     t.video().fire('timeupdate');
-    assert.equal(button.hidden, true, 'the server says it has finished: Go to live goes at once');
-    assert.equal(due().length, 0, 'no more checks');
+    assert.equal(button.hidden, true, 'and stays hidden while it is missing');
+    listed = 'recording';
+    await poll();
+    assert.equal(button.hidden, false, 'back and recording: offered again');
+    listed = 'completed';
+    await poll();
+    assert.equal(button.hidden, true, 'listed but not recording: hidden');
+    assert.equal(due().length, 1, 'still checked: only the media itself says it has finished');
+    t.video().fire('ended');
+    await poll();
+    assert.equal(due().length, 0, 'the media ended: no more checks');
     assert.equal(watches, 1, '/watch (a view and a probe on the server) is asked only to open the player');
     // closing the player stops the checks of a recording still recording
-    finished = false;
     const u = make(watching);
     await u.page.play(2, { watch: true });
     await settle();
-    const poll = u.timers.find(x => x.ms === 30000);
+    const pending = u.timers.find(x => x.ms === 30000);
     u.page.closePlayer();
-    assert.equal(poll.done, true, 'the check is cleared on close');
+    assert.equal(pending.done, true, 'the check is cleared on close');
 });
