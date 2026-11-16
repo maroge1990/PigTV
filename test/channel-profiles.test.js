@@ -171,3 +171,29 @@ test('a channel play that works records its measured quality; a failed start doe
     const all = JSON.stringify(getDb().prepare('SELECT * FROM channel_measurements').all());
     assert.ok(!all.includes('provider.invalid'), 'no URL is stored');
 });
+
+// Codex (medium): a play from a saved profile records a measurement too, so the placeholder found after it started
+// must drop that measurement as a fresh probe's does. The old code listened for the placeholder on fresh probes only.
+test('a profile-backed play found to be the placeholder later drops its measurement', async () => {
+    const { EventEmitter } = require('node:events');
+    const measurements = load('services/channelMeasurements');
+    getDb().prepare('DELETE FROM channel_measurements').run();
+    const url = 'http://provider.invalid/live/u/p/441392.ts';
+    const measure = { sourceId: 7, key: 's441392' };
+    await strategy.resolve({ url, capabilities: WEB, settings: SETTINGS });   // saves the profile (no measure)
+    laterOn();
+    const session = Object.assign(new EventEmitter(), { id: 'stub2', start: async () => {}, waitForPlaylist: async () => true });
+    transcodeSession.createSession = async () => session;
+    try {
+        const r = await play(url); // the profile is what plays now
+        assert.match(r.timing, /probe profile/);
+        laterOn();
+        await strategy.resolve({ url, capabilities: WEB, settings: SETTINGS, measure });
+        assert.equal(probeCalls, 1, 'played from the profile');
+        assert.deepEqual([...measurements.all()], [['7:s441392', { label: '1080', fps: 25 }]], 'measured');
+        session.emit('placeholder');
+        assert.equal(measurements.all().size, 0, 'the placeholder verdict drops it');
+    } finally {
+        transcodeSession.createSession = async () => ({ id: 'stub', start: async () => {}, waitForPlaylist: async () => sessionReady });
+    }
+});

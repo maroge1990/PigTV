@@ -357,8 +357,14 @@ async function afterStart({ session, ready, info, plan, probeNote, fromProfile, 
         // #265 step 2 (D-65): the channel's measured quality, from the analysis it played from (a channel play on
         // its primary provider only: `measure` is { sourceId, key }); the newest measurement wins.
         if (measure) channelMeasurements.recordPlay(measure, info, probedAt);
-        if (fromProfile) channelProfiles.markOk(cacheKey);
-        else {
+        if (fromProfile) {
+            channelProfiles.markOk(cacheKey);
+            // #332: found to be the placeholder later: the measurement this play kept goes (the profile stays, as a
+            // start that failed on the placeholder keeps it); only the one with this probe's time.
+            if (measure && typeof session.once === 'function') {
+                session.once('placeholder', () => channelMeasurements.forgetPlay(measure, probedAt));
+            }
+        } else {
             channelProfiles.save(cacheKey, info, probedAt);
             // #332: the placeholder found later (the feed ends as one, or a blank verdict is one): this analysis was
             // probed from it, so neither the profile nor the in-memory copy is kept (nor its measurement).
