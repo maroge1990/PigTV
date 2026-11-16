@@ -148,7 +148,7 @@ build 27), and `audioEncode: true` on the one fallback after a `'fmt?'` decode f
 | C-C HE-AAC passthrough | none (capability) | 0116 | 27 always on |
 | C-D Opaque playback handle | none | 0119, 0196 always | none needed |
 | C-E Tuner model | `timeshift`, `recordingHls` | **removed in 0204** | removed |
-| C-F Labs | Apple only | none | Stream info is the only switch left |
+| C-F Labs | Apple only | none | Stream info overlay; Sync marker button (Apple 252, #268) |
 | C-G Channel health | `channelHealth` | 0133, 0142 | 19 |
 | C-H Sport categories | `sportCategories` | 0146 | superseded by C-I |
 | C-I Sport events | `sportsEvents` | 0147–0153, 0161 | 30–32 |
@@ -214,7 +214,9 @@ sent; the client keeps behaving as if they were absent.
 
 ### C-F. Labs (Apple only)
 
-Settings → Labs keeps one switch, **Stream info overlay**: codec, resolution, fps, bitrate, dropped frames and the provider.
+Settings → Labs has two switches, both off by default: **Stream info overlay** (codec, resolution, fps, bitrate, dropped
+frames and the provider) and, since Apple 252 (#268), **Sync marker button**: the live player shows "Sound out of step",
+which sends one `av-desync` client event (C-A `clientEvents`) at most every 10 s.
 
 ### C-G. Channel health. Flag: `channelHealth`
 
