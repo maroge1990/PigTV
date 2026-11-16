@@ -534,3 +534,25 @@ test('0493: followedSides names the followed side, matched by abbreviation on th
     assert.deepEqual(byId['espn:football/nfl:401873048'].followedSides, [1]);
     assert.equal('followedSides' in byId['espn:football/nfl:9'], false, 'none on a game with no followed side');
 });
+
+// #334 (D-66, Codex high): a recorded game's score never shows. When the household's schedules cannot be read, which game
+// records is unknown: the answer carries no score or situation on any game (fail closed), for every client.
+test('front: the recording schedules unreadable: no game carries scores or a situation', async () => {
+    clearGames();
+    const now = Date.now();
+    dashboard.store().ingest([game('espn:football/nfl:501', 'NFL', now - H, [team('9', 'Packers'), team('3', 'Bears')], live(['21', '14']))], now - 100000);
+    assert.equal((await call('/api/sports/pages/preferences', { sports: ['NFL'], teams: {} })).status, 200);
+    const engine = load('services/recordingEngine');
+    const real = engine.listScheduled;
+    try {
+        const shown = (await front()).games.find(g => g.id === 'espn:football/nfl:501');
+        assert.deepEqual(shown.scores, ['21', '14'], 'schedules readable: the score shows');
+        engine.listScheduled = () => { throw new Error('database is locked'); };
+        const f = await front();
+        const g = f.games.find(x => x.id === 'espn:football/nfl:501');
+        assert.ok(g, 'the game is still listed');
+        assert.equal(g.scores, undefined);
+        assert.equal(g.situation, undefined);
+        assert.ok(f.games.every(x => x.scores === undefined && x.situation === undefined));
+    } finally { engine.listScheduled = real; }
+});

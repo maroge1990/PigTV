@@ -180,6 +180,14 @@ async function withRecordings(games) {
     try {
         const settings = await require('../db').settings.get();
         annotateRecordings(games, require('./recordingEngine').listScheduled({ settings }));
+    } catch (err) {
+        // #334 (D-66, Codex high): which games record is unknown, so any of them may be recording: fail closed, no game
+        // in this answer carries a score or a situation (as spoiler-free), whichever client reads it.
+        console.warn('[Sports] recordings on the front page, scores withheld:', err.message);
+        for (const g of games) { delete g.scores; delete g.situation; }
+        return;
+    }
+    try {
         // #234: a game waiting for its listing to be recorded (a 'game' rule, nothing scheduled yet) says so on its card.
         const waiting = new Map(require('./recordingRules').list().filter(r => r.kind === 'game' && r.enabled && r.gameId).map(r => [r.gameId, r.id]));
         for (const g of games) if (!g.recording && waiting.has(g.id)) g.recordWhenListed = { ruleId: waiting.get(g.id) };

@@ -1001,6 +1001,8 @@ account follows nothing; only the server's owner (its first admin account) takes
   `clashesWith` (titles) only when that recording loses its clash and waits: show "Clashes with …" on the card.
   Since 0465 (#234) a card whose game waits on a `game` rule, with nothing scheduled yet, carries
   `recordWhenListed: { ruleId }`: say "Records when it's listed" (and offer to cancel: `DELETE` the rule).
+  Since 0791 (#334, D-66): when the server cannot read the recording schedules, no card in that answer carries `scores`
+  or `situation` (as spoiler-free), since any game may be recording; nothing else changes.
 - C-R since 0392: `rails[]` puts the leagues with a game on now (`live`, `break`, `suspended`) first, then the rest, each
   part in the account's order (D-41); `sports[]` keeps the account's order (until 0427: C-R, D-43, moves them up too).
 - Since 0395 (#195): `UEFA` is three leagues, `Champions League`, `Europa League` and `Conference League` (a stored or
