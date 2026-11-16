@@ -128,6 +128,8 @@ router.post('/resolve', requireToken, async (req, res) => {
         // Wave 5 (phase 5b, `sharedIngestEnabled`): a live channel's candidate is read through the
         // shared ingest of its stream; joining one that is already open takes no connection.
         const ingest = require('../services/ingest');
+        const measureFor = (candidate) => (live && candidate.via === 'primary' && candidate.channelKey != null
+            ? { sourceId: candidate.providerId, key: String(candidate.channelKey) } : null);
         const ingestFor = (candidate) => (live ? ingest.sourceFor(candidate, settings, { sourceId: parseInt(sourceId), channelId }) : null);
 
         // Start one candidate: probe, session, first segment. Throws what resolve throws.
@@ -149,6 +151,8 @@ router.post('/resolve', requireToken, async (req, res) => {
                 // R11: the connection lease taken when this candidate was admitted.
                 lease,
                 ingestSource: ingestFor(candidate),
+                // #265 step 2: a channel's own stream (its primary provider) is measured for the clients' badge.
+                measure: measureFor(candidate),
                 // 0174: only the last candidate gets 0143's two refused-connection
                 // retries; an earlier one gets one, after 1 s, then the next provider.
                 ...(failoverPossible ? {
@@ -283,6 +287,7 @@ router.post('/resolve', requireToken, async (req, res) => {
                     providerId: first.providerId,
                     lease: verdict.lease,
                     ingestSource: ingestFor(first),
+                    measure: measureFor(first),
                     ...(failoverPossible ? { deadlineAt } : {}),
                     ...(showProvider ? { timingNote: `, provider ${first.providerName} (${first.via})` } : {})
                 });

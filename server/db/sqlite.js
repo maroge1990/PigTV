@@ -209,6 +209,22 @@ function initSchema() {
         );
     `);
 
+    // #265 step 2 (D-65): what a channel's stream measured (the channel audit's import, or a play's probe), keyed on
+    // the favourites' identity (source + COALESCE(stable_id, item_id)); one row per channel, the newest measurement
+    // (services/channelMeasurements.js). No URL is stored.
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS channel_measurements (
+            source_id INTEGER NOT NULL,
+            channel_key TEXT NOT NULL,
+            height INTEGER NOT NULL,
+            fps REAL,
+            kbps INTEGER,
+            measured_at INTEGER NOT NULL,
+            source TEXT NOT NULL,
+            PRIMARY KEY (source_id, channel_key)
+        );
+    `);
+
     // Channel numbers (0117, roadmap X2.1, contract C-A): one persisted number
     // per channel IDENTITY (source + stable_id, else item_id - the same key the
     // favourites use), so a number survives the provider reordering its playlist

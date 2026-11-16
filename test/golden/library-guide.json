@@ -5,6 +5,10 @@
       "health": null,
       "id": "1001",
       "logo": null,
+      "measured": {
+        "fps": 50,
+        "label": "1080"
+      },
       "name": "##### SKY SPORTS #####",
       "number": 1,
       "programmes": [],
@@ -18,22 +22,26 @@
       "health": null,
       "id": "1019",
       "logo": "/api/logo/<key>",
+      "measured": {
+        "fps": 50,
+        "label": "1080"
+      },
       "name": "AU| ABC NEWS HD",
       "number": 2,
       "programmes": [
         {
-          "description": "Morning News (S3E12) on ABC News.",
+          "description": "World Report on ABC News.",
           "endTime": 1793492700000,
           "isNow": true,
           "startTime": 1793489100000,
-          "title": "Morning News"
+          "title": "World Report"
         },
         {
-          "description": "Business Today on ABC News.",
-          "endTime": 1793496300000,
+          "description": "The Interview on ABC News.",
+          "endTime": 1793494500000,
           "isNow": false,
           "startTime": 1793492700000,
-          "title": "Business Today"
+          "title": "The Interview"
         }
       ],
       "quality": "HD",
@@ -42,11 +50,11 @@
       "tvgId": "abcnews.au"
     }
   ],
-  "end": 1793503320000,
+  "end": 1793502000000,
   "limit": 4,
   "nextCursor": "eyJzayI6OTk5OTk5OTk5LCJuYW1lIjoiQVV8IEZPWCBDUklDS0VUIEhEIiwiaWQiOiIxOjEwMTEifQ==",
-  "now": 1793492520000,
+  "now": 1793491200000,
   "offset": 0,
-  "start": 1793492520000,
+  "start": 1793491200000,
   "total": 27
 }

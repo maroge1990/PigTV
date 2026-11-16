@@ -76,6 +76,10 @@ before(async () => {
     T0 = Date.parse(fake.status().anchor) + 5 * MIN; // as fake-provider.test.js: the guide is anchored on this half hour
     source = await db.sources.create({ type: 'xtream', name: 'FakeTV', url: providerBase, username: LOGIN.user, password: LOGIN.pass });
     await sync.syncSource(source.id);
+    // #265 step 2 (D-65): every channel measured (as the audit import would), so each channel object shows `measured`.
+    sqlite.getDb().prepare(`INSERT INTO channel_measurements (source_id, channel_key, height, fps, kbps, measured_at, source)
+        SELECT source_id, COALESCE(stable_id, item_id), 1080, 50, 8000, ?, 'audit' FROM playlist_items WHERE source_id = ? AND type = 'live'`).run(Date.now(), source.id);
+    sportsEvents.reset(); // the sync's own build read the channels before they were measured
     const user = await db.users.create({ username: 'owner', role: 'admin' });
     owner = user.id;
     const device = (id) => {
@@ -414,11 +418,11 @@ test('follows, catalog, names, suggestions and the front page (sports, follows, 
     const nfln = channelOf('US| NFL NETWORK HD');
     const guideEvents = [
         { id: 'ev-afl', league: 'AFL', title: 'Collingwood v Carlton', kind: 'event', start: clashFirst.program_start, end: clashFirst.program_end, live: false,
-            channels: [{ sourceId: source.id, id: footy.item_id, stableId: footy.stable_id, name: footy.name, number: 9, logo: null, quality: 'HD',
+            channels: [{ sourceId: source.id, id: footy.item_id, stableId: footy.stable_id, name: footy.name, number: 9, logo: null, quality: 'HD', measured: { label: '1080', fps: 50 },
                 start: clashFirst.program_start, end: clashFirst.program_end }] },
         // The game's coverage began 20 min before its start, 10 min away (#203): onAir
         { id: 'ev-kc', league: 'NFL', title: 'Chiefs v Bills', kind: 'event', start: now - 20 * MIN, end: now + 4 * H, live: false,
-            channels: [{ sourceId: source.id, id: nfln.item_id, stableId: nfln.stable_id, name: nfln.name, number: 12, logo: null, quality: 'HD', start: now - 20 * MIN, end: now + 4 * H }] }
+            channels: [{ sourceId: source.id, id: nfln.item_id, stableId: nfln.stable_id, name: nfln.name, number: 12, logo: null, quality: 'HD', measured: { label: '1080', fps: 50 }, start: now - 20 * MIN, end: now + 4 * H }] }
     ];
     // The losing schedule is the card's recording: put the AFL airing on the later schedule's channel instead.
     const cricket = channelOf('AU| FOX CRICKET HD');

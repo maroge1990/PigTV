@@ -35,6 +35,7 @@
  * request" below.
  */
 const { qualityLabel, qualityRank } = require('./channelQuality');
+const channelMeasurements = require('./channelMeasurements');
 const crypto = require('crypto');
 const path = require('path');
 const { Worker } = require('worker_threads');
@@ -408,6 +409,8 @@ function buildEvents({ from, follow: keywords, decorateChannels } = {}) {
     const channels = visibleChannels(db);
     if (decorateChannels) decorateChannels(channels);
     channelHealth.applyHealth(channels);
+    // #265 step 2 (D-65): the measured quality, where the audit or a play has measured the channel.
+    channelMeasurements.applyMeasured(channels, db);
 
     const tvgIds = [...new Set(channels.map(ch => ch.tvgId).filter(Boolean))];
     const progs = programmesFor(db, tvgIds, from, from + WINDOW_MS);
@@ -944,7 +947,7 @@ function eventOut(ev, now, isFav, withRule = false) {
         live: ev.start <= now && now < ev.end,
         channels: channels.map(ch => ({
             sourceId: ch.sourceId, id: ch.id, stableId: ch.stableId, name: ch.name,
-            number: ch.number, logo: ch.logo, quality: ch.quality, ...ownTimes(ev, ch)
+            number: ch.number, logo: ch.logo, quality: ch.quality, ...(ch.measured ? { measured: ch.measured } : {}), ...ownTimes(ev, ch)
         }))
     };
     if (withRule) { out.rule = ev.rule; out.match = ev.match; out.kindRule = ev.kindRule; }
@@ -1050,7 +1053,7 @@ let responseBytes = 0;
 
 const channelJson = (ch) => JSON.stringify({
     sourceId: ch.sourceId, id: ch.id, stableId: ch.stableId, name: ch.name,
-    number: ch.number, logo: ch.logo, quality: ch.quality
+    number: ch.number, logo: ch.logo, quality: ch.quality, ...(ch.measured ? { measured: ch.measured } : {})
 });
 const favKeysOf = (ch) => [`${ch.sourceId}:${ch.stableId || ch.id}`, `${ch.sourceId}:${ch.id}`];
 const byBaseOrder = (a, b) => qualityRank(a.quality) - qualityRank(b.quality)

@@ -895,3 +895,23 @@ test('a build recognises a followed league from its stored ESPN roster', () => {
         d.prepare("DELETE FROM sport_fixture_teams WHERE league = 'MLB'").run();
     }
 });
+
+// #265 step 2 (D-65): a channel the audit or a play measured carries `measured: { label, fps }` (additive); one never
+// measured has no such key. The old code never sent `measured`.
+test('a measured channel carries measured { label, fps }; an unmeasured one has no `measured`', async () => {
+    const d = sqlite.getDb();
+    const sky = d.prepare(`SELECT source_id, COALESCE(stable_id, item_id) AS k FROM playlist_items WHERE name = 'Sky Sports UHD'`).get();
+    d.prepare(`INSERT INTO channel_measurements (source_id, channel_key, height, fps, kbps, measured_at, source) VALUES (?, ?, 1080, 50, 8000, ?, 'audit')`)
+        .run(sky.source_id, sky.k, Date.now());
+    try {
+        for (const query of ['', '?hours=24', '?hours=24&include=all']) {
+            const nfl = find(await events(query), 'NFL')[0].channels;
+            assert.deepEqual(nfl.map(c => [c.name, c.measured]), [['Sky Sports UHD', { label: '1080', fps: 50 }], ['ESPN 2 HD', undefined], ['Fox Sports 505 SD', undefined]], query);
+            assert.equal(nfl[0].quality, 'UHD', 'the name-based quality stays as it was');
+            assert.ok(!('measured' in nfl[1]));
+        }
+    } finally {
+        d.prepare('DELETE FROM channel_measurements').run();
+        load('services/sportsEvents').reset();
+    }
+});

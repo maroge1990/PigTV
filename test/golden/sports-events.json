@@ -9,8 +9,12 @@
           "end": 1793505300000,
           "id": "1011",
           "logo": "/api/logo/<key>",
+          "measured": {
+            "fps": 50,
+            "label": "1080"
+          },
           "name": "AU| FOX CRICKET HD",
-          "number": null,
+          "number": 4,
           "quality": "HD",
           "sourceId": 1,
           "stableId": "s1011",
@@ -20,8 +24,12 @@
           "end": 1793505300000,
           "id": "1007",
           "logo": "/api/logo/<key>",
+          "measured": {
+            "fps": 50,
+            "label": "1080"
+          },
           "name": "UK| SKY SPORTS CRICKET HD",
-          "number": null,
+          "number": 11,
           "quality": "HD",
           "sourceId": 1,
           "stableId": "s1007",
@@ -46,8 +54,12 @@
           "end": 1793496300000,
           "id": "1002",
           "logo": "/api/logo/<key>",
+          "measured": {
+            "fps": 50,
+            "label": "1080"
+          },
           "name": "UK| SKY SPORTS F1 UHD/4K",
-          "number": null,
+          "number": 15,
           "quality": "UHD",
           "sourceId": 1,
           "stableId": "s1002",
@@ -57,8 +69,12 @@
           "end": 1793496300000,
           "id": "1003",
           "logo": "/api/logo/<key>",
+          "measured": {
+            "fps": 50,
+            "label": "1080"
+          },
           "name": "UK| SKY SPORTS F1 FHD",
-          "number": null,
+          "number": 12,
           "quality": "FHD",
           "sourceId": 1,
           "stableId": "s1003",
@@ -74,5 +90,5 @@
       "title": "Mexico City Grand Prix"
     }
   ],
-  "now": 1793492520000
+  "now": 1793491140000
 }

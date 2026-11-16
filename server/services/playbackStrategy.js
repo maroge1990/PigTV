@@ -27,6 +27,7 @@
 const { probeStream, analyzeProbeResult, probeCache, CACHE_TTL, parseFrameRate } = require('./streamProbe');
 const transcodeSession = require('./transcodeSession');
 const channelProfiles = require('./channelProfiles');
+const channelMeasurements = require('./channelMeasurements');
 const { MESSAGES: FAILURE_TEXT } = require('./playbackErrors');
 const playbackHandles = require('./playbackHandles');
 const playbackEvents = require('./playbackEvents');
@@ -152,7 +153,7 @@ function noteStart(owner, analysis) {
  * network to it) is what failed, which is what makes the route try the next one.
  */
 async function resolve({ url, capabilities = {}, settings, ffprobePath, owner = null, live = false, audioEncode = false, providerId = null,
-    refusedRetryDelaysMs = undefined, deadlineAt = null, timingNote = '', sessionOptions = null, lease = null, ingestSource = null }) {
+    refusedRetryDelaysMs = undefined, deadlineAt = null, timingNote = '', sessionOptions = null, lease = null, ingestSource = null, measure = null }) {
     const caps = { ...DEFAULT_CAPABILITIES, ...capabilities };
     const userAgent = db.getUserAgent(settings);
 
@@ -218,7 +219,7 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, owner = 
         try { await transcodeSession.removeSession(session.id); } catch (e) { /* already gone */ }
         throw supersededError();
     }
-    await afterStart({ session, ready, info, plan, probeNote, fromProfile, probedAt, cacheKey, sessionStartedAt, note: timingNote,
+    await afterStart({ session, ready, info, plan, probeNote, fromProfile, probedAt, cacheKey, sessionStartedAt, note: timingNote, measure,
         placeholderProbe: analysis.placeholderProbe === true || placeholderNoted(ingestSource),
         remove: () => transcodeSession.removeSession(session.id) });
 
@@ -323,7 +324,7 @@ function sessionPlan({ info, caps, settings, userAgent, owner, live, audioEncode
  * or drop the channel profile, and on a failure remove the session and throw the
  * client's sentence. `note` is appended to the timing line.
  */
-async function afterStart({ session, ready, info, plan, probeNote, fromProfile, probedAt, cacheKey, sessionStartedAt, remove, note = '', placeholderProbe = false }) {
+async function afterStart({ session, ready, info, plan, probeNote, fromProfile, probedAt, cacheKey, sessionStartedAt, remove, note = '', placeholderProbe = false, measure = null }) {
     const { videoMode, videoRange, frameRate } = plan;
     // 0144: after an initial burst, unless PIGTV_READRATE_BURST=0 (plain -re).
     const paceNote = () => { const b = transcodeSession.readrateBurstSec(); return b > 0 ? ` after an initial ${b}s burst` : ''; };
@@ -353,13 +354,19 @@ async function afterStart({ session, ready, info, plan, probeNote, fromProfile, 
         // It played from this analysis: keep it for the next play (a fresh probe), or
         // note that it still works (a profile). Written only now, so an analysis that
         // never produced a picture is never reused.
+        // #265 step 2 (D-65): the channel's measured quality, from the analysis it played from (a channel play on
+        // its primary provider only: `measure` is { sourceId, key }); the newest measurement wins.
+        if (measure) channelMeasurements.recordPlay(measure, info, probedAt);
         if (fromProfile) channelProfiles.markOk(cacheKey);
         else {
             channelProfiles.save(cacheKey, info, probedAt);
             // #332: the placeholder found later (the feed ends as one, or a blank verdict is one): this analysis was
-            // probed from it, so neither the profile nor the in-memory copy is kept.
+            // probed from it, so neither the profile nor the in-memory copy is kept (nor its measurement).
             if (typeof session.once === 'function') {
-                session.once('placeholder', () => { channelProfiles.remove(cacheKey); probeCache.delete(cacheKey); });
+                session.once('placeholder', () => {
+                    channelProfiles.remove(cacheKey); probeCache.delete(cacheKey);
+                    if (measure) channelMeasurements.forgetPlay(measure, probedAt);
+                });
             }
         }
     } else if (placeholder && !fromProfile) {

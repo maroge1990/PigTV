@@ -243,6 +243,8 @@ work is in `docs/architecture/sports.md` › Recognition; the shape the client r
   - `live`: on now. `quality`: `"UHD"` | `"FHD"` | `"HD"` | `"SD"` | null from the channel name (C-X's rule; `"FHD"` since
     #265, an older client reads it as no label).
   - `channels`: best first (quality UHD, FHD, HD, untagged, SD; health ok, favourite, guide order). `channels[0]` plays through the ordinary resolve.
+  - Since #265 step 2 (D-65, additive) a channel the server has measured also carries `measured: { label, fps }` (C-X);
+    absent when never measured. Every projection of C-I channels (C-O/C-R cards, the sport pages) keeps it.
   - Since 0337 (#20, additive) each channel also carries `start` and `end` (ms): when **that channel's** airing of the
     event runs. The event's own `start`/`end` span every channel's airing (merged), so Watch eligibility, Record and
     "Watch when it starts" on a chosen channel use the channel's times; absent from an older server (use the event's).
@@ -1137,3 +1139,13 @@ Since #265, `library/guide`, `/channels`, `/favourites` and `/recent` rows carry
 `"SD"` | null, read from the channel's name (`services/channelQuality.js`: superscript tags fold, the highest tag wins;
 untagged is null, not a guess). C-I's sport channels use the same rule. It is a label from the name, not a measurement.
 Apple: a badge on every channel picker; in the guide's channel column only UHD (accent) and SD (faint).
+
+**Measured quality** (#265 step 2, D-65, D-67; additive, no flag: the key's presence is the signal). The same rows (guide,
+`/channels`, `/favourites`, `/recent`) and every C-I channel object (so C-O/C-R cards and the sport pages) carry
+`measured: { label, fps }` when the server has measured the channel's stream, and no `measured` key otherwise.
+`label`: `"4K"` (height ≥ 2000) | `"1080"` (≥ 1000) | `"720"` (≥ 700) | `"SD"`; `fps`: the frame rate rounded to a whole
+number (25, 30, 50, 60), or null when unknown. A measurement comes from the channel audit (admin import,
+`scripts/import-channel-audit.js <results.jsonl>`; blank and failed rows ignored) or from a play on the channel's own
+provider (`services/channelMeasurements.js`); the newest wins. Keyed on source + `stableId` (else `id`). `quality` stays
+the name's label, unchanged, for an older client and for a channel never measured (D-65's dashed badge). Clients: the
+D-65 picker groups copies by name with one chip per `label` + `fps`; the D-67 player badge shows it.

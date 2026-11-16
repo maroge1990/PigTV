@@ -99,3 +99,20 @@ test('guide, channels and favourites rows carry quality, always present', async 
     assert.deepEqual(byName(list.channels), channels);
     for (const row of [...guide.channels, ...list.channels]) assert.ok('quality' in row, `${row.name}: the field is always present`);
 });
+
+// #265 step 2 (D-65): rows the audit or a play measured also carry `measured: { label, fps }`; the others have no key.
+test('guide, channels and favourites rows carry measured where the channel was measured', async () => {
+    const d = sqlite.getDb();
+    d.prepare(`INSERT INTO channel_measurements (source_id, channel_key, height, fps, kbps, measured_at, source)
+               SELECT source_id, stable_id, 2160, 50, 20000, 1, 'audit' FROM playlist_items WHERE name = 'Sky Sports F1 HD'`).run();
+    try {
+        const guide = await get('/api/library/guide?limit=50');
+        const list = await get('/api/library/channels?limit=50');
+        for (const rows of [guide.channels, list.channels]) {
+            const measured = rows.filter(r => 'measured' in r);
+            assert.deepEqual(measured.map(r => [r.name, r.measured, r.quality]), [['Sky Sports F1 HD', { label: '4K', fps: 50 }, 'HD']]);
+        }
+    } finally {
+        d.prepare('DELETE FROM channel_measurements').run();
+    }
+});

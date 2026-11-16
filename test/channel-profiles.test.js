@@ -156,3 +156,18 @@ test('the capability key separates profiles: a client that decodes HEVC gets its
     await play(url, APPLE);
     assert.equal(probeCalls, 2, 'and each is reused for its own client');
 });
+
+// #265 step 2 (D-65): a channel play measures the channel (its height and frame rate) for the clients' badge; a start
+// that produced no playlist measures nothing. The old code had no `measure` and no channel_measurements table.
+test('a channel play that works records its measured quality; a failed start does not', async () => {
+    const measurements = load('services/channelMeasurements');
+    getDb().prepare('DELETE FROM channel_measurements').run();
+    sessionReady = false;
+    await strategy.resolve({ url: 'http://provider.invalid/live/u/p/441390.ts', capabilities: WEB, settings: SETTINGS, measure: { sourceId: 7, key: 's441390' } }).catch(() => {});
+    assert.equal(measurements.all().size, 0, 'nothing measured from a start that failed');
+    sessionReady = true;
+    await strategy.resolve({ url: 'http://provider.invalid/live/u/p/441391.ts', capabilities: WEB, settings: SETTINGS, measure: { sourceId: 7, key: 's441391' } });
+    assert.deepEqual([...measurements.all()], [['7:s441391', { label: '1080', fps: 25 }]]);
+    const all = JSON.stringify(getDb().prepare('SELECT * FROM channel_measurements').all());
+    assert.ok(!all.includes('provider.invalid'), 'no URL is stored');
+});

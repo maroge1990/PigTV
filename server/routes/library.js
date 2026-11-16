@@ -22,6 +22,7 @@ const { NUMBER_JOIN, NUMBER_SENTINEL } = channelNumbers;
 const channelHealth = require('../services/channelHealth');
 const epgMapping = require('../services/epgMapping');
 const { qualityLabel } = require('../services/channelQuality');
+const channelMeasurements = require('../services/channelMeasurements');
 const sportCategories = require('../services/sportCategories');
 
 // The longest programme the guide will still show when it began before the
@@ -165,6 +166,8 @@ function decorate(items) {
     // 0112: hand out our own cached path instead of the provider URL, for
     // /channels, /favourites and /recent (all three go through decorate()).
     applyLogoCache(parsed);
+    // #265 step 2 (D-65): `measured` { label, fps } where the audit or a play measured the channel.
+    channelMeasurements.applyMeasured(parsed);
     return parsed;
 }
 
@@ -453,6 +456,8 @@ router.get('/guide', (req, res) => {
         applyLogoCache(channels);
         // 0133 (C-G): `health` ok | flaky | null, from the last 7 days' starts.
         channelHealth.applyHealth(channels);
+        // #265 step 2 (D-65): `measured` { label, fps } where the audit or a play measured the channel.
+        channelMeasurements.applyMeasured(channels);
 
         // One query for every channel on the page rather than one per channel.
         const tvgIds = [...new Set(channels.map(c => c.tvgId).filter(Boolean))];
