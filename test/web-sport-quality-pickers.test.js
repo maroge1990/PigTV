@@ -66,6 +66,12 @@ test('grouping: one row per name (quality words aside), chips best first, same q
     assert.equal(V.baseName('Sky Sports Main Event 1080p50'), 'Sky Sports Main Event');
     assert.equal(V.baseName('ESPN (720p)'), 'ESPN');
     assert.equal(V.baseName('HDTV Classics'), 'HDTV Classics', 'a word that only starts with HD stays');
+    // two quality words joined by a slash (the fake provider's "UHD/4K"): neither, nor the slash, stays in the row's name
+    assert.equal(V.baseName('UK| SKY SPORTS F1 UHD/4K'), 'UK| SKY SPORTS F1');
+    assert.equal(V.baseName('Sky Sports F1 4K/HDR'), 'Sky Sports F1');
+    assert.equal(V.baseName('BBC One/Two'), 'BBC One/Two', 'a slash between other words stays');
+    assert.deepEqual(plain(V.channelGroups([{ name: 'UK| SKY SPORTS F1 UHD/4K' }, { name: 'UK| SKY SPORTS F1 FHD' }]).map(r => r.name)), ['UK| SKY SPORTS F1'],
+        'without the server\'s nameKey the copies still share one row');
     // the badge: 4K the accent, the others subtle, then fps; a name's label dashed
     assert.match(V.qualityBadge({ label: '4K', fps: 50, measured: true }), /^<span class="qb top" title="Measured 4K at 50 fps">4K<i class="pig-amount">50<\/i><\/span>$/);
     assert.match(V.qualityBadge({ label: 'HD', fps: null, measured: false }), /^<span class="qb guess" title="HD from the channel’s name \(not measured yet\)">HD<\/span>$/);

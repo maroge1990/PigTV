@@ -1496,7 +1496,8 @@ const SportView = (() => {
     const qualityRank = (q) => (q.label in QUALITY_RANK ? QUALITY_RANK[q.label] : 9) + (q.measured ? 0 : 0.25) - (q.fps || 0) / 1000;
     // quality words in a channel's name (UHD, FHD, HD, SD, 4K, 1080p50, 720p, 50fps, HDR, superscript ᵁᴴᴰ …), so the
     // copies of one channel ("Sky Sports F1 UHD", "Sky Sports F1 HD", "Sky Sports F1") share one row
-    const QUALITY_WORDS = /[\s\-_|]*[([]?\b(?:u?hd|fhd|sd|hdr(?:10)?|[48]k|\d{3,4}[pi](?:\s?\d{2})?|\d{2}\s?fps)\b[)\]]?/gi;
+    // ("UHD/4K": a slash before a quality word goes with it)
+    const QUALITY_WORDS = /[\s\-_|/]*[([]?\b(?:u?hd|fhd|sd|hdr(?:10)?|[48]k|\d{3,4}[pi](?:\s?\d{2})?|\d{2}\s?fps)\b[)\]]?/gi;
     function baseName(name) {
         const folded = String(name || '').replace(/[ᵁ][ᴴ][ᴰ]|[ᶠ][ᴴ][ᴰ]|[ᴴ][ᴰ]|[ˢ][ᴰ]/g, ' ').replace(QUALITY_WORDS, ' ').replace(/\s+/g, ' ').trim();
         return folded || String(name || '').trim();
