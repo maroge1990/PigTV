@@ -712,3 +712,18 @@ reviews.
 - **Consequence:** the badge comes from the measured stream (#265 step 2), so the server needs a stored measurement per
   channel and the client contract gains a channel's qualities; watch and record still pick the best working copy and
   fail over as before (#332). Grouping is display only.
+
+### D-66. Top Shelf shows live games with scores unless the game is being recorded; search stays the side-by-side page (16 Nov 2026; Mark)
+
+- **Context:** #232 and #57: Mark compared four Apple TV options for each on mock-up canvases.
+- **Choice (Top Shelf):** option A, the carousel: one slide per live game (followed teams first, then other live games in
+  followed leagues) with both teams' badges and where the game is up to, and Play (the best channel) and Game card
+  buttons. Scores follow the account's Scores setting, and a game that anyone in the household is recording shows
+  "Recording" in place of its score: the only reason to hide a live score is a game saved for later. With scores off,
+  or the setting unknown, the slide shows where the game is up to. Switching scores off clears the saved Top Shelf at
+  once (the #192 stale-choice risk).
+- **Choice (search):** option A, today's side-by-side page (D-44) kept, with Search / Jump to and grouped results
+  (team, games, programmes, recordings), reached from a magnifier in the top bar of every page rather than only from
+  the Guide. No Search tab.
+- **Consequence:** Top Shelf needs the household's active recordings next to its live games; search needs the server's
+  programme search (#57's index) and the programme fields of #56.
