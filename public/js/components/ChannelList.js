@@ -1150,9 +1150,10 @@ class ChannelList {
      * A game played from Sport: the sidebar lists the live games instead of the channels until a channel is chosen
      * elsewhere. `front` is the C-R answer, `prefs` the account's Hide scores choice as Sport read it ({ known, spoilerFree }).
      */
-    startGames({ gameId, front, prefs }) {
+    startGames({ gameId, front, prefs, received }) {
         if (!front || !Array.isArray(front.games)) return;
-        this.games = { gameId, front, prefs: { known: !!(prefs && prefs.known), spoilerFree: !(prefs && prefs.spoilerFree === false) }, at: Date.now() };
+        this.games = { gameId, front, prefs: { known: !!(prefs && prefs.known), spoilerFree: !(prefs && prefs.spoilerFree === false) },
+            received: Number.isFinite(received) ? received : Date.now(), dropped: new Set() };
         this.scheduleGamesRefresh();
         this.render();
     }
@@ -1174,7 +1175,7 @@ class ChannelList {
     /** The live games (live, a break, suspended, or on air), followed ones first, each part in the feed's order; the game playing stays listed. */
     liveGames() {
         if (!this.games) return [];
-        const all = this.games.front.games.filter(g => g && (SportView.showsLive(g) || g.id === this.games.gameId));
+        const all = this.games.front.games.filter(g => g && !this.games.dropped.has(g.id) && (SportView.showsLive(g) || g.id === this.games.gameId));
         return [...all.filter(g => g.followed === true), ...all.filter(g => g.followed !== true)];
     }
 
@@ -1244,11 +1245,24 @@ class ChannelList {
         const g = this.games.front.games.find(x => x && x.id === id);
         const best = g && Array.isArray(g.channels) ? g.channels[0] : null;
         if (!best) { UI.toast('This game isn’t on your channels right now.'); return false; }
+        // the list may be up to a minute old: its channel must still air the game now (the Sport page's Watch check,
+        // on the server's clock), else nothing switches and the row goes
+        if (SportView.action(g, this.gamesNow()) !== 'watch') {
+            UI.toast(`${g.title} isn’t on air now.`);
+            if (g.id !== this.games.gameId) { this.games.dropped.add(g.id); this.renderGames(); }
+            return false;
+        }
         const key = (c) => `${c.sourceId}:${c.stableId || c.id}`;
         const match = this.channels.find(c => key(c) === key(best));
         if (!match) { UI.toast('That channel isn’t in your channel list. Refresh the library and try again.'); return false; }
         await this.selectChannel({ sourceId: match.sourceId, channelId: match.id }, { game: g.id });
         return true;
+    }
+
+    /** The server's now, moved on by the time since its answer came (as the Sport page's). */
+    gamesNow() {
+        const g = this.games;
+        return g && Number.isFinite(g.front.now) ? g.front.now + Math.max(0, Date.now() - g.received) : Date.now();
     }
 
     /** Keyboard previous/next in games mode: the next game in the list, round the end. */
@@ -1270,7 +1284,7 @@ class ChannelList {
             if (this._epgRefreshWanted !== false) {
                 try {
                     const answer = await API.request('GET', '/sports/front');
-                    if (this.games === g && answer && Array.isArray(answer.games)) { g.front = answer; this.renderGames(); }
+                    if (this.games === g && answer && Array.isArray(answer.games)) { g.front = answer; g.received = Date.now(); g.dropped.clear(); this.renderGames(); }
                 } catch { /* the last answer stays */ }
             }
             this.scheduleGamesRefresh();

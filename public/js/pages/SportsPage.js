@@ -612,7 +612,7 @@ class SportsPage {
             this.app.navigateTo('live');
             // #334 (D-67): played from Sport, Live TV's sidebar lists the live games, this one marked, until a channel is
             // chosen elsewhere; scores as this page shows them (hidden unless the account's choice was read as shown)
-            if (cl.startGames) cl.startGames({ gameId: g.id, front: this.front, prefs: { known: this.prefs.known && this.mayShow, spoilerFree: this.prefs.spoilerFree } });
+            if (cl.startGames) cl.startGames({ gameId: g.id, front: this.front, prefs: { known: this.prefs.known && this.mayShow, spoilerFree: this.prefs.spoilerFree }, received: this.received });
             await cl.selectChannel({ sourceId: match.sourceId, channelId: match.id }, { game: g.id });
         } catch (err) {
             console.warn('Sport: watch failed', err && err.message);

@@ -178,3 +178,18 @@ test('every row is the same height: two lines on the right, a one-line title, a 
     assert.match(rule('gi-info'), /overflow: hidden/);
     stop(cl);
 });
+
+test('a row whose channel no longer airs the game: nothing switches, the notice says so, and the row goes', async () => {
+    const front = answer();
+    const nfl = front.games.find(g => g.id === 'nfl');
+    nfl.channels = [{ sourceId: 1, stableId: 's9', id: '109', name: 'Other', start: NOW - 4 * 3600000, end: NOW - 600000 }]; // ended 10 min ago
+    const { cl, played, b } = list({ front });
+    assert.ok(rows(cl.container.innerHTML).includes('nfl'));
+    assert.equal(await cl.playGame('nfl'), false);
+    assert.deepEqual(played, [], 'nothing plays');
+    assert.equal(cl.games.gameId, 'ars', 'the game playing stays the current one');
+    assert.equal(b.context.toasts.at(-1)[0], 'Packers v Bears isn’t on air now.');
+    assert.ok(!rows(cl.container.innerHTML).includes('nfl'), 'the row is dropped');
+    assert.equal(await cl.playGame('pen'), true, 'a game still on air plays');
+    stop(cl);
+});
