@@ -5,43 +5,37 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 15 Nov 2026, the sport and web parity session (batches Sport parity, Sport 2,
-Web Sport windows and Web leftovers; nothing unpushed).*
+*Overwritten at the end of every session. 16 Nov 2026, the channel audit and closure session (nothing unpushed).*
 
-- **Running:** production ran **0695** after Mark's Force Update on 15 Nov (it started clean: database copied before the
-  0632 to 0695 migrations, no errors, no feed-loop "repeating" lines). main is at **0757**: everything below reaches
-  production at his next Force Update (D-58). `:release` is still **v0579** (D-45). Apple **246** on TestFlight. Next
-  builds: server **0758**, Apple **247**. Brand kit **1.9.1** (PigBrand 102e200: status text colours).
-- **Sport parity, server 0696 to 0711 (#325 closed, #326 open for Mark's check):** the Sport page fills the window; the
-  web Sport pages and cards look like iOS (iPad layout on wide windows, iPhone under 768 px; the league page embedded
-  under a sport's banner; ⋯ on hover with right-click). Evidence: `docs/evidence/2026-11-15-sport-parity/`.
-- **Sport 2, server 0712 to 0723 (#297 closed; #282 open for the Apple check; #291 item 2 done; #29 re-measured):** F1,
-  Cricket and Events pages take status from the score collector and hold back results for a delayed account; a game past
-  its guide slot stays in /api/sports/events until the final; with scores off the front page shows the fixture list's
-  games as upcoming cards. Production's settings (read only): relay, standby, shared ingest and renewal are on, so #291's
-  other items are playback work. Evidence: `docs/evidence/2026-11-15-sport2/`.
-- **Web Sport windows, server 0724 to 0734 (#327 open for Mark's check):** ‹ › on card rails; iOS's game details and
-  record page (choose the channel; When it stops: ESPN's end via the game id, #217); Save never makes a second recording.
-  Evidence: `docs/evidence/2026-11-15-web-sport-windows/`.
-- **Web leftovers, server 0735 to 0757 (#62, #63, #64, #130, #292, #295):** Recordings new-only series rules, search, sort,
-  bulk delete; one Settings save model (Settings.js split under `pages/settings/`), one signed-in fetch (`API.authFetch`),
-  a sign-out that always signs out; Live TV first-run checklist then a slim banner (Mark); brand 1.9.1 status text; the
-  channel list race, notices, dialogs and layout leftovers. Evidence: `docs/evidence/2026-11-15-web-leftovers/`.
-- **Decisions waiting on Mark:** #328 (Events fields under a score delay while live); #232 (Top Shelf); the Appdata Backup
-  setting; #240; whether to tag `:release`; a short probe of the six unlabelled "Sky Sports F1" channels for Sport 3.
-- **Open investigation:** #3 (sound out of step on the iPad): the device meter (#267) and the marker (#268) are filed, not
-  built (Mark).
+- **Running:** production runs **0695** (Mark holds the Force Update until the channel audit's window ends, 17 Nov 11:30
+  AEDT; a restart stops it). main is at **0787**: everything below reaches production at his next Force Update (D-58).
+  `:release` is still **v0579** (D-45). Apple main **255** (TestFlight still 246; uploads are cloud-signed, D-64).
+  Next builds: server **0788**, Apple **256**.
+- **Channel audit (#331, running in production's container, read only on the provider, yields to plays and
+  recordings):** passes 1-2 (15-16 Nov) and a 24 h priority window (16-17 Nov, `data/audit/window-1116`). Findings: the
+  provider's placeholder (one identical still frame, about 193 kbps) on about 80 channels while the guide shows a
+  programme; switching to another copy rescued every blank so far, retrying the same stream none; the UK "skips" were
+  subtitle-track gaps (picture and sound clean). Script: `scripts/channel-audit.js` on the audit branch, not on main.
+- **Shipped today (each with evidence under `docs/evidence/2026-11-16-*`):** providers tested before saving and no
+  provider host in logs (0758-0765, #330 open for the browser check, #315 and #319 closed); recording safety: one active
+  schedule per game, an atomic move, share reads off the thread pool (0766-0772, #329, #314, #318 closed); the
+  placeholder detected and a same-provider copy tried (0773-0779, #332 waits for the audit's figures and Mark's check);
+  Events detail and status held back for a score delay (0780-0783, #328 closed, Mark's choice); a placeholder file never
+  kept in a recording and MP4 audio sane at joins (0784-0787, #333 closed); Apple 247-255 (#313 items, #268's button,
+  #329's wording, #316).
+- **Production repair (T4, Mark's go-ahead):** the 16 Nov NFL recording held an hour of placeholder file and broken audio
+  joins; its MP4 was rebuilt by hand and plays (#333 has the evidence).
+- **Decisions waiting on Mark:** #232 (Top Shelf); #283 (fixture flags: options); the Appdata Backup setting; #240;
+  whether to tag `:release`; #265/#266's picker design (mock-ups first).
 
 ## Now
 
 Order within a section is the order to take them.
 
-1. **Sport 3, pickers:** #265 step 2 (quality from the measured stream, `channel_profiles`) · #266 (group true copies).
-   Production has six visible channels named exactly "Sky Sports F1" (USA guide 1, UK guide 2, Sport Networks 3) with no
-   quality word: measured labels first, then grouping. Channels never played need a short probe: ask Mark (a real
-   provider connection).
-2. **Recording safety:** #329 (a server-side guard against two schedules of one game) · #330 (test a provider before
-   saving it; `/estimate` errors through `redact()`).
+1. **After the audit window (17 Nov):** its summary (`node channel-audit.js summary window-1116`): the hide list of dead
+   channels, copy rescue rate for #332, then a Force Update and Mark's device checks of 0758-0787.
+2. **Sport 3, pickers:** #265 step 2 · #266, now on the audit's measurements (copies share a stable id or a normalised
+   name; names that state a quality can be wrong). Design mock-ups for Mark first.
 3. **Relay and playback leftovers:** #291 items 1, 3, 4, 5 (capture first, full Codex rule).
 
 ## Later (each needs a capture, a real provider, a device or a design choice first)
