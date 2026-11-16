@@ -1911,12 +1911,23 @@ class VideoPlayer {
         const badge = document.getElementById('player-quality-badge');
         if (!badge) return;
 
-        if (this.currentStreamInfo?.height > 0) {
-            badge.textContent = this.getQualityLabel(this.currentStreamInfo.height);
+        // D-67: the D-65 badge, the channel's measured quality and frame rate ("4K 50") when the server measured it
+        // (C-X `measured`), else the decoded picture's height as before.
+        const text = VideoPlayer.measuredBadgeText(this.currentChannel?.measured)
+            || (this.currentStreamInfo?.height > 0 ? this.getQualityLabel(this.currentStreamInfo.height) : null);
+        badge.classList.toggle('top', !!text && this.currentChannel?.measured?.label === '4K');
+        if (text) {
+            badge.textContent = text;
             badge.classList.remove('hidden');
         } else {
             badge.classList.add('hidden');
         }
+    }
+
+    /** "4K 50", "1080 25", "SD": a channel's measured { label, fps } as the badge says it, or null. */
+    static measuredBadgeText(measured) {
+        if (!measured || typeof measured.label !== 'string' || !measured.label) return null;
+        return Number.isFinite(measured.fps) ? `${measured.label} ${measured.fps}` : measured.label;
     }
 
     /**

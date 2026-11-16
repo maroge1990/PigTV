@@ -3587,6 +3587,13 @@ body.ui-dialog-open {
   display: none;
 }
 
+/* D-67: a measured 4K channel's badge is the accent (D-65) */
+.quality-badge.top {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
 /* Watch Header Bar (Title + Transcode Status) */
 /* Moved to original definition around line 3311 */
 
