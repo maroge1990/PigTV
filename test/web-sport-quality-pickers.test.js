@@ -132,3 +132,13 @@ test('narrow window (iPhone layout): the row shows its best chip; touch and hold
     wide.p.openDetails('ars');
     assert.doesNotMatch(wide.body(), /data-hold=/);
 });
+
+test('the server\'s nameKey decides the rows when it is sent (both clients group alike)', () => {
+    const { V } = browser();
+    const rows = V.channelGroups([
+        { sourceId: 1, id: '1', name: 'Fox Sports 505', nameKey: 'fox sports' },
+        { sourceId: 1, id: '2', name: 'Fox Sports', nameKey: 'fox sports', measured: { label: '720', fps: 60 } },
+        { sourceId: 1, id: '3', name: 'Kayo 1 HD', nameKey: 'kayo one' }, { sourceId: 1, id: '4', name: 'Kayo 1', nameKey: 'kayo 1' }
+    ]);
+    assert.deepEqual(plain(rows.map(r => [r.key, r.chips.flatMap(c => c.channels.map(x => x.id))])), [['fox sports', ['2', '1']], ['kayo one', ['3']], ['kayo 1', ['4']]]);
+});

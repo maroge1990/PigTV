@@ -1502,7 +1502,7 @@ const SportView = (() => {
         return folded || String(name || '').trim();
     }
     /**
-     * The picker's rows: one per channel name (quality words aside), in the order the server ranked the channels (best
+     * The picker's rows: one per channel name (quality words aside: the server's `nameKey`, else the same rule here), in the order the server ranked the channels (best
      * first), each with its chips best first; copies with the same quality and frame rate fold into one chip, whose
      * `channels` keep the server's order (the first is the one a chip plays or records).
      * @returns {{ key, name, chips: { key, q, channels }[] }[]}
@@ -1510,7 +1510,7 @@ const SportView = (() => {
     function channelGroups(channels) {
         const rows = new Map();
         for (const c of channels || []) {
-            const name = baseName(c.name), key = name.toLowerCase();
+            const name = baseName(c.name), key = typeof c.nameKey === 'string' && c.nameKey ? c.nameKey : name.toLowerCase(); // the server's key when sent
             let row = rows.get(key);
             if (!row) rows.set(key, row = { key, name, chips: [] });
             const q = qualityOf(c), chipKey = `${q.measured ? 'm' : 'n'}:${q.label || ''}:${q.fps || ''}`;
