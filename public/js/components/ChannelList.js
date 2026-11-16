@@ -1184,7 +1184,8 @@ class ChannelList {
         return String((c && c.name) || '').replace(/[^\p{L}\p{N}]/gu, '').slice(0, 3).toUpperCase();
     }
 
-    /** One game's row: the score bug (badge, code, score per team, fixed columns), the divider, league and clock. */
+    /** One game's row: the score bug (badge, code, score per team, fixed columns), the divider, league and clock. A long
+     *  score shows its short part (SportView.splitScore: cricket's runs/wickets, AFL's points); the label has it whole. */
     gameItemHtml(g, { active = false, hide = true, front = null } = {}) {
         const e = UI.escape, V = SportView;
         const recording = !!(g.recording && g.recording.status);
@@ -1193,7 +1194,7 @@ class ChannelList {
         const two = Array.isArray(g.competitors) && g.competitors.length === 2;
         if (two) {
             bug = g.competitors.map((c, i) => `<span class="gi-team">${V.badge(c.name, c.logo, 20, g.league)}`
-                + `<span class="gi-code">${e(ChannelList.teamCode(c))}</span><span class="gi-score">${sc ? e(sc[i]) : ''}</span></span>`).join('');
+                + `<span class="gi-code">${e(ChannelList.teamCode(c))}</span><span class="gi-score">${sc ? e(V.splitScore(sc[i]).main) : ''}</span></span>`).join('');
         } else {
             bug = `<span class="gi-title">${e(g.session ? `${g.title} · ${g.session}` : g.title)}</span>`;
         }

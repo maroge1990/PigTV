@@ -136,3 +136,19 @@ test('Sport\'s Watch starts games mode on that game and selects its channel as t
     await p.watch('nfl');
     assert.deepEqual(calls, [['start', 'nfl', true, true, false], ['select', 'p1', 'nfl']]);
 });
+
+test('a long score keeps to its column: cricket\'s overs and AFL\'s goals.behinds move out, as on the Sport cards (#326)', () => {
+    const front = answer();
+    front.games.find(g => g.id === 'cri').scores = ['245/6 (45.2)', '180/3 (31.4 ov)'];
+    front.games.find(g => g.id === 'nfl').scores = ['9.6 (60)', '7.8 (50)'];
+    const { cl } = list({ front });
+    const html = cl.container.innerHTML;
+    const cri = html.slice(html.indexOf('data-game-id="cri"'));
+    assert.match(cri, /class="gi-score">245\/6<\/span>/);
+    assert.match(cri, /class="gi-score">180\/3<\/span>/);
+    assert.match(html, /class="gi-score">60<\/span>/);
+    assert.match(html, /class="gi-score">50<\/span>/);
+    assert.doesNotMatch(html, /class="gi-score">[^<]*\(/, 'no bracketed detail in the score column');
+    assert.match(cri, /aria-label="Play Australia v South Africa, 245\/6 \(45\.2\) to 180\/3 \(31\.4 ov\)/, 'a screen reader hears the whole score');
+    stop(cl);
+});
