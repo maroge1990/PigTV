@@ -11,7 +11,7 @@ const H = 3600000;
 function front() {
     const a = answer();
     const ars = a.games.find(g => g.id === 'ars');
-    ars.channels.push({ sourceId: 1, stableId: 's9', id: '109', name: 'Stan Sport 1 HD', quality: 'HD', start: NOW - H, end: NOW + H });
+    ars.channels.push({ sourceId: 1, stableId: 's9', id: '109', name: 'Stan Sport 3 HD', quality: 'HD', start: NOW - H, end: NOW + H });
     const nxt = a.games.find(g => g.id === 'nxt');
     delete nxt.recording; nxt.followed = true; nxt.followedSides = [1];
     a.follows.push({ league: 'EPL', sport: 'Football', name: 'Tottenham', logo: null, state: 'next', gameId: 'nxt', start: nxt.start });
@@ -67,7 +67,7 @@ test('a game to come: Remind me, then RECORD (this game, every Tottenham game, M
 test('a game on two channels now: "Watch on… (2 channels)" opens their list, and the chosen one plays', async () => {
     const h = await harness();
     h.p.openMenu(h.p.game('ars'), h.anchor());
-    assert.match(h.menu().innerHTML, /data-act="watch-on" data-id="ars" aria-expanded="false">[\s\S]*?<b>Watch on… \(2 channels\)<\/b><span>Stan Sport 1, Stan Sport 1 HD<\/span>/);
+    assert.match(h.menu().innerHTML, /data-act="watch-on" data-id="ars" aria-expanded="false">[\s\S]*?<b>Watch on… \(2 channels\)<\/b><span>Stan Sport 1, Stan Sport 3 HD<\/span>/);
     assert.match(h.menu().innerHTML, /<div class="msub" hidden>[\s\S]*data-act="watch-channel" data-id="ars" data-channel="1:s9"/);
     await h.p.act('watch-channel', { getAttribute: (k) => ({ 'data-id': 'ars', 'data-channel': '1:s9' })[k] ?? null });
     assert.deepEqual(h.played, ['p9'], 'the chosen channel, by its identity');

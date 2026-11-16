@@ -699,8 +699,9 @@ class SportsPage {
         const V = SportView, ev = V.event(g), now = this.now(), items = [], act = V.action(g, now), red = V.ICON.rec.replace('<svg', '<svg class="red"');
         if (act === 'remind') items.push({ act: 'remind', icon: V.ICON.bell, title: 'Remind me', detail: `Plays on ${ev.channel.name} at ${UI.clock(ev.start)}` });
         if (act === 'watch') {
-            const on = this.channelsOnAir(g);
-            if (on.length > 1) items.push({ act: 'watch-on', icon: V.ICON.channels, title: `Watch on… (${on.length} channels)`, detail: on.map(c => c.name).join(', '), expands: true });
+            // D-65: one row per channel name; one name in several qualities still opens the list (its chips)
+            const rows = V.channelGroups(this.channelsOnAir(g)), qualities = rows.length === 1 ? rows[0].chips.length : 0;
+            if (rows.length > 1 || qualities > 1) items.push({ act: 'watch-on', icon: V.ICON.channels, title: `Watch on… (${rows.length > 1 ? `${rows.length} channels` : `${qualities} qualities`})`, detail: rows.map(SportsPage.rowName).join(', '), expands: true });
             else items.push({ act: 'watch', icon: V.ICON.play, title: 'Watch', detail: ev.channel.name });
         }
         // #327: iOS's details: every channel airing it, each with Watch and Record
@@ -731,7 +732,14 @@ class SportsPage {
                 html += `<div class="mdiv" role="separator"></div>${section ? `<div class="ms" aria-hidden="true">${e(section)}</div>` : ''}`;
             }
             html += `<button type="button" class="mi" role="menuitem" tabindex="-1" data-act="${e(it.act)}" data-id="${e(g.id)}"${it.expands ? ' aria-expanded="false"' : ''}>${it.icon}<span><b>${e(it.title)}</b><span>${e(it.detail)}</span></span></button>`;
-            if (it.expands) html += `<div class="msub" hidden>${this.channelsOnAir(g).map(c => `<button type="button" class="mi" role="menuitem" tabindex="-1" data-act="watch-channel" data-id="${e(g.id)}" data-channel="${e(`${c.sourceId}:${c.stableId || c.id}`)}">${V.ICON.play}<span><b>${e(c.name)}</b>${c.quality ? `<span>${e(c.quality)}</span>` : ''}</span></button>`).join('')}</div>`;
+            if (it.expands) html += `<div class="msub" hidden>${V.channelGroups(this.channelsOnAir(g)).map(row => {
+                const copies = row.chips.flatMap(x => x.channels), c = copies[0], single = copies.length === 1;
+                const badge = single ? V.copyBadge(c) : V.qualityBadge(row.chips[0].q);
+                const main = `<button type="button" class="mi" role="menuitem" tabindex="-1" data-act="watch-channel" data-id="${e(g.id)}" data-channel="${e(SportsPage.channelKey(c))}">${V.ICON.play}<span><b>${e(single ? c.name : row.name)}</b>${badge ? `<span>${badge}</span>` : ''}</span></button>`;
+                if (row.chips.length < 2) return main;
+                const chips = this.chipsHtml(row, (chip) => ` type="button" role="menuitem" tabindex="-1" data-act="watch-channel" data-id="${e(g.id)}" data-channel="${e(SportsPage.channelKey(chip.channels[0]))}" aria-label="${e(`Watch ${row.name} in ${SportsPage.qualityWords(chip.q)}`)}"`);
+                return `<div class="mgrp"${this.phone ? ` data-hold="${e(row.key)}"` : ''}>${main}${chips}</div>`;
+            }).join('')}</div>`;
         }
         if (!items.length) html += '<p class="mempty">Not on your channels yet.</p>';
         return html;
@@ -754,6 +762,8 @@ class SportsPage {
             document.body.appendChild(scrim);
         }
         document.body.appendChild(menu);
+        this.held = null;
+        this.holdRows(menu);
         const rows = () => [...menu.querySelectorAll('[role=menuitem]')].filter(r => !r.closest?.('[hidden]'));
         const close = (focus = true) => this.closeMenu(focus);
         menu.addEventListener('click', (e) => {
@@ -852,6 +862,62 @@ class SportsPage {
 
     /** A channel's identity in the channel list (never a stored position). */
     static channelKey(c) { return `${c.sourceId}:${c.stableId || c.id}`; }
+    /** A picker row's name: a single copy's own name, else the name its copies share (quality words aside). */
+    static rowName(row) { const copies = row.chips.flatMap(x => x.channels); return copies.length === 1 ? copies[0].name : row.name; }
+    /** "4K at 50 fps", "1080", "HD (not measured)": a chip's quality for a screen reader. */
+    static qualityWords(q) { return `${q.label || 'unknown quality'}${q.fps ? ` at ${q.fps} fps` : ''}${q.measured ? '' : ' (not measured)'}`; }
+    /**
+     * D-65: a picker row's quality chips, best first: a button with `attrs(chip)` (its action), or a plain badge when
+     * that quality has nothing to do. Wide: shown; narrow (iPhone layout): hidden until the row is touched and held.
+     */
+    chipsHtml(row, attrs, chosen = null) {
+        const V = SportView;
+        const chips = row.chips.map(chip => {
+            const a = attrs(chip), on = !!chosen && chip.channels.includes(chosen);
+            return a ? V.qualityBadge(chip.q, { tag: 'button', cls: `qchip${on ? ' on' : ''}`, attrs: `${a}${chosen ? ` aria-pressed="${on}"` : ''}` }) : V.qualityBadge(chip.q);
+        }).join('');
+        const shown = !this.phone || this.held === row.key;
+        return `<span class="qchips" role="group" aria-label="${V.e(`${row.name}: qualities`)}"${shown ? '' : ' hidden'}>${chips}</span>`;
+    }
+    /**
+     * D-65 (iPhone): touch and hold a picker row (`data-hold`) opens its chips in place (another hold closes them); the
+     * click that ends a hold does nothing. A right-click (a long press in most phone browsers) does the same.
+     */
+    holdRows(root) {
+        if (!root || root.dataset?.holdRows) return;
+        if (root.dataset) root.dataset.holdRows = '1';
+        let timer = null, at = null, heldAt = 0;
+        const toggle = (row) => {
+            const k = row.getAttribute('data-hold');
+            this.held = this.held === k ? null : k;
+            heldAt = Date.now();
+            for (const r of root.querySelectorAll('[data-hold]')) {
+                const chips = r.querySelector('.qchips');
+                if (chips) chips.hidden = r.getAttribute('data-hold') !== this.held;
+            }
+        };
+        const cancel = () => { clearTimeout(timer); timer = null; };
+        root.addEventListener('pointerdown', (e) => {
+            const row = e.target?.closest?.('[data-hold]');
+            cancel();
+            if (!row || e.target?.closest?.('.qchip')) return;
+            at = { x: e.clientX || 0, y: e.clientY || 0 };
+            timer = setTimeout(() => { timer = null; toggle(row); }, SportsPage.HOLD_MS);
+        });
+        root.addEventListener('pointermove', (e) => { if (timer && at && Math.hypot((e.clientX || 0) - at.x, (e.clientY || 0) - at.y) > 10) cancel(); });
+        root.addEventListener('pointerup', cancel);
+        root.addEventListener('pointercancel', cancel);
+        root.addEventListener('contextmenu', (e) => {
+            const row = e.target?.closest?.('[data-hold]');
+            if (!row) return;
+            e.preventDefault();
+            cancel();
+            if (Date.now() - heldAt > SportsPage.HOLD_MS) toggle(row);
+        });
+        root.addEventListener('click', (e) => {
+            if (Date.now() - heldAt < SportsPage.HOLD_MS && e.target?.closest?.('[data-hold]') && !e.target?.closest?.('.qchip')) { e.stopImmediatePropagation?.(); e.preventDefault?.(); }
+        }, true);
+    }
     /**
      * Whether a `recordings/scheduled` row records on channel `c` (ARCHITECTURE › Channel identity): a row with a stable
      * id matches only that stable id, never its stored pos_N (a playlist reorder moves positions); a row without one
@@ -923,6 +989,8 @@ class SportsPage {
         });
         // a logo that does not load becomes its monogram disc, as on the page
         d.el.addEventListener('error', (e) => this.badgeFallback(e), true);
+        this.held = null;
+        this.holdRows(d.el);
         this.window = w;
         w.redraw();
         d.open(opener || undefined);
@@ -984,15 +1052,27 @@ class SportsPage {
         if (!V.terminal(g) && ev.end > now) actions += `<button type="button" class="pill" data-act="d-record" data-key="d:record">${V.ICON.rec}${rec ? 'Change recording' : 'Record'}</button>`;
         html += `<div class="dacts">${actions}</div>`;
         if (pending) html += `<p class="dnote">PigTV will start ${e(best.name)} at ${e(UI.clock(ev.start))} while Sport stays open.</p>`;
-        const channels = g.channels || [];
-        html += `<h3 class="dsec">${channels.length === 1 ? 'Channel' : 'Channels'}</h3><ul class="dchs">`;
-        channels.forEach((c, i) => {
-            const a = this.airing(g, c), on = a.start <= now && now < a.end, gone = a.end <= now, k = P.channelKey(c);
-            const sub = [i === 0 && channels.length > 1 ? 'Recommended' : '', gone ? 'Not on now' : on || (a.start === ev.start && a.end === ev.end) ? '' : `${P.day(a.start, now)} ${P.range(a)}`].filter(Boolean);
+        // D-65: one row per channel name, one chip per measured quality and frame rate (best first); Watch and Record on a
+        // row use its best copy that can (the server's order), a chip its own best copy
+        const rows = V.channelGroups(g.channels || []);
+        html += `<h3 class="dsec">${rows.length === 1 && rows[0].chips.length === 1 && rows[0].chips[0].channels.length === 1 ? 'Channel' : 'Channels'}</h3><ul class="dchs">`;
+        const state = (c) => { const a = this.airing(g, c); return { a, on: a.start <= now && now < a.end, gone: a.end <= now }; };
+        rows.forEach((row, i) => {
+            const copies = row.chips.flatMap(x => x.channels), single = copies.length === 1;
+            const c = copies[0], { a } = state(c), name = single ? c.name : row.name;
+            const watchOn = copies.find(x => state(x).on), recordOn = V.terminal(g) ? null : copies.find(x => !state(x).gone);
+            const sub = [i === 0 && (rows.length > 1 || !single) ? 'Recommended' : '', !recordOn ? 'Not on now' : watchOn || (a.start === ev.start && a.end === ev.end) ? '' : `${P.day(a.start, now)} ${P.range(a)}`].filter(Boolean);
             let btns = '';
-            if (on) btns += `<button type="button" class="pill primary" data-act="d-watch-on" data-channel="${e(k)}" data-key="d:w:${e(k)}" aria-label="${e(`Watch on ${c.name}`)}">${V.ICON.play}Watch</button>`;
-            if (!gone && !V.terminal(g)) btns += `<button type="button" class="pill" data-act="d-record-on" data-channel="${e(k)}" data-key="d:r:${e(k)}" aria-label="${e(`Record on ${c.name}`)}">${V.ICON.rec}Record</button>`;
-            html += `<li class="dch"><span class="dct"><b>${e(c.name)}</b>${c.number != null ? ` <span class="num pig-amount">${e(c.number)}</span>` : ''}${c.quality ? ` <span class="qual">${e(c.quality)}</span>` : ''}${sub.length ? `<span class="dsub">${e(sub.join(' · '))}</span>` : ''}</span><span class="dca">${btns}</span></li>`;
+            if (watchOn) { const k = P.channelKey(watchOn); btns += `<button type="button" class="pill primary" data-act="d-watch-on" data-channel="${e(k)}" data-key="d:w:${e(k)}" aria-label="${e(`Watch on ${name}`)}">${V.ICON.play}Watch</button>`; }
+            if (recordOn) { const k = P.channelKey(recordOn); btns += `<button type="button" class="pill" data-act="d-record-on" data-channel="${e(k)}" data-key="d:r:${e(k)}" aria-label="${e(`Record on ${name}`)}">${V.ICON.rec}Record</button>`; }
+            const chips = row.chips.length > 1 ? this.chipsHtml(row, (chip) => {
+                const best = chip.channels.find(x => state(x).on) || chip.channels.find(x => !state(x).gone && !V.terminal(g));
+                if (!best) return null;
+                const k = P.channelKey(best), watch = state(best).on;
+                return ` type="button" data-act="${watch ? 'd-watch-on' : 'd-record-on'}" data-channel="${e(k)}" data-key="d:q:${e(k)}" aria-label="${e(`${watch ? 'Watch' : 'Record'} ${row.name} in ${P.qualityWords(chip.q)}`)}"`;
+            }) : '';
+            const badge = row.chips.length > 1 ? (this.phone ? V.qualityBadge(row.chips[0].q) : '') : single ? V.copyBadge(c) : V.qualityBadge(row.chips[0].q);
+            html += `<li class="dch${chips ? ' dq' : ''}"${chips && this.phone ? ` data-hold="${e(row.key)}"` : ''}><span class="dct"><b>${e(name)}</b>${single && c.number != null ? ` <span class="num pig-amount">${e(c.number)}</span>` : ''}${badge ? ` ${badge}` : ''}${sub.length ? `<span class="dsub">${e(sub.join(' · '))}</span>` : ''}${chips}</span><span class="dca">${btns}</span></li>`;
         });
         return `${html}</ul>`;
     }
@@ -1163,10 +1243,19 @@ class SportsPage {
         if (!changing && (st.airings.length > 1 || !chosen)) {
             html += `<div class="rsech"><h3 class="rsec" id="sp-rec-on">Record on</h3><span>${st.airings.length} channels in your guide carry it</span></div><div class="ron" role="radiogroup" aria-labelledby="sp-rec-on">`;
             const first = st.airings[0];
-            st.airings.forEach((x, i) => {
-                const on = i === st.index, times = `${P.day(x.start, now)} ${P.range(x)}`;
-                const detail = i === 0 ? `Best channel · ${times}` : x.start === first.start && x.end === first.end ? 'Same times' : times;
-                html += `<button type="button" class="rchoice rch${on ? ' on' : ''}" role="radio" aria-checked="${on}" data-act="r-on" data-index="${i}" data-key="r:on:${i}"><span class="rradio${on ? ' on' : ''}" aria-hidden="true"></span><span class="rcht"><b>${e(x.c.name)}</b><span class="pig-amount">${e(detail)}</span></span>${x.c.quality ? `<span class="qual">${e(x.c.quality)}</span>` : ''}</button>`;
+            // D-65: one row per channel name; a row with several qualities has its chips (the chosen one pressed)
+            const indexOf = (c) => st.airings.findIndex(x => x.c === c);
+            V.channelGroups(st.airings.map(x => x.c)).forEach((row, n) => {
+                const copies = row.chips.flatMap(x => x.channels), single = copies.length === 1;
+                const picked = copies.find(c => indexOf(c) === st.index) || null;
+                const i = indexOf(picked || row.chips[0].channels[0]), x = st.airings[i], on = !!picked, times = `${P.day(x.start, now)} ${P.range(x)}`;
+                const detail = n === 0 ? `Best channel · ${times}` : x.start === first.start && x.end === first.end ? 'Same times' : times;
+                const chips = row.chips.length > 1 ? this.chipsHtml(row, (chip) => { const k = indexOf(chip.channels[0]);
+                    return ` type="button" data-act="r-on" data-index="${k}" data-key="r:q:${k}" aria-label="${e(`Record ${row.name} in ${P.qualityWords(chip.q)}`)}"`; }, picked) : '';
+                const shownChip = picked ? row.chips.find(ch => ch.channels.includes(picked)) : row.chips[0];
+                const badge = row.chips.length > 1 ? (this.phone ? V.qualityBadge(shownChip.q) : '') : single ? V.copyBadge(x.c) : V.qualityBadge(row.chips[0].q);
+                const button = `<button type="button" class="rchoice rch${on ? ' on' : ''}" role="radio" aria-checked="${on}" data-act="r-on" data-index="${i}" data-key="r:on:${i}"><span class="rradio${on ? ' on' : ''}" aria-hidden="true"></span><span class="rcht"><b>${e(single ? x.c.name : row.name)}</b><span class="pig-amount">${e(detail)}</span></span>${badge}</button>`;
+                html += chips ? `<div class="rchg"${this.phone ? ` data-hold="${e(row.key)}"` : ''}>${button}${chips}</div>` : button;
             });
             html += '</div>';
         }
@@ -1346,6 +1435,7 @@ SportsPage.already = (made) => (made && made.alreadyScheduled
     ? (made.channel_name ? `Already set to record on ${made.channel_name}.` : 'Already set to record.') : null);
 
 /** RecordPlan's Start early and Finish late, in minutes; null is the server's usual padding. */
+SportsPage.HOLD_MS = 500; // D-65: touch and hold, as iOS's long press
 SportsPage.START_EARLY = [null, 0, 1, 2, 5, 10];
 SportsPage.FINISH_LATE = [null, 0, 2, 5, 10, 15, 30];
 SportsPage.UNCHECKED = 'PigTV couldn’t check whether this game is already set to record, so nothing was recorded. Try again.';

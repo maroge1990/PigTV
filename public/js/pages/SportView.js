@@ -1479,6 +1479,57 @@ const SportView = (() => {
         return html;
     }
 
+    // ---------- D-65: channel pickers, one row per channel name, one chip per quality ----------
+
+    // best first: measured 4K, 1080, 720, SD; a name's HD (unmeasured, 720 or 1080) between 1080 and 720; unknown last
+    const QUALITY_RANK = { '4K': 0, '1080': 1, HD: 1.5, '720': 2, SD: 3 };
+    const NAME_LABEL = { UHD: '4K', FHD: '1080', HD: 'HD', SD: 'SD' };
+    /**
+     * A channel's quality as the picker shows it: the server's measurement (`measured` { label, fps }, #265 step 2) or,
+     * never measured, the label its name gives (`quality`, C-X), marked as a guess (a dashed badge). label null: neither.
+     */
+    function qualityOf(c) {
+        const m = c && c.measured;
+        if (m && typeof m.label === 'string' && m.label) return { label: m.label, fps: Number.isFinite(m.fps) ? m.fps : null, measured: true };
+        return { label: (c && NAME_LABEL[c.quality]) || null, fps: null, measured: false };
+    }
+    const qualityRank = (q) => (q.label in QUALITY_RANK ? QUALITY_RANK[q.label] : 9) + (q.measured ? 0 : 0.25) - (q.fps || 0) / 1000;
+    // quality words in a channel's name (UHD, FHD, HD, SD, 4K, 1080p50, 720p, 50fps, HDR, superscript ᵁᴴᴰ …), so the
+    // copies of one channel ("Sky Sports F1 UHD", "Sky Sports F1 HD", "Sky Sports F1") share one row
+    const QUALITY_WORDS = /[\s\-_|]*[([]?\b(?:u?hd|fhd|sd|hdr(?:10)?|[48]k|\d{3,4}[pi](?:\s?\d{2})?|\d{2}\s?fps)\b[)\]]?/gi;
+    function baseName(name) {
+        const folded = String(name || '').replace(/[ᵁ][ᴴ][ᴰ]|[ᶠ][ᴴ][ᴰ]|[ᴴ][ᴰ]|[ˢ][ᴰ]/g, ' ').replace(QUALITY_WORDS, ' ').replace(/\s+/g, ' ').trim();
+        return folded || String(name || '').trim();
+    }
+    /**
+     * The picker's rows: one per channel name (quality words aside), in the order the server ranked the channels (best
+     * first), each with its chips best first; copies with the same quality and frame rate fold into one chip, whose
+     * `channels` keep the server's order (the first is the one a chip plays or records).
+     * @returns {{ key, name, chips: { key, q, channels }[] }[]}
+     */
+    function channelGroups(channels) {
+        const rows = new Map();
+        for (const c of channels || []) {
+            const name = baseName(c.name), key = name.toLowerCase();
+            let row = rows.get(key);
+            if (!row) rows.set(key, row = { key, name, chips: [] });
+            const q = qualityOf(c), chipKey = `${q.measured ? 'm' : 'n'}:${q.label || ''}:${q.fps || ''}`;
+            let chip = row.chips.find(x => x.key === chipKey);
+            if (!chip) row.chips.push(chip = { key: chipKey, q, channels: [] });
+            chip.channels.push(c);
+        }
+        for (const row of rows.values()) row.chips.sort((a, b) => qualityRank(a.q) - qualityRank(b.q));
+        return [...rows.values()];
+    }
+    /** D-65's badge: "4K" accent, the others subtle, then the frame rate; an unmeasured quality dashed; null with no label. */
+    function qualityBadge(q, { tag = 'span', attrs = '', cls = '' } = {}) {
+        const text = q.label || '?';
+        const title = q.measured ? `Measured ${q.label}${q.fps ? ` at ${q.fps} fps` : ''}` : q.label ? `${q.label} from the channel’s name (not measured yet)` : 'Quality not measured yet';
+        return `<${tag} class="qb${q.measured && q.label === '4K' ? ' top' : ''}${q.measured ? '' : ' guess'}${cls ? ` ${cls}` : ''}"${attrs} title="${e(title)}">${e(text)}${q.fps ? `<i class="pig-amount">${e(q.fps)}</i>` : ''}</${tag}>`;
+    }
+    /** A single copy's badge, as the old `quality` tag: only when there is a label to show. */
+    const copyBadge = (c) => { const q = qualityOf(c); return q.label ? qualityBadge(q) : ''; };
+
     return {
         ICON, splitScore, shortScore, hidden, family, terminal, underWay, isOnAir, showsLive, isNextRound, logo, statusWord, capitalized, progressLabel, situationLabel,
         scores, situation, when, headerDate, startLine, channelLine, cardClock, event, action, actionLabel, followedSides,
@@ -1490,7 +1541,8 @@ const SportView = (() => {
         moreTitle, sportPage, embeddedLeague, leagueGamesHtml, EVENT_LEAGUES, moreButton, groupsHtml, nothingSoon, fixtureDetail, nflFixture, leagueFixture, roundOf, viewOf,
         tableGroups, fixtureCard, fixtureGame, fixtureCardHtml, standingsHtml, fixturePage, leaguePage, gamesGrid, leagueWords,
         mapPath, countdown, focusSession, sessionPill, sessionGame, f1Hero, f1Page, cricketLeagueOf, innings, scoreboard, cricketPill,
-        seriesResult, cricketGame, cricketPage, evFollowed, evFocus, golfHtml, tennisHtml, fightHtml, raceHtml, eventsPage
+        seriesResult, cricketGame, cricketPage, evFollowed, evFocus, golfHtml, tennisHtml, fightHtml, raceHtml, eventsPage,
+        qualityOf, baseName, channelGroups, qualityBadge, copyBadge
     };
 })();
 

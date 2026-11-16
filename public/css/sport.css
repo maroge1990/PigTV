@@ -613,7 +613,24 @@
 .sp-win .dct b { font-weight: 700; }
 .sp-win .dsub { display: block; font-size: 13px; color: var(--color-text-secondary); }
 .sp-win .num { font-size: 14px; color: var(--color-text-secondary); }
-.sp-win .qual { display: inline-block; padding: 1px 6px; border-radius: 6px; font-size: 12px; font-weight: 800; letter-spacing: 1px; background: var(--surface); color: var(--color-text-secondary); }
+/* D-65: the quality badge: "4K" the accent fill, the others subtle, then the frame rate; a quality taken from the name
+   (never measured) dashed. A row with several qualities has them as chips, best first (on a phone: touch and hold). */
+.sp-win .qb, .sp-menu .qb { display: inline-flex; align-items: baseline; gap: 4px; padding: 1px 6px; border: 1px solid transparent; border-radius: 6px;
+  font-size: 12px; font-weight: 800; letter-spacing: 1px; background: var(--surface); color: var(--color-text-secondary); white-space: nowrap; }
+.sp-win .qb i, .sp-menu .qb i { font-style: normal; font-weight: 600; letter-spacing: 0; opacity: .85; }
+.sp-win .qb.top, .sp-menu .qb.top { background: var(--color-accent); color: var(--color-on-accent); }
+.sp-win .qb.guess, .sp-menu .qb.guess { background: transparent; border: 1px dashed var(--color-text-secondary); }
+.sp-win .qchips, .sp-menu .qchips { display: flex; gap: 6px; margin-top: 6px; overflow-x: auto; scrollbar-width: none; }
+.sp-win .qchips[hidden], .sp-menu .qchips[hidden] { display: none; }
+.sp-win .qchip, .sp-menu .qchip { min-height: 32px; padding: 4px 10px; font-size: 13px; cursor: pointer; }
+.sp-win .qchip:hover, .sp-menu .qchip:hover { filter: brightness(1.15); }
+.sp-win .qchip:focus-visible, .sp-menu .qchip:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
+.sp-win .qchip.on, .sp-menu .qchip.on { box-shadow: 0 0 0 2px var(--color-accent); }
+.sp-win .rchg { margin-bottom: 8px; }
+.sp-win .rchg .rch { margin-bottom: 0; }
+.sp-win .rchg .qchips { margin: 6px 0 0 14px; }
+.sp-menu .mgrp .qchips { margin: 0 0 6px 44px; }
+.sp-win [data-hold], .sp-menu [data-hold] { -webkit-touch-callout: none; user-select: none; }
 .sp-win .dca { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .sp-win .rhead { display: flex; align-items: center; gap: 14px; }
 .sp-win .rbadges { display: flex; gap: 8px; }

@@ -9,7 +9,7 @@ const H = 3600000;
 test('the chosen channel ended by the press: told, nothing chosen, Record game off until a channel is chosen', async () => {
     const calls = [];
     const f = answer();
-    f.games.find(g => g.id === 'ars').channels.push({ sourceId: 1, stableId: 's9', id: '109', name: 'Stan Sport 1 HD', start: NOW - H, end: NOW + 2 * H });
+    f.games.find(g => g.id === 'ars').channels.push({ sourceId: 1, stableId: 's9', id: '109', name: 'Stan Sport 3 HD', start: NOW - H, end: NOW + 2 * H });
     const b = browser({ request: async (m, url) => (url === '/sports/front' ? f : url === '/sports/pages/preferences' ? { spoilerFree: false } : url === '/recordings/scheduled' ? [] : {}),
         recordings: { schedule: async (d) => { calls.push(d); return {}; } } });
     const p = page(b, { setLocation() {}, navigateTo() {} });
@@ -20,7 +20,7 @@ test('the chosen channel ended by the press: told, nothing chosen, Record game o
     const body = b.document.body.querySelector('dialog .ui-dialog-body').innerHTML;
     assert.match(body, /<p class="rerr" role="alert">Stan Sport 1 isn’t showing the game any more\. Choose a channel to record on\.<\/p>/);
     assert.doesNotMatch(body, /aria-checked="true" data-act="r-on"/, 'no channel chosen for the person');
-    assert.match(body, /data-act="r-on" data-index="0"[^>]*>[\s\S]*?<b>Stan Sport 1 HD<\/b>/);
+    assert.match(body, /data-act="r-on" data-index="0"[^>]*>[\s\S]*?<b>Stan Sport 3 HD<\/b>/);
     assert.doesNotMatch(body, /class="rmeta pig-amount">[^<]*· Stan Sport 1</, 'the header names no channel');
     const save = () => b.document.body.querySelector('dialog [data-act="r-save"]');
     assert.equal(save().disabled, true);

@@ -15,7 +15,7 @@ const H = 3600000;
 function front() {
     const a = answer();
     const ars = a.games.find(g => g.id === 'ars');
-    ars.channels.push({ sourceId: 1, stableId: 's9', id: '109', name: 'Stan Sport 1 HD', quality: 'HD', start: NOW - H, end: NOW + 2 * H });
+    ars.channels.push({ sourceId: 1, stableId: 's9', id: '109', name: 'Stan Sport 3 HD', quality: 'HD', start: NOW - H, end: NOW + 2 * H });
     const nxt = a.games.find(g => g.id === 'nxt');
     delete nxt.recording; nxt.followed = true; nxt.followedSides = [1];
     nxt.channels.push({ sourceId: 2, stableId: 'k5', id: '505', name: 'Kayo 5', start: nxt.start + H, end: nxt.start + 3 * H });
@@ -87,8 +87,8 @@ test('the details list every channel airing it, the first Recommended; Watch onl
     const live = h.body();
     assert.match(live, /<div class="dk live"><span class="dot" aria-hidden="true"><\/span><span>LIVE · PREMIER LEAGUE<\/span>/);
     assert.match(live, /data-act="d-watch" data-key="d:watch">[\s\S]*?Watch Stan Sport 1<\/button>/);
-    assert.match(live, /data-act="d-watch-on" data-channel="1:s9" data-key="d:w:1:s9" aria-label="Watch on Stan Sport 1 HD">/);
-    assert.match(live, /<b>Stan Sport 1 HD<\/b> <span class="qual">HD<\/span>/);
+    assert.match(live, /data-act="d-watch-on" data-channel="1:s9" data-key="d:w:1:s9" aria-label="Watch on Stan Sport 3 HD">/);
+    assert.match(live, /<b>Stan Sport 3 HD<\/b> <span class="qb guess" title="HD from the channel’s name \(not measured yet\)">HD<\/span>/);
     h.press({ 'data-act': 'd-watch-on', 'data-channel': '1:s9' });
     await h.settle();
     assert.deepEqual(h.played, ['p9'], 'the chosen channel, found by its identity');
