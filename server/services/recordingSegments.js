@@ -232,6 +232,45 @@ function epochSeconds(epochDir) {
     return seconds > 0 ? seconds : null;
 }
 
+/**
+ * #333 (Codex high): how many of an epoch's listed segments, counted back from its last, each measured under
+ * `limitKbps` on its own (its bytes over its listed seconds). The run stops at the first segment that is at or above it
+ * or cannot be measured (no duration, no file): fail closed. -> { trailing, total }.
+ */
+function trailingLowRate(epochDir, limitKbps) {
+    const listed = archiveOf(epochDir).segments;
+    let trailing = 0;
+    for (let i = listed.length - 1; i >= 0; i--) {
+        const seg = listed[i];
+        let bytes;
+        try { bytes = fs.statSync(path.join(epochDir, seg.name)).size; } catch (e) { break; }
+        if (!(seg.duration > 0) || !(bytes > 0)) break;
+        if (!(bytes * 8 / seg.duration / 1000 < limitKbps)) break;
+        trailing++;
+    }
+    return { trailing, total: listed.length };
+}
+
+/**
+ * #333: drop an epoch's last `count` listed segments (the provider's placeholder file after the programme): the
+ * playlist keeps the rest and is ended, then those segment files go. Fail closed: if the playlist cannot be rewritten
+ * nothing is deleted. Its watch copy keeps what it already made. True when trimmed.
+ */
+function trimEpoch(epochDir, count) {
+    const listed = archiveOf(epochDir).segments;
+    if (!(count > 0) || count >= listed.length) return false;
+    const keep = listed.slice(0, listed.length - count);
+    try {
+        const file = path.join(epochDir, 'archive.m3u8');
+        const { text } = renderMediaPlaylist({ segments: keep.map(x => ({ name: x.name, duration: x.duration })), mediaSequence: 0, version: 3,
+            playlistType: 'EVENT', endList: true, independentSegments: true });
+        fs.writeFileSync(`${file}.tmp`, text);
+        fs.renameSync(`${file}.tmp`, file);
+    } catch (e) { return false; }
+    for (const seg of listed.slice(keep.length)) { try { fs.unlinkSync(path.join(epochDir, seg.name)); } catch (e) { /* unlisted: left */ } }
+    return true;
+}
+
 /** #332: an epoch's recorded rate in kbps (its segment bytes over their listed seconds), or null with nothing listed. */
 function epochKbps(epochDir) {
     const seconds = lengthOf(archiveOf(epochDir));
@@ -1124,7 +1163,7 @@ function status() {
 
 module.exports = {
     SEGMENT_SEC, workRoot, ioFor, workDirFor, isWorkDir, epochs, nextEpoch, captureInput, captureArgs, captureBytes, captureGrowth,
-    sealEpoch, sealAll, stitchArchive, recordedSeconds, archiveSegmentCount, epochSegmentCount, discardEpoch, epochKbps, epochSeconds,
+    sealEpoch, sealAll, stitchArchive, recordedSeconds, archiveSegmentCount, epochSegmentCount, discardEpoch, epochKbps, epochSeconds, trailingLowRate, trimEpoch,
     viewArgs, _resetFreeBytes,
     _partInput: partInput,
     _refreshPartInput: refreshPartInput,

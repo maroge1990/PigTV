@@ -132,21 +132,38 @@ test('the same on a single route with the shared ingest off: read far faster tha
     await placeholderThenLive({ shared: false, withBackups: false });
 });
 
-test('fastReadOf: a live channel\'s connect burst is never a file; nothing measurable keeps the part', { skip: !hasFfmpeg && 'no ffmpeg' }, () => {
-    const dir = fs.mkdtempSync(path.join(sandbox, 'e'));
-    const epochDir = path.join(dir, 'e1');
+/** An epoch's playlist of `n` 4 s segments, each a file at `kbps`. */
+function writeEpoch(epochDir, n, kbps) {
+    fs.rmSync(epochDir, { recursive: true, force: true });
+    fs.mkdirSync(epochDir, { recursive: true });
+    let pl = '#EXTM3U\n#EXT-X-TARGETDURATION:4\n';
+    for (let i = 0; i < n; i++) {
+        const name = `a${String(i).padStart(6, '0')}.ts`;
+        fs.writeFileSync(path.join(epochDir, name), Buffer.alloc(Math.round(kbps * 1000 / 8 * 4)));
+        pl += `#EXTINF:4.000000,\n${name}\n`;
+    }
+    fs.writeFileSync(path.join(epochDir, 'archive.m3u8'), pl);
+}
+
+test('fastReadOf: a live channel\'s connect burst or buffered start is never a file; nothing measurable keeps the part', { skip: !hasFfmpeg && 'no ffmpeg' }, () => {
+    const epochDir = path.join(fs.mkdtempSync(path.join(sandbox, 'e')), 'e1');
     fs.mkdirSync(epochDir);
-    const list = (n) => fs.writeFileSync(path.join(epochDir, 'archive.m3u8'), '#EXTM3U\n#EXT-X-TARGETDURATION:4\n' + Array.from({ length: n }, (_, i) => `#EXTINF:4.000000,\na${String(i).padStart(6, '0')}.ts\n`).join(''));
     const entry = (wallSec, extra = {}) => ({ outputPath: epochDir, spawnedAt: 1_000_000 - wallSec * 1000, feed: null, finiteAnswer: false, ...extra });
     const at = 1_000_000;
-    assert.equal(engine._fastReadOf(entry(10), at), null, 'nothing listed: not measured, kept');
-    list(10); // 40 s of media in 10 s: a provider's burst at connect, under the 60 s floor
+    assert.equal(engine._fastReadOf(entry(10), at), null, 'nothing listed: not measured');
+    writeEpoch(epochDir, 10, 100); // 40 s of media in 10 s: a provider's burst at connect, under the 60 s floor
     assert.equal(engine._fastReadOf(entry(10), at), null);
-    list(150); // 600 s in 2 s: the placeholder file
+    writeEpoch(epochDir, 150, 71); // 600 s in 2 s at the slate's 71 kbps: the placeholder file
     assert.deepEqual(engine._fastReadOf(entry(2), at), { mediaSec: 600, wallSec: 2, finiteAnswer: false });
-    list(30); // 120 s in 60 s: twice real time is not enough
+    writeEpoch(epochDir, 150, 2000); // 600 s in 2 s at a programme's rate: 598 s ahead of real time, no live buffer is
+    assert.ok(engine._fastReadOf(entry(2), at));
+    writeEpoch(epochDir, 30, 100); // 120 s in 60 s: twice real time is not enough
     assert.equal(engine._fastReadOf(entry(60), at), null);
-    list(5); // 20 s in 2 s, after the shared ingest saw a length: the lower floor
+    writeEpoch(epochDir, 15, 2000); // Codex #333 high: a buffered live start, 60 s in 10 s at a programme's rate
+    assert.equal(engine._fastReadOf(entry(10), at), null, 'a buffered live start is not a file');
+    writeEpoch(epochDir, 15, 100); // the same at a blank picture's rate
+    assert.ok(engine._fastReadOf(entry(10), at));
+    writeEpoch(epochDir, 5, 100); // 20 s in 2 s, after the shared ingest saw a length: the lower floor
     assert.equal(engine._fastReadOf(entry(2), at), null);
     assert.ok(engine._fastReadOf(entry(2, { finiteAnswer: true }), at));
     assert.equal(engine._fastReadOf(entry(2, { finiteAnswer: true, feed: {} }), at), null, 'a shared feed is the ingest\'s to judge');
@@ -154,8 +171,7 @@ test('fastReadOf: a live channel\'s connect burst is never a file; nothing measu
 
 test('a direct capture still reading a file faster than real time after 10 s is ended there', { skip: !hasFfmpeg && 'no ffmpeg' }, () => {
     const epochDir = path.join(fs.mkdtempSync(path.join(sandbox, 'r')), 'e1');
-    fs.mkdirSync(epochDir);
-    fs.writeFileSync(path.join(epochDir, 'archive.m3u8'), '#EXTM3U\n#EXT-X-TARGETDURATION:4\n' + Array.from({ length: 20 }, (_, i) => `#EXTINF:4.000000,\na${String(i).padStart(6, '0')}.ts\n`).join(''));
+    writeEpoch(epochDir, 20, 100);
     const written = [];
     const at = 1_000_000;
     const entry = (ranSec) => ({ recordingId: 9, segmented: { epoch: 1 }, outputPath: epochDir, spawnedAt: at - ranSec * 1000, feed: null, finiteAnswer: false,
@@ -166,5 +182,41 @@ test('a direct capture still reading a file faster than real time after 10 s is 
     const late = entry(20);
     engine._checkFastRead(late, at); // 80 s of media in 20 s: 4x real time
     assert.deepEqual(late.fastRead, { mediaSec: 80, wallSec: 20, finiteAnswer: false });
-    assert.deepEqual(written, ['q'], 'asked to stop (its exit drops it as the placeholder)');
+    assert.deepEqual(written, ['q'], 'asked to stop (its exit judges its segments)');
+});
+
+test('Codex #333 high: programme then the placeholder file in one ffmpeg run keeps the programme and drops only the slate tail', { skip: !hasFfmpeg && 'no ffmpeg' }, async () => {
+    // One response: 20 s of programme at ~800 kbps, then the 10-minute still file (timestamps running on), no length.
+    const ff = (args) => assert.equal(spawnSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', ...args]).status, 0);
+    const prog = path.join(sandbox, 'prog.ts');
+    const clip = path.join(sandbox, 'slate-clip.ts');
+    const slate = path.join(sandbox, 'slate.ts');
+    ff(['-f', 'lavfi', '-i', 'testsrc2=size=640x360:rate=30', '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000', '-t', '20',
+        '-map', '0:v', '-map', '1:a', '-c:v', 'libx264', '-preset', 'ultrafast', '-g', '60', '-b:v', '800k', '-minrate', '800k', '-maxrate', '800k',
+        '-bufsize', '800k', '-x264-params', 'nal-hrd=cbr', '-c:a', 'aac', '-b:a', '64k', '-ac', '1', '-f', 'mpegts', prog]);
+    ff(['-f', 'lavfi', '-i', 'color=c=0x203040:size=640x360:rate=30:duration=10', '-f', 'lavfi', '-i', 'sine=frequency=300:sample_rate=48000:duration=10',
+        '-map', '0:v', '-map', '1:a', '-c:v', 'libx264', '-preset', 'ultrafast', '-g', '60', '-b:v', '40k', '-c:a', 'aac', '-b:a', '32k', '-ac', '1', '-f', 'mpegts', clip]);
+    ff(['-stream_loop', '59', '-i', clip, '-c', 'copy', '-output_ts_offset', '20', '-f', 'mpegts', slate]);
+    const body = Buffer.concat([fs.readFileSync(prog), fs.readFileSync(slate)]);
+    const http = require('node:http');
+    const server = http.createServer((req, res) => { res.writeHead(200, { 'Content-Type': 'video/mp2t' }); res.end(body); });
+    await new Promise(r => server.listen(0, '127.0.0.1', r));
+    const setItemUrl = (u) => sqlite.getDb().prepare('UPDATE playlist_items SET stream_url = ? WHERE id = ?').run(u, `${A.id}:pos_1`);
+    setItemUrl(`http://127.0.0.1:${server.address().port}/live.ts`);
+    await db.settings.update({ sharedIngestEnabled: false });
+    backups = true;
+    try {
+        const s = schedule();
+        await until(() => { const [r] = recordings.listBySchedule(s.id); return r && segments.epochs(r.work_dir).length >= 1 && !engine.listActive().some(x => x.id === s.id); },
+            'the part read and ended');
+        const [rec] = recordings.listBySchedule(s.id);
+        const kept = segments.recordedSeconds(rec.work_dir);
+        assert.ok(kept >= 16 && kept <= 32, `the programme's ~20 s is kept, the slate's 600 s is not (${kept} s kept)`);
+        assert.equal(scheduled.getById(s.id).status, 'recording', 'and it keeps trying (D-59)');
+        assert.equal(routing.isPlaceholder(A.id, 'nfl'), true, 'the file is noted as the placeholder');
+        await engine.cancelScheduled(s.id);
+    } finally {
+        setItemUrl(streamUrl());
+        server.closeAllConnections?.(); server.close();
+    }
 });

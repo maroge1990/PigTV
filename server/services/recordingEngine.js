@@ -64,9 +64,13 @@ const failoverTuning = {
 // #333: a direct capture (not the shared ingest) that reads media this many times faster than real time is reading a
 // file, not the live channel (the provider's 10-minute placeholder read at 216x). A live stream is never ahead of real
 // time by more than its connect burst, so the floor of media read (minMediaSec; minMediaSecFinite once the shared ingest
-// saw an answer with a length on this candidate) keeps a burst out. Checked while the part runs, from checkAfterMs to
-// checkUntilMs of it, and once more over the whole part when it ends.
-const fastReadTuning = { ratio: 3, minMediaSec: 60, minMediaSecFinite: 12, checkAfterMs: 10 * 1000, checkUntilMs: 60 * 1000 };
+// saw an answer with a length on this candidate) keeps a burst out. Codex #333 high: a buffered live start can still
+// run ahead (60 s in 10 s), so a fast read is a file only at a blank picture's rate (the part's own rate under the
+// placeholder rule's lower threshold, 250 kbps; the slate file is 71 kbps) or when it runs aheadSec beyond real time,
+// which no live buffer does. Checked while the part runs, from checkAfterMs to checkUntilMs of it, and once more over
+// the whole part when it ends. A fast read only ends the part as an outage: what is deleted is decided per segment
+// (trailingLowRate in onSegmentExit).
+const fastReadTuning = { ratio: 3, minMediaSec: 60, minMediaSecFinite: 12, aheadSec: 300, checkAfterMs: 10 * 1000, checkUntilMs: 60 * 1000 };
 // #333: candidates the shared ingest refused as a file with a length (feedFor), read once by the direct capture's spawn.
 const finiteAnswers = new WeakSet();
 
@@ -1358,13 +1362,37 @@ function heldAgainst(entry, { failover, ranLong }) {
 }
 
 /**
+ * #333 (Codex high): a part read as the provider's placeholder file loses only the trailing run of segments each
+ * measured on its own under the placeholder rule's lower threshold (250 kbps): the programme before the file always
+ * stays, and a segment that cannot be measured, or is at a programme's rate, ends the run (fail closed). Every segment
+ * in the run: the part is emptied like #332's (discardEpoch). True when nothing of the part is left.
+ */
+function dropFileTail(entry) {
+    const { trailing, total } = segments.trailingLowRate(entry.outputPath, require('./feedPlaceholder').connectionLimitKbps(null));
+    const part = `#${entry.recordingId}: part ${entry.segmented.epoch}`;
+    if (trailing === 0) {
+        console.log(`[Recordings] ${part} read as a file, but no segment at its end is at the placeholder's rate; all of it is kept`);
+        return false;
+    }
+    if (trailing === total) {
+        if (!segments.discardEpoch(entry.recordingId, entry.outputPath)) return false;
+        console.log(`[Recordings] ${part} held only the provider's placeholder (a file); not kept`);
+        return true;
+    }
+    if (segments.trimEpoch(entry.outputPath, trailing)) {
+        console.log(`[Recordings] ${part}: its last ${trailing} of ${total} segments were the provider's placeholder (a file); the programme before them is kept`);
+    }
+    return false;
+}
+
+/**
  * #332 (Codex high): did this part record nothing but the provider's placeholder? Its feed ended as one with every
  * connection of the part in the placeholder's run, and its recorded rate is under the lower blank threshold.
  */
 function slatePart(entry) {
-    // #333: a direct capture measured reading a file at fastReadTuning.ratio times real time or more (fastReadOf: finite
-    // numbers only) is the provider's placeholder file from its first byte: that measure is the positive evidence.
-    if (entry.fastRead) return Number.isFinite(entry.fastRead.mediaSec) && Number.isFinite(entry.fastRead.wallSec);
+    // #333 (Codex high): a part read as a file is not emptied whole here: its segments are judged one by one
+    // (fileTail in onSegmentExit).
+    if (entry.fastRead) return false;
     if (entry.feedLost?.reason !== 'placeholder' || entry.feedLost.onlyPlaceholder !== true) return false;
     // Codex sign-off (high): fail closed - only a finite measured rate deletes; one that could not be measured (no
     // playlist, no duration, a stat error) keeps the part.
@@ -1446,10 +1474,11 @@ async function onSegmentExit(schedule, entry, exitCode) {
         // and the end is only an outage.
         const slateOnly = placeholder && slatePart(entry);
         if (slateOnly && segments.discardEpoch(entry.recordingId, entry.outputPath)) {
-            console.log(`[Recordings] #${entry.recordingId}: part ${entry.segmented.epoch} held only the provider's placeholder${entry.fastRead ? ' (a file)' : ''}; not kept`);
+            console.log(`[Recordings] #${entry.recordingId}: part ${entry.segmented.epoch} held only the provider's placeholder; not kept`);
         }
+        const fileOnly = !!entry.fastRead && dropFileTail(entry);
         const grew = segments.epochSegmentCount(entry.outputPath) > 0;
-        const lostAt = Math.min(now, slateOnly ? entry.spawnedAt ?? now : entry.lastGrowthAt ?? entry.spawnedAt ?? now);
+        const lostAt = Math.min(now, slateOnly || fileOnly ? entry.spawnedAt ?? now : entry.lastGrowthAt ?? entry.spawnedAt ?? now);
         continuations.set(schedule.id, {
             schedule, nextPart: 1, lostAt, starting: false, waitingLogged: false,
             newGap: grew,
@@ -1618,6 +1647,9 @@ function fastReadOf(entry, now = Date.now()) {
     if (!Number.isFinite(mediaSec) || !(wallSec > 0)) return null;
     const floor = entry.finiteAnswer ? fastReadTuning.minMediaSecFinite : fastReadTuning.minMediaSec;
     if (mediaSec < floor || mediaSec < fastReadTuning.ratio * wallSec) return null;
+    const kbps = segments.epochKbps(entry.outputPath);
+    const blankRate = Number.isFinite(kbps) && kbps < require('./feedPlaceholder').connectionLimitKbps(null);
+    if (!blankRate && mediaSec - wallSec < fastReadTuning.aheadSec) return null; // a live buffer at a programme's rate
     return { mediaSec: Math.round(mediaSec), wallSec: Math.round(wallSec * 10) / 10, finiteAnswer: entry.finiteAnswer === true };
 }
 

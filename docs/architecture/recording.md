@@ -133,15 +133,16 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   a segment of slate in the watch copy only). A part that recorded the programme before the placeholder came keeps all of
   it, including the slate it read before the feed ended (two short connections, typically about 2 s).
   A **direct capture** (its own connection, not the shared ingest) answered with the provider's placeholder **file** (#333:
-  a finite still file with a length, 10 min read in about a second) is the placeholder too. A part that read media at
-  least 3x faster than real time (`fastReadOf`: its playlist's seconds against the wall time since its spawn) over at
-  least 60 s of media (12 s once the shared ingest refused that candidate as "a file with a length", `finiteAnswers`) is
-  reading a file: checked by the stall watchdog from 10 s to 60 s into the part (then ended at once) and over the whole
-  part when it ends. Such a part is noted as #332's placeholder (`notePlaceholder`: held back 3 min, no breaker count,
-  a viewer's play told so; a single route has no channel key and simply waits for the next tick), its segments go
-  (`discardEpoch`: the measured rate is the evidence; nothing measured keeps the part) and the recording keeps trying
-  (D-59); the log names the part ("held only the provider's placeholder (a file)"). A part that read the channel
-  first and was later handed a file (a reconnect inside one ffmpeg) is not dropped.
+  a finite still file with a length, 10 min read in about a second) is an outage too. A part reads a file
+  (`fastReadOf`) when its playlist's seconds run at least 3x its wall time since spawn, over at least 60 s of media (12 s
+  once the shared ingest refused that candidate as "a file with a length", `finiteAnswers`), and either its own rate is
+  under 250 kbps or it is 300 s or more ahead of real time (a buffered live start at a programme's rate is not a file).
+  Checked by the stall watchdog from 10 s to 60 s into the part (then ended) and over the whole part when it ends. Such a
+  part ends as #332's placeholder (`notePlaceholder`: held back 3 min, no breaker count, a viewer's play told so; a single
+  route has no channel key and simply waits for the next tick) and the recording keeps trying (D-59). What goes is
+  decided per segment (`dropFileTail`): only the trailing run of segments each measured under 250 kbps on its own
+  (`trailingLowRate`; one unmeasurable or at a programme's rate ends the run) is removed (`trimEpoch`), the whole part
+  (`discardEpoch`) only when every segment is in it. Programme read before the file in the same ffmpeg run stays.
   The Apple TV's watch copy (fMP4, `hvc1`) is made by a **local follower ffmpeg** per epoch, only when someone asks
   (`GET /:id/watch`); it never touches the provider. The watch playlist skips an epoch that recorded nothing, also one refused before its first
   segment (no `archive.m3u8`) once a later epoch exists (#288). At the end the joined playlist is remuxed with preparation's own
