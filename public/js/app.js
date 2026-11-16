@@ -13,6 +13,8 @@ class App {
         this.channelList = new ChannelList();
         this.sourceManager = new SourceManager();
         this.epgGuide = new EpgGuide();
+        // #57 (D-66): Search, from the magnifier in the top bar of every page.
+        this.search = new SearchPanel(this);
 
         // Initialize page controllers
         this.pages.live = new LivePage(this);
@@ -93,6 +95,17 @@ class App {
                 e.preventDefault();
                 this.navigateTo(link.dataset.page);
             });
+        });
+
+        // #57 (D-66): the magnifier opens Search on any page; so does "/" when nothing is being typed into.
+        const searchBtn = document.getElementById('nav-search');
+        if (searchBtn) searchBtn.addEventListener('click', () => this.search.open(searchBtn));
+        document.addEventListener('keydown', (e) => {
+            if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented) return;
+            const t = e.target;
+            if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || '') || (t.closest && t.closest('dialog')))) return;
+            e.preventDefault();
+            this.search.open(searchBtn);
         });
 
         // Toggle groups button

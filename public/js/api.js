@@ -157,7 +157,9 @@ const API = {
             if (category) params.push(`category=${encodeURIComponent(category)}`);
             return API.request('GET', `/library/guide?${params.join('&')}`);
         },
-        favourites: () => API.request('GET', '/library/favourites')
+        favourites: () => API.request('GET', '/library/favourites'),
+        // #57 (C-Y): channels, programmes, sport events, teams and recordings for one query (2-100 characters).
+        search: (q, limit = 20) => API.request('GET', `/library/search?q=${encodeURIComponent(q)}&limit=${limit}`)
     },
 
     // Server status (admin; 0124)

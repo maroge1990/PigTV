@@ -34,6 +34,7 @@ exists, not built).
 | Sport events (C-I) | Sport recognised per programme across every channel, with a follow list, replays and a 72-hour horizon, checked against ESPN's free fixtures | ✓ | ✓ | ✓ | shipped |
 | Live now dashboard (C-O) | Live and upcoming games with scores, Hide scores and delay settings | — (the web reads C-R since Web 3) | ✓ | ✓ | gated (`sportsDashboard`) |
 | Sport pages | The front page, a page per sport and league, F1, cricket and events, with the record menu (see Sport below) | ✓ (Web 3, the Apple look) | ✓ | ✓ | shipped |
+| Search | One search from the top bar of every page (D-66): teams (Follow), games and programmes on now or later (LIVE / NEW, episode; Watch, Record), channels (Watch) and recordings (Play); recent searches kept per browser (C-Y, #57) | ✓ (side by side, stacked when narrow) | (D-66) | (D-66) | implemented (server, web) |
 | Status page | What is playing and recording, providers, the last 7 days, "Needs attention", details on demand | admin | — | — | shipped |
 | Top Shelf | Favourites as rendered cards with play links | — | ✓ | — | shipped |
 | Device pairing | Pair an Apple device by approving a code in the web app | admin | ✓ | ✓ | shipped |

@@ -16,7 +16,7 @@
   <link rel="apple-touch-icon" href="/img/brand/web-light-180.png">
   <link rel="manifest" href="/site.webmanifest">
   <script src="/js/theme.js?v=1"></script>
-  <link rel="stylesheet" href="css/main.css?v=5">
+  <link rel="stylesheet" href="css/main.css?v=6">
   <link rel="stylesheet" href="css/pig-radiance.css?v=1">
   <link rel="stylesheet" href="css/pig-glass.css?v=1">
   <link rel="stylesheet" href="css/sport.css?v=6">
@@ -33,6 +33,12 @@
         <span class="brand-lockup" role="img" aria-label="PigTV"></span>
         <span id="version-badge" class="version-badge"></span>
       </div>
+      <!-- #57 (D-66): Search, from every page. -->
+      <button type="button" class="nav-search-btn" id="nav-search" aria-label="Search" title="Search (/)">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="icon" aria-hidden="true">
+          <path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
+        </svg>
+      </button>
       <button class="mobile-menu-toggle" id="mobile-menu-toggle" aria-label="Menu" aria-expanded="false" aria-controls="navbar-menu">
         <span></span>
         <span></span>
@@ -1148,13 +1154,14 @@
 
   <!-- JavaScript -->
   <script src="/js/icons.js?v=1"></script>
-  <script src="/js/api.js?v=25"></script>
+  <script src="/js/api.js?v=26"></script>
   <script src="/js/ui.js?v=3"></script>
   <script src="/js/components/VideoPlayer.js?v=19"></script>
   <script src="/js/components/FirstRun.js?v=2"></script>
   <script src="/js/components/ChannelList.js?v=17"></script>
   <script src="/js/components/SourceManager.js?v=10"></script>
   <script src="/js/components/EpgGuide.js?v=11"></script>
+  <script src="/js/components/SearchPanel.js?v=1"></script>
   <script src="/js/pages/LivePage.js?v=4"></script>
   <script src="/js/pages/Guide.js?v=4"></script>
   <script src="/js/pages/SportView.js?v=3"></script>
@@ -1178,7 +1185,7 @@
   <script src="/js/pages/StatusPage.js?v=10"></script>
   <script src="/js/providerReminders.js?v=3"></script>
   <script src="/js/recordingsFeed.js?v=1"></script>
-  <script src="/js/app.js?v=18"></script>
+  <script src="/js/app.js?v=19"></script>
 </body>
 
 </html>
