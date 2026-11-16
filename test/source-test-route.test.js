@@ -106,7 +106,9 @@ test('#330: a pass answers the account facts, writes nothing and matches the sav
     const saved = await db.sources.create({ type: 'xtream', name: 'Fake', url: fakeBase, username: LOGIN.user, password: LOGIN.pass });
     try {
         const old = await call(`/api/sources/${saved.id}/test`, {});
-        assert.deepEqual(fresh.data, old.data, 'the same reply as a saved provider');
+        // The fake's expiry is "now + a year", read once per call: the two calls can straddle a second (CI, 16 Nov).
+        assert.ok(Math.abs(fresh.data.expiresAt - old.data.expiresAt) <= 2000, `expiry ${fresh.data.expiresAt} vs ${old.data.expiresAt}`);
+        assert.deepEqual({ ...fresh.data, expiresAt: 0 }, { ...old.data, expiresAt: 0 }, 'the same reply as a saved provider');
     } finally {
         await db.sources.delete(saved.id);
     }
