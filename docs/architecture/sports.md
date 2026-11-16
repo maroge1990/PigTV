@@ -542,8 +542,8 @@ only until a read is that old. Bounded per event: at most `READS_KEPT` (16) read
 before `MAX_DELAY_MS` (300 s, the longest delay) ago, and an event no longer on forgotten once its last read is
 `READS_MS` (the longest delay plus the 10-minute on lifetime) old (its first read over is kept, so a delayed account
 sees the result once that read is the delay old). With no fresh collector snapshot for the event the delay still
-applies to its detail (the read's own status) while the read has it on, or over after kept reads of it on; an event
-never read on shows as read. No delay: the current read. Cricket: a match's status
+applies to its detail and its status (the delayed read's, else the oldest kept read's, never a newer one) while the
+read has it on, or over after kept reads of it on; an event never read on shows as read. No delay: the current read. Cricket: a match's status
 (espnState's key and the card's break label, a break C-S does not name being play) and score (the lead's innings from
 the card's `situation.innings`, the others' scores from its `scores`, placed by each side's home/away), for the lead,
 the series list and the others; a line, crease or declaration read at another point than the collector's score (or

@@ -81,6 +81,7 @@ function keepRead(league, value, at) {
         if (!kept.length || kept.at(-1).at < at - READS_MS) byEvent.delete(id);
     }
 }
+const oldestRead = (league, id) => reads.get(league)?.get(id)?.[0]?.event || null;
 const hasReads = (league, id) => Boolean(reads.get(league)?.get(id)?.length);
 /** The event `id` from the newest kept read at or before `asOf`, or null. */
 function readAsOf(league, id, asOf) {
@@ -366,12 +367,17 @@ function overlay(value, state, delayed = null, league = value.league) {
         const word = seen?.snapshot?.state;
         const theirs = rank(word), ours = rank(e.status) ?? 0; // the page's `unknown`: nothing shown yet
         if (theirs === null) {
-            // #328 (lead's call): no fresh snapshot for the event: the read's own status, its detail still the delay old
-            // while it is on in the read, or over with reads of it on kept (an event never seen on is shown as read)
+            // #328 (lead's call): no fresh snapshot for the event: its status and detail still the delay old while it is
+            // on in the read, or over with reads of it on kept (an event never seen on is shown as read)
             const ownOn = ours === 1 || (ours === 2 && delayed !== null && hasReads(league, e.id));
             if (delayed === null || !ownOn) return e;
             changed = true;
-            return held(e);
+            // its status too: the delayed read's, else the oldest kept read's (on), never a newer one
+            const shown = delayed(e.id) || oldestRead(league, e.id);
+            const { breakLabel: _b, ...own } = e;
+            const status = shown?.status ?? e.status;
+            if (!OVER.has(status) && lastWinner && lastWinner.race === e.name && lastWinner.date === e.start) lastWinner = null;
+            return { ...held(own), status, ...(shown ? (shown.breakLabel ? { breakLabel: shown.breakLabel } : {}) : (e.breakLabel ? { breakLabel: e.breakLabel } : {})) };
         }
         if (theirs > ours) { renew = true; if (theirs === 2) return e; }
         const breakLabel = word === 'break' && typeof seen.snapshot.breakLabel === 'string' ? seen.snapshot.breakLabel : null;

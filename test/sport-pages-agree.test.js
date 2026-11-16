@@ -541,7 +541,7 @@ test('#328: the Events page\'s kept reads are bounded: per event at most READS_K
 // #328 (lead's call): with no fresh collector snapshot for the event, the delayed account still saw the page's current
 // detail. Its detail is now the delay old there too (the read's own status), and its result shows once the read that
 // has it is the delay old; with no delay, the current read.
-test('#328: Events with no collector snapshot: a delayed account still sees the detail of the newest read at least its delay old, the result once that read has it', async () => {
+test('#328: Events with no collector snapshot: a delayed account still sees the status and detail of the newest read at least its delay old, the finish and result once that read has them', async () => {
     const ev = load('services/sportPageEvents');
     const store = dashboard.store();
     if (!prefsSet) { store.updatePreferences(ACCOUNTS.instant, { revision: 0, scoreDelaySeconds: 0 }); prefsSet = true; }
@@ -566,10 +566,14 @@ test('#328: Events with no collector snapshot: a delayed account still sees the 
         const own = (await ev.page('ATP Tour', t)).events[0];
         assert.deepEqual(detailOf(instant), detailOf(own), `+${halves(at, t)}: no delay, the current read`);
         const r = builds.filter(b => b <= t - 90000).at(-1);
-        let want;
-        if (r === undefined) want = detailOf({ ...own, matches: own.matches.map(m => ({ ...m, sets: null, players: m.players.map(p => ({ ...p, winner: null })) })) });
-        else { probing = true; clock = r; want = detailOf((await ev.build('ATP Tour', r)).events[0]); probing = false; clock = t; }
+        let want, wantStatus;
+        if (r === undefined) {
+            want = detailOf({ ...own, matches: own.matches.map(m => ({ ...m, sets: null, players: m.players.map(p => ({ ...p, winner: null })) })) });
+            wantStatus = 'live'; // first seen on: never a newer status
+        } else { probing = true; clock = r; const then = (await ev.build('ATP Tour', r)).events[0]; want = detailOf(then); wantStatus = then.status; probing = false; clock = t; }
         if (JSON.stringify(detailOf(delayed)) !== JSON.stringify(want)) bad.push(`+${halves(at, t)} (${own.status}): shows ${JSON.stringify(detailOf(delayed))}, want ${JSON.stringify(want)}`);
+        if (delayed.status !== wantStatus) bad.push(`+${halves(at, t)}: status ${delayed.status}, the read the delay old says ${wantStatus} (the current one ${own.status})`);
+        if (instant.status !== own.status) bad.push(`+${halves(at, t)}: no delay, status ${instant.status} not the read's ${own.status}`);
     }
     assert.deepEqual(bad, []);
     assert.ok(builds.some(b => b >= overAt), 'the page read the event over');
