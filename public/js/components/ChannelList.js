@@ -730,7 +730,9 @@ class ChannelList {
             groupId: row.category,
             groupTitle: categoryNames.get(`${row.sourceId}:${row.category}`) || row.category || 'Uncategorized',
             now: row.now || null,
-            next: row.next || null
+            next: row.next || null,
+            // D-67 (#265): the server's measurement (C-X `measured` { label, fps }), the player's quality badge
+            measured: row.measured && typeof row.measured === 'object' ? row.measured : null
         };
     }
 

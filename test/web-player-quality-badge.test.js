@@ -39,3 +39,15 @@ test('the badge text: label then fps, the label alone without a frame rate', asy
     assert.equal(VideoPlayer.measuredBadgeText({ label: 'SD', fps: null }), 'SD');
     assert.equal(VideoPlayer.measuredBadgeText(undefined), null);
 });
+
+test('the channel list keeps a library row\'s `measured`, so the channel the player is given carries it', () => {
+    const vm = require('node:vm');
+    const { browser, js } = require('./helpers/sportWeb');
+    const b = browser({ request: async () => ({}) });
+    vm.runInContext(js('components/ChannelList.js'), b.context);
+    const ChannelList = vm.runInContext('ChannelList', b.context);
+    const from = (row) => ChannelList.prototype.fromLibraryRow.call({}, row, new Map(), new Map([[2, 'xtream']]));
+    const row = { id: '1002', sourceId: 2, stableId: 's1002', name: 'UK| SKY SPORTS F1 UHD/4K', category: '101', quality: 'UHD' };
+    assert.deepEqual({ ...from({ ...row, measured: { label: '4K', fps: 50 } }).measured }, { label: '4K', fps: 50 });
+    assert.equal(from(row).measured, null, 'never measured: none');
+});
