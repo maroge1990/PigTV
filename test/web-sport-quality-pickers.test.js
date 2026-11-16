@@ -172,3 +172,15 @@ test('same name and quality on different airings: two chips, both can be recorde
     assert.deepEqual(chipsOf(h.body().slice(h.body().indexOf('class="qchips"'))).map(c => c.split(' → ')[1]), ['1:u1', '1:u2']);
     assert.match(h.p.menuMarkup(ars), /data-channel="1:u2" aria-label="Watch Sky Sports F1 in 1080 at 50 fps, starting /);
 });
+
+test('the badge keeps its own shape in the watch menu, and a details row with chips never pushes its buttons out (T3)', () => {
+    const css = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'public/css/sport.css'), 'utf8');
+    const rule = (sel) => { const at = css.indexOf(`${sel} {`); return at < 0 ? '' : css.slice(at, css.indexOf('}', at)); };
+    // the menu's sub-line rule (.sp-menu .mi span span: display block) made the row's badge a full-width bar with no
+    // gap between "4K" and "50": a more specific rule puts it back to the badge's inline-flex
+    assert.match(css, /\.sp-menu \.mi span span \{ display: block;/);
+    assert.match(rule('.sp-menu .mi span .qb'), /display: inline-flex/);
+    // a grid item's automatic minimum is its content's width: the chips' row widened the details window's rows past
+    // the window, taking Watch and Record off its edge; a 0 minimum lets the chips scroll inside the row instead
+    assert.match(rule('.sp-win .dchs'), /grid-template-columns: minmax\(0, 1fr\)/);
+});

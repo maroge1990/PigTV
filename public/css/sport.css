@@ -581,6 +581,7 @@
 .sp-menu .mi svg { flex: 0 0 20px; width: 20px; height: 20px; margin-top: 2px; }
 .sp-menu .mi b { display: block; font-size: 16px; font-weight: 600; }
 .sp-menu .mi span span { display: block; font-size: 13px; color: var(--color-text-secondary); }
+.sp-menu .mi span .qb { display: inline-flex; margin-top: 2px; } /* D-65: a badge on a menu row keeps its shape (not the sub-line's block) */
 .sp-menu .mdiv { height: 1px; background: var(--color-border); margin: 4px 6px; }
 .sp-menu .mempty { margin: 8px 12px; font-size: 14px; color: var(--color-text-secondary); }
 
@@ -607,7 +608,7 @@
 .sp-win .dacts { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
 .sp-win .dnote, .sp-win .rnote { margin: 12px 0 0; font-size: 14px; color: var(--color-text-secondary); }
 .sp-win .dsec, .sp-win .rsec { margin: 20px 0 8px; font-size: 14px; font-weight: 700; color: var(--color-text-secondary); }
-.sp-win .dchs { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.sp-win .dchs { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin: 0; padding: 0; list-style: none; }
 .sp-win .dch { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 14px; background: var(--raised); }
 .sp-win .dct { flex: 1; min-width: 0; }
 .sp-win .dct b { font-weight: 700; }
