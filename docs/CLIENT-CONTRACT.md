@@ -1110,7 +1110,8 @@ on whenever ESPN fixtures are, as the other pages.
   page's read takes its `draws`, `matches`, `round`, `leaderboard` and `bouts` (set scores, winners, positions, scores to
   par, rounds, each match's and bout's status and result) from the page's newest read at least that delay old; only when
   no read is that old yet (just after a restart, or an event first seen on) are they the delayed-view blanks above. With
-  no delay, the current read as before. `updatedAt` stays the current read's.
+  no delay, the current read as before. `updatedAt` stays the current read's. Also where the collector holds no fresh
+  snapshot for the event (its `status` then the page's read): its detail is still that delay old.
 - A server before 0428 answers 404 to `/api/sports/pages/events`: ask only with this flag.
 
 ### C-W. Live pause. Flag: `livePause` (0468, #37)

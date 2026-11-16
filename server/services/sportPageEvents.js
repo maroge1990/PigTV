@@ -57,6 +57,7 @@ const READS_MS = MAX_DELAY_MS + ON_TTL_MS;
 const READS_KEPT = 16; // renewals come at most every 30 s (sportPageCache), so the longest delay spans about 11 reads
 const DETAIL = ['matches', 'draws', 'round', 'leaderboard', 'bouts'];
 const ON = new Set(['live', 'break', 'suspended']);
+const OVER = new Set(['finished', 'postponed', 'cancelled']);
 const reads = new Map(); // league -> Map(event id -> [{ at, event }], oldest first)
 let readGeneration = 0;
 
@@ -64,8 +65,9 @@ function keepRead(league, value, at) {
     if (!reads.has(league)) reads.set(league, new Map());
     const byEvent = reads.get(league);
     for (const e of value.events) {
-        if (!ON.has(e.status)) continue;
         const kept = byEvent.get(e.id) || [];
+        // an event on, or its first read over after reads on (so its result shows once that read is the delay old)
+        if (!ON.has(e.status) && !(OVER.has(e.status) && kept.length && ON.has(kept.at(-1).event.status))) continue;
         let i = kept.length;
         while (i > 0 && kept[i - 1].at > at) i--;
         kept.splice(i, 0, { at, event: e });
@@ -79,6 +81,7 @@ function keepRead(league, value, at) {
         if (!kept.length || kept.at(-1).at < at - READS_MS) byEvent.delete(id);
     }
 }
+const hasReads = (league, id) => Boolean(reads.get(league)?.get(id)?.length);
 /** The event `id` from the newest kept read at or before `asOf`, or null. */
 function readAsOf(league, id, asOf) {
     const kept = reads.get(league)?.get(id) || [];
@@ -348,20 +351,28 @@ function withoutResults(e) {
     return out;
 }
 
-function overlay(value, state, delayed = null) {
+function overlay(value, state, delayed = null, league = value.league) {
     const { rank } = require('./sportPageState');
     let renew = false, changed = false, lastWinner = value.lastWinner ?? null;
     // #328: what the account may see of an event its delayed view has on: the read at least the delay old, else none
-    const held = (e) => {
+    const held = (e, theirs = null) => {
         const old = delayed ? delayed(e.id) : null;
-        return old ? { ...e, ...Object.fromEntries(DETAIL.filter(k => k in old).map(k => [k, old[k]])) } : withoutResults(e);
+        const ahead = old && theirs !== null && (rank(old.status) ?? 0) > theirs; // a kept read over, the account's view on
+        return old && !ahead ? { ...e, ...Object.fromEntries(DETAIL.filter(k => k in old).map(k => [k, old[k]])) } : withoutResults(e);
     };
     const events = value.events.map(e => {
         let seen = null;
         try { seen = state(e.id); } catch { seen = null; }
         const word = seen?.snapshot?.state;
         const theirs = rank(word), ours = rank(e.status) ?? 0; // the page's `unknown`: nothing shown yet
-        if (theirs === null) return e;
+        if (theirs === null) {
+            // #328 (lead's call): no fresh snapshot for the event: the read's own status, its detail still the delay old
+            // while it is on in the read, or over with reads of it on kept (an event never seen on is shown as read)
+            const ownOn = ours === 1 || (ours === 2 && delayed !== null && hasReads(league, e.id));
+            if (delayed === null || !ownOn) return e;
+            changed = true;
+            return held(e);
+        }
         if (theirs > ours) { renew = true; if (theirs === 2) return e; }
         const breakLabel = word === 'break' && typeof seen.snapshot.breakLabel === 'string' ? seen.snapshot.breakLabel : null;
         const behind = theirs < ours || (delayed !== null && theirs === 1 && ours === 1);
@@ -369,7 +380,7 @@ function overlay(value, state, delayed = null) {
         changed = true;
         if (theirs < ours && lastWinner && lastWinner.race === e.name && lastWinner.date === e.start) lastWinner = null;
         const { breakLabel: _drop, ...rest } = e;
-        return { ...(behind ? held(rest) : rest), status: word, ...(breakLabel ? { breakLabel } : {}) };
+        return { ...(behind ? held(rest, theirs) : rest), status: word, ...(breakLabel ? { breakLabel } : {}) };
     });
     if (!changed) return { value, renew };
     return { value: { ...value, events, ...('lastWinner' in value ? { lastWinner } : {}) }, renew };

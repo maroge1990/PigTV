@@ -528,6 +528,49 @@ test('#328: the Events page\'s kept reads are bounded: per event at most READS_K
     store.ingest(individual.normalize(eventBoards.tennis(at, later, true), 'ATP Tour', 'tennis/atp'), later);
     await ev.page('ATP Tour', later, eventDeps(ACCOUNTS.delayed, later));
     for (let i = 0; i < 5; i++) await new Promise(res => setImmediate(res));
-    await ev.page('ATP Tour', later + 1000, eventDeps(ACCOUNTS.delayed, later + 1000));
+    assert.equal(ev._reads.get('ATP Tour').get('espn:tennis/atp:9918001').at(-1).event.status, 'finished', 'its first read over is kept');
+    const last = later + ev.READS_MS + 30000;
+    readAt = last;
+    store.ingest(individual.normalize(eventBoards.tennis(at, last, true), 'ATP Tour', 'tennis/atp'), last);
+    await ev.page('ATP Tour', last, eventDeps(ACCOUNTS.delayed, last));
+    for (let i = 0; i < 5; i++) await new Promise(res => setImmediate(res));
+    await ev.page('ATP Tour', last + 1000, eventDeps(ACCOUNTS.delayed, last + 1000));
     assert.equal(ev._reads.get('ATP Tour').has('espn:tennis/atp:9918001'), false, 'an event no longer on is forgotten');
+});
+
+// #328 (lead's call): with no fresh collector snapshot for the event, the delayed account still saw the page's current
+// detail. Its detail is now the delay old there too (the read's own status), and its result shows once the read that
+// has it is the delay old; with no delay, the current read.
+test('#328: Events with no collector snapshot: a delayed account still sees the detail of the newest read at least its delay old, the result once that read has it', async () => {
+    const ev = load('services/sportPageEvents');
+    const store = dashboard.store();
+    if (!prefsSet) { store.updatePreferences(ACCOUNTS.instant, { revision: 0, scoreDelaySeconds: 0 }); prefsSet = true; }
+    ev.reset();
+    const at = K + 14 * 24 * 60 * MIN, overAt = at + 25 * MIN; // nothing ingested: the collector holds no snapshot
+    let clock = at, probing = false;
+    const builds = [];
+    ev.fetcher.get = async url => {
+        if (!url.includes('tennis/atp/scoreboard')) return { ok: false, error: 'HTTP 404' };
+        if (!probing) builds.push(clock);
+        const json = eventBoards.tennis(at, clock, clock >= overAt);
+        json.events[0].id = '9918101'; // an event the collector has never seen
+        return { ok: true, json };
+    };
+    const bad = [];
+    for (let t = at + MIN; t <= at + 40 * MIN; t += 30000) {
+        clock = t;
+        await ev.page('ATP Tour', t);
+        for (let i = 0; i < 5; i++) await new Promise(res => setImmediate(res));
+        const delayed = (await ev.page('ATP Tour', t, eventDeps(ACCOUNTS.delayed, t))).events[0];
+        const instant = (await ev.page('ATP Tour', t, eventDeps(ACCOUNTS.instant, t))).events[0];
+        const own = (await ev.page('ATP Tour', t)).events[0];
+        assert.deepEqual(detailOf(instant), detailOf(own), `+${halves(at, t)}: no delay, the current read`);
+        const r = builds.filter(b => b <= t - 90000).at(-1);
+        let want;
+        if (r === undefined) want = detailOf({ ...own, matches: own.matches.map(m => ({ ...m, sets: null, players: m.players.map(p => ({ ...p, winner: null })) })) });
+        else { probing = true; clock = r; want = detailOf((await ev.build('ATP Tour', r)).events[0]); probing = false; clock = t; }
+        if (JSON.stringify(detailOf(delayed)) !== JSON.stringify(want)) bad.push(`+${halves(at, t)} (${own.status}): shows ${JSON.stringify(detailOf(delayed))}, want ${JSON.stringify(want)}`);
+    }
+    assert.deepEqual(bad, []);
+    assert.ok(builds.some(b => b >= overAt), 'the page read the event over');
 });
