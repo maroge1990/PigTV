@@ -1109,7 +1109,8 @@ on whenever ESPN fixtures are, as the other pages.
 - Since #328 (no field or word changes): for an account with a score delay, an event on for it and on (or over) in the
   page's read takes its `draws`, `matches`, `round`, `leaderboard` and `bouts` (set scores, winners, positions, scores to
   par, rounds, each match's and bout's status and result) from the page's newest read at least that delay old; only when
-  no read is that old yet (just after a restart, or an event first seen on) are they the delayed-view blanks above. With
+  no read is that old yet (just after a restart, or an event first seen on) are they the delayed-view blanks above, and
+  then also each match's and bout's `status` is `scheduled` and golf's `round` null. With
   no delay, the current read as before. `updatedAt` stays the current read's. Also where the collector holds no fresh
   snapshot for the event: its `status`, `breakLabel` and detail are still that delay old (an event over before the
   server first read it: as read).

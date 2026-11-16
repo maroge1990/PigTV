@@ -352,6 +352,18 @@ function withoutResults(e) {
     return out;
 }
 
+/**
+ * #328 (Codex, high): a delayed account with no read the delay old yet sees nothing that moves during play: on top of
+ * withoutResults, each match and bout reads `scheduled` (never a newer `live` or `finished`) and golf's `round` is null.
+ */
+function beforeAnyRead(e) {
+    const out = withoutResults(e);
+    if (Array.isArray(out.matches)) out.matches = out.matches.map(m => ({ ...m, status: 'scheduled' }));
+    if (Array.isArray(out.bouts)) out.bouts = out.bouts.map(b => ({ ...b, status: 'scheduled' }));
+    if ('round' in out) out.round = null;
+    return out;
+}
+
 function overlay(value, state, delayed = null, league = value.league) {
     const { rank } = require('./sportPageState');
     let renew = false, changed = false, lastWinner = value.lastWinner ?? null;
@@ -359,7 +371,8 @@ function overlay(value, state, delayed = null, league = value.league) {
     const held = (e, theirs = null) => {
         const old = delayed ? delayed(e.id) : null;
         const ahead = old && theirs !== null && (rank(old.status) ?? 0) > theirs; // a kept read over, the account's view on
-        return old && !ahead ? { ...e, ...Object.fromEntries(DETAIL.filter(k => k in old).map(k => [k, old[k]])) } : withoutResults(e);
+        if (old && !ahead) return { ...e, ...Object.fromEntries(DETAIL.filter(k => k in old).map(k => [k, old[k]])) };
+        return delayed ? beforeAnyRead(e) : withoutResults(e);
     };
     const events = value.events.map(e => {
         let seen = null;

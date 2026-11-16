@@ -451,7 +451,7 @@ const eventBoards = {
             competitors: [['Gus Gray', 1], ['Hal Hill', 2]].map(([name, order]) => ({ order, winner: won && order === 1, athlete: { displayName: name } })) })) }] })
 };
 const EVENT_LEAGUES = [['ATP Tour', 'tennis/atp', eventBoards.tennis], ['PGA Tour', 'golf/pga', eventBoards.golf], ['UFC', 'mma/ufc', eventBoards.ufc]];
-const detailOf = (e) => ({ sets: e.matches?.map(m => m.sets), winners: e.matches?.map(m => m.players.map(p => p.winner)), toPar: e.leaderboard?.map(r => r.toPar),
+const detailOf = (e) => ({ round: e.round, matchStatus: e.matches?.map(m => m.status), sets: e.matches?.map(m => m.sets), winners: e.matches?.map(m => m.players.map(p => p.winner)), toPar: e.leaderboard?.map(r => r.toPar),
     order: e.leaderboard?.map(r => r.name), bouts: e.bouts?.map(b => [b.status, b.result, ...b.fighters.map(f => f.winner)]) });
 const eventDeps = (userId, now) => { const d = pageDeps(userId, now); return { event: d.event, delay: d.delay }; };
 
@@ -487,6 +487,8 @@ test('#328: Events with a 90 s delay and both views live: tennis sets and winner
             const r = builds.get(league).filter(b => b <= at90).at(-1);
             if (r === undefined) { // no read 90 s old yet: nothing newer than the delayed view (no detail at all)
                 const blank = detailOf(delayed);
+                if ([...(blank.matchStatus || []), ...(blank.bouts || []).map(b => b[0])].some(st => st !== 'scheduled') || (blank.round ?? null) !== null)
+                    bad.push(`${league} +${halves(at, t)}: a match's or bout's state or the round before any read was 90 s old`);
                 if ([blank.sets, blank.toPar].some(l => l && l.flat().some(v => v !== null)) || (blank.bouts || []).some(b => b.slice(1).some(v => v !== null)) ||
                     (blank.winners || []).flat().some(v => v !== null)) bad.push(`${league} +${halves(at, t)}: detail before any read was 90 s old`);
                 continue;
@@ -568,7 +570,7 @@ test('#328: Events with no collector snapshot: a delayed account still sees the 
         const r = builds.filter(b => b <= t - 90000).at(-1);
         let want, wantStatus;
         if (r === undefined) {
-            want = detailOf({ ...own, matches: own.matches.map(m => ({ ...m, sets: null, players: m.players.map(p => ({ ...p, winner: null })) })) });
+            want = detailOf({ ...own, matches: own.matches.map(m => ({ ...m, status: 'scheduled', sets: null, players: m.players.map(p => ({ ...p, winner: null })) })) });
             wantStatus = 'live'; // first seen on: never a newer status
         } else { probing = true; clock = r; const then = (await ev.build('ATP Tour', r)).events[0]; want = detailOf(then); wantStatus = then.status; probing = false; clock = t; }
         if (JSON.stringify(detailOf(delayed)) !== JSON.stringify(want)) bad.push(`+${halves(at, t)} (${own.status}): shows ${JSON.stringify(detailOf(delayed))}, want ${JSON.stringify(want)}`);
@@ -577,4 +579,34 @@ test('#328: Events with no collector snapshot: a delayed account still sees the 
     }
     assert.deepEqual(bad, []);
     assert.ok(builds.some(b => b >= overAt), 'the page read the event over');
+});
+
+// #328 (Codex, high): with no read the delay old yet, the fallback cleared scores and winners but kept each match's and
+// bout's own status from the current read, so a delayed account's first look showed a just-finished bout "Finished".
+test('#328: Events cold, a bout and a match just finished in the first read: a delayed account sees neither over (nor live) before its delay', async () => {
+    const ev = load('services/sportPageEvents');
+    const individual = load('services/sportIndividual');
+    const store = dashboard.store();
+    if (!prefsSet) { store.updatePreferences(ACCOUNTS.instant, { revision: 0, scoreDelaySeconds: 0 }); prefsSet = true; }
+    const at = K + 15 * 24 * 60 * MIN, now = at + 13 * MIN; // bout 1 and match 2 finished at +12
+    const relabel = (json, id) => { json.events[0].id = id; return json; };
+    const boards = { UFC: ['mma/ufc', t => relabel(eventBoards.ufc(at, t), '9918203')], 'ATP Tour': ['tennis/atp', t => relabel(eventBoards.tennis(at, t), '9918201')],
+        'PGA Tour': ['golf/pga', t => relabel(eventBoards.golf(at, t), '9918202')] };
+    for (const [league, [source, board]] of Object.entries(boards)) {
+        ev.reset();
+        for (let t = at; t <= now; t += 30000) store.ingest(individual.normalize(board(t), league, source), t); // live throughout
+        ev.fetcher.get = async url => (url.includes(`${source}/scoreboard`) ? { ok: true, json: board(now) } : { ok: false, error: 'HTTP 404' });
+        for (const [who, gap] of [['first look', 0], ['80 s on', 80000]]) {
+            const e = (await ev.page(league, now + gap, eventDeps(ACCOUNTS.delayed, now + gap))).events[0];
+            assert.equal(e.status, 'live', `${league} ${who}`);
+            assert.deepEqual([...(e.matches || []).map(m => m.status), ...(e.bouts || []).map(b => b.status)].filter(st => st !== 'scheduled'), [], `${league} ${who}: no match or bout over or on`);
+            assert.equal(JSON.stringify(e).match(/"winner":true|"result":\{/), null, `${league} ${who}: no winner or result`);
+            assert.equal(e.round ?? null, null, `${league} ${who}: no round`);
+        }
+        const instant = (await ev.page(league, now, eventDeps(ACCOUNTS.instant, now))).events[0];
+        if (league !== 'PGA Tour') assert.ok(JSON.stringify(instant).includes('"finished"'), `${league}: no delay, the read's own finished match or bout`);
+        const later = now + 91000;
+        const after = (await ev.page(league, later, eventDeps(ACCOUNTS.delayed, later))).events[0];
+        if (league !== 'PGA Tour') assert.ok(JSON.stringify(after).includes('"finished"'), `${league}: once the read is 90 s old, its finished match or bout`);
+    }
 });

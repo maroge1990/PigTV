@@ -537,8 +537,9 @@ read is further on, none of its results (sets, winners, positions, scores to par
 when it is that race's; each match, round and bout keeps its own state from the read. With a score delay (#328) the
 detail itself is delayed too: the page keeps its reads per league and event (`sportPageEvents` `reads`, only an event on
 in that read, the cache's own objects), and an event on for the account and on or over in the current read takes its
-draws, matches, round, leaderboard and bouts from the newest read at least the delay old (`readAsOf`); the blanks above
-only until a read is that old. Bounded per event: at most `READS_KEPT` (16) reads, none older than the newest one at or
+draws, matches, round, leaderboard and bouts from the newest read at least the delay old (`readAsOf`); until a read is
+that old, the blanks above with nothing that moves during play either (`beforeAnyRead`: each match and bout `scheduled`,
+golf's `round` null). Bounded per event: at most `READS_KEPT` (16) reads, none older than the newest one at or
 before `MAX_DELAY_MS` (300 s, the longest delay) ago, and an event no longer on forgotten once its last read is
 `READS_MS` (the longest delay plus the 10-minute on lifetime) old (its first read over is kept, so a delayed account
 sees the result once that read is the delay old). With no fresh collector snapshot for the event the delay still
