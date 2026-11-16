@@ -624,6 +624,11 @@
 .sp-win .qb.guess, .sp-menu .qb.guess { background: transparent; border: 1px dashed var(--color-text-secondary); }
 .sp-win .qchips, .sp-menu .qchips { display: flex; gap: 6px; margin-top: 6px; overflow-x: auto; scrollbar-width: none; }
 .sp-win .qchips[hidden], .sp-menu .qchips[hidden] { display: none; }
+.sp-win .qbest[hidden], .sp-menu .qbest[hidden] { display: none; }
+/* a chip row that scrolls fades at the edge(s) it overflows (SportsPage.fadeEdges), the cue that there is more */
+.sp-win .qchips.fade-r, .sp-menu .qchips.fade-r { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent); }
+.sp-win .qchips.fade-l, .sp-menu .qchips.fade-l { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 32px), transparent); mask-image: linear-gradient(to left, #000 calc(100% - 32px), transparent); }
+.sp-win .qchips.fade-l.fade-r, .sp-menu .qchips.fade-l.fade-r { -webkit-mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent); mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent); }
 .sp-win .qchip, .sp-menu .qchip { min-height: 32px; padding: 4px 10px; font-size: 13px; cursor: pointer; }
 .sp-win .qchip:hover, .sp-menu .qchip:hover { filter: brightness(1.15); }
 .sp-win .qchip:focus-visible, .sp-menu .qchip:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }

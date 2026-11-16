@@ -734,7 +734,8 @@ class SportsPage {
             html += `<button type="button" class="mi" role="menuitem" tabindex="-1" data-act="${e(it.act)}" data-id="${e(g.id)}"${it.expands ? ' aria-expanded="false"' : ''}>${it.icon}<span><b>${e(it.title)}</b><span>${e(it.detail)}</span></span></button>`;
             if (it.expands) html += `<div class="msub" hidden>${V.channelGroups(this.channelsOnAir(g)).map(row => {
                 const copies = row.chips.flatMap(x => x.channels), c = copies[0], single = copies.length === 1;
-                const badge = single ? V.copyBadge(c) : V.qualityBadge(row.chips[0].q);
+                // a row whose chips show has no best badge of its own (its first chip is it): only a closed row (phone) has it
+                const badge = single ? V.copyBadge(c) : row.chips.length > 1 ? this.bestBadge(row, row.chips[0].q) : V.qualityBadge(row.chips[0].q);
                 const main = `<button type="button" class="mi" role="menuitem" tabindex="-1" data-act="watch-channel" data-id="${e(g.id)}" data-channel="${e(SportsPage.channelKey(c))}">${V.ICON.play}<span><b>${e(single ? c.name : row.name)}</b>${badge ? `<span>${badge}</span>` : ''}</span></button>`;
                 if (row.chips.length < 2) return main;
                 const chips = this.chipsHtml(row, (chip) => ` type="button" role="menuitem" tabindex="-1" data-act="watch-channel" data-id="${e(g.id)}" data-channel="${e(SportsPage.channelKey(chip.channels[0]))}" aria-label="${e(`Watch ${row.name} in ${SportsPage.chipWords(row, chip)}`)}"`);
@@ -764,6 +765,7 @@ class SportsPage {
         document.body.appendChild(menu);
         this.held = null;
         this.holdRows(menu);
+        this.watchChips(menu);
         const rows = () => [...menu.querySelectorAll('[role=menuitem]')].filter(r => !r.closest?.('[hidden]'));
         const close = (focus = true) => this.closeMenu(focus);
         menu.addEventListener('click', (e) => {
@@ -887,6 +889,24 @@ class SportsPage {
         const shown = !this.phone || this.held === row.key;
         return `<span class="qchips" role="group" aria-label="${V.e(`${row.name}: qualities`)}"${shown ? '' : ' hidden'}>${chips}</span>`;
     }
+    /** A row with chips: its best badge only where the chips are not shown (a closed row on a phone), else nothing. */
+    bestBadge(row, q) {
+        if (!this.phone) return '';
+        return SportView.qualityBadge(q, { cls: 'qbest', attrs: this.held === row.key ? ' hidden' : '' });
+    }
+    /** D-65: a chip row wider than its box fades at the edge(s) it overflows, the cue that it scrolls; none when it fits. */
+    static fadeEdges(el) {
+        if (!el || !el.classList) return;
+        const max = (Number(el.scrollWidth) || 0) - (Number(el.clientWidth) || 0), at = Number(el.scrollLeft) || 0;
+        el.classList.toggle('fade-l', max > 1 && at > 1);
+        el.classList.toggle('fade-r', max > 1 && at < max - 1);
+    }
+    /** Every chip row under `root` keeps its fade right: now, and when its size changes (shown, the window resized). */
+    watchChips(root) {
+        if (!root || !root.querySelectorAll) return;
+        if (!this._chipSizes && typeof ResizeObserver !== 'undefined') this._chipSizes = new ResizeObserver(list => list.forEach(x => SportsPage.fadeEdges(x.target)));
+        for (const el of root.querySelectorAll('.qchips')) { SportsPage.fadeEdges(el); this._chipSizes?.observe(el); }
+    }
     /**
      * D-65 (iPhone): touch and hold a picker row (`data-hold`) opens its chips in place (another hold closes them); the
      * click that ends a hold does nothing. A right-click (a long press in most phone browsers) does the same.
@@ -900,8 +920,9 @@ class SportsPage {
             this.held = this.held === k ? null : k;
             heldAt = Date.now();
             for (const r of root.querySelectorAll('[data-hold]')) {
-                const chips = r.querySelector('.qchips');
-                if (chips) chips.hidden = r.getAttribute('data-hold') !== this.held;
+                const open = r.getAttribute('data-hold') === this.held, chips = r.querySelector('.qchips');
+                if (chips) { chips.hidden = !open; if (open) SportsPage.fadeEdges(chips); }
+                for (const b of r.querySelectorAll('.qbest')) b.hidden = open; // the open row's chips show its best
             }
         };
         const cancel = () => { clearTimeout(timer); timer = null; };
@@ -914,6 +935,7 @@ class SportsPage {
         });
         root.addEventListener('pointermove', (e) => { if (timer && at && Math.hypot((e.clientX || 0) - at.x, (e.clientY || 0) - at.y) > 10) cancel(); });
         root.addEventListener('pointerup', cancel);
+        root.addEventListener('scroll', (e) => { if (e.target?.classList?.contains?.('qchips')) SportsPage.fadeEdges(e.target); }, true);
         root.addEventListener('pointercancel', cancel);
         root.addEventListener('contextmenu', (e) => {
             const row = e.target?.closest?.('[data-hold]');
@@ -988,6 +1010,7 @@ class SportsPage {
             const { body, footer } = draw();
             d.body.innerHTML = `<div class="sp sp-win">${body}</div>`;
             d.footer.replaceChildren(...(footer || []));
+            this.watchChips(d.body);
             if (key) [...(d.el.querySelectorAll?.('[data-key]') || [])].find(n => n.getAttribute('data-key') === key)?.focus?.({ preventScroll: true });
         };
         d.el.addEventListener('click', (e) => {
@@ -1079,7 +1102,7 @@ class SportsPage {
                 const k = P.channelKey(best), watch = state(best).on;
                 return ` type="button" data-act="${watch ? 'd-watch-on' : 'd-record-on'}" data-channel="${e(k)}" data-key="d:q:${e(k)}" aria-label="${e(`${watch ? 'Watch' : 'Record'} ${row.name} in ${P.chipWords(row, chip)}`)}"`;
             }) : '';
-            const badge = row.chips.length > 1 ? (this.phone ? V.qualityBadge(row.chips[0].q) : '') : single ? V.copyBadge(c) : V.qualityBadge(row.chips[0].q);
+            const badge = row.chips.length > 1 ? this.bestBadge(row, row.chips[0].q) : single ? V.copyBadge(c) : V.qualityBadge(row.chips[0].q);
             html += `<li class="dch${chips ? ' dq' : ''}"${chips && this.phone ? ` data-hold="${e(row.key)}"` : ''}><span class="dct"><b>${e(name)}</b>${single && c.number != null ? ` <span class="num pig-amount">${e(c.number)}</span>` : ''}${badge ? ` ${badge}` : ''}${sub.length ? `<span class="dsub">${e(sub.join(' · '))}</span>` : ''}${chips}</span><span class="dca">${btns}</span></li>`;
         });
         return `${html}</ul>`;
@@ -1261,7 +1284,7 @@ class SportsPage {
                 const chips = row.chips.length > 1 ? this.chipsHtml(row, (chip) => { const k = indexOf(chip.channels[0]);
                     return ` type="button" data-act="r-on" data-index="${k}" data-key="r:q:${k}" aria-label="${e(`Record ${row.name} in ${P.chipWords(row, chip)}`)}"`; }, picked) : '';
                 const shownChip = picked ? row.chips.find(ch => ch.channels.includes(picked)) : row.chips[0];
-                const badge = row.chips.length > 1 ? (this.phone ? V.qualityBadge(shownChip.q) : '') : single ? V.copyBadge(x.c) : V.qualityBadge(row.chips[0].q);
+                const badge = row.chips.length > 1 ? this.bestBadge(row, shownChip.q) : single ? V.copyBadge(x.c) : V.qualityBadge(row.chips[0].q);
                 const button = `<button type="button" class="rchoice rch${on ? ' on' : ''}" role="radio" aria-checked="${on}" data-act="r-on" data-index="${i}" data-key="r:on:${i}"><span class="rradio${on ? ' on' : ''}" aria-hidden="true"></span><span class="rcht"><b>${e(single ? x.c.name : row.name)}</b><span class="pig-amount">${e(detail)}</span></span>${badge}</button>`;
                 html += chips ? `<div class="rchg"${this.phone ? ` data-hold="${e(row.key)}"` : ''}>${button}${chips}</div>` : button;
             });

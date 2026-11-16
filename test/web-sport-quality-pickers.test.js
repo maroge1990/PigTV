@@ -120,7 +120,7 @@ test('narrow window (iPhone layout): the row shows its best chip; touch and hold
     const h = await harness({ phone: true });
     h.p.openDetails('ars');
     let html = h.body();
-    assert.match(html, /<li class="dch dq" data-hold="uk\| sky sports f1"><span class="dct"><b>UK\| SKY SPORTS F1<\/b> <span class="qb top" title="Measured 4K at 50 fps">4K<i class="pig-amount">50<\/i><\/span>/);
+    assert.match(html, /<li class="dch dq" data-hold="uk\| sky sports f1"><span class="dct"><b>UK\| SKY SPORTS F1<\/b> <span class="qb top qbest" title="Measured 4K at 50 fps">4K<i class="pig-amount">50<\/i><\/span>/);
     assert.match(html, /<span class="qchips" role="group" aria-label="UK\| SKY SPORTS F1: qualities" hidden>/, 'chips closed');
     assert.match(html, /data-act="d-watch-on" data-channel="1:u2" data-key="d:w:1:u2"/, 'Watch plays the best copy: the best chip\'s first');
     // a long press (the phone browser's contextmenu) on the row opens it
@@ -183,4 +183,40 @@ test('the badge keeps its own shape in the watch menu, and a details row with ch
     // a grid item's automatic minimum is its content's width: the chips' row widened the details window's rows past
     // the window, taking Watch and Record off its edge; a 0 minimum lets the chips scroll inside the row instead
     assert.match(rule('.sp-win .dchs'), /grid-template-columns: minmax\(0, 1fr\)/);
+});
+
+test('a row showing its chips has no best badge of its own (the first chip is it); a closed row keeps it (Mark, T3)', async () => {
+    const wide = await harness();
+    const menu = wide.p.menuMarkup(wide.p.game('ars'));
+    const mainBtn = menu.slice(menu.indexOf('<div class="mgrp">'), menu.indexOf('class="qchips"', menu.indexOf('<div class="mgrp">')));
+    assert.doesNotMatch(mainBtn, /class="qb/, 'the menu row with chips shown: no row badge');
+    wide.p.openRecord('ars');
+    const rec = wide.body(), button = rec.slice(rec.indexOf('class="rchg"'), rec.indexOf('class="qchips"', rec.indexOf('class="rchg"')));
+    assert.doesNotMatch(button, /class="qb/, 'the Record on row with chips shown: no row badge');
+
+    const phone = await harness({ phone: true });
+    phone.p.openDetails('ars');
+    let html = phone.body();
+    assert.match(html, /<span class="qb top qbest" title="Measured 4K at 50 fps">4K/, 'a closed row: its best badge');
+    assert.doesNotMatch(html, /class="qb[^"]*qbest"[^>]* hidden/);
+    phone.p.held = 'uk| sky sports f1';
+    phone.p.window.redraw();
+    html = phone.body();
+    assert.match(html, /<span class="qb top qbest" hidden title="Measured 4K at 50 fps">/, 'the row held open: the badge goes, the chips show it');
+    const pm = phone.p.menuMarkup(phone.p.game('ars'));
+    assert.match(pm, /class="qb top qbest" hidden title=/, 'the menu row held open: no row badge');
+});
+
+test('a chip row wider than its box fades at the edge it overflows (the scroll cue), never when it fits', () => {
+    const b = browser({ request: async () => ({}) });
+    const vm = require('node:vm');
+    const P = vm.runInContext('SportsPage', b.context);
+    const el = (scrollWidth, clientWidth, scrollLeft) => { const n = b.document.createElement('span'); Object.assign(n, { scrollWidth, clientWidth, scrollLeft }); P.fadeEdges(n); return n.className; };
+    assert.equal(el(300, 300, 0), '', 'fits: no fade');
+    assert.equal(el(500, 300, 0), 'fade-r');
+    assert.equal(el(500, 300, 100), 'fade-l fade-r');
+    assert.equal(el(500, 300, 200), 'fade-l');
+    const css = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'public/css/sport.css'), 'utf8');
+    assert.match(css, /\.qchips\.fade-r[^{]*\{[^}]*mask-image: linear-gradient/);
+    assert.match(css, /\.qchips\.fade-l[^{]*\{[^}]*mask-image: linear-gradient/);
 });
