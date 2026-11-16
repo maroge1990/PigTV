@@ -5,28 +5,23 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 16 Nov 2026, the channel audit and closure session (nothing unpushed).*
+*Overwritten at the end of every session. 17 Nov 2026 (early hours), the design-to-build session (nothing unpushed).*
 
 - **Running:** production runs **0695** (Mark holds the Force Update until the channel audit's window ends, 17 Nov 11:30
-  AEDT; a restart stops it). main is at **0787**: everything below reaches production at his next Force Update (D-58).
-  `:release` is still **v0579** (D-45). Apple main **255** (TestFlight still 246; uploads are cloud-signed, D-64).
-  Next builds: server **0788**, Apple **256**.
-- **Channel audit (#331, running in production's container, read only on the provider, yields to plays and
-  recordings):** passes 1-2 (15-16 Nov) and a 24 h priority window (16-17 Nov, `data/audit/window-1116`). Findings: the
-  provider's placeholder (one identical still frame, about 193 kbps) on about 80 channels while the guide shows a
-  programme; switching to another copy rescued every blank so far, retrying the same stream none; the UK "skips" were
-  subtitle-track gaps (picture and sound clean). Script: `scripts/channel-audit.js` on the audit branch, not on main.
-- **Shipped today (each with evidence under `docs/evidence/2026-11-16-*`):** providers tested before saving and no
-  provider host in logs (0758-0765, #330 open for the browser check, #315 and #319 closed); recording safety: one active
-  schedule per game, an atomic move, share reads off the thread pool (0766-0772, #329, #314, #318 closed); the
-  placeholder detected and a same-provider copy tried (0773-0779, #332 waits for the audit's figures and Mark's check);
-  Events detail and status held back for a score delay (0780-0783, #328 closed, Mark's choice); a placeholder file never
-  kept in a recording and MP4 audio sane at joins (0784-0787, #333 closed); Apple 247-255 (#313 items, #268's button,
-  #329's wording, #316).
-- **Production repair (T4, Mark's go-ahead):** the 16 Nov NFL recording held an hour of placeholder file and broken audio
-  joins; its MP4 was rebuilt by hand and plays (#333 has the evidence).
-- **Decisions waiting on Mark:** #232 (Top Shelf); #283 (fixture flags: options); the Appdata Backup setting; #240;
-  whether to tag `:release`; #265/#266's picker design (mock-ups first).
+  AEDT). main is at **0814**, all CI green: everything below reaches production at his next Force Update (D-58).
+  `:release` stays **v0579** until Mark's device checks of the new build, then moves (Mark, 16 Nov). Apple main **291**
+  (TestFlight still 246; the next upload is cloud-signed, D-64). Next builds: server **0815**, Apple **292**.
+- **Designs decided 16 Nov (mock-up canvases):** pickers D-65; Top Shelf with scores unless recording, and search kept
+  side-by-side from every page, D-66; players (sport player's live games, guarded Go to live, quality badge) D-67.
+- **Built and pushed 16–17 Nov, each with Codex rounds and simulator/browser screenshots on every platform:**
+  sport player and Go to live (0788–0797, Apple 256–261; #334, #335); measured quality and one-row pickers (0798–0808,
+  Apple 262–279; #265, #266); Top Shelf live games (#232), #336 iPhone rotation crash, a flaky record-page test;
+  search and richer guide programmes (0810–0814, Apple 280–291; #57, #56); a recent final keeping its result after local
+  midnight (0809, #337 closed). All T5 steps are on their issues (`needs-device-test`).
+- **Mark's decisions 16 Nov:** Appdata Backup keeps stopping PigTV, moved to a quiet slot (#246, proposed Wed 04:00);
+  #240 captures after the audit; #283 parked; `:release` after the device checks.
+- **Not done:** the measured-quality import of the audit (`scripts/import-channel-audit.js`) runs after the window;
+  the iPad search page uses the app's 820 pt page width (right side empty); iPhone search titles truncate.
 
 ## Now
 
@@ -42,9 +37,9 @@ Order within a section is the order to take them.
 
 - **A/V sync:** #267 meter · #268 marker, then #3 and #27. **Relay and recovery (released alone, D-25):** #4 · #41's
   transition table and invariant test · #74 · #30. **Start speed:** #240 · #36 · #38.
-- **Operations:** #43 · #44 · #45 · #28. **Recording text:** #314. **Logs:** #315. **Recording playback reads:** #318. **Sport join squads:** #319. **Tests:** #26, and the stored replay for #22 to #24 re-run after 0551.
-- **Apple launch and tests:** #54 · #55 · #53 · #283 · #313 (Apple 1's review lows) · #316. **Apple structure:** #50 · #51.
-- **Apple player:** #25 · #35 · #58 · #308 (Start over from live) · #101. **Apple, design first:** #56 · #57 · #232.
+- **Operations:** #43 · #44 · #45 · #28. **Tests:** #26, and the stored replay for #22 to #24 re-run after 0551.
+- **Apple launch and tests:** #54 · #55 · #53 · #313 (Apple 1's review lows). **Apple structure:** #50 · #51.
+- **Apple player:** #25 · #35 · #58 · #308 (Start over from live) · #101. 
   **Brand kit:** #294.
 
 ## Waiting on Mark (no code is waiting; steps are on each issue)
