@@ -13,8 +13,9 @@
  * - Hiding scores is not applied here: the front leaves scores out when the household's spoiler-free switch is on, and
  *   the pages always send them and the client hides them by that same switch (C-P, C-Q, C-T), unchanged.
  *
- * deps(userId, now) -> { state(cardId) -> { snapshot } | null, event(cardId) -> { snapshot } | null, covered(league) -> boolean }
- * or {} with the collector off. `event`: a tennis, golf, UFC or racing card (#297), whose snapshot has no page facts (its
+ * deps(userId, now) -> { state(cardId) -> { snapshot } | null, event(cardId) -> { snapshot } | null, covered(league) -> boolean,
+ * delay } or {} with the collector off. `delay`: the account's score delay in seconds (#328: the Events page shows its own
+ * read from at least that long ago while the event is on). `event`: a tennis, golf, UFC or racing card (#297), whose snapshot has no page facts (its
  * state is already the Events page's word, C-V), fresh by the front's rule for those leagues (a break, polled every
  * BREAK_POLL, stays fresh that much longer).
  * `covered`: the collector has wholly answered the league's window within the last 30 minutes, so a page need not
@@ -55,7 +56,7 @@ function deps(userId, now = Date.now()) {
             return Boolean(row) && now - row.observed_at <= COVERED_MS;
         } catch { return false; }
     };
-    return { state, event, covered };
+    return { state, event, covered, delay };
 }
 
 /** The score of `side` ('home' | 'away') in a snapshot, as a page's string, or null. */

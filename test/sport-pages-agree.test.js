@@ -426,3 +426,108 @@ test('F1: a finish the page\'s read still lacks after renewing keeps the page\'s
     const caught = await f1.page(at + 28 * MIN, pageDeps(2, at + 28 * MIN));
     assert.deepEqual([race(caught).status, race(caught).top?.driver, caught.weekend.phase], ['done', 'Alex Abel', 'after']);
 });
+
+// #328 (owner's call of 16 Nov 2026, option 2): while both the collector's delayed view and the Events page's own read
+// said an event was on, the page showed tennis set scores and winners, golf scores to par and UFC results from its own
+// read, up to the account's delay ahead of what it should see. The page now keeps its reads and shows, for a delayed
+// account, the event's detail from the newest read at least the delay old (blank only until one is that old); with no
+// delay, the current read as before. Each read encodes its time: a set score and a score to par of `half-minutes since
+// the start`, a UFC bout won 12 minutes in.
+const ON_STATUS = { clock: 0, displayClock: '0:00', period: 2, type: { id: '2', name: 'STATUS_IN_PROGRESS', state: 'in', completed: false, description: 'In Progress', detail: 'In Progress', shortDetail: 'In Progress' } };
+const OVER_STATUS = { clock: 0, displayClock: '3:10', period: 2, type: { id: '3', name: 'STATUS_FINAL', state: 'post', completed: true, description: 'Final', detail: 'Final', shortDetail: 'Final' } };
+const halves = (at, t) => Math.round((t - at) / 30000);
+const eventBoards = {
+    tennis: (at, t, over = false) => ({ leagues: [{ id: '850', calendar: [] }], events: [{ id: '9918001', name: 'Scripted Open', date: iso(at), endDate: iso(at + 3 * 24 * 60 * MIN), major: false,
+        groupings: [{ grouping: { displayName: 'Men\'s Singles' }, competitions: [
+            { id: '9918011', date: iso(at), round: { id: 1, displayName: 'Round 1' }, status: over ? OVER_STATUS : ON_STATUS,
+                competitors: [['Ann Ash', halves(at, t)], ['Bo Bell', 0]].map(([name, games], i) => ({ order: i + 1, winner: over && i === 0, athlete: { displayName: name }, linescores: [{ value: games }] })) },
+            { id: '9918012', date: iso(at), round: { id: 1, displayName: 'Round 1' }, status: over || t >= at + 12 * MIN ? OVER_STATUS : ON_STATUS,
+                competitors: [['Cy Cole', 6], ['Di Dunn', 3]].map(([name, games], i) => ({ order: i + 1, winner: (over || t >= at + 12 * MIN) && i === 0, athlete: { displayName: name }, linescores: [{ value: games }] })) }] }] }] }),
+    golf: (at, t) => ({ leagues: [{ id: '1106', calendar: [] }], events: [{ id: '9918002', name: 'Scripted Invitational', date: iso(at), endDate: iso(at + 3 * 24 * 60 * MIN), status: ON_STATUS,
+        competitions: [{ id: '9918002', date: iso(at), endDate: iso(at + 3 * 24 * 60 * MIN), status: ON_STATUS,
+            competitors: [['31', 'Ed Eve', `-${halves(at, t)}`], ['32', 'Flo Fay', 'E']].map(([id, name, score], i) => ({ id, order: i + 1, score, athlete: { displayName: name }, linescores: [] })) }] }] }),
+    ufc: (at, t) => ({ leagues: [{ id: '3321', calendar: [] }], events: [{ id: '9918003', name: 'UFC Scripted Fight Night', date: iso(at), status: ON_STATUS,
+        competitions: [['9918031', t >= at + 12 * MIN], ['9918032', false]].map(([id, won]) => ({ id, date: iso(at), status: won ? OVER_STATUS : ON_STATUS, type: { abbreviation: 'Lightweight' },
+            competitors: [['Gus Gray', 1], ['Hal Hill', 2]].map(([name, order]) => ({ order, winner: won && order === 1, athlete: { displayName: name } })) })) }] })
+};
+const EVENT_LEAGUES = [['ATP Tour', 'tennis/atp', eventBoards.tennis], ['PGA Tour', 'golf/pga', eventBoards.golf], ['UFC', 'mma/ufc', eventBoards.ufc]];
+const detailOf = (e) => ({ sets: e.matches?.map(m => m.sets), winners: e.matches?.map(m => m.players.map(p => p.winner)), toPar: e.leaderboard?.map(r => r.toPar),
+    order: e.leaderboard?.map(r => r.name), bouts: e.bouts?.map(b => [b.status, b.result, ...b.fighters.map(f => f.winner)]) });
+const eventDeps = (userId, now) => { const d = pageDeps(userId, now); return { event: d.event, delay: d.delay }; };
+
+test('#328: Events with a 90 s delay and both views live: tennis sets and winners, golf scores to par and UFC results from the newest read at least 90 s old; with no delay the current read', async () => {
+    const ev = load('services/sportPageEvents');
+    const individual = load('services/sportIndividual');
+    const store = dashboard.store();
+    if (!prefsSet) { store.updatePreferences(ACCOUNTS.instant, { revision: 0, scoreDelaySeconds: 0 }); prefsSet = true; }
+    ev.reset();
+    const at = K + 12 * 24 * 60 * MIN;
+    let clock = at, probing = false;
+    const builds = new Map(EVENT_LEAGUES.map(([league]) => [league, []])); // league -> the times its reads were made
+    ev.fetcher.get = async url => {
+        const hit = EVENT_LEAGUES.find(([, source]) => url.includes(`${source}/scoreboard`));
+        if (!hit) return { ok: false, error: 'HTTP 404' };
+        if (!probing) builds.get(hit[0]).push(clock);
+        return { ok: true, json: hit[2](at, clock) };
+    };
+    const bad = [];
+    for (let t = at - 5 * MIN; t <= at + 30 * MIN; t += 30000) {
+        for (const [league, source, board] of EVENT_LEAGUES) store.ingest(individual.normalize(board(at, t), league, source), t);
+        if (t < at + MIN) continue;
+        clock = t;
+        for (const [league] of EVENT_LEAGUES) {
+            await ev.page(league, t);
+            for (let i = 0; i < 5; i++) await new Promise(res => setImmediate(res)); // a read this starts lands
+            const delayed = (await ev.page(league, t, eventDeps(ACCOUNTS.delayed, t))).events[0];
+            const instant = (await ev.page(league, t, eventDeps(ACCOUNTS.instant, t))).events[0];
+            const own = (await ev.page(league, t)).events[0]; // the cached read, no account's view
+            const at90 = t - 90000;
+            if (delayed.status !== 'live' || instant.status !== 'live') bad.push(`${league} +${halves(at, t)}: ${delayed.status}/${instant.status}`);
+            assert.deepEqual(detailOf(instant), detailOf(own), `${league} +${halves(at, t)}: no delay, the current read`);
+            const r = builds.get(league).filter(b => b <= at90).at(-1);
+            if (r === undefined) { // no read 90 s old yet: nothing newer than the delayed view (no detail at all)
+                const blank = detailOf(delayed);
+                if ([blank.sets, blank.toPar].some(l => l && l.flat().some(v => v !== null)) || (blank.bouts || []).some(b => b.slice(1).some(v => v !== null)) ||
+                    (blank.winners || []).flat().some(v => v !== null)) bad.push(`${league} +${halves(at, t)}: detail before any read was 90 s old`);
+                continue;
+            }
+            probing = true; clock = r;
+            const want = detailOf((await ev.build(league, r)).events[0]); // what that read said
+            probing = false; clock = t;
+            if (JSON.stringify(detailOf(delayed)) !== JSON.stringify(want)) bad.push(`${league} +${halves(at, t)}: shows ${JSON.stringify(detailOf(delayed))}, the read at +${halves(at, r)} says ${JSON.stringify(want)}`);
+        }
+    }
+    assert.deepEqual(bad, []);
+    for (const [league] of EVENT_LEAGUES) assert.ok(builds.get(league).length >= 3, `${league}: the page read more than once (${builds.get(league).length})`);
+});
+
+test('#328: the Events page\'s kept reads are bounded: per event at most READS_KEPT, none older than needed for the longest delay, an event over forgotten', async () => {
+    const ev = load('services/sportPageEvents');
+    const individual = load('services/sportIndividual');
+    const store = dashboard.store();
+    ev.reset();
+    const at = K + 13 * 24 * 60 * MIN;
+    let readAt = at, over = false;
+    ev.fetcher.get = async url => (url.includes('tennis/atp/scoreboard') ? { ok: true, json: eventBoards.tennis(at, readAt, over) } : { ok: false, error: 'HTTP 404' });
+    // the collector already has it over (a lagging read): the page renews its read every 30 s, each read kept
+    for (let t = at; t <= at + 20 * MIN; t += 30000) {
+        store.ingest(individual.normalize(eventBoards.tennis(at, t, true), 'ATP Tour', 'tennis/atp'), t);
+        readAt = t;
+        await ev.page('ATP Tour', t, eventDeps(ACCOUNTS.delayed, t));
+        for (let i = 0; i < 5; i++) await new Promise(res => setImmediate(res));
+        const kept = ev._reads.get('ATP Tour')?.get('espn:tennis/atp:9918001') || [];
+        assert.ok(kept.length <= ev.READS_KEPT, `${kept.length} kept`);
+        if (kept.length > 1) assert.ok(kept[1].at > kept.at(-1).at - 300000, 'only one read older than the longest delay');
+    }
+    const kept = ev._reads.get('ATP Tour').get('espn:tennis/atp:9918001');
+    assert.ok(kept.length >= 10, `the reads of the last 5 minutes are there (${kept.length})`);
+    // the read catches up (over), and once its last read on is READS_MS old a new read forgets the event
+    over = true;
+    const later = at + 20 * MIN + ev.READS_MS + 30000;
+    readAt = later;
+    store.ingest(individual.normalize(eventBoards.tennis(at, later, true), 'ATP Tour', 'tennis/atp'), later);
+    await ev.page('ATP Tour', later, eventDeps(ACCOUNTS.delayed, later));
+    for (let i = 0; i < 5; i++) await new Promise(res => setImmediate(res));
+    await ev.page('ATP Tour', later + 1000, eventDeps(ACCOUNTS.delayed, later + 1000));
+    assert.equal(ev._reads.get('ATP Tour').has('espn:tennis/atp:9918001'), false, 'an event no longer on is forgotten');
+});

@@ -43,6 +43,56 @@ const tuning = { ...TUNING };
 // The one sport fetch (sportFetch.js, #272), with the collector's 8 s and the individual leagues' 6 MB.
 const fetcher = { get: (url) => fetchFeed(url, { timeoutMs: 8000, maxBytes: individual.MAX_BYTES }) };
 
+/**
+ * #328 (owner's call of 16 Nov 2026, option 2): the collector holds an event's status but none of the page's detail, so
+ * for an account with a score delay the page shows its own detail from its newest read at least that delay old while the
+ * event is on. Each read is kept per league and event (the same objects as the cache's: the current read costs nothing
+ * more), only for an event on in that read. Bounded: per event at most READS_KEPT reads, none older than the newest
+ * one at or before MAX_DELAY_MS ago (no later request with any allowed delay can ask for an older one), and an event no
+ * longer on in the reads is forgotten once its newest read is READS_MS old (the slowest a read of an event on comes, plus
+ * the longest delay).
+ */
+const MAX_DELAY_MS = 300000; // C-O scoreDelaySeconds is at most 300 (sportsDashboardStore)
+const READS_MS = MAX_DELAY_MS + ON_TTL_MS;
+const READS_KEPT = 16; // renewals come at most every 30 s (sportPageCache), so the longest delay spans about 11 reads
+const DETAIL = ['matches', 'draws', 'round', 'leaderboard', 'bouts'];
+const ON = new Set(['live', 'break', 'suspended']);
+const reads = new Map(); // league -> Map(event id -> [{ at, event }], oldest first)
+let readGeneration = 0;
+
+function keepRead(league, value, at) {
+    if (!reads.has(league)) reads.set(league, new Map());
+    const byEvent = reads.get(league);
+    for (const e of value.events) {
+        if (!ON.has(e.status)) continue;
+        const kept = byEvent.get(e.id) || [];
+        let i = kept.length;
+        while (i > 0 && kept[i - 1].at > at) i--;
+        kept.splice(i, 0, { at, event: e });
+        byEvent.set(e.id, kept);
+    }
+    for (const [id, kept] of byEvent) {
+        let base = -1;
+        kept.forEach((r, i) => { if (r.at <= at - MAX_DELAY_MS) base = i; });
+        if (base > 0) kept.splice(0, base);
+        if (kept.length > READS_KEPT) kept.splice(0, kept.length - READS_KEPT);
+        if (!kept.length || kept.at(-1).at < at - READS_MS) byEvent.delete(id);
+    }
+}
+/** The event `id` from the newest kept read at or before `asOf`, or null. */
+function readAsOf(league, id, asOf) {
+    const kept = reads.get(league)?.get(id) || [];
+    for (let i = kept.length - 1; i >= 0; i--) if (kept[i].at <= asOf) return kept[i].event;
+    return null;
+}
+/** One build of `league`'s answer, kept in the reads (unless reset() came first). */
+async function read(league, now) {
+    const mine = readGeneration;
+    const value = await build(league, now);
+    if (value && mine === readGeneration) keepRead(league, value, now);
+    return value;
+}
+
 const caches = createPageCache({ label: 'events', coldWaitMs: () => tuning.coldWaitMs, ttlOf: (value, now) => ttlOf(value, now) });
 
 /** The canonical league for `name` (any case), or null outside the five sports' catalogue leagues. */
@@ -243,7 +293,7 @@ function ttlOf(value, now) {
 }
 
 async function cached(league, now) {
-    const entry = await caches.get(league, now, () => build(league, now));
+    const entry = await caches.get(league, now, () => read(league, now));
     return entry?.value || null;
 }
 
@@ -251,10 +301,11 @@ async function cached(league, now) {
  * C-V's answer for `league` at `now`, for an account following `names` (its sport's followed names, C-U): the cached
  * ESPN part with each event's `followed` (the event's own spellings of those names), or `{ available: false }`.
  */
-async function page(league, now = Date.now(), { names = [], event: eventState = null } = {}) {
+async function page(league, now = Date.now(), { names = [], event: eventState = null, delay = 0 } = {}) {
     let value = await cached(league, now);
     if (!value) return { available: false };
-    if (eventState) value = await withState(league, value, now, eventState);
+    const delayed = Number.isFinite(delay) && delay > 0 ? (id) => readAsOf(league, id, now - delay * 1000) : null;
+    if (eventState) value = await withState(league, value, now, eventState, delayed);
     const wanted = new Set(names.map(personKey).filter(Boolean));
     return { ...value, events: value.events.map(({ players, ...e }) => ({ ...e, followed: players.filter(p => wanted.has(personKey(p))) })) };
 }
@@ -267,12 +318,15 @@ async function page(league, now = Date.now(), { names = [], event: eventState = 
  * leaderboard, the bouts and a race's winner come only from it; a finish the read still lacks after that keeps the
  * page's own status. The page's read newer than the account's delayed view: the collector's status, no results from the
  * read (withoutResults) and no `lastWinner` when it is this race's. Each match, round and bout keeps its own state.
+ * #328: with a score delay (`delayed(id)`: the event from the newest read at least the delay old), an event on for the
+ * account and on or over in the read takes its draws, matches, round, leaderboard and bouts from that older read; only
+ * when no read is old enough yet does it fall back to withoutResults.
  */
-async function withState(league, value, now, state) {
-    let view = overlay(value, state);
+async function withState(league, value, now, state, delayed = null) {
+    let view = overlay(value, state, delayed);
     if (view.renew) {
-        const entry = await caches.renew(league, now, () => build(league, now));
-        if (entry?.value && entry.value !== value) view = overlay(entry.value, state);
+        const entry = await caches.renew(league, now, () => read(league, now));
+        if (entry?.value && entry.value !== value) view = overlay(entry.value, state, delayed);
     }
     return view.value;
 }
@@ -294,9 +348,14 @@ function withoutResults(e) {
     return out;
 }
 
-function overlay(value, state) {
+function overlay(value, state, delayed = null) {
     const { rank } = require('./sportPageState');
     let renew = false, changed = false, lastWinner = value.lastWinner ?? null;
+    // #328: what the account may see of an event its delayed view has on: the read at least the delay old, else none
+    const held = (e) => {
+        const old = delayed ? delayed(e.id) : null;
+        return old ? { ...e, ...Object.fromEntries(DETAIL.filter(k => k in old).map(k => [k, old[k]])) } : withoutResults(e);
+    };
     const events = value.events.map(e => {
         let seen = null;
         try { seen = state(e.id); } catch { seen = null; }
@@ -305,17 +364,18 @@ function overlay(value, state) {
         if (theirs === null) return e;
         if (theirs > ours) { renew = true; if (theirs === 2) return e; }
         const breakLabel = word === 'break' && typeof seen.snapshot.breakLabel === 'string' ? seen.snapshot.breakLabel : null;
-        if (word === e.status && (e.breakLabel ?? null) === breakLabel) return e;
+        const behind = theirs < ours || (delayed !== null && theirs === 1 && ours === 1);
+        if (!behind && word === e.status && (e.breakLabel ?? null) === breakLabel) return e;
         changed = true;
         if (theirs < ours && lastWinner && lastWinner.race === e.name && lastWinner.date === e.start) lastWinner = null;
         const { breakLabel: _drop, ...rest } = e;
-        return { ...(theirs < ours ? withoutResults(rest) : rest), status: word, ...(breakLabel ? { breakLabel } : {}) };
+        return { ...(behind ? held(rest) : rest), status: word, ...(breakLabel ? { breakLabel } : {}) };
     });
     if (!changed) return { value, renew };
     return { value: { ...value, events, ...('lastWinner' in value ? { lastWinner } : {}) }, renew };
 }
 
 /** Tests: forget everything. */
-function reset() { caches.reset(); }
+function reset() { caches.reset(); reads.clear(); readGeneration++; }
 
-module.exports = { LEAGUES, leagueOf, page, build, reset, fetcher, tuning, TUNING };
+module.exports = { LEAGUES, leagueOf, page, build, reset, fetcher, tuning, TUNING, READS_KEPT, READS_MS, _reads: reads };

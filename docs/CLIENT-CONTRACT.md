@@ -1106,6 +1106,11 @@ on whenever ESPN fixtures are, as the other pages.
   read has it (renewed at once). While the account's delayed view is behind the page's read, the event shows the delayed
   status without its results from the read: tennis `sets` and every `winner`, golf `pos`, `toPar`, `rounds` and `status`
   (the `leaderboard` then by name, not ESPN's order), UFC `winner` and `result` are null, and `lastWinner` is null when it is that race's. Each match's and bout's status stays.
+- Since #328 (no field or word changes): for an account with a score delay, an event on for it and on (or over) in the
+  page's read takes its `draws`, `matches`, `round`, `leaderboard` and `bouts` (set scores, winners, positions, scores to
+  par, rounds, each match's and bout's status and result) from the page's newest read at least that delay old; only when
+  no read is that old yet (just after a restart, or an event first seen on) are they the delayed-view blanks above. With
+  no delay, the current read as before. `updatedAt` stays the current read's.
 - A server before 0428 answers 404 to `/api/sports/pages/events`: ask only with this flag.
 
 ### C-W. Live pause. Flag: `livePause` (0468, #37)

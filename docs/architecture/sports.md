@@ -534,7 +534,13 @@ lifted), so the renewals are the only added reads: one per session start and fin
 the standings when it is the race or the sprint, the weekend's phase following the statuses shown. Events: an event's status and break label (its id and words are the C-R card's; the
 collector's `event` accessor reads it fresh by the front's rule, a tournament's break for `BREAK_POLL` longer); while the
 read is further on, none of its results (sets, winners, positions, scores to par, bout results) and no `lastWinner`
-when it is that race's; each match, round and bout keeps its own state from the read. Cricket: a match's status
+when it is that race's; each match, round and bout keeps its own state from the read. With a score delay (#328) the
+detail itself is delayed too: the page keeps its reads per league and event (`sportPageEvents` `reads`, only an event on
+in that read, the cache's own objects), and an event on for the account and on or over in the current read takes its
+draws, matches, round, leaderboard and bouts from the newest read at least the delay old (`readAsOf`); the blanks above
+only until a read is that old. Bounded per event: at most `READS_KEPT` (16) reads, none older than the newest one at or
+before `MAX_DELAY_MS` (300 s, the longest delay) ago, and an event no longer on forgotten once its last read is
+`READS_MS` (the longest delay plus the 10-minute on lifetime) old. No delay: the current read. Cricket: a match's status
 (espnState's key and the card's break label, a break C-S does not name being play) and score (the lead's innings from
 the card's `situation.innings`, the others' scores from its `scores`, placed by each side's home/away), for the lead,
 the series list and the others; a line, crease or declaration read at another point than the collector's score (or
