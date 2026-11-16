@@ -696,3 +696,19 @@ reviews.
   ad-hoc signature before the export (checked 15 Nov: app and Top Shelf signed "Apple Distribution" with
   `group.au.markrogers.PigTV`, both platforms, via `--export`, which uploads nothing). Device installs
   (`install-device.sh`) still use the keychain.
+
+### D-65. Channel pickers: one row per channel with its best measured quality; touch and hold opens its qualities (16 Nov 2026; Mark)
+
+- **Context:** #265/#266: an F1 race listed Sky Sports F1 about a dozen times. The channel audit (#331) showed the
+  copies are real quality versions (4K, 1080p, 720p, SD; 50 or 25 fps), and that names lie: 18 of 62 names stating a
+  quality measured something else. Mark compared four Apple TV layouts and three iPhone layouts on a mock-up canvas.
+- **Choice:** Mark picked option C. Apple TV and iPad: one row per channel name (a simulcast on another channel stays
+  its own row), with one chip per measured quality and frame rate, best first; copies with the same name, quality and
+  frame rate fold into one chip. iPhone: one row per channel showing its best quality; a tap plays (or, before the
+  game, records) the best copy, and touch and hold opens the row in place with the quality chips (scrolling sideways)
+  plus Record… and, before the game, Watch at the start time. Web follows: the iPad layout in a wide window, the iPhone
+  one in a narrow window (as #326). A quality the audit or a play has not measured shows a dashed badge taken from the
+  name; a blank (placeholder) copy is not offered; a channel in one quality has no chips to choose.
+- **Consequence:** the badge comes from the measured stream (#265 step 2), so the server needs a stored measurement per
+  channel and the client contract gains a channel's qualities; watch and record still pick the best working copy and
+  fail over as before (#332). Grouping is display only.
