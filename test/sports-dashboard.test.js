@@ -583,3 +583,17 @@ test('#334: competitors carry ESPN\'s abbreviation from the feed to the card, an
     const [plain] = espn.normalize(p, 'NFL', 'football/nfl');
     assert.ok(!('abbreviation' in plain.competitors[0]), 'absent when ESPN gives none');
 });
+
+// A final that started on the household's yesterday (Melbourne) and ended within the hour was drawn `unknown`, with no
+// result, from local midnight until it dropped off (the #235 vanishing result, kept only for games that started today).
+test('#235: just after local midnight, a final from last evening keeps its result while it is recent', () => {
+    const s = store(), now = Date.parse('2026-11-17T00:45+11:00'); // 13:45 UTC 16 Nov
+    s.ingest([game({ start: now - 4 * H, snapshot: { state: 'live', progress: {}, scores: ['7', '3'], situation: null } })], now - 3 * H);
+    s.ingest([game({ start: now - 4 * H, snapshot: { state: 'finished', progress: {}, scores: ['24', '17'], situation: null } })], now - 20 * 60000);
+    const card = dashboard.buildDashboard(s, { now, userId: '1', timezone: 'Australia/Melbourne', events: [], keepFinishedToday: true }).games[0];
+    assert.equal(card?.status, 'finished');
+    assert.deepEqual(card.scores, ['24', '17']);
+    assert.equal(card.freshness, 'fresh');
+    // Once no longer recent, yesterday's final leaves the front page, as before.
+    assert.equal(dashboard.buildDashboard(s, { now: now + 2 * H, userId: '1', timezone: 'Australia/Melbourne', events: [], keepFinishedToday: true }).games.length, 0);
+});

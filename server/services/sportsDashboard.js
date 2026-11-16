@@ -402,8 +402,9 @@ function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagu
         const pending=['unknown','scheduled'].includes(state) && g.start<=now && now-g.start<=pendingHours*H;
         const horizon=league ? now+72*H : Infinity;
         const recent=state==='finished' && selected.finishedAt!==null && now<selected.finishedAt+prefs.scoreDelaySeconds*1000+H;
-        // A final from today stays on the front page with its (delayed) result, however long ago it ended.
-        const finalToday=keepFinishedToday && state==='finished' && localDay(g.start,zone)===today;
+        // A final from today stays on the front page with its (delayed) result, however long ago it ended; so does a recent
+        // one that started on the household's yesterday (after local midnight it was drawn `unknown`, without its result).
+        const finalToday=keepFinishedToday && state==='finished' && (recent || localDay(g.start,zone)===today);
         if(state==='finished' && !recent && !finalToday) continue;
         const upcoming=upcomingHours>0 && ['scheduled','unknown'].includes(state) && g.start>now && g.start<=now+upcomingHours*H;
         // #197: a tournament spans days: it is today's on every day it runs, whatever day it began.
