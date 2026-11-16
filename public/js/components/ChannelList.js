@@ -28,6 +28,7 @@ class ChannelList {
         this.sources = [];
         this.isLoading = false;
         this.renderedChannels = [];
+        this.games = null;             // #334 (D-67): games mode, a game played from Sport ({ gameId, front, prefs })
 
         this.loadCollapsedState();
         this.init();
@@ -153,7 +154,8 @@ class ChannelList {
 
     init() {
         // Search handler: the channels are in memory, so every keystroke filters at once (#276, C2)
-        this.searchInput.addEventListener('input', () => this.render());
+        // #334: searching for a channel is a channel choice: games mode ends
+        this.searchInput.addEventListener('input', () => { if (this.games) this.endGames(false); this.render(); });
 
         // Source filter handler
         this.sourceSelect.addEventListener('change', () => this.loadChannels());
@@ -340,6 +342,7 @@ class ChannelList {
      * Render channel list
      */
     render() {
+        if (this.games) { this.renderGames(); return; }
         const searchTerm = this.searchInput.value.toLowerCase();
         // W2 (0239): the list is rebuilt; keyboard focus returns to the same channel (or group header).
         const focus = this.focusIdentity();
@@ -902,9 +905,19 @@ class ChannelList {
     /**
      * Select and play a channel (`play: false` only selects it and scrolls it into view: the Resume offer)
      */
-    async selectChannel(dataset, { play = true } = {}) {
+    async selectChannel(dataset, { play = true, game = null } = {}) {
         const channel = this.findChannel(dataset.sourceId, dataset.channelId);
         if (!channel) return;
+        // #334: a channel chosen anywhere but the games list (the guide, search, the last channel) ends games mode
+        if (this.games && play && !game) this.endGames();
+        else if (this.games && game) {
+            // the games list stays; its row for this game is marked as the active channel's would be
+            this.currentChannel = channel; this.currentRenderId = null; this.currentRenderGroup = null;
+            this.games.gameId = game;
+            this.renderGames();
+            if (play && window.app?.player) window.app.player.play(channel, null);
+            return;
+        }
 
         this.currentChannel = channel;
         this.currentRenderId = dataset.renderId; // Track which visual instance is active
@@ -1115,6 +1128,7 @@ class ChannelList {
      * Select next channel in the current list
      */
     selectNextChannel() {
+        if (this.games) { this.stepGame(1); return; }
         const currentIndex = this.currentRenderIndex();
         if (currentIndex === -1) return;
         this.selectRendered((currentIndex + 1) % this.renderedChannels.length);
@@ -1124,9 +1138,142 @@ class ChannelList {
      * Select previous channel in the current list
      */
     selectPrevChannel() {
+        if (this.games) { this.stepGame(-1); return; }
         const currentIndex = this.currentRenderIndex();
         if (currentIndex === -1) return;
         this.selectRendered((currentIndex - 1 + this.renderedChannels.length) % this.renderedChannels.length);
+    }
+
+    // ---------- #334 (D-67): games mode, the sidebar of a game played from Sport ----------
+
+    /**
+     * A game played from Sport: the sidebar lists the live games instead of the channels until a channel is chosen
+     * elsewhere. `front` is the C-R answer, `prefs` the account's Hide scores choice as Sport read it ({ known, spoilerFree }).
+     */
+    startGames({ gameId, front, prefs }) {
+        if (!front || !Array.isArray(front.games)) return;
+        this.games = { gameId, front, prefs: { known: !!(prefs && prefs.known), spoilerFree: !(prefs && prefs.spoilerFree === false) }, at: Date.now() };
+        this.scheduleGamesRefresh();
+        this.render();
+    }
+
+    /** Back to the channels (`draw` false: the caller draws). */
+    endGames(draw = true) {
+        if (!this.games) return;
+        clearTimeout(this.games.timer);
+        this.games = null;
+        if (draw) this.render();
+    }
+
+    /** Hidden scores: the account's choice, or the answer's own spoilerFree (SportView.hidden, the Sport page's rule). */
+    gamesHide() {
+        const g = this.games;
+        return !g || SportView.hidden({ known: g.prefs.known, preference: g.prefs.spoilerFree, answer: g.front.spoilerFree === true });
+    }
+
+    /** The live games (live, a break, suspended, or on air), followed ones first, each part in the feed's order; the game playing stays listed. */
+    liveGames() {
+        if (!this.games) return [];
+        const all = this.games.front.games.filter(g => g && (SportView.showsLive(g) || g.id === this.games.gameId));
+        return [...all.filter(g => g.followed === true), ...all.filter(g => g.followed !== true)];
+    }
+
+    /** A team's code in the score bug: the server's abbreviation, else the name's first three letters. */
+    static teamCode(c) {
+        if (c && typeof c.abbreviation === 'string' && c.abbreviation.trim()) return c.abbreviation.trim().toUpperCase();
+        return String((c && c.name) || '').replace(/[^\p{L}\p{N}]/gu, '').slice(0, 3).toUpperCase();
+    }
+
+    /** One game's row: the score bug (badge, code, score per team, fixed columns), the divider, league and clock. */
+    gameItemHtml(g, { active = false, hide = true, front = null } = {}) {
+        const e = UI.escape, V = SportView;
+        const recording = !!(g.recording && g.recording.status);
+        const sc = recording ? null : V.scores(g, front, hide);
+        let bug;
+        const two = Array.isArray(g.competitors) && g.competitors.length === 2;
+        if (two) {
+            bug = g.competitors.map((c, i) => `<span class="gi-team">${V.badge(c.name, c.logo, 20, g.league)}`
+                + `<span class="gi-code">${e(ChannelList.teamCode(c))}</span><span class="gi-score">${sc ? e(sc[i]) : ''}</span></span>`).join('');
+        } else {
+            bug = `<span class="gi-title">${e(g.session ? `${g.title} · ${g.session}` : g.title)}</span>`;
+        }
+        const clock = V.cardClock(g, front, hide, !two);
+        const label = [g.title, recording ? 'Recording' : (sc ? sc.join(' to ') : ''), clock].filter(Boolean).join(', ');
+        return `<div class="channel-item game-item${active ? ' active' : ''}" data-game-id="${e(g.id)}">`
+            + `<div class="gi-bug">${bug}</div>`
+            + `<div class="channel-info gi-info" role="button" tabindex="0" data-key-activate aria-label="${e(`Play ${label}`)}"${active ? ' aria-current="true"' : ''}>`
+            + `<div class="channel-name">${e(g.league || '')}</div>`
+            + `<div class="channel-program">${e(clock)}</div>`
+            + (recording ? '<span class="gi-rec">Recording</span>' : '')
+            + '</div></div>';
+    }
+
+    /** Draw the live games in the channel list's place. */
+    renderGames() {
+        if (!this.games || !this.container) return;
+        const games = this.liveGames(), hide = this.gamesHide(), front = this.games.front;
+        this.firstRun?.stop?.();
+        let html = '<div class="channel-list-content live-games"><div class="group-header live-games-head" role="heading" aria-level="2"><span class="group-name">Live games</span></div>';
+        if (!games.length) html += '<p class="live-games-empty">No games are live right now.</p>';
+        for (const g of games) html += this.gameItemHtml(g, { active: g.id === this.games.gameId, hide, front });
+        html += '</div>';
+        this.container.innerHTML = html;
+        if (!this._gamesWired && this.container.addEventListener) {
+            this._gamesWired = true;
+            this.container.addEventListener('click', (ev) => {
+                const row = this.games && ev.target && ev.target.closest ? ev.target.closest('[data-game-id]') : null;
+                if (row) this.playGame(row.getAttribute('data-game-id'));
+            });
+            // a badge whose logo does not load becomes its monogram disc, as on the Sport page
+            this.container.addEventListener('error', (ev) => {
+                const img = ev.target;
+                if (!img || img.tagName !== 'IMG' || !img.classList?.contains('badge') || !img.closest?.('.live-games')) return;
+                const disc = document.createElement('span');
+                disc.className = `disc ${img.getAttribute('data-tone') || ''}`.trim(); disc.setAttribute('aria-hidden', 'true');
+                disc.style.cssText = img.style.cssText;
+                disc.textContent = img.getAttribute('data-mono') || '';
+                img.replaceWith(disc);
+            }, true);
+        }
+    }
+
+    /** A games-list row chosen: its game's preferred channel (channels[0]), no picker; the list stays in games mode. */
+    async playGame(id) {
+        if (!this.games) return false;
+        const g = this.games.front.games.find(x => x && x.id === id);
+        const best = g && Array.isArray(g.channels) ? g.channels[0] : null;
+        if (!best) { UI.toast('This game isn’t on your channels right now.'); return false; }
+        const key = (c) => `${c.sourceId}:${c.stableId || c.id}`;
+        const match = this.channels.find(c => key(c) === key(best));
+        if (!match) { UI.toast('That channel isn’t in your channel list. Refresh the library and try again.'); return false; }
+        await this.selectChannel({ sourceId: match.sourceId, channelId: match.id }, { game: g.id });
+        return true;
+    }
+
+    /** Keyboard previous/next in games mode: the next game in the list, round the end. */
+    stepGame(delta) {
+        const games = this.liveGames();
+        if (!games.length) return;
+        const at = games.findIndex(g => g.id === this.games.gameId);
+        const next = games[((at < 0 ? (delta > 0 ? -1 : 0) : at) + delta + games.length) % games.length];
+        if (next) this.playGame(next.id);
+    }
+
+    /** The scores and clocks move on: the front feed again every 60 s while games mode lasts and Live TV is shown. */
+    scheduleGamesRefresh() {
+        const g = this.games;
+        if (!g) return;
+        clearTimeout(g.timer);
+        g.timer = setTimeout(async () => {
+            if (this.games !== g) return;
+            if (this._epgRefreshWanted !== false) {
+                try {
+                    const answer = await API.request('GET', '/sports/front');
+                    if (this.games === g && answer && Array.isArray(answer.games)) { g.front = answer; this.renderGames(); }
+                } catch { /* the last answer stays */ }
+            }
+            this.scheduleGamesRefresh();
+        }, 60000);
     }
 
     /**

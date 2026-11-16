@@ -610,7 +610,10 @@ class SportsPage {
             const match = cl.channels.find(c => key(c) === key(chosen));
             if (!match) { UI.toast('That channel isn’t in your channel list. Refresh the library and try again.'); return; }
             this.app.navigateTo('live');
-            await cl.selectChannel({ sourceId: match.sourceId, channelId: match.id });
+            // #334 (D-67): played from Sport, Live TV's sidebar lists the live games, this one marked, until a channel is
+            // chosen elsewhere; scores as this page shows them (hidden unless the account's choice was read as shown)
+            if (cl.startGames) cl.startGames({ gameId: g.id, front: this.front, prefs: { known: this.prefs.known && this.mayShow, spoilerFree: this.prefs.spoilerFree } });
+            await cl.selectChannel({ sourceId: match.sourceId, channelId: match.id }, { game: g.id });
         } catch (err) {
             console.warn('Sport: watch failed', err && err.message);
             UI.toast('The game could not be played. Try again.', { kind: 'error' });

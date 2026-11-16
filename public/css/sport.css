@@ -647,3 +647,24 @@
 }
 .sp-win .rmove { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; font-size: 14px; color: var(--color-text-secondary); }
 .sp-win .rmove p { margin: 0; }
+
+/* #334 (D-67): Live TV's sidebar in games mode (ChannelList.renderGames), a game played from Sport. The rows are the
+   channel list's own (.channel-item: colours, height, the active style); only the content differs: a score bug in fixed
+   columns (badge, code, score) for both teams, then a divider at the same x on every row, then league and clock. */
+.live-games { --disc: #5A5466;
+  --lg-nfl: #013369; --lg-f1: #E10600; --lg-nba: #C9082A; --lg-afl: #0B3D91; --lg-cricket: #1F7A3A; --lg-epl: #3D195B;
+  --lg-mlb: #041E42; --lg-nrl: #00843F; --lg-other: var(--disc); }
+.live-games .live-games-head { cursor: default; }
+.live-games .live-games-empty { padding: var(--space-sm) var(--space-md); color: var(--color-text-secondary); }
+.live-games .gi-bug { flex: 0 0 128px; width: 128px; display: grid; gap: 2px; }
+.live-games .gi-team { display: grid; grid-template-columns: 20px 3.4em 1fr; align-items: center; column-gap: 6px; }
+.live-games .gi-code { font-weight: 700; font-size: var(--text-sm, 14px); }
+.live-games .gi-score { font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+.live-games .gi-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.live-games .gi-info { border-left: 1px solid var(--color-border); padding-left: var(--space-sm); align-self: stretch; display: flex; flex-direction: column; justify-content: center; }
+.live-games .gi-rec { color: var(--color-error-text); font-size: 12px; font-weight: 700; }
+.live-games .badge { display: block; object-fit: contain; }
+.live-games .disc { display: grid; place-items: center; border-radius: 50%; background: var(--disc); color: #fff; font-weight: 800; line-height: 1; }
+.live-games .lg-nfl { background: var(--lg-nfl); } .live-games .lg-f1 { background: var(--lg-f1); } .live-games .lg-nba { background: var(--lg-nba); }
+.live-games .lg-afl { background: var(--lg-afl); } .live-games .lg-cricket { background: var(--lg-cricket); } .live-games .lg-epl { background: var(--lg-epl); }
+.live-games .lg-mlb { background: var(--lg-mlb); } .live-games .lg-nrl { background: var(--lg-nrl); } .live-games .lg-other { background: var(--lg-other); }

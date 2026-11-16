@@ -2384,6 +2384,8 @@ class VideoPlayer {
      */
     channelUp() {
         if (!window.app?.channelList) return;
+        // #334: a game played from Sport steps through the live games, as the sidebar lists them
+        if (window.app.channelList.games) { window.app.channelList.stepGame(-1); return; }
         const channels = window.app.channelList.getVisibleChannels();
         if (channels.length === 0) return;
 
@@ -2400,6 +2402,7 @@ class VideoPlayer {
      */
     channelDown() {
         if (!window.app?.channelList) return;
+        if (window.app.channelList.games) { window.app.channelList.stepGame(1); return; }
         const channels = window.app.channelList.getVisibleChannels();
         if (channels.length === 0) return;
 
