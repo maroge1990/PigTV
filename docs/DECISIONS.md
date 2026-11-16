@@ -727,3 +727,18 @@ reviews.
   the Guide. No Search tab.
 - **Consequence:** Top Shelf needs the household's active recordings next to its live games; search needs the server's
   programme search (#57's index) and the programme fields of #56.
+
+### D-67. Players: a sport player that lists live games, a guarded Go to live on recordings, the quality badge everywhere (16 Nov 2026; Mark)
+
+- **Context:** #58 had blended two needs into one "overlay rework". Mark: the live and recording players work well
+  and stay as they are; a game opened from Sport needs a list of games, not channels; a recording still in progress
+  needs a way to catch up to live.
+- **Choice:** (1) #334: from Sport, the list that shows nearby channels lists the other live games instead, as score
+  cards (badge, code and score per team in fixed columns, a divider at the same place on every card, then league and
+  where the game is up to), in exactly the channel list's look on each platform; selecting one plays its preferred
+  channel with no picker; scores follow D-66. (2) #335: Go to live on an in-progress recording is never a pop-up, always
+  the last action, red with its own icon, and followed by an 8-second "Back to <time>" undo. (3) Every player shows the
+  D-65 measured quality badge in place of today's resolution tag. The iPhone's player panels are see-through like the
+  iPad's.
+- **Consequence:** building any of these needs simulator screenshots of the Apple TV, iPad, iPhone and web players
+  side by side, confirming they look the same (Mark's condition). #58 stays as the audit's other player inputs.
