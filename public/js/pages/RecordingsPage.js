@@ -18,6 +18,7 @@ class RecordingsPage {
     static NEAR_LIVE_SEC = 30;
     static LIVE_MARGIN_SEC = 3;
     static GO_LIVE_UNDO_MS = 8000;
+    static LIVE_CHECK_MS = 30000;
 
     constructor(app) {
         this.app = app;
@@ -1044,7 +1045,7 @@ class RecordingsPage {
             this.attachAdSkipping(overlay, id);
         }
         // #335 (D-67): a recording still being made can catch up to its newest point, never by itself
-        if (target.live) this.attachGoToLive(overlay, video);
+        if (target.live) this.attachGoToLive(overlay, video, id);
     }
 
     /**
@@ -1053,12 +1054,12 @@ class RecordingsPage {
      * once the recording has finished. The jump says "Jumped to live" with "Back to h:mm:ss" for 8 s, which returns to
      * the exact place left.
      */
-    attachGoToLive(overlay, video) {
+    attachGoToLive(overlay, video, id = null) {
         const button = overlay.querySelector('.go-live-btn');
         const note = overlay.querySelector('.go-live-note');
         const back = overlay.querySelector('.go-live-back');
         if (!button || !video) return;
-        const state = overlay._goLive = { finished: false, from: null, timer: null };
+        const state = overlay._goLive = { finished: false, from: null, timer: null, poll: null };
         // the newest point: hls.js's live edge, else the end of what can be seeked less a few seconds
         const newest = () => {
             const hls = overlay._hls;
@@ -1085,6 +1086,22 @@ class RecordingsPage {
         }
         video.addEventListener('timeupdate', update);
         video.addEventListener('ended', () => { state.finished = true; update(); });
+        // Codex (medium): Safari's own HLS says nothing when the playlist closes while the viewer is behind; the server is
+        // asked every 30 s whether it is still recording (/watch: 409 or recording false once it has finished).
+        const check = () => {
+            state.poll = setTimeout(async () => {
+                if (overlay._goLive !== state || state.finished || id === null) return;
+                try {
+                    const answer = await API.recordings.watch(id);
+                    if (answer && answer.recording === false) state.finished = true;
+                } catch (err) {
+                    if (err && err.status === 409) state.finished = true;
+                }
+                if (overlay._goLive !== state) return;
+                if (state.finished) { hideNote(); update(); } else check();
+            }, RecordingsPage.LIVE_CHECK_MS);
+        };
+        check();
         button.addEventListener('click', () => {
             if (overlay._goLive !== state) return;
             const edge = newest();
@@ -1112,7 +1129,7 @@ class RecordingsPage {
 
     /** Let go of what the player is playing (hls.js, the element's source) and its position saving. */
     teardownMedia(overlay) {
-        if (overlay._goLive) { clearTimeout(overlay._goLive.timer); overlay._goLive = null; }
+        if (overlay._goLive) { clearTimeout(overlay._goLive.timer); clearTimeout(overlay._goLive.poll); overlay._goLive = null; }
         for (const sel of ['.go-live-btn', '.go-live-note']) { const n = overlay.querySelector(sel); if (n) n.hidden = true; }
         if (this._positionTracker) {
             clearInterval(this._positionTracker.timer);

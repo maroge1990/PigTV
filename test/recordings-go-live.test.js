@@ -129,3 +129,31 @@ test('#335: Go to live jumps to the newest point, says so with Back to h:mm:ss f
     t.timers.filter(x => x.ms === 8000 && !x.done).forEach(x => { x.done = true; x.fn(); });
     assert.equal(note.hidden, true);
 });
+
+test('#335 (Codex medium): the recording finishing is learned from the server every 30 s, with no \'ended\' and playback still behind', async () => {
+    let finished = false;
+    const t = make((url) => (url.includes('/watch') && finished ? json({ error: 'finished' }, 409) : watching(url)));
+    await t.page.play(2, { watch: true });
+    await settle();
+    const button = t.part('.go-live-btn');
+    assert.equal(button.hidden, false);
+    const due = () => t.timers.filter(x => x.ms === 30000 && !x.done);
+    assert.equal(due().length, 1, 'a check every 30 s');
+    const first = due()[0]; first.done = true; await first.fn(); await settle();
+    assert.equal(button.hidden, false, 'still recording: still offered');
+    finished = true;
+    const next = due();
+    assert.equal(next.length, 1, 'checked again');
+    next[0].done = true; await next[0].fn(); await settle();
+    t.video().fire('timeupdate');
+    assert.equal(button.hidden, true, 'the server says it has finished: Go to live goes at once');
+    assert.equal(due().length, 0, 'no more checks');
+    // closing the player stops the checks of a recording still recording
+    finished = false;
+    const u = make(watching);
+    await u.page.play(2, { watch: true });
+    await settle();
+    const poll = u.timers.find(x => x.ms === 30000);
+    u.page.closePlayer();
+    assert.equal(poll.done, true, 'the check is cleared on close');
+});
