@@ -12,6 +12,12 @@ const REC_PLAY_ICON = '<svg class="icon" viewBox="0 0 24 24" width="16" height="
 
 class RecordingsPage {
     static SORTS = [['newest', 'Newest first'], ['oldest', 'Oldest first'], ['title', 'Title A–Z']];
+    // #335: Go to live (a recording still recording): its own icon, an arrow to a dot; shown when more than NEAR_LIVE_SEC
+    // behind the newest point; it lands LIVE_MARGIN_SEC before the end of what can be seeked; Back is offered GO_LIVE_UNDO_MS.
+    static GO_LIVE_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h11"/><path d="M10 8l4 4-4 4"/><circle cx="19" cy="12" r="2.6" fill="currentColor" stroke="none"/></svg>';
+    static NEAR_LIVE_SEC = 30;
+    static LIVE_MARGIN_SEC = 3;
+    static GO_LIVE_UNDO_MS = 8000;
 
     constructor(app) {
         this.app = app;
@@ -942,6 +948,10 @@ class RecordingsPage {
                 <div class="recording-player-status" hidden></div>
                 <div class="ad-markers" aria-hidden="true"></div>
                 <button class="skip-ad-btn" hidden>Skip ad</button>
+                <div class="recording-player-actions">
+                    <div class="go-live-note" role="status" hidden><span class="go-live-note-text">Jumped to live</span><button type="button" class="btn btn-secondary btn-sm go-live-back"></button></div>
+                    <button type="button" class="btn btn-danger go-live-btn" hidden>${RecordingsPage.GO_LIVE_ICON}<span>Go to live</span></button>
+                </div>
             </div>
         `;
         overlay.querySelector('.recording-player-close').addEventListener('click', () => this.closePlayer());
@@ -1033,10 +1043,77 @@ class RecordingsPage {
             this.trackPosition(overlay, video, id);
             this.attachAdSkipping(overlay, id);
         }
+        // #335 (D-67): a recording still being made can catch up to its newest point, never by itself
+        if (target.live) this.attachGoToLive(overlay, video);
+    }
+
+    /**
+     * #335 (D-67): Go to live on a recording still recording (/watch): the modal's last control, red, never shown by
+     * itself like Skip ad; it appears only while playback is more than 30 s behind the newest recorded point and goes
+     * once the recording has finished. The jump says "Jumped to live" with "Back to h:mm:ss" for 8 s, which returns to
+     * the exact place left.
+     */
+    attachGoToLive(overlay, video) {
+        const button = overlay.querySelector('.go-live-btn');
+        const note = overlay.querySelector('.go-live-note');
+        const back = overlay.querySelector('.go-live-back');
+        if (!button || !video) return;
+        const state = overlay._goLive = { finished: false, from: null, timer: null };
+        // the newest point: hls.js's live edge, else the end of what can be seeked less a few seconds
+        const newest = () => {
+            const hls = overlay._hls;
+            if (hls && Number.isFinite(hls.liveSyncPosition) && hls.liveSyncPosition > 0) return hls.liveSyncPosition;
+            const s = video.seekable;
+            if (s && s.length > 0) {
+                const end = s.end(s.length - 1);
+                if (Number.isFinite(end) && end > 0) return Math.max(0, end - RecordingsPage.LIVE_MARGIN_SEC);
+            }
+            return null;
+        };
+        const update = () => {
+            if (overlay._goLive !== state) return;
+            const edge = newest();
+            button.hidden = state.finished || edge === null || edge - (Number(video.currentTime) || 0) <= RecordingsPage.NEAR_LIVE_SEC;
+        };
+        const hideNote = () => { clearTimeout(state.timer); state.timer = null; if (note) note.hidden = true; };
+        state.update = update;
+        if (overlay._hls && window.Hls && window.Hls.Events) {
+            // the playlist closed (#EXT-X-ENDLIST): the recording has finished, there is no live point to go to
+            overlay._hls.on(window.Hls.Events.LEVEL_UPDATED, (event, data) => {
+                if (data && data.details && data.details.live === false) { state.finished = true; hideNote(); update(); }
+            });
+        }
+        video.addEventListener('timeupdate', update);
+        video.addEventListener('ended', () => { state.finished = true; update(); });
+        button.addEventListener('click', () => {
+            if (overlay._goLive !== state) return;
+            const edge = newest();
+            if (edge === null) return;
+            state.from = Number(video.currentTime) || 0;
+            video.currentTime = edge;
+            if (video.play) { const p = video.play(); if (p && p.catch) p.catch(() => {}); }
+            button.hidden = true;
+            if (note && back) {
+                back.textContent = `Back to ${this.formatClock(state.from)}`;
+                note.hidden = false;
+                clearTimeout(state.timer);
+                state.timer = setTimeout(hideNote, RecordingsPage.GO_LIVE_UNDO_MS);
+            }
+        });
+        if (back) back.addEventListener('click', () => {
+            if (overlay._goLive !== state || state.from === null) return;
+            video.currentTime = state.from;
+            state.from = null;
+            hideNote();
+            update();
+        });
+        update();
     }
 
     /** Let go of what the player is playing (hls.js, the element's source) and its position saving. */
     teardownMedia(overlay) {
+        if (overlay._goLive) { clearTimeout(overlay._goLive.timer); overlay._goLive = null; }
+        for (const sel of ['.go-live-btn', '.go-live-note']) { const n = overlay.querySelector(sel); if (n) n.hidden = true; }
         if (this._positionTracker) {
             clearInterval(this._positionTracker.timer);
             this._positionTracker.save(); // before the video is torn down
@@ -1071,7 +1148,8 @@ class RecordingsPage {
                 throw err;
             }
             if (this._playerOverlay !== overlay) return null;
-            if (answer && answer.url) return { url: answer.url, container: answer.container };
+            // #335: `live` while the answer is the /watch of a recording still being made
+            if (answer && answer.url) return { url: answer.url, container: answer.container, live: useWatch && answer.recording !== false };
             if (!answer || answer.status !== 'preparing') throw new Error('The server did not say how to play this recording');
             const delay = Math.min(10, Math.max(1, Number(answer.retryAfterSec) || 3)) * 1000;
             waited += delay;

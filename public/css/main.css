@@ -4732,3 +4732,29 @@ input[aria-invalid] { border-color: var(--color-error); }
   border-radius: var(--radius-md);
   padding: var(--space-xl) var(--space-lg);
 }
+
+/* #335 (D-67): Go to live on a recording still recording: the player's last control, set apart, red, its own icon;
+   never shown by itself. After the jump, "Jumped to live" with Back for 8 s. */
+.recording-player-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-md);
+  margin-top: var(--space-sm);
+}
+.go-live-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-left: var(--space-lg);
+  min-height: 44px;
+  border-radius: 99px;
+  font-weight: 700;
+}
+.go-live-btn[hidden], .go-live-note[hidden] { display: none; }
+.go-live-note {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--media-white);
+}
