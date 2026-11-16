@@ -793,6 +793,32 @@ function scheduleRebuild(now = Date.now(), decorateChannels = lastDecorateChanne
     });
 }
 
+/**
+ * #56: where each live game (an event of kind `event`, never a replay) airs, from the last built list; it never builds
+ * one. Map `${sourceId}:${stableId || id}` -> [[start, end], ...] (each channel's own airing, #20), or null when nothing
+ * is built yet. Worked out once per build.
+ */
+const liveIndexes = new WeakMap();
+function liveAirings() {
+    const built = cache && cache.built;
+    if (!built || !Array.isArray(built.events)) return null;
+    let index = liveIndexes.get(built);
+    if (index) return index;
+    index = new Map();
+    for (const ev of built.events) {
+        if (ev.kind !== 'event' || !ev.airingTimes) continue;
+        for (const ch of ev.channels || []) {
+            const t = ev.airingTimes[ch.key];
+            if (!t) continue;
+            const key = `${ch.sourceId}:${ch.stableId || ch.id}`;
+            if (!index.has(key)) index.set(key, []);
+            index.get(key).push(t);
+        }
+    }
+    liveIndexes.set(built, index);
+    return index;
+}
+
 /** Resolves once no build is running or waiting (tests; a clean shutdown). */
 async function idle() {
     while (running || queued) await (running || queued).promise.then(() => {}, () => {});
@@ -1264,6 +1290,8 @@ module.exports = {
     classify, compileFollow, followedKeyword, normaliseTitle, qualityFromName: qualityLabel, leagueFromCategories,
     // R5: recording rules match events the way the follow list does, and find a series' channel
     visibleChannels,
+    // #56: the guide's live flag for sport airings
+    liveAirings,
     getFollow, followsChanged, eventsFor, leagueEvents, endedEvents, buildEvents, clampHours, stats, eventsResponse,
     // for tests: what the response cache holds, and an empty one
     responseCacheSize: () => ({ entries: responses.size, bytes: responseBytes }),

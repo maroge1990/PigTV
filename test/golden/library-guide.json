@@ -32,31 +32,60 @@
       "number": 2,
       "programmes": [
         {
-          "description": "World Report on ABC News.",
+          "description": "Business Today (S2E6) on ABC News.",
           "endTime": 1793492700000,
+          "episode": "S2 E6",
           "isNow": true,
-          "startTime": 1793489100000,
-          "title": "World Report"
+          "startTime": 1793490900000,
+          "title": "Business Today"
         },
         {
-          "description": "The Interview on ABC News.",
-          "endTime": 1793494500000,
+          "description": "Morning News on ABC News.",
+          "endTime": 1793496300000,
           "isNow": false,
           "startTime": 1793492700000,
-          "title": "The Interview"
+          "title": "Morning News"
         }
       ],
       "quality": "HD",
       "sourceId": 1,
       "stableId": "s1019",
       "tvgId": "abcnews.au"
+    },
+    {
+      "category": "102",
+      "health": null,
+      "id": "1011",
+      "logo": "/api/logo/<key>",
+      "measured": {
+        "fps": 50,
+        "label": "1080"
+      },
+      "name": "AU| FOX CRICKET HD",
+      "nameKey": "au| fox cricket",
+      "number": 4,
+      "programmes": [
+        {
+          "description": "Australia v India - 1st Test, Day 2. A made-up listing from the fake provider.",
+          "endTime": 1793505300000,
+          "image": "/api/logo/<key>",
+          "isNow": true,
+          "live": true,
+          "startTime": 1793480100000,
+          "title": "Australia v India - 1st Test, Day 2"
+        }
+      ],
+      "quality": "HD",
+      "sourceId": 1,
+      "stableId": "s1011",
+      "tvgId": "foxcricket.au"
     }
   ],
-  "end": 1793502720000,
+  "end": 1793501820000,
   "limit": 4,
   "nextCursor": "eyJzayI6OTk5OTk5OTk5LCJuYW1lIjoiQVV8IEZPWCBDUklDS0VUIEhEIiwiaWQiOiIxOjEwMTEifQ==",
-  "now": 1793491920000,
+  "now": 1793491020000,
   "offset": 0,
-  "start": 1793491920000,
+  "start": 1793491020000,
   "total": 27
 }

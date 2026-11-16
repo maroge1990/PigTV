@@ -75,6 +75,14 @@ build 27), and `audioEncode: true` on the one fallback after a `'fmt?'` decode f
 
 - `library/guide` rows: `id, sourceId, name, logo, category, tvgId, programmes[]` with `startTime`/`endTime` in **ms**;
   additive `stableId`, `number`, `health`, and `nextCursor` on the page.
+- `library/guide` programmes (#56, additive, no flag: each key is present only when known): `live: true` when the guide
+  flags the airing live (XMLTV `<live/>`) or it is a live sport game's airing (a C-I event of kind `event` on that
+  channel, from the server's last built event list; never a replay); `new`: `true` when flagged new or a premiere,
+  `false` when flagged previously shown (the flag C-M `newOnly` skips), absent when the guide says neither; `subtitle`
+  (the episode's title, `<sub-title>`); `episode`: `"S2 E5"`, or `"E5"` with no season, read from `<episode-num>`
+  (on-screen `S02E05` or xmltv_ns `1.4.0/1`; anything else is left out); `image`: the programme's artwork as
+  `/api/logo/<key>` (the C-N rule: never the provider's address; `?size=` as for logos). #57's search (C-Y) answers
+  the same fields.
 - `recordings/{id}/markers`: `startMs`/`endMs`.
 - `recordings/{id}/playback` (bearer): `{url: "/api/recordings/{id}/media.mp4", container: "mp4", durationSec}`; `media.mp4`
   takes `?token=`, supports byte ranges (suffix and past-the-end too) and `+faststart`; `?async=1` is additive. `media.mp4`,

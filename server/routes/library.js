@@ -24,6 +24,7 @@ const epgMapping = require('../services/epgMapping');
 const { qualityLabel } = require('../services/channelQuality');
 const channelMeasurements = require('../services/channelMeasurements');
 const sportCategories = require('../services/sportCategories');
+const programmeFields = require('../services/programmeFields');
 
 // The longest programme the guide will still show when it began before the
 // window. Every EPG query bounds start_time from below by this, because the
@@ -169,6 +170,45 @@ function decorate(items) {
     // #265 step 2 (D-65): `measured` { label, fps } where the audit or a play measured the channel.
     channelMeasurements.applyMeasured(parsed);
     return parsed;
+}
+
+/**
+ * A guide channel row (C-A, C-X; #57's search answers the same shape) from a playlist_items row with its
+ * `channel_number`, before the logo, health and measured decorations (decorateGuideChannels).
+ */
+function guideChannelRow(row) {
+    // The indexed column first (0111 — filled at ingest and backfilled at
+    // startup); JSON.parse `data` only for the rows that predate it, so a
+    // guide page no longer parses JSON for every row just to find this.
+    // 0134: the admin's EPG mapping wins over the playlist's tvg-id.
+    const tvgId = epgMapping.rowTvgId(row.source_id, row);
+    return {
+        id: row.item_id,
+        sourceId: row.source_id,
+        name: row.name,
+        logo: row.stream_icon || null,
+        category: row.category_id,
+        tvgId,
+        // Additive: the same identity /channels and /favourites carry, so a
+        // client can match a guide row to a favourite or a playback handle
+        // without falling back to item_id (0096-0098's trap).
+        stableId: row.stable_id || null,
+        // 0117 (C-A): the channel's number, or null if it has none.
+        number: row.channel_number ?? null,
+        // #265 (C-X): 'UHD' | 'FHD' | 'HD' | 'SD' | null, from the name.
+        quality: qualityLabel(row.name)
+    };
+}
+
+/** The guide's decorations of its channel rows, in place: logos (EPG fallback, cache), health, measured quality. */
+function decorateGuideChannels(channels) {
+    fillMissingLogos(channels);
+    applyLogoCache(channels);
+    // 0133 (C-G): `health` ok | flaky | null, from the last 7 days' starts.
+    channelHealth.applyHealth(channels);
+    // #265 step 2 (D-65): `measured` { label, fps } where the audit or a play measured the channel.
+    channelMeasurements.applyMeasured(channels);
+    return channels;
 }
 
 /**
@@ -428,43 +468,15 @@ router.get('/guide', (req, res) => {
         const pageRows = hasMore ? rows.slice(0, limit) : rows;
         const nextCursor = hasMore ? encodeGuideCursor(pageRows[pageRows.length - 1]) : null;
 
-        const channels = pageRows.map(row => {
-            // The indexed column first (0111 — filled at ingest and backfilled at
-            // startup); JSON.parse `data` only for the rows that predate it, so a
-            // guide page no longer parses JSON for every row just to find this.
-            // 0134: the admin's EPG mapping wins over the playlist's tvg-id.
-            const tvgId = epgMapping.rowTvgId(row.source_id, row);
-            return {
-                id: row.item_id,
-                sourceId: row.source_id,
-                name: row.name,
-                logo: row.stream_icon || null,
-                category: row.category_id,
-                tvgId,
-                // Additive: the same identity /channels and /favourites carry, so a
-                // client can match a guide row to a favourite or a playback handle
-                // without falling back to item_id (0096-0098's trap).
-                stableId: row.stable_id || null,
-                // 0117 (C-A): the channel's number, or null if it has none.
-                number: row.channel_number ?? null,
-                // #265 (C-X): 'UHD' | 'FHD' | 'HD' | 'SD' | null, from the name.
-                quality: qualityLabel(row.name),
-                programmes: []
-            };
-        });
-        fillMissingLogos(channels);
-        applyLogoCache(channels);
-        // 0133 (C-G): `health` ok | flaky | null, from the last 7 days' starts.
-        channelHealth.applyHealth(channels);
-        // #265 step 2 (D-65): `measured` { label, fps } where the audit or a play measured the channel.
-        channelMeasurements.applyMeasured(channels);
+        const channels = pageRows.map(row => ({ ...guideChannelRow(row), programmes: [] }));
+        decorateGuideChannels(channels);
 
         // One query for every channel on the page rather than one per channel.
         const tvgIds = [...new Set(channels.map(c => c.tvgId).filter(Boolean))];
         if (tvgIds.length) {
             const ph = tvgIds.map(() => '?').join(',');
             const progs = db.prepare(`
-                SELECT channel_id, title, description, start_time, end_time
+                SELECT channel_id, title, description, start_time, end_time, flags, data
                 FROM epg_live
                 WHERE channel_id IN (${ph}) AND start_time > ? AND end_time > ? AND start_time < ?
                 ORDER BY start_time ASC
@@ -473,17 +485,28 @@ router.get('/guide', (req, res) => {
             const byChannel = new Map();
             for (const pr of progs) {
                 if (!byChannel.has(pr.channel_id)) byChannel.set(pr.channel_id, []);
-                byChannel.get(pr.channel_id).push({
-                    title: pr.title,
-                    description: pr.description || null,
-                    startTime: pr.start_time,
-                    endTime: pr.end_time,
-                    isNow: pr.start_time <= now && pr.end_time > now
+                byChannel.get(pr.channel_id).push(pr);
+            }
+            // #56 (additive): live, new, subtitle, episode and image where the guide knows them.
+            const liveIndex = programmeFields.liveIndex();
+            const shaped = [];
+            for (const ch of channels) {
+                const rows = ch.tvgId && byChannel.get(ch.tvgId);
+                if (!rows) continue;
+                ch.programmes = rows.map(pr => {
+                    const p = {
+                        title: pr.title,
+                        description: pr.description || null,
+                        startTime: pr.start_time,
+                        endTime: pr.end_time,
+                        isNow: pr.start_time <= now && pr.end_time > now,
+                        ...programmeFields.extras(pr, ch, liveIndex)
+                    };
+                    shaped.push(p);
+                    return p;
                 });
             }
-            for (const ch of channels) {
-                if (ch.tvgId && byChannel.has(ch.tvgId)) ch.programmes = byChannel.get(ch.tvgId);
-            }
+            programmeFields.applyImages(shaped);
         }
 
         res.json({ total, limit, offset, start, end, now, channels, nextCursor });
