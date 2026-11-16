@@ -44,6 +44,16 @@ function connectionLimitKbps(height) {
     return blankKbps(h > 0 ? h : 1);
 }
 
+/**
+ * #333 (Codex sign-off high): the one threshold that lets a recording delete what it recorded (#332's slate part,
+ * #333's file tail and its file verdict). Never above DESTRUCTIVE_MAX_KBPS, whatever PIGTV_BLANK_KBPS says: a real
+ * 448 kbps channel must never be deleted as the slate (~71-193 kbps). An override may only lower it.
+ */
+const DESTRUCTIVE_MAX_KBPS = 250;
+function destructiveKbps() {
+    return Math.min(DESTRUCTIVE_MAX_KBPS, connectionLimitKbps(null));
+}
+
 /** A connection's average rate in kbps: { bytes, wallMs, mediaSec } -> bytes over the longer of the two times. */
 function connectionKbps({ bytes = 0, wallMs = 0, mediaSec = 0 } = {}) {
     const sec = Math.max((Number(wallMs) || 0) / 1000, Number(mediaSec) || 0);
@@ -89,5 +99,5 @@ function blankIsPlaceholder({ shortLowSeen = false, width = null, height = null,
 
 module.exports = {
     SHORT_CONNECTION_MS, PLACEHOLDER_RUN, PLACEHOLDER_SHAPE, UNKNOWN_HEIGHT_KBPS,
-    blankKbps, connectionLimitKbps, connectionKbps, isShortLowRate, nextRun, isPlaceholderRun, hasPlaceholderShape, blankIsPlaceholder
+    DESTRUCTIVE_MAX_KBPS, destructiveKbps, blankKbps, connectionLimitKbps, connectionKbps, isShortLowRate, nextRun, isPlaceholderRun, hasPlaceholderShape, blankIsPlaceholder
 };

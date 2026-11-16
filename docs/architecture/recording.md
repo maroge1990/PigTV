@@ -140,7 +140,7 @@ preparation; `recordingPost.js`: compression, break detection; `recordingJobs.js
   Checked by the stall watchdog from 10 s to 60 s into the part (then ended) and over the whole part when it ends. Such a
   part ends as #332's placeholder (`notePlaceholder`: held back 3 min, no breaker count, a viewer's play told so; a single
   route has no channel key and simply waits for the next tick) and the recording keeps trying (D-59). What goes is
-  decided per segment (`dropFileTail`): only the trailing run of segments each measured under 250 kbps on its own
+  decided per segment (`dropFileTail`): only the trailing run of segments each measured under 250 kbps on its own (`destructiveKbps`: never above 250 kbps, whatever `PIGTV_BLANK_KBPS` says; #332's slate part and the file verdict use it too)
   (`trailingLowRate`; one unmeasurable or at a programme's rate ends the run) is removed (`trimEpoch`), the whole part
   (`discardEpoch`) only when every segment is in it. Programme read before the file in the same ffmpeg run stays.
   The Apple TV's watch copy (fMP4, `hvc1`) is made by a **local follower ffmpeg** per epoch, only when someone asks

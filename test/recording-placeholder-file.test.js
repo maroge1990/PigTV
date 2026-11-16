@@ -220,3 +220,21 @@ test('Codex #333 high: programme then the placeholder file in one ffmpeg run kee
         server.closeAllConnections?.(); server.close();
     }
 });
+
+test('Codex #333 sign-off: PIGTV_BLANK_KBPS=500 never lets a buffered real 448 kbps programme be a file, or be deleted', { skip: !hasFfmpeg && 'no ffmpeg' }, () => {
+    const placeholderRule = load('services/feedPlaceholder');
+    const before = process.env.PIGTV_BLANK_KBPS;
+    process.env.PIGTV_BLANK_KBPS = '500';
+    try {
+        assert.equal(placeholderRule.connectionLimitKbps(null), 500, 'the blank-picture threshold follows the override');
+        assert.equal(placeholderRule.destructiveKbps(), 250, 'the threshold that deletes never goes above 250');
+        const epochDir = path.join(fs.mkdtempSync(path.join(sandbox, 'b')), 'e1');
+        writeEpoch(epochDir, 15, 448); // 60 s at 448 kbps delivered in 10 s: a buffered live start
+        const at = 1_000_000;
+        assert.equal(engine._fastReadOf({ outputPath: epochDir, spawnedAt: at - 10000, feed: null, finiteAnswer: false }, at), null, 'not a file');
+        assert.equal(segments.trailingLowRate(epochDir, placeholderRule.destructiveKbps()).trailing, 0, 'no segment deletable');
+        assert.equal(engine._slatePart({ outputPath: epochDir, feedLost: { reason: 'placeholder', onlyPlaceholder: true } }), false, '#332\'s slate part is not it either');
+    } finally {
+        if (before === undefined) delete process.env.PIGTV_BLANK_KBPS; else process.env.PIGTV_BLANK_KBPS = before;
+    }
+});

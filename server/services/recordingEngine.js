@@ -66,7 +66,7 @@ const failoverTuning = {
 // time by more than its connect burst, so the floor of media read (minMediaSec; minMediaSecFinite once the shared ingest
 // saw an answer with a length on this candidate) keeps a burst out. Codex #333 high: a buffered live start can still
 // run ahead (60 s in 10 s), so a fast read is a file only at a blank picture's rate (the part's own rate under the
-// placeholder rule's lower threshold, 250 kbps; the slate file is 71 kbps) or when it runs aheadSec beyond real time,
+// placeholder rule's lower threshold, feedPlaceholder.destructiveKbps: never above 250 kbps; the slate file is 71 kbps) or when it runs aheadSec beyond real time,
 // which no live buffer does. Checked while the part runs, from checkAfterMs to checkUntilMs of it, and once more over
 // the whole part when it ends. A fast read only ends the part as an outage: what is deleted is decided per segment
 // (trailingLowRate in onSegmentExit).
@@ -1363,12 +1363,12 @@ function heldAgainst(entry, { failover, ranLong }) {
 
 /**
  * #333 (Codex high): a part read as the provider's placeholder file loses only the trailing run of segments each
- * measured on its own under the placeholder rule's lower threshold (250 kbps): the programme before the file always
+ * measured on its own under feedPlaceholder.destructiveKbps (at most 250 kbps): the programme before the file always
  * stays, and a segment that cannot be measured, or is at a programme's rate, ends the run (fail closed). Every segment
  * in the run: the part is emptied like #332's (discardEpoch). True when nothing of the part is left.
  */
 function dropFileTail(entry) {
-    const { trailing, total } = segments.trailingLowRate(entry.outputPath, require('./feedPlaceholder').connectionLimitKbps(null));
+    const { trailing, total } = segments.trailingLowRate(entry.outputPath, require('./feedPlaceholder').destructiveKbps());
     const part = `#${entry.recordingId}: part ${entry.segmented.epoch}`;
     if (trailing === 0) {
         console.log(`[Recordings] ${part} read as a file, but no segment at its end is at the placeholder's rate; all of it is kept`);
@@ -1387,7 +1387,7 @@ function dropFileTail(entry) {
 
 /**
  * #332 (Codex high): did this part record nothing but the provider's placeholder? Its feed ended as one with every
- * connection of the part in the placeholder's run, and its recorded rate is under the lower blank threshold.
+ * connection of the part in the placeholder's run, and its recorded rate is under feedPlaceholder.destructiveKbps (at most 250 kbps, whatever PIGTV_BLANK_KBPS says).
  */
 function slatePart(entry) {
     // #333 (Codex high): a part read as a file is not emptied whole here: its segments are judged one by one
@@ -1397,7 +1397,7 @@ function slatePart(entry) {
     // Codex sign-off (high): fail closed - only a finite measured rate deletes; one that could not be measured (no
     // playlist, no duration, a stat error) keeps the part.
     const kbps = segments.epochKbps(entry.outputPath);
-    return Number.isFinite(kbps) && kbps < require('./feedPlaceholder').connectionLimitKbps(null);
+    return Number.isFinite(kbps) && kbps < require('./feedPlaceholder').destructiveKbps();
 }
 
 async function onSegmentExit(schedule, entry, exitCode) {
@@ -1648,7 +1648,7 @@ function fastReadOf(entry, now = Date.now()) {
     const floor = entry.finiteAnswer ? fastReadTuning.minMediaSecFinite : fastReadTuning.minMediaSec;
     if (mediaSec < floor || mediaSec < fastReadTuning.ratio * wallSec) return null;
     const kbps = segments.epochKbps(entry.outputPath);
-    const blankRate = Number.isFinite(kbps) && kbps < require('./feedPlaceholder').connectionLimitKbps(null);
+    const blankRate = Number.isFinite(kbps) && kbps < require('./feedPlaceholder').destructiveKbps();
     if (!blankRate && mediaSec - wallSec < fastReadTuning.aheadSec) return null; // a live buffer at a programme's rate
     return { mediaSec: Math.round(mediaSec), wallSec: Math.round(wallSec * 10) / 10, finiteAnswer: entry.finiteAnswer === true };
 }
