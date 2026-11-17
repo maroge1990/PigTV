@@ -159,6 +159,9 @@ function detectLeague(text) {
     if (!t) return null;
     const format = /^\s*(w\s+)?(?:test|odi|t20i?)(?:\s+(?:mini|classic))?\s*:/i.exec(String(text));
     if (format && parseMatchup(text)) return format[1] ? "Women's Cricket" : 'Cricket';
+    // An "ODI" anywhere in a match-up's title is cricket (TNT Sports: "Live 3rd ODI: Australia v England", "Australia v
+    // England - 3rd ODI"); no other sport plays one-day internationals. A bare "Test" stays out: rugby has Tests too.
+    if (/\bodis?\b/.test(t) && parseMatchup(text)) return /\bwom[ae]ns?\b/.test(t) ? "Women's Cricket" : 'Cricket';
     for (const l of LEAGUES) if (l.re.test(t) && !(l.not && l.not.test(t))) return l.name;
     return null;
 }

@@ -156,6 +156,21 @@ test('cricket: IPL and BBL are their own leagues; international Tests/ODIs/T20Is
     assert.deepEqual(verdict, { rule: 'keyword', match: 'Cricket', league: 'Cricket' });
 });
 
+// TNT Sports 1, the UK's live broadcaster of England's 2026/27 ODIs in Australia, titles them "Live 3rd ODI: Australia v
+// England" and "Australia v England - 3rd ODI": no league word, no cricket channel name, so the live 3rd ODI (18 Nov
+// 2026) never reached Sport. An ODI is only ever cricket; a bare Test is not (rugby plays them).
+test('cricket: an ODI match-up anywhere in the title is cricket (TNT Sports titles)', () => {
+    for (const title of ['Live 3rd ODI: Australia v England', 'Australia v England - 3rd ODI', 'England v Australia: ODIs']) {
+        assert.equal(classify.detectLeague(title), 'Cricket', title);
+    }
+    assert.equal(classify.detectLeague("Australia v England - Women's 2nd ODI"), "Women's Cricket");
+    assert.equal(classify.detectLeague('Live 3rd ODI'), null, 'no match-up, no game');
+    assert.equal(classify.detectLeague('Australia v England - 3rd Test'), null, 'a Test could be rugby');
+    const follow = sportsEvents.compileFollow(['Cricket']);
+    assert.deepEqual(sportsEvents.classify({ title: 'Live 3rd ODI: Australia v England', channelName: 'TNT Sports 1' }, follow),
+        { rule: 'keyword', match: 'Cricket', league: 'Cricket' });
+});
+
 test("Mark's export: the noise is classified, not listed as events", () => {
     const items = exportItems();
     const kinds = (title) => [...new Set(aliasOf(items, title).map(e => e.kind))];
