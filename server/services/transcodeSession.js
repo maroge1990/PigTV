@@ -129,6 +129,14 @@ const CLEANUP_INTERVAL_MS = 60 * 1000; // Sweep every minute (a walk over an in-
 const REFUSED_RETRY_WINDOW_MS = 3000;
 const REFUSED_RETRY_DELAYS_MS = [1500, 3000];
 
+// #240: ffmpeg's own analysis of its input. The full window (5 MB / 5 s) is for a feed nobody has
+// analysed yet; a channel whose stored profile already holds its codecs, frame rate and timing class
+// starts with the short one (analysisWindow 'short', from the resolve), measured on the kept samples
+// (docs/evidence/2026-11-17-start-speed). The byte limit stays: a 4K HEVC key frame alone can be
+// megabytes. A start that fails with the short window runs once more with the full one.
+const PROBESIZE = '5000000';
+const ANALYZE_US = { full: '5000000', short: '2000000' };
+
 // 0144: seconds of a finite source read at full speed before real-time pacing
 // starts. PIGTV_READRATE_BURST=0 goes back to plain -re. Read on every use so
 // the env var can be changed in tests.
@@ -453,6 +461,32 @@ class TranscodeSession extends EventEmitter {
                 return;
             }
 
+            // #240: started with the short analysis window (the channel's profile) and ended before
+            // its first segment, for a reason that is not the provider's: once more with the full
+            // window, which is what every start had before. The resolve keeps the full window for
+            // this channel's profile if that one plays.
+            const sinceSpawnMs = this.timings.spawned ? Date.now() - this.timings.spawned : 0;
+            if (!requested && this.options.analysisWindow === 'short' && !this.timings.playlistReady
+                && !providerFailureIn(this.stderrTail) && !(this.feedLost && this.feedLost.providerReason === true)) {
+                this.options.analysisWindow = 'full';
+                this.analysisWindowFellBack = true;
+                this.retryAllowanceMs = (this.retryAllowanceMs || 0) + sinceSpawnMs;
+                console.warn(`[TranscodeSession ${this.id}] Ended before its first segment with the short analysis window; retrying with the full window`);
+                this.process = null;
+                this.status = 'pending';
+                this.stderrTail = [];
+                this.clearSegments()
+                    .catch(err => console.warn(`[TranscodeSession ${this.id}] Could not clear the folder before retry:`, err.message))
+                    .then(() => {
+                        if (this.status !== 'pending' || this.ended()) return;
+                        return this.start();
+                    })
+                    .catch(err => {
+                        console.error(`[TranscodeSession ${this.id}] Retry with the full analysis window failed:`, err.message);
+                    });
+                return;
+            }
+
             // The provider refused the connection outright, within
             // ffmpeg's first seconds: most likely it had not yet let go
             // of the resolve probe's connection (it allows one). Clear
@@ -598,8 +632,8 @@ class TranscodeSession extends EventEmitter {
 
         // Input options (common)
         args.push(
-            '-probesize', '5000000',
-            '-analyzeduration', '5000000',
+            '-probesize', PROBESIZE,
+            '-analyzeduration', this.options.analysisWindow === 'short' ? ANALYZE_US.short : ANALYZE_US.full,
             '-fflags', inputFlags,
             '-err_detect', 'ignore_err',
             '-dts_delta_threshold', String(DTS_DELTA_THRESHOLD_SEC),
@@ -1781,6 +1815,7 @@ module.exports = {
     providerFailureIn,
     localDiskFull,
     REFUSED_RETRY_DELAYS_MS,
+    ANALYZE_US,
     paceArgs,
     readrateBurstSec,
     blankKbps,

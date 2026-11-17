@@ -22,7 +22,13 @@ ingest that sessions read through is [`ingest.md`](ingest.md); the Apple player'
 - **Channel profiles** (0114, `channelProfiles.js`, table `channel_profiles`, key = sha256 of the probe-cache key). Written only after a
   session produced its playlist from a fresh probe; a failed start from a profile deletes it (and its in-memory copy); re-probed after
   `PIGTV_PROFILE_MAX_AGE_DAYS` (7). **`dtsUneven` and `videoRange` ride in the profile**, so a feed whose timing or range changes is
-  re-classified within 7 days or on its first failed start. ffmpeg's own probe is **not** reduced. Always on (the off switch went in 0204).
+  re-classified within 7 days or on its first failed start. Always on (the off switch went in 0204).
+  #240: a start from a profile also shortens ffmpeg's own analysis to 5 MB / **2 s** (`analysisWindow: 'short'`, log
+  `, analysis window short`); 1 s and 0.5 s lost the picture or the timing on a join far from a key frame
+  ([bench](../evidence/2026-11-17-start-speed/README.md), `stream-doctor bench --window`). A short-window start that ends
+  before its first segment for a reason not the provider's runs once more with the full window in the same session; if
+  that plays, the profile keeps `fullWindow` (beside the analysis, never sent to the client) and the channel starts with the
+  full window until the profile is re-probed.
   #332: a probe of the provider's placeholder is never kept, as a profile or in the 5-minute memory: not when the probe's
   shared feed ended as the placeholder or had a short low-rate connection, nor when the session's feed did, nor while the
   feed is held back for it; a profile saved from a fresh probe is dropped when the feed later ends as the placeholder.
@@ -74,7 +80,7 @@ ingest that sessions read through is [`ingest.md`](ingest.md); the Apple player'
 - **Only network URLs are opened** (0104, `streamUrl.js`: http(s), rtmp(s), rtsp(s), udp, rtp, srt). Resolve, the session route,
   `/api/probe` and `/api/subtitle` answer 400, and the check is repeated at spawn. It isn't done with `-protocol_whitelist`
   because stream-doctor and the tests run the real arguments against local files.
-- Start-up ≈ resolve probe + ffmpeg's own 5 MB/5 s probe + one segment: **7.1–10.1 s** cold, **4.4–5.2 s** with the probe cached
+- Start-up ≈ resolve probe + ffmpeg's own 5 MB/5 s probe (2 s from a profile, #240) + one segment: **7.1–10.1 s** cold, **4.4–5.2 s** with the probe cached
   (Mark's 0109 log: probe 3.3–4.7 s, first segment 3.6–5.0 s). A channel profile (0114) makes a repeat play the cached case.
 - **The provider cuts the connection ~38 s into a play, and resends ~19 s of old content** (both 7 channels; 23 Sept). In
   `pos_1164`/`pos_1165` the video packet sizes from ~39.6 s repeat those from ~20.6 s exactly (a 19.0–19.2 s shift) - the capture's own
@@ -172,7 +178,7 @@ toolchain; rollback is in [`../OPERATIONS.md`](../OPERATIONS.md).
 - `list <search>` → `pos_N`
 - `capture <pos_N> [sec]`: the real feed, plus a verdict
 - `classify <sample>`
-- `bench <sample>`: the server's **own** argument builders, scored per flag set
+- `bench <sample>`: the server's **own** argument builders, scored per flag set; `bench --window <samples…>`: ffmpeg's analysis window, full vs shorter, per join point (#240)
 - `probecost <pos_N>`
 
 `capture` and `probecost` take the provider connection, so **nothing may be playing**. Samples live in `/app/data/samples` (the bind

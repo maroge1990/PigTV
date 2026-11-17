@@ -8,9 +8,11 @@
  * change, so once a session has actually played from an analysis, that analysis is
  * reused for up to PIGTV_PROFILE_MAX_AGE_DAYS (7) days.
  *
- * What it does NOT change: ffmpeg's own -probesize/-analyzeduration. A channel with a
- * long GOP fails its join with a smaller probe (blueprint §2), so ffmpeg still reads
- * its usual 5 MB / 5 s; only the separate ffprobe run is skipped.
+ * #240: a start from a profile also shortens ffmpeg's own analysis (-analyzeduration, the
+ * session's analysisWindow 'short'). A join that lands far from a key frame (a long GOP,
+ * blueprint §2) can fail with it; that start runs once more with the full 5 MB / 5 s, and
+ * if that one plays the profile is marked `fullWindow` (stored in `info`, never handed to
+ * the client) so the channel keeps the full window.
  *
  * Invalidation: a profile is written only after a session produced its playlist from
  * that analysis, and deleted when a session started from it fails to produce one - so

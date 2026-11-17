@@ -87,12 +87,15 @@ function storedAnalysis(cacheKey) {
     const cached = probeCache.get(cacheKey);
     const cacheFresh = !!cached && (Date.now() - cached.timestamp) < CACHE_TTL;
     if (cacheFresh) {
-        return { info: cached.result, probeNote: 'cached', fromProfile: cached.fromProfile === true, probedAt: cached.probedAt || cached.timestamp };
+        return { info: cached.result, probeNote: 'cached', fromProfile: cached.fromProfile === true, probedAt: cached.probedAt || cached.timestamp,
+            fullWindow: cached.fullWindow === true };
     }
     const profile = channelProfiles.get(cacheKey);
     if (profile) {
-        probeCache.set(cacheKey, { result: profile.info, timestamp: Date.now(), fromProfile: true, probedAt: profile.probedAt });
-        return { info: profile.info, probeNote: `profile (age ${profile.ageDays}d)`, fromProfile: true, probedAt: profile.probedAt };
+        // #240: `fullWindow` is stored beside the analysis, never handed to the client with it.
+        const { fullWindow, ...info } = profile.info || {};
+        probeCache.set(cacheKey, { result: info, timestamp: Date.now(), fromProfile: true, probedAt: profile.probedAt, fullWindow: fullWindow === true });
+        return { info, probeNote: `profile (age ${profile.ageDays}d)`, fromProfile: true, probedAt: profile.probedAt, fullWindow: fullWindow === true };
     }
     return null;
 }
@@ -180,7 +183,7 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, owner = 
     if (info.compatible) return directDecision(url, info, probeNote, timingNote);
 
     // 2. Everything else is an HLS session.
-    const plan = sessionPlan({ info, caps, settings, userAgent, owner, live, audioEncode });
+    const plan = sessionPlan({ info, caps, settings, userAgent, owner, live, audioEncode, fromProfile, fullWindow: analysis.fullWindow === true });
     // Which provider's connection the session holds (0173): the coordinator counts it in that
     // provider's pool. Set here, not in sessionPlan, which plans the ffmpeg only.
     // R11: the connection lease the caller took when it admitted this start. It is checked just
@@ -249,7 +252,7 @@ function directDecision(url, info, probeNote, note = '') {
  * the client can decode, re-encode only what it cannot. Returns the session
  * options plus the decisions the log and the response report.
  */
-function sessionPlan({ info, caps, settings, userAgent, owner, live, audioEncode }) {
+function sessionPlan({ info, caps, settings, userAgent, owner, live, audioEncode, fromProfile = false, fullWindow = false }) {
     //    Copy what the client can decode (both streams when the codecs are fine, and only the container needs
     //    changing - what /api/remux used to do); re-encode only what it cannot.
     const audioNeedsWork = info.audioOk === false;
@@ -314,7 +317,11 @@ function sessionPlan({ info, caps, settings, userAgent, owner, live, audioEncode
         // FR-9 (0302): an AAC label no client decodes as a copy (AAC Main on FOX): re-encode.
         aacLabelBlocked: info.aacLabelBlocked === true,
         // This client decodes HE-AAC, so the session may copy it (0116).
-        heaacCopy: caps.heaac === true
+        heaacCopy: caps.heaac === true,
+        // #240: ffmpeg's own analysis is shortened for a channel whose stored profile already says what
+        // it carries, unless that profile is marked as needing the full window (`fullWindow`, kept when
+        // a short-window start failed and the full one played).
+        analysisWindow: fromProfile && !fullWindow ? 'short' : 'full'
     };
     return { options, videoMode, segmentType, videoRange, frameRate, codecsOk, canCopyVideo };
 }
@@ -347,7 +354,11 @@ async function afterStart({ session, ready, info, plan, probeNote, fromProfile, 
         : (ended
             ? `NOT produced - ffmpeg ended after ${seconds(session.timings.endedEarly - sessionStartedAt)}${failureStatus ? ` (provider ${failureStatus === 'refused' ? 'refused the connection' : `HTTP ${failureStatus}`})` : ''}`
             : 'NOT produced in time');
-    console.log(`[Playback] resolve timing: HLS session, probe ${probeNote}, first segment ${firstSegment}${pacing}${timing}${range}${note}`);
+    // #240: which analysis window ffmpeg ran with (a profile's start is short unless its profile says otherwise).
+    const windowNote = plan.options && plan.options.analysisWindow === 'short'
+        ? (session.analysisWindowFellBack === true ? ', analysis window full after the short one failed' : ', analysis window short')
+        : '';
+    console.log(`[Playback] resolve timing: HLS session, probe ${probeNote}, first segment ${firstSegment}${windowNote}${pacing}${timing}${range}${note}`);
     // #332: a feed that was (or may be) the provider's placeholder: its probe is the slate's, never the channel's.
     const placeholder = placeholderProbe || placeholderSuspect(session);
     if (ready && !placeholder) {
@@ -357,7 +368,16 @@ async function afterStart({ session, ready, info, plan, probeNote, fromProfile, 
         // #265 step 2 (D-65): the channel's measured quality, from the analysis it played from (a channel play on
         // its primary provider only: `measure` is { sourceId, key }); the newest measurement wins.
         if (measure) channelMeasurements.recordPlay(measure, info, probedAt);
-        if (fromProfile) {
+        if (fromProfile && session.analysisWindowFellBack === true) {
+            // #240: the short analysis window failed and the full one played: this channel keeps the full
+            // window from now on (the analysis itself held, so the profile and its age stay).
+            channelProfiles.save(cacheKey, { ...info, fullWindow: true }, probedAt);
+            const cached = probeCache.get(cacheKey);
+            if (cached && cached.fromProfile) cached.fullWindow = true;
+            if (measure && typeof session.once === 'function') {
+                session.once('placeholder', () => channelMeasurements.forgetPlay(measure, probedAt));
+            }
+        } else if (fromProfile) {
             channelProfiles.markOk(cacheKey);
             // #332: found to be the placeholder later: the measurement this play kept goes (the profile stays, as a
             // start that failed on the placeholder keeps it); only the one with this probe's time.
