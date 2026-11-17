@@ -232,3 +232,22 @@ test('a session that played is never restarted for its window', async () => {
     assert.equal(s.windows.length, 1);
     await transcodeSession.removeSession(s.id);
 });
+
+test('a session stopped while its full-window retry is pending never starts again', async () => {
+    let started = 0;
+    const s = await fakeSession((w) => { started++; return failsWhenShort(w); }, { analysisWindow: 'short' });
+    const realClear = s.clearSegments.bind(s);
+    // Hold the retry in its folder-clearing step, and stop the session there (a viewer cancelling).
+    let release;
+    s.clearSegments = () => new Promise((r) => { release = () => r(realClear()); });
+    await quietly(async () => {
+        await s.start();
+        for (let i = 0; i < 50 && !release; i++) await sleep(50);
+        assert.ok(release, 'the retry began');
+        await transcodeSession.removeSession(s.id);
+        release();
+        await sleep(400);
+    });
+    assert.equal(started, 1, 'no second ffmpeg after the stop');
+    assert.equal(transcodeSession.getSession(s.id), undefined, 'and the session is gone from the registry');
+});
