@@ -100,12 +100,15 @@ test('the web app itself is still served for everything that is not /api', async
 // router, which answers with something of its own (401 without a token, 400 for a missing parameter,
 // its own "not found" for an unknown id) - anything except the generic reply. A route that is
 // missing, or moved behind the catch-all, fails here instead of on somebody's Apple TV.
+// #291 (17 Nov 2026): builds in use in the last 30 days are 101, 149 and 246 (production's devices). No build calls
+// `/api/version` or `/api/library/channels` (the web app still does), so they left this list; `/api/sources`,
+// `/api/library/recent` and `/api/sports/dashboard` stay while 101 or 149 is in use (Apple 193 stopped calling them).
 const APPLE_CLIENT_ROUTES = [
-    ['GET', '/api/info'], ['GET', '/api/version'], ['GET', '/api/sports/pages/f1'], ['GET', '/api/sports/pages/nfl'], ['GET', '/api/sports/pages/cricket'], ['GET', '/api/sports/pages/league/AFL'], ['GET', '/api/sports/pages/events?league=UFC'], ['GET', '/api/sports/pages/preferences'], ['PUT', '/api/sports/pages/preferences'], ['GET', '/api/sports/follows'], ['PUT', '/api/sports/follows'], ['GET', '/api/sports/catalog'],
+    ['GET', '/api/info'], ['GET', '/api/sports/pages/f1'], ['GET', '/api/sports/pages/nfl'], ['GET', '/api/sports/pages/cricket'], ['GET', '/api/sports/pages/league/AFL'], ['GET', '/api/sports/pages/events?league=UFC'], ['GET', '/api/sports/pages/preferences'], ['PUT', '/api/sports/pages/preferences'], ['GET', '/api/sports/follows'], ['PUT', '/api/sports/follows'], ['GET', '/api/sports/catalog'],
     ['POST', '/api/auth/login'], ['GET', '/api/auth/me'],
     ['POST', '/api/devices/pair/start'], ['GET', '/api/devices/pair/poll'],
     ['GET', '/api/sources'],
-    ['GET', '/api/library/categories'], ['GET', '/api/library/channels'],
+    ['GET', '/api/library/categories'],
     ['GET', '/api/library/favourites'], ['GET', '/api/library/guide'], ['GET', '/api/library/guide/version'],
     ['GET', '/api/logo/0123456789abcdef0123456789abcdef'],
     ['POST', '/api/favorites'], ['DELETE', '/api/favorites'],
