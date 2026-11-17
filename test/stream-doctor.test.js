@@ -22,6 +22,13 @@ test('an unknown subcommand fails loudly instead of doing something surprising',
     assert.equal(r.status, 2);
 });
 
+test('bench --window (#240) is listed and refuses a file that is not there', () => {
+    assert.match(run().stdout, /bench --window <sample\.ts>/);
+    const r = run('bench', '--window', path.join(os.tmpdir(), 'pigtv-does-not-exist.ts'));
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /No such file/);
+});
+
 test('classify and bench refuse a file that is not there', () => {
     for (const cmd of ['classify', 'bench']) {
         const r = run(cmd, path.join(os.tmpdir(), 'pigtv-does-not-exist.ts'));

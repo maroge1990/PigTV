@@ -528,6 +528,178 @@ async function cmdBenchViaIngest(file) {
     return same;
 }
 
+// --------------------------------------------------- bench --window (#240) --
+
+/**
+ * #240: ffmpeg's own analysis window (-probesize/-analyzeduration) for a channel whose profile is known.
+ * Each sample is cut at two join points (its start and a third of the way in, as a play joins wherever
+ * the feed is) and fed to the server's own session arguments on stdin, as the shared ingest feeds them,
+ * once per window:
+ *  - at full speed, to compare what comes out against the full window: the streams and their
+ *    parameters (codec, size, pixel format, colour transfer, frame rate; audio codec, profile, rate,
+ *    channels), the video timestamps' evenness and the A/V start offset;
+ *  - paced to the sample's own byte rate (a live feed with no initial burst: the worst case for the
+ *    analysis), to time the first segment, which is what a viewer waits for.
+ * Touches no provider. Windows are [label, probesize, analyzeduration µs]; the first is the reference.
+ */
+const WINDOWS = [
+    ['full (5 MB / 5 s)', '5000000', '5000000'],
+    ['5 MB / 2 s', '5000000', '2000000'],
+    ['5 MB / 1 s', '5000000', '1000000'],
+    ['5 MB / 0.5 s', '5000000', '500000'],
+];
+
+/** A copy of `src` from the first TS packet at or after `fraction` of it, at most `maxBytes` long. */
+function cutAt(src, fraction, maxBytes, out) {
+    const size = fs.statSync(src).size;
+    let start = Math.floor((size * fraction) / 188) * 188;
+    const fd = fs.openSync(src, 'r');
+    try {
+        const probe = Buffer.alloc(188 * 3);
+        // A sync byte that repeats every 188 bytes (a cut need not land on a packet boundary).
+        for (let tries = 0; tries < 188 * 50; tries++, start++) {
+            fs.readSync(fd, probe, 0, probe.length, start);
+            if (probe[0] === 0x47 && probe[188] === 0x47 && probe[376] === 0x47) break;
+        }
+        const len = Math.min(maxBytes, size - start);
+        const buf = Buffer.alloc(len);
+        fs.readSync(fd, buf, 0, len, start);
+        fs.writeFileSync(out, buf);
+    } finally { fs.closeSync(fd); }
+    return out;
+}
+
+/** The session's arguments fed on stdin (as the shared ingest feeds them), writing into `outDir`, with `window` applied. */
+function fedArgs(sessionArgs, outDir, segExt, window) {
+    const a = forFile(sessionArgs, 'pipe:0', outDir, segExt);
+    if (window) { setFlag(a, '-probesize', window[1]); setFlag(a, '-analyzeduration', window[2]); }
+    return a;
+}
+
+/** ffmpeg on `file` fed through stdin; `bytesPerSec` paces it (null: full speed). A paced run ends at its first listed segment. */
+function runFed(args, file, outDir, { bytesPerSec = null, timeoutMs = 60000 } = {}) {
+    return new Promise((resolve) => {
+        const t0 = Date.now();
+        const proc = spawn('ffmpeg', args, { cwd: outDir, stdio: ['pipe', 'ignore', 'pipe'] });
+        let stderr = '';
+        let firstSegmentMs = null;
+        let done = false;
+        let pacer = null;
+        let poll = null;
+        proc.stderr.on('data', (d) => { if (stderr.length < 1e6) stderr += d; });
+        proc.stdin.on('error', () => { /* ffmpeg exited first */ });
+        const data = fs.readFileSync(file);
+        const finish = () => {
+            if (done) return;
+            done = true;
+            clearInterval(pacer); clearInterval(poll); clearTimeout(timer);
+            try { proc.kill('SIGKILL'); } catch { /* gone */ }
+        };
+        const timer = setTimeout(finish, timeoutMs);
+        if (bytesPerSec) {
+            let sent = 0;
+            pacer = setInterval(() => {
+                const due = Math.min(data.length, Math.floor(((Date.now() - t0) / 1000) * bytesPerSec));
+                if (due > sent) { proc.stdin.write(data.subarray(sent, due)); sent = due; }
+                if (sent >= data.length) { clearInterval(pacer); proc.stdin.end(); }
+            }, 20);
+            const playlist = path.join(outDir, 'stream.m3u8');
+            poll = setInterval(() => {
+                let text = '';
+                try { text = fs.readFileSync(playlist, 'utf8'); } catch { return; }
+                if (/#EXTINF/.test(text)) { firstSegmentMs = Date.now() - t0; finish(); }
+            }, 25);
+        } else {
+            proc.stdin.end(data);
+        }
+        proc.on('close', (code) => { done = true; clearInterval(pacer); clearInterval(poll); clearTimeout(timer); resolve({ code, stderr, firstSegmentMs }); });
+    });
+}
+
+/** What came out: the mapped streams' parameters, the video evenness, the A/V start offset. */
+function outputOf(dir) {
+    const joined = joinSegments(dir);
+    if (!joined) return null;
+    const { json } = ffprobeJson(['-v', 'error', '-print_format', 'json', '-show_streams', joined]);
+    const v = (json.streams || []).find((s) => s.codec_type === 'video');
+    const a = (json.streams || []).find((s) => s.codec_type === 'audio');
+    const sig = [
+        v ? `v:${v.codec_name} ${v.width}x${v.height} ${v.pix_fmt} ${v.color_transfer || '-'} ${v.r_frame_rate}` : 'v:none',
+        a ? `a:${a.codec_name} ${a.profile || '-'} ${a.sample_rate} ${a.channels}ch` : 'a:none'
+    ].join(' | ');
+    const avMs = v && a && Number.isFinite(Number(v.start_time)) && Number.isFinite(Number(a.start_time))
+        ? Math.round((Number(a.start_time) - Number(v.start_time)) * 1000) : null;
+    return { sig, avMs, steps: evenness(joined) };
+}
+
+async function cmdBenchWindow(files) {
+    const transcodeSession = require(path.join(ROOT, 'server/services/transcodeSession'));
+    const work = fs.mkdtempSync(path.join(os.tmpdir(), 'pigtv-doctor-window-'));
+    console.log(`ffmpeg: ${(spawnSync('ffmpeg', ['-version'], { encoding: 'utf8' }).stdout || '').split('\n')[0]}`);
+    const rows = [];
+    for (const file of files) {
+        if (!fs.existsSync(file)) die(`No such file: ${file}`);
+        const sample = path.resolve(file);
+        const { json } = ffprobeJson(['-v', 'error', '-print_format', 'json', '-show_streams', '-show_format', sample]);
+        const v = (json.streams || []).find((s) => s.codec_type === 'video') || {};
+        const a = (json.streams || []).find((s) => s.codec_type === 'audio') || {};
+        const codecs = { videoCodec: v.codec_name || 'h264', audioCodec: a.codec_name || 'aac', audioChannels: a.channels || 2 };
+        // The media actually carried (a timestamp jump makes the container's duration meaningless).
+        const packets = packetsOf(sample);
+        const carried = timeline(packets, json.streams).video;
+        // The longest wait for a key frame: a join lands anywhere in a GOP, and ffmpeg cannot size the
+        // picture before it has seen one (a long GOP is what the full window was kept for).
+        const keys = packets.filter((p) => p.codec_type === 'video' && String(p.flags || '').includes('K')).map((p) => Number(p.pts_time)).filter(Number.isFinite);
+        const gopSec = keys.length > 1 ? Math.max(...keys.slice(1).map((k, i) => k - keys[i]).filter((d) => d > 0 && d < 30)) : null;
+        const duration = carried && carried.seconds > 1 ? carried.seconds : Number((json.format || {}).duration) || null;
+        const bytesPerSec = duration ? fs.statSync(sample).size / duration : 1e6;
+        console.log(`\nsample: ${path.basename(sample)}  ${v.codec_name}/${a.codec_name} ${v.width}x${v.height} ${v.r_frame_rate} ${v.color_transfer || ''}` +
+            `  ${Math.round((bytesPerSec * 8) / 1000)} kbps  GOP up to ${gopSec === null ? '?' : gopSec.toFixed(2) + ' s'}`);
+        for (const fraction of [0, 1 / 3]) {
+            const cut = cutAt(sample, fraction, Math.round(bytesPerSec * 30), path.join(work, `cut-${Math.round(fraction * 100)}.ts`));
+            const dtsUneven = classifyTimestamps(packetsOf(cut)) === true;
+            for (const [name, segExt, opts] of [
+                ['fmp4 copy A/V', 'm4s', { segmentType: 'fmp4', videoMode: 'copy', audioMode: 'copy', ...codecs, dtsUneven }],
+                ['mpegts copy V, encode A', 'ts', { segmentType: 'mpegts', videoMode: 'copy', ...codecs, dtsUneven }]
+            ]) {
+                let ref = null;
+                for (const window of WINDOWS) {
+                    const session = await transcodeSession.createSession('http://sample.invalid/x.ts', opts);
+                    const base = session.buildFFmpegArgs();
+                    const qDir = fs.mkdtempSync(path.join(work, 'q-'));
+                    const q = await runFed(fedArgs(base, qDir, segExt, window), cut, qDir);
+                    const out = outputOf(qDir);
+                    const tDir = fs.mkdtempSync(path.join(work, 't-'));
+                    const t = await runFed(fedArgs(base, tDir, segExt, window), cut, tDir, { bytesPerSec, timeoutMs: 25000 });
+                    const warn = classifyStderr(q.stderr);
+                    const row = {
+                        sample: path.basename(sample), gopSec, join: fraction ? 'third' : 'start', mode: name, window: window[0],
+                        timing: dtsUneven ? 'uneven' : 'even', sig: out ? out.sig : 'NO OUTPUT', avMs: out ? out.avMs : null,
+                        outliers: out && out.steps ? out.steps.outliers : null, backwards: out && out.steps ? out.steps.backwards : null,
+                        warnings: Object.values(warn.counts).reduce((s, n) => s + n, 0), firstSegmentMs: t.firstSegmentMs
+                    };
+                    if (!ref) ref = row;
+                    // Nothing out of either is the same answer (a feed the server cannot copy fails either way).
+                    row.same = row.sig === ref.sig && (row.sig === 'NO OUTPUT' || (row.avMs !== null && ref.avMs !== null
+                        && Math.abs(row.avMs - ref.avMs) <= 25 && row.backwards === ref.backwards
+                        && Math.abs((row.outliers || 0) - (ref.outliers || 0)) <= 2));
+                    rows.push(row);
+                    console.log(`  ${row.join.padEnd(5)} ${name.padEnd(24)} ${window[0].padEnd(18)} first segment ` +
+                        `${t.firstSegmentMs === null ? 'NONE' : (t.firstSegmentMs / 1000).toFixed(2) + ' s'}` +
+                        `  A/V ${row.avMs} ms  ${row.outliers} outliers ${row.backwards} back  ${row.warnings} warn` +
+                        `  ${row.same ? 'SAME' : 'DIFFERENT: ' + row.sig}`);
+                    try { fs.rmSync(qDir, { recursive: true, force: true }); fs.rmSync(tDir, { recursive: true, force: true }); } catch { /* temp */ }
+                }
+            }
+        }
+    }
+    try { fs.rmSync(work, { recursive: true, force: true }); } catch { /* temp cleaner gets it */ }
+    if (process.env.STREAM_DOCTOR_JSON) fs.writeFileSync(process.env.STREAM_DOCTOR_JSON, JSON.stringify(rows, null, 1));
+    const differing = rows.filter((r) => !r.same);
+    console.log(`\n${rows.length} runs, ${differing.length} differ from the full window.`);
+    return rows;
+}
+
 function cmdProbeCost(search) {
     const { row, url } = oneChannel(search);
     const COMMON = ['-v', 'error', '-user_agent', userAgent(), '-print_format', 'json',
@@ -572,6 +744,9 @@ const USAGE = `stream-doctor - what a feed sends, and what the server's ffmpeg d
   bench --via-ingest <sample.ts>
                          the session's arguments reading the URL vs fed by the
                          shared ingest (Wave 5): same output expected
+  bench --window <sample.ts>...
+                         ffmpeg's analysis window: full vs shorter, per join
+                         point - streams, A/V start, evenness, first segment
   probecost <pos_N>      time the resolve probe             (uses the provider slot)
 
 capture and probecost connect to the provider, which allows one stream: nothing
@@ -585,6 +760,7 @@ async function main(argv) {
         case 'classify': if (!arg1) die(USAGE); return cmdClassify(arg1);
         case 'bench':
             if (arg1 === '--via-ingest') { if (!arg2) die(USAGE); const same = await cmdBenchViaIngest(arg2); process.exitCode = same ? 0 : 1; return; }
+            if (arg1 === '--window') { const files = argv.slice(4); if (!files.length) die(USAGE); const rows = await cmdBenchWindow(files); process.exitCode = rows.every((r) => r.same) ? 0 : 1; return; }
             if (!arg1) die(USAGE); return cmdBench(arg1);
         case 'probecost': if (!arg1) die(USAGE); return cmdProbeCost(arg1);
         default: console.log(USAGE); process.exit(cmd ? 2 : 0);
