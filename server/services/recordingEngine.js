@@ -388,7 +388,8 @@ function withImage(row) {
     const { image_url: url, sport_game_id: _game, event_stop: _stop, ...rest } = withChannelLogo(row);
     let image = null;
     try { image = url ? require('./logoCache').registerLogo(url) : null; } catch (e) { image = null; }
-    return { ...rest, image };
+    // #345: a schedule row names the sport game it records (null for none); recordings rows get theirs in listRecordings
+    return { ...rest, image, ...('sport_game_id' in row ? { gameId: _game || null } : {}) };
 }
 
 async function scheduleFromProgram({
@@ -833,8 +834,12 @@ function listRecordings(userId = null) {
     } catch (e) { /* no names: null */ }
     // 0207: this login's resume position and watched flag on every row (0 / false for none).
     const positions = userId === null || userId === undefined ? new Map() : recordingsDb.positionsFor(userId);
+    let gameIds = new Map();
+    try { gameIds = scheduledDb.gameIds(); } catch (e) { /* no links: null */ }
     return rows.map(withImage).map(r => ({
         ...r,
+        // #345: the sport game (a C-R card's `id`) the schedule behind this recording was made for, else null
+        gameId: gameIds.get(r.scheduled_id) || null,
         // R3: an in-progress segmented recording can be played from the start (GET /:id/watch).
         watch_live: segments.isWatchable(r),
         position_sec: positions.get(r.id)?.position_sec ?? 0,

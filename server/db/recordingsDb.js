@@ -294,6 +294,13 @@ const scheduled = {
         return db.prepare(`SELECT * FROM scheduled_recordings ORDER BY program_start DESC LIMIT 500`).all();
     },
 
+    /** Schedule id -> the sport game it records (#345), for the schedules that have one. */
+    gameIds() {
+        const db = getDb();
+        initSchema();
+        return new Map(db.prepare('SELECT id, sport_game_id FROM scheduled_recordings WHERE sport_game_id IS NOT NULL').all().map(r => [r.id, r.sport_game_id]));
+    },
+
     // Find schedules due to start (accounting for pre-buffer) that haven't started yet.
     // 'waiting' is included deliberately: a recording held back because a viewer
     // is using the provider's only stream must be retried on every tick, which

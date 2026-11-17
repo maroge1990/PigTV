@@ -9,11 +9,12 @@
     "conflictsWith": [
       4
     ],
-    "created_at": 1793491140000,
+    "created_at": 1793491560000,
     "created_by": 2,
     "description": "AFL 360. A made-up listing from the fake provider.",
     "endsWith": "guide",
     "error": null,
+    "gameId": null,
     "id": 5,
     "image": "/api/logo/<key>",
     "post_buffer_min": 5,
@@ -38,11 +39,12 @@
     "conflictsWith": [
       4
     ],
-    "created_at": 1793491140000,
+    "created_at": 1793491560000,
     "created_by": 2,
     "description": null,
     "endsWith": "guide",
     "error": null,
+    "gameId": null,
     "id": 1,
     "image": null,
     "post_buffer_min": 5,
@@ -71,11 +73,12 @@
       1,
       5
     ],
-    "created_at": 1793491140000,
+    "created_at": 1793491560000,
     "created_by": 2,
     "description": null,
     "endsWith": "guide",
     "error": null,
+    "gameId": null,
     "id": 4,
     "image": null,
     "post_buffer_min": 5,

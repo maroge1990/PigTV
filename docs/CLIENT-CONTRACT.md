@@ -404,6 +404,8 @@ A rule makes ordinary schedules; one-off recordings are unchanged. Any signed-in
   last 15 min it stops at the guide end + `post_buffer_min` as before. While it records past that point because the game
   is still on, the row adds `overrun: true` (re-read the list: the stop rolls on 10 min at a time). `"guide"`: as
   before. Wording: "When it stops: when ESPN says it's over (or the guide end + Finish late)".
+- **Recordings name their game (#345, additive, no flag).** `GET /api/recordings` rows and `recordings/scheduled` rows carry
+  `gameId`: the sport game (a C-R card's `id`) the schedule behind it was made for, else `null`. Decode it as optional.
 - **One game, one active schedule (#329, additive, no flag).** `POST /recordings/schedule` with a `gameId` that an active
   schedule (`scheduled`, `waiting` or `recording`; household-wide, whoever made it, by hand or by a rule) already has
   makes nothing and answers **200** with that schedule (as a 201 would list it, its own `channel_name`) plus
@@ -1017,6 +1019,8 @@ account follows nothing; only the server's owner (its first admin account) takes
 - C-R since 0415 (#198, D-42): a card with an upcoming recording on one of its channels during its airing carries
   `recording: { scheduleId, status, ruleId, clashesWith? }` (`ruleId` set when "Record every game" made it);
   `clashesWith` (titles) only when that recording loses its clash and waits: show "Clashes with …" on the card.
+  Since #345: a finished card has no `recording`; its recording is the `recordings[]` row whose `gameId` equals the card's
+  `id` and whose `status` is `completed` (the rows the Recordings list plays; the newest if several).
   Since 0465 (#234) a card whose game waits on a `game` rule, with nothing scheduled yet, carries
   `recordWhenListed: { ruleId }`: say "Records when it's listed" (and offer to cancel: `DELETE` the rule).
   Since 0791 (#334, D-66): when the server cannot read the recording schedules, no card in that answer carries `scores`
