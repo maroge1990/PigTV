@@ -87,7 +87,10 @@ its own per start: first segment **5.21 s full, 4.21 s short** (twice each), the
 
 ## Not checked yet
 
-- ffmpeg 9 (production): rerun `bench --window` on the kept samples inside the container (local files only).
+- ffmpeg 9.0.2 (production container, 17 Nov, Mark's OK, local files only, nice 10): 320 runs. 5 MB / 2 s gave the
+  same output on 79 of 80 runs; the one difference is the same mid-GOP cut with no output that the full-window retry
+  covers. 1 s and 0.5 s again failed mid-GOP cuts and damaged one uneven feed's timing. Mean first segment 6.00 s
+  (2 s) vs 6.40 s (5 s).
 - A real feed through the new arguments (the 0085 rule): plays of profiled channels after the Force Update, comparing
   `resolve timing … first segment` lines that end `, analysis window short` with earlier ones; any
   `analysis window full after the short one failed` line names a channel that needed the fallback.
