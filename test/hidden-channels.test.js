@@ -168,3 +168,16 @@ test('the review list is admin-only and validated', async () => {
     assert.equal((await post('/api/channels/new-groups/dismiss', { sourceId: source.id, categoryIds: 'all' })).status, 400);
     assert.equal((await post('/api/channels/new-groups/dismiss', { sourceId: source.id })).status, 200);
 });
+
+// #291 (item 3): films and series are no longer stored (#270), and no client hides or shows one (the web sends
+// `channel` and `group`, the Apple app neither). The four film and series item types are refused, not matched to nothing.
+test('#291: hide and show refuse the retired film and series item types', async () => {
+    for (const itemType of ['movie', 'series', 'vod_category', 'series_category']) {
+        for (const route of ['/api/channels/hide', '/api/channels/show']) {
+            const r = await post(route, { sourceId: source.id, itemType, itemId: '1' });
+            assert.equal(r.status, 400, `${route} ${itemType}`);
+            assert.equal(r.body.error, 'Invalid item type');
+        }
+    }
+    assert.equal((await post('/api/channels/hide', { sourceId: source.id, itemType: 'channel', itemId: 'nope' })).status, 200, 'a channel still is');
+});

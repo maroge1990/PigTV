@@ -19,15 +19,12 @@ function refuseWhileSyncing(res, sourceIds) {
     return true;
 }
 
-// Helper to map API item types to DB types and tables
+// Helper to map API item types to DB types and tables. #291: live channels and groups only (films and series are
+// no longer stored, #270); any other type is refused.
 function mapItemType(apiType) {
     switch (apiType) {
         case 'channel': return { table: 'playlist_items', type: 'live' };
         case 'group': return { table: 'categories', type: 'live' };
-        case 'vod_category': return { table: 'categories', type: 'movie' };
-        case 'series_category': return { table: 'categories', type: 'series' };
-        case 'movie': return { table: 'playlist_items', type: 'movie' };
-        case 'series': return { table: 'playlist_items', type: 'series' };
         default: return null;
     }
 }
