@@ -485,17 +485,24 @@ function stopBackgroundRefresh() {
 
 // #23: codes guides use that ESPN's abbreviation is not (Fox Cricket: "RSA v AUS"; ESPN: SA).
 const EXTRA_ABBREVIATIONS = new Map([['south africa', ['RSA']], ['new zealand', ['NZL']], ['sri lanka', ['SRI']]]);
+// #338: national cricket sides' nicknames that guides use and ESPN's aliases lack (Sky Sport NZ: "Blackcaps v India").
+// Cricket only: New Zealand's football or rugby side is not the Blackcaps. Keyed by ESPN's display name.
+const CRICKET_NICKNAMES = new Map([
+    ['new zealand', ['Blackcaps', 'Black Caps']], ['south africa', ['Proteas']], ['west indies', ['Windies']],
+    ['new zealand women', ['White Ferns']], ['south africa women', ['Proteas Women']], ['west indies women', ['Windies Women']]
+]);
 
 /** parseSide of every non-empty, deduplicated name field a fixture's team carries -> [side, ...], or null. */
-function teamAliasSides(team) {
+function teamAliasSides(team, league) {
     if (!team) return null;
-    return nameSides([team.displayName, team.shortDisplayName, team.name, team.location, team.abbreviation], team.displayName);
+    return nameSides([team.displayName, team.shortDisplayName, team.name, team.location, team.abbreviation], team.displayName, league);
 }
 /** parseSide of each non-empty, deduplicated name, plus a guide's code for a nation (EXTRA_ABBREVIATIONS) -> [side, ...] | null. */
-function nameSides(names, displayName) {
+function nameSides(names, displayName, league) {
     const seen = new Set();
     const sides = [];
-    const extra = EXTRA_ABBREVIATIONS.get(sportsClassify.normText(displayName)) || [];
+    const display = sportsClassify.normText(displayName);
+    const extra = [...(EXTRA_ABBREVIATIONS.get(display) || []), ...((isCricket(league) && CRICKET_NICKNAMES.get(display)) || [])];
     for (const raw of [...names, ...extra]) {
         if (typeof raw !== 'string' || !raw.trim()) continue;
         const key = sportsClassify.normText(raw);
@@ -521,10 +528,10 @@ function f1Session(abbr) {
 }
 
 /** One stored ESPN record -> what resolveLive's fixtureVerdict needs, or null if it names neither teams nor a session. */
-function toFixture(rec) {
+function toFixture(rec, league) {
     if (rec.teams && rec.teams.length === 2) {
-        const a = teamAliasSides(rec.teams[0]);
-        const b = teamAliasSides(rec.teams[1]);
+        const a = teamAliasSides(rec.teams[0], league);
+        const b = teamAliasSides(rec.teams[1], league);
         if (!a || !b) return null;
         return { start: rec.start, end: rec.end || null, teamsAliases: [a, b], session: null, location: [] };
     }
@@ -575,11 +582,11 @@ function storedLeague(db, league) {
     for (const row of rows) {
         let rec;
         try { rec = JSON.parse(row.data); } catch { continue; }
-        const fixture = toFixture(rec);
+        const fixture = toFixture(rec, league);
         if (fixture) fixtures.push(fixture);
     }
     const cachedTeams = loadTeams(db, league);
-    const teamsAliases = (cachedTeams?.teams || []).map(teamAliasSides).filter(Boolean);
+    const teamsAliases = (cachedTeams?.teams || []).map(t => teamAliasSides(t, league)).filter(Boolean);
     return { fixtures, teamsAliases, coverage: { from: status.covered_from, to: status.covered_to, at: status.last_success_at } };
 }
 
@@ -593,7 +600,7 @@ function cardFixture(card) {
     const facts = card.fixture || {};
     const end = facts.end !== undefined ? facts.end : (card.end ?? null);
     if (Array.isArray(card.competitors) && card.competitors.length === 2) {
-        const teams = card.competitors.map((c, i) => nameSides([c.name, ...(c.aliases || []), facts.locations?.[i]], c.name));
+        const teams = card.competitors.map((c, i) => nameSides([c.name, ...(c.aliases || []), facts.locations?.[i]], c.name, card.league));
         if (!teams[0] || !teams[1]) return null;
         return { start: card.start, end, teamsAliases: teams, session: null, location: [] };
     }
@@ -631,7 +638,7 @@ function snapshotFromCatalog(db, leagues) {
             const fixture = cardFixture(card);
             if (fixture) fixtures.push(fixture);
         }
-        const teamsAliases = (loadTeams(db, league)?.teams || []).map(teamAliasSides).filter(Boolean);
+        const teamsAliases = (loadTeams(db, league)?.teams || []).map(t => teamAliasSides(t, league)).filter(Boolean);
         out.set(league, { fixtures, teamsAliases, coverage: { from: row.covered_from, to: row.covered_to, at: row.observed_at } });
     }
     return out;

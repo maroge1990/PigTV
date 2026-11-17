@@ -395,3 +395,29 @@ test('#231: a merged game is titled with the team names most of its listings use
     ['NFL']).filter(e => e.kind === 'event');
     assert.deepEqual(merged.map(e => [e.title, e.channels.length]), [['Jacksonville Jaguars v Baltimore Ravens', 3]]);
 });
+
+// #338: Sky Sport NZ titles New Zealand's men "Blackcaps" ("Blackcaps v India", Sky Sport 5, 16 Nov 2026 17:00 UTC, a replay
+// of the 5th ODI of 15 Nov). ESPN's aliases are only "New Zealand"/"NZ", so no fixture matched and the airing was a live event.
+test('#338: a cricket nickname ESPN lacks (Blackcaps) matches its nation, so a replay is a replay; other sports keep their names', () => {
+    const { cardFixture } = load('services/sportsFixtures');
+    const card = (league, start, a, b) => ({ league, start, fixture: { end: null, locations: [a, b] },
+        competitors: [{ name: a, aliases: [a] }, { name: b, aliases: [b] }] });
+    const fixtures = [card('Cricket', Date.parse('2026-11-15T02:00Z'), 'New Zealand', 'India'),
+        card('Cricket', Date.parse('2026-11-18T22:00Z'), 'New Zealand', 'India')].map(cardFixture);
+    const at = Date.parse('2026-11-16T17:00Z');
+    const data = new Map([['Cricket', { fixtures, teamsAliases: fixtures.flatMap(f => f.teamsAliases), coverage: { from: at - 72 * H, to: at + 7 * 24 * H, at } }]]);
+    const channels = [{ key: '8:ss5', order: 0, tvgId: 'ss5', name: 'Sky Sport 5', sportChannel: false }];
+    const rows = [{ channel_id: 'ss5', title: 'Intl Cricket: Blackcaps v India', start_time: at, end_time: at + 4 * H, flags: 0 }];
+    const events = sportsEvents.eventsFromProgrammes(channels, rows, ['Cricket'], data);
+    assert.equal(events.length, 1);
+    assert.equal(events[0].kind, 'replay', events[0].kindRule);
+    assert.match(events[0].kindRule, /ESPN/);
+    // White Ferns are New Zealand's women, Proteas South Africa, Windies the West Indies; never outside cricket.
+    const side = (league, name, nick) => cardFixture(card(league, at, name, 'India')).teamsAliases[0]
+        .some(s => classify.teamMatch(classify.parseSide(nick), s));
+    assert.ok(side("Women's Cricket", 'New Zealand Women', 'White Ferns'));
+    assert.ok(side('Cricket', 'South Africa', 'Proteas'));
+    assert.ok(side('Cricket', 'West Indies', 'Windies'));
+    assert.ok(!side('Cricket', 'New Zealand', 'White Ferns'), "the women's nickname is not the men's side");
+    assert.ok(!side('Rugby', 'New Zealand', 'Blackcaps'), "another sport's New Zealand is not the Blackcaps");
+});
