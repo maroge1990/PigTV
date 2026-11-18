@@ -543,3 +543,37 @@ test('Codex medium: a resolve-time placeholder detection is health reason "place
         health.reset();
     }
 });
+
+test('Codex medium: the resolve deadline bounds the shared ingest\'s wait and the probe; no direct probe once it is spent', async () => {
+    const strategy = load('services/playbackStrategy');
+    const marker = path.join(sandbox, 'probe-ran');
+    const PROBE = path.join(sandbox, 'ffprobe-marker');
+    fs.writeFileSync(PROBE, `#!${process.execPath}\nrequire('fs').writeFileSync(${JSON.stringify(marker)}, 'x'); setTimeout(() => process.exit(1), 30000);\n`);
+    fs.chmodSync(PROBE, 0o755);
+    const settings = { ...(await db.settings.get()), ffmpegPath: FFMPEG };
+    const realSubscribe = ingest.subscribe;
+    let left = 0;
+    try {
+        // The ingest refuses after 1.5 s (its own first-byte budget is 10 s); the resolve has 1 s left.
+        ingest.subscribe = () => new Promise((_, reject) => setTimeout(() => reject(Object.assign(new Error('Shared ingest not used: no MPEG-TS within 10s'),
+            { ingestRefused: true, providerReason: true })), 1500));
+        let started = Date.now();
+        await assert.rejects(strategy.resolve({ url: `${base}/real77.ts`, capabilities: { segmentedDelivery: true }, settings, ffprobePath: PROBE, live: true,
+            providerId: A.id, ingestSource: { pool: 'primary', url: `${base}/real77.ts`, providerId: A.id, channelKey: 's177' }, deadlineAt: Date.now() + 1000 }),
+        (err) => err.providerReason === true && /^The provider did not respond/.test(err.message));
+        assert.ok(Date.now() - started < 1400, `gave up at the deadline, not after the ingest's wait (${Date.now() - started} ms)`);
+        // The ingest refuses within the budget but leaves under half a second: no direct probe either.
+        ingest.subscribe = () => new Promise((_, reject) => setTimeout(() => reject(Object.assign(new Error('Shared ingest not used: refused'),
+            { ingestRefused: true })), 600));
+        started = Date.now();
+        await assert.rejects(strategy.resolve({ url: `${base}/real77.ts`, capabilities: { segmentedDelivery: true }, settings, ffprobePath: PROBE, live: true,
+            providerId: A.id, ingestSource: { pool: 'primary', url: `${base}/real77.ts`, providerId: A.id, channelKey: 's177' }, deadlineAt: Date.now() + 1000 }),
+        (err) => err.providerReason === true);
+        left = Date.now() - started;
+        await new Promise(r => setTimeout(r, 300));
+        assert.equal(fs.existsSync(marker), false, 'no direct probe with the budget spent');
+        assert.ok(left < 1400, `${left} ms`);
+    } finally {
+        ingest.subscribe = realSubscribe;
+    }
+});

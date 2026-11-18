@@ -107,13 +107,16 @@ function storedAnalysis(cacheKey) {
  */
 async function probedAnalysis({ url, ffprobePath, userAgent, caps, cacheKey, deadlineAt = null, ingestSource = null, providerId = null }) {
     const probeStartedAt = Date.now();
-    // 0174: a failover resolve bounds the probe by its deadline (never above the usual 15 s).
-    const timeout = deadlineAt ? Math.max(1000, Math.min(15000, deadlineAt - probeStartedAt)) : undefined;
     let feed = null;
     if (ingestSource) {
         try {
-            feed = await require('./ingest').subscribe({ ...ingestSource, purpose: 'probe' });
+            // Codex (#348): the resolve's deadline bounds the ingest's wait too (its own first-byte budget is 10 s).
+            feed = await withinDeadline(require('./ingest').subscribe({ ...ingestSource, purpose: 'probe' }), deadlineAt);
         } catch (err) {
+            if (err.resolveDeadline) {
+                console.warn(`[Playback] resolve probe on ${providerLabel(providerId)}: the shared ingest had nothing by the resolve's deadline`);
+                throw deadlineSpentError();
+            }
             // I1/PB1 (0230): the ingest was closed while it connected (a takeover released it,
             // shutdown): a cancellation - no probe of our own, no provider failure.
             if (err.ingestCancelled) throw supersededError();
@@ -123,6 +126,14 @@ async function probedAnalysis({ url, ffprobePath, userAgent, caps, cacheKey, dea
             ingestSource.refused = true;
         }
     }
+    // 0174: a failover resolve bounds the probe by its deadline (never above the usual 15 s), worked out now, after the
+    // ingest's wait. Codex (#348): with less than PROBE_MIN_MS of it left, no probe of our own (it could only time out).
+    if (deadlineAt && deadlineAt - Date.now() < PROBE_MIN_MS) {
+        if (feed) { try { feed.leave(); } catch (e) { /* gone */ } }
+        console.warn(`[Playback] resolve probe on ${providerLabel(providerId)}: not started, the resolve's deadline is spent`);
+        throw deadlineSpentError();
+    }
+    const timeout = deadlineAt ? Math.min(15000, deadlineAt - Date.now()) : undefined;
     let raw;
     try {
         raw = await probeStream(url, ffprobePath, userAgent, timeout, { feed });
@@ -139,6 +150,35 @@ async function probedAnalysis({ url, ffprobePath, userAgent, caps, cacheKey, dea
     const placeholderProbe = !!feed && ((feed.endReason && feed.endReason.reason === 'placeholder') || (feed.ingest && feed.ingest.shortLowSeen === true));
     if (!placeholderProbe) probeCache.set(cacheKey, { result: info, timestamp: probedAt, probedAt });
     return { info, probeNote: seconds(Date.now() - probeStartedAt), fromProfile: false, probedAt, placeholderProbe };
+}
+
+/** The shortest probe worth starting against the resolve's deadline (below a candidate's guaranteed MIN_START_MS). */
+const PROBE_MIN_MS = 500;
+
+/** Codex (#348): the resolve's deadline was reached before the probe could run: the provider did not answer in time. */
+function deadlineSpentError() {
+    return Object.assign(new Error(FAILURE_TEXT.timeout()), { providerReason: true }); // as a probe timeout's (no status: 500)
+}
+
+/**
+ * `promise` (a shared-ingest subscription), or a rejection flagged `resolveDeadline` at `deadlineAt`; a subscription that
+ * arrives after that is left at once. No deadline: `promise` itself.
+ */
+function withinDeadline(promise, deadlineAt) {
+    if (!deadlineAt) return promise;
+    return new Promise((resolve, reject) => {
+        let late = false;
+        const timer = setTimeout(() => { late = true; reject(Object.assign(new Error('the resolve deadline passed'), { resolveDeadline: true })); },
+            Math.max(0, deadlineAt - Date.now()));
+        promise.then((feed) => {
+            clearTimeout(timer);
+            if (late) { try { feed && feed.leave(); } catch (e) { /* gone */ } return; }
+            resolve(feed);
+        }, (err) => {
+            clearTimeout(timer);
+            if (!late) reject(err);
+        });
+    });
 }
 
 /** 0124: how this start was served, for the admin status page. Observation only. */
