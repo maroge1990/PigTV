@@ -824,6 +824,28 @@ function liveAirings() {
     return index;
 }
 
+/**
+ * #348: the live game a channel is showing now, for a play that found the channel to be the provider's placeholder: an
+ * event of kind `event` on now (start <= now < end) that lists the channel - by its source and stable id when the row has
+ * one (never its stored position), else by its id - with its channels best first for this user, as C-I answers it.
+ * Only when exactly one live event lists it; with `eventId` (a client that knows the game), only that event, and only if
+ * it is such an event listing the channel. From the last built list: it never builds one (null when nothing is built).
+ */
+function liveEventFor({ sourceId, stableId = null, itemId = null, eventId = null, userId = null, now = Date.now() } = {}) {
+    const built = cache && cache.built;
+    if (!built || !Array.isArray(built.events)) return null;
+    const lists = (ev) => (ev.channels || []).some(ch => Number(ch.sourceId) === Number(sourceId)
+        && (stableId ? String(ch.stableId || '') === String(stableId) : (itemId !== null && !ch.stableId && String(ch.id) === String(itemId))));
+    const found = built.events.filter(ev => ev.kind === 'event' && ev.start <= now && now < ev.end
+        && (eventId === null || ev.id === String(eventId)) && lists(ev));
+    return found.length === 1 ? eventOut(found[0], now, favouriteTest(userId)) : null;
+}
+
+/** For tests: answer from this build, as if it were the last one. */
+function _useBuilt(built) {
+    cache = built ? { key: 'test', bucket: Date.now(), built } : null;
+}
+
 /** Resolves once no build is running or waiting (tests; a clean shutdown). */
 async function idle() {
     while (running || queued) await (running || queued).promise.then(() => {}, () => {});
@@ -1297,6 +1319,8 @@ module.exports = {
     visibleChannels,
     // #56: the guide's live flag for sport airings
     liveAirings,
+    // #348: the live game a placeholder channel's play moves to
+    liveEventFor, _useBuilt,
     getFollow, followsChanged, eventsFor, leagueEvents, endedEvents, buildEvents, clampHours, stats, eventsResponse,
     // for tests: what the response cache holds, and an empty one
     responseCacheSize: () => ({ entries: responses.size, bytes: responseBytes }),

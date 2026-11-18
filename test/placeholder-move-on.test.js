@@ -30,6 +30,7 @@ const routing = load('services/providerRouting');
 const interruptions = load('services/playbackInterruptions');
 const playbackEvents = load('services/playbackEvents');
 const channelProfiles = load('services/channelProfiles');
+const sportsEvents = load('services/sportsEvents');
 const { ALLOWED_PREFIXES } = load('services/playbackErrors');
 const { probeCache } = load('services/streamProbe');
 
@@ -117,6 +118,9 @@ before(async () => {
     item.run(`${A.id}:pos_6`, A.id, 'pos_6', 'Sportsnet East', 6, 's106', `${base}/file6.ts`);     // the placeholder too
     item.run(`${A.id}:pos_7`, A.id, 'pos_7', 'Sportsnet Ontario', 7, 's107', `${base}/real7.ts`);  // a live channel
     item.run(`${A.id}:pos_8`, A.id, 'pos_8', 'TSN 4', 8, 's108', `${base}/file8.ts`);             // in two live games
+    item.run(`${A.id}:pos_9`, A.id, 'pos_9', 'NHL Center Ice 1', 9, 's1803789', `${base}/file9.ts`); // Sportsnet Event's stream again
+    item.run(`${A.id}:pos_10`, A.id, 'pos_10', 'TSN 5', 10, 's110', `${base}/real10.ts`);          // a live channel
+    item.run(`${B.id}:pos_1`, B.id, 'pos_1', 'Sportsnet West', 1, 'sw1', `${base}/realB.ts`);       // on the backup's own pool (1 connection)
     sqlite.getDb().prepare(`INSERT INTO backup_channels (source_id, stream_id, name, url_data) VALUES (?, '901', 'TNT Sports 1', ?)`).run(B.id, `${base}/real.ts`);
     sqlite.getDb().prepare(`INSERT INTO channel_links (primary_source_id, primary_key, backup_source_id, backup_stream_id, method, status, rank, updated_at)
                             VALUES (?, 's101', ?, '901', 'exact', 'auto', 1, ?)`).run(A.id, B.id, Date.now());
@@ -133,6 +137,7 @@ before(async () => {
 });
 
 afterEach(async () => {
+    sportsEvents._useBuilt(null);
     for (const s of transcodeSession.getAllSessions()) await transcodeSession.removeSession(s.id);
     coordinator._leases.clear();
     ingest.closeAll('test over');
@@ -315,4 +320,120 @@ test('mid-play: PIGTV_INGEST_PLACEHOLDER_CHECK=0 leaves a feed-less blank as a n
         assert.deepEqual(seen.blank.map(b => b.placeholder), [false]);
         assert.equal(seen.lost.length, 0);
     } finally { ingest.tuning.placeholderCheck = true; }
+});
+
+// ---- part 3: no copy left: another channel showing the same live game ---------------------------------------------
+
+const ch = (id, stableId, name, sourceId = null) => ({ id, stableId, name, sourceId });
+/** A built C-I list with these live games (kind "event", on now), each listing its channels in this order. */
+function liveGames(...games) {
+    const now = Date.now();
+    sportsEvents._useBuilt({ from: now - 3600e3, events: games.map(({ id, title, channels, kind = 'event', start = now - 3600e3, end = now + 3600e3 }) => ({
+        id, kind, title, league: 'NHL', start, end, rule: 'keyword', match: 'NHL', aliases: [],
+        channels: channels.map((c, i) => ({ key: `${c.sourceId || A.id}:${c.stableId || c.id}`, sourceId: c.sourceId || A.id, id: c.id, stableId: c.stableId, name: c.name, quality: 'HD', order: i })),
+        airingTimes: {}
+    })) });
+}
+const GAME = { id: 'game-tor-mtl', title: 'NHL: Toronto vs Montreal', channels: [
+    ch('pos_2', 's1803789', 'Sportsnet Event'), ch('pos_9', 's1803789', 'NHL Center Ice 1'), ch('pos_6', 's106', 'Sportsnet East'),
+    ch('pos_5', 's105', 'Sportsnet One'), ch('pos_7', 's107', 'Sportsnet Ontario')] };
+
+test('the placeholder file, no copy, one live game listing the channel: the game\'s next channel plays, with `fallback`', async () => {
+    liveGames(GAME, { id: 'other', title: 'NBA: Raptors vs Celtics', channels: [ch('pos_10', 's110', 'TSN 5')] });
+    const log = captureLog();
+    let r;
+    try { r = await play('pos_2'); } finally { log.restore(); }
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.deepEqual(r.body.fallback, {
+        reason: 'placeholder',
+        from: { sourceId: A.id, id: 'pos_2', name: 'Sportsnet Event' },
+        to: { sourceId: A.id, id: 'pos_5', stableId: 's105', name: 'Sportsnet One' }
+    });
+    assert.equal(r.body.strategy, 'transcode');
+    assert.equal(r.body.provider.name, 'Strong8K');
+    assert.equal(connections['/real5.ts'] > 0, true, 'Sportsnet One played');
+    assert.equal(connections['/file9.ts'], undefined, 'the same stream listed again is never tried');
+    assert.equal(connections['/file6.ts'] > 0, true, 'Sportsnet East was tried first and found the placeholder too');
+    assert.equal(routing.isPlaceholder(A.id, 's106'), true);
+    assert.equal(connections['/real7.ts'], undefined, 'nothing after the channel that played');
+    const session = transcodeSession.getSession(r.body.sessionId);
+    assert.equal(session.options.channelName, 'Sportsnet One', 'the Status page names the channel played');
+    assert.ok(log.lines.some(l => l.includes('[Playback] "Sportsnet Event" is the provider\'s placeholder; playing "Sportsnet One" for NHL: Toronto vs Montreal')), log.lines.join('\n'));
+    assert.ok(!log.lines.some(l => l.includes(base)), 'no provider URL in the log');
+    const history = sqlite.getDb().prepare('SELECT channel_item_id FROM channel_history ORDER BY watched_at DESC LIMIT 1').get();
+    assert.equal(history.channel_item_id, 'pos_5', 'history names the channel watched');
+});
+
+test('two live games list the channel: no game is inferred, C-B\'s placeholder text; a client naming the game gets it', async () => {
+    liveGames({ id: 'g1', title: 'NHL: A vs B', channels: [ch('pos_8', 's108', 'TSN 4'), ch('pos_5', 's105', 'Sportsnet One')] },
+        { id: 'g2', title: 'NHL: C vs D', channels: [ch('pos_8', 's108', 'TSN 4'), ch('pos_10', 's110', 'TSN 5')] });
+    const r = await play('pos_8');
+    assert.equal(r.status, 503, JSON.stringify(r.body));
+    assert.equal(r.body.error, PLACEHOLDER_TEXT);
+    assert.equal(r.body.fallback, undefined);
+    assert.equal(connections['/real5.ts'], undefined);
+    assert.equal(connections['/real10.ts'], undefined);
+    routing.reset();
+    const named = await play('pos_8', { eventId: 'g2' });
+    assert.equal(named.status, 200, JSON.stringify(named.body));
+    assert.equal(named.body.fallback.to.id, 'pos_10');
+});
+
+test('a named game that is not live, not a game, or does not list the channel is not used', async () => {
+    const now = Date.now();
+    liveGames({ id: 'later', title: 'NHL: E vs F', start: now + 3600e3, end: now + 7200e3, channels: [ch('pos_2', 's1803789', 'Sportsnet Event'), ch('pos_5', 's105', 'Sportsnet One')] },
+        { id: 'replay', kind: 'replay', title: 'NHL: G vs H', channels: [ch('pos_2', 's1803789', 'Sportsnet Event'), ch('pos_5', 's105', 'Sportsnet One')] },
+        { id: 'elsewhere', title: 'NHL: I vs J', channels: [ch('pos_10', 's110', 'TSN 5')] });
+    for (const eventId of [undefined, 'later', 'replay', 'elsewhere']) {
+        routing.reset();
+        const r = await play('pos_2', eventId ? { eventId } : {});
+        assert.equal(r.status, 503, `${eventId}: ${JSON.stringify(r.body)}`);
+        assert.equal(r.body.error, PLACEHOLDER_TEXT);
+    }
+    assert.equal(connections['/real5.ts'], undefined);
+    assert.equal(connections['/real10.ts'], undefined);
+});
+
+test('the game\'s channels are tried only without disturbing anybody: a full provider is passed over, its viewer keeps playing', async () => {
+    liveGames({ id: 'g', title: 'NHL: Calgary vs Edmonton', channels: [ch('pos_2', 's1803789', 'Sportsnet Event'), ch('pos_1', 'sw1', 'Sportsnet West', B.id)] });
+    // Dream 4K's one connection is another viewer's (TNT Sports 1 plays there).
+    const other = await play('pos_1', {}, 'device:a');
+    assert.equal(other.status, 200, JSON.stringify(other.body));
+    assert.equal(other.body.provider.name, 'Dream 4K');
+    const r = await play('pos_2', {}, 'device:c');
+    assert.equal(r.status, 503, JSON.stringify(r.body));
+    assert.equal(r.body.error, PLACEHOLDER_TEXT);
+    assert.equal(connections['/realB.ts'], undefined, 'Sportsnet West was not started');
+    assert.equal(transcodeSession.getSession(other.body.sessionId)?.ended(), false, 'the other viewer keeps playing');
+    // With Dream 4K free, the same play goes there.
+    await transcodeSession.removeSession(other.body.sessionId);
+    coordinator._leases.clear();
+    routing.reset();
+    const again = await play('pos_2', {}, 'device:c');
+    assert.equal(again.status, 200, JSON.stringify(again.body));
+    assert.equal(again.body.fallback.to.name, 'Sportsnet West');
+    assert.equal(again.body.provider.name, 'Dream 4K');
+});
+
+test('liveEventFor: matched by stable id (never the stored position of a row that has one), else by id; one game only', () => {
+    liveGames({ id: 'g', title: 'NHL: A vs B', channels: [ch('pos_2', 's1803789', 'Sportsnet Event'), ch('pos_77', null, 'Local')] });
+    assert.equal(sportsEvents.liveEventFor({ sourceId: A.id, stableId: 's1803789', itemId: 'pos_99' })?.id, 'g');
+    assert.equal(sportsEvents.liveEventFor({ sourceId: A.id, stableId: 's999', itemId: 'pos_2' }), null, 'a row with a stable id is never matched by position');
+    assert.equal(sportsEvents.liveEventFor({ sourceId: A.id, stableId: null, itemId: 'pos_77' })?.id, 'g');
+    assert.equal(sportsEvents.liveEventFor({ sourceId: A.id + 100, stableId: 's1803789' }), null, 'another source');
+    sportsEvents._useBuilt(null);
+    assert.equal(sportsEvents.liveEventFor({ sourceId: A.id, stableId: 's1803789' }), null, 'nothing built: nothing inferred (a resolve never builds)');
+});
+
+test('after a play ended mid-way as the placeholder, the player\'s re-resolve skips that feed and plays the game\'s next channel', async () => {
+    liveGames({ id: 'g', title: 'NHL: Ottawa vs Boston', channels: [ch('pos_5', 's105', 'Sportsnet One'), ch('pos_7', 's107', 'Sportsnet Ontario')] });
+    const { s } = playedSession('then-moves', { width: 1920, fps: '30/1' });
+    routing.watchSession(s, { providerId: A.id, providerName: 'Strong8K', channelKey: 's105' }, 's105', 'Sportsnet One');
+    await s.checkPicture();
+    assert.equal(routing.isPlaceholder(A.id, 's105'), true);
+    const r = await play('pos_5');
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.equal(r.body.fallback.from.id, 'pos_5');
+    assert.equal(r.body.fallback.to.id, 'pos_7');
+    assert.equal(connections['/real5.ts'], undefined, 'no connection for the slate');
 });

@@ -262,6 +262,11 @@ rebased the step first (a reconnect showed up only as repeated content, and ever
 - **Mid-play, without a shared feed** (#348): the 20 s blank verdict on a play that reads the provider itself (a file, or
   the shared connection off) is the placeholder when the source has its shape or a length; the play ends as lost with
   reason `placeholder` (held back 3 min) and the player's re-resolve moves on. A dark channel of another shape is noted only.
+- **The game's next channel** (#348, C-J): when every candidate of a channel failed as (or was skipped as) the placeholder,
+  the resolve finds the one live C-I game (kind `event`) listing the channel now (`sportsEvents.liveEventFor`, from the last
+  built list, never a build; by source + stable id, else id; or the client's `eventId`) and walks its other channels in
+  C-I order, each through its own routing plan and the same admission walk (never disturbing anybody), skipping the same
+  stream and any held back as the placeholder, within the resolve's 30 s. The answer gains `fallback`.
 - Known limits: the feeds aren't in step (a jump or repeat at a switch); a cold switch still waits for the 20 s stall
   watchdog; the provider in Stream info is the one the play started on. A switch applies to plays started after it changes.
 

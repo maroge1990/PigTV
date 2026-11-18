@@ -308,6 +308,13 @@ A channel resolve (`sourceId` + `channelId`) carries
   next provider. Since #324 a feed the server finds repeating the same clip with fresh timestamps is such a stream when
   another provider can take over: it ends (or, with in-stream recovery, switches provider behind an
   `EXT-X-DISCONTINUITY`) as a stalled one does; with none it plays on. No shape changes. The whole resolve stays under 30 s (the client's request timeout is 35 s).
+- #348 (additive): when every copy of the channel is the provider's placeholder (the slate, or its 10-minute file) and
+  the channel is in exactly one live C-I game, the resolve plays that game's next channel (C-I order) and adds
+  `fallback: { reason: "placeholder", from: { sourceId, id, name }, to: { sourceId, id, stableId, name } }`; the rest of
+  the answer (`provider`, `info`, ...) is the channel played. A client may send `eventId` (a C-I event id) in the body to
+  name the game; it is used only if that event is live and lists the channel. Nothing found: C-B's placeholder text. A
+  client that ignores `fallback` still plays, but labels the old channel: show "<from> has nothing on, playing on <to>".
+  A play that turns out to be the placeholder mid-way ends as lost; the client's re-resolve moves on the same way.
 - The 409 for a recording that holds the connection has `conflict: { type: "recording-in-progress", scheduleId, title,
   channelName, endsAt, message }` (`endsAt`: a number, ms since the epoch). `endsAt` is when that recording will actually
   stop: its guide end plus finish-late, or, while a sport event runs over, its event stop (capped at 4 h past the

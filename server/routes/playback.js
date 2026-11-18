@@ -121,8 +121,8 @@ router.post('/resolve', requireToken, async (req, res) => {
         // 0174: with somewhere to fail over to, the whole resolve has a deadline
         // (the Apple client gives up at 35 s). With one candidate, as before.
         const failoverPossible = candidates.length > 1;
-        const deadlineAt = failoverPossible ? Date.now() + providerRouting.DEADLINE_MS : null;
-        const showProvider = !!routing && (routing.backupsConfigured || failoverPossible);
+        const resolveStartedAt = Date.now();
+        const deadlineAt = failoverPossible ? resolveStartedAt + providerRouting.DEADLINE_MS : null;
         const live = sourceId !== undefined && channelId !== undefined;
 
         // Wave 5 (phase 5b, `sharedIngestEnabled`): a live channel's candidate is read through the
@@ -130,11 +130,22 @@ router.post('/resolve', requireToken, async (req, res) => {
         const ingest = require('../services/ingest');
         const measureFor = (candidate) => (live && candidate.via === 'primary' && candidate.channelKey != null
             ? { sourceId: candidate.providerId, key: String(candidate.channelKey) } : null);
-        const ingestFor = (candidate) => (live ? ingest.sourceFor(candidate, settings, { sourceId: parseInt(sourceId), channelId }) : null);
+        const ingestFor = (candidate, ref) => (live ? ingest.sourceFor(candidate, settings, ref) : null);
+
+        // One channel's walk (#348: the requested channel, then perhaps another channel of the same live game): its
+        // routing plan, the channel it names (`ref`, for the shared ingest), its deadline and its name for the log.
+        const walkOf = (plan, ref, walkDeadlineAt, label) => {
+            const list = plan ? plan.candidates : [{ providerId: null, url }];
+            return { routing: plan, ref, candidates: list, deadlineAt: walkDeadlineAt, label,
+                showProvider: !!plan && (plan.backupsConfigured || list.length > 1) };
+        };
+        const requested = walkOf(routing, live ? { sourceId: parseInt(sourceId), channelId } : null, deadlineAt,
+            eventChannel || (routing && routing.channelName) || null);
+        const showProvider = requested.showProvider;
 
         // Start one candidate: probe, session, first segment. Throws what resolve throws.
-        const start = (candidate, index, lease) => {
-            const isLast = index === candidates.length - 1;
+        const start = (walk, candidate, index, lease) => {
+            const isLast = index === walk.candidates.length - 1;
             lastTried = candidate;
             return playbackStrategy.resolve({
                 url: candidate.url,
@@ -150,20 +161,20 @@ router.post('/resolve', requireToken, async (req, res) => {
                 providerId: candidate.providerId,
                 // R11: the connection lease taken when this candidate was admitted.
                 lease,
-                ingestSource: ingestFor(candidate),
+                ingestSource: ingestFor(candidate, walk.ref),
                 // #265 step 2: a channel's own stream (its primary provider) is measured for the clients' badge.
                 measure: measureFor(candidate),
                 // #348: a live channel answered with the provider's placeholder file is refused at once (the next candidate).
-                liveChannel: routing && live ? candidate : null,
+                liveChannel: walk.routing && live ? candidate : null,
                 // 0174: only the last candidate gets 0143's two refused-connection
                 // retries; an earlier one gets one, after 1 s, then the next provider.
-                ...(failoverPossible ? {
+                ...(walk.deadlineAt ? {
                     refusedRetryDelaysMs: isLast ? undefined : providerRouting.EARLY_RETRY_DELAYS_MS,
                     // An earlier one must leave the next time for a cold start.
-                    deadlineAt: isLast ? deadlineAt
-                        : Math.max(deadlineAt - providerRouting.NEXT_RESERVE_MS, Math.min(deadlineAt, Date.now() + providerRouting.MIN_START_MS))
+                    deadlineAt: isLast ? walk.deadlineAt
+                        : Math.max(walk.deadlineAt - providerRouting.NEXT_RESERVE_MS, Math.min(walk.deadlineAt, Date.now() + providerRouting.MIN_START_MS))
                 } : {}),
-                ...(showProvider ? { timingNote: `, provider ${candidate.providerName} (${candidate.via})` } : {})
+                ...(walk.showProvider ? { timingNote: `, provider ${candidate.providerName} (${candidate.via})` } : {})
             });
         };
 
@@ -201,40 +212,71 @@ router.post('/resolve', requireToken, async (req, res) => {
 
         // D-7: the walk itself (admit without disturbing, admit, start on the lease, give back an
         // unbound lease on every way out) is services/playbackStart.js; what is the route's own is here.
-        if (!decision) {
-            await startOnFirstFree(candidates, {
+        // -> { decision, chosen, failedOver, lastError, placeholderOnly } (placeholderOnly: every start that failed was the
+        // provider's placeholder, found now or skipped as one).
+        const walkCandidates = async (walk) => {
+            const out = { decision: null, chosen: null, failedOver: false, lastError: null, placeholderOnly: true };
+            const plan = walk.routing;
+            await startOnFirstFree(walk.candidates, {
                 before: () => {
                     // 0180: the owner's newer request took over while this one was walking.
                     if (isSuperseded(owner, generation)) throw playbackStrategy.supersededError();
-                    if (lastError && deadlineAt && deadlineAt - Date.now() < providerRouting.MIN_START_MS) {
+                    if (out.lastError && walk.deadlineAt && walk.deadlineAt - Date.now() < providerRouting.MIN_START_MS) {
                         console.warn(`[Playback] failover: stopped after ${lastTried.providerName}: less than ${providerRouting.MIN_START_MS / 1000}s left of the resolve`);
                         return STOP;
                     }
                     return undefined;
                 },
-                ask: (candidate) => ({ force: false, settings, owner, providerId: candidate.providerId, joinIngest: ingestFor(candidate)?.key || null }),
+                ask: (candidate) => ({ force: false, settings, owner, providerId: candidate.providerId, joinIngest: ingestFor(candidate, walk.ref)?.key || null }),
                 start: async (candidate, i, lease) => {
                     if (clientGone()) throw playbackStrategy.supersededError();
                     // #332: this feed was sending the provider's placeholder a moment ago (held back 3 min; the plan
                     // gives it only when nothing else can play the channel): no connection for a still slate.
-                    if (routing && providerRouting.isPlaceholder(candidate.providerId, candidate.channelKey)) throw placeholderError();
-                    decision = await start(candidate, i, lease);
-                    chosen = candidate;
+                    if (plan && providerRouting.isPlaceholder(candidate.providerId, candidate.channelKey)) throw placeholderError();
+                    out.decision = await start(walk, candidate, i, lease);
+                    out.chosen = candidate;
                     return true;
                 },
                 failed: (err, candidate, i) => {
                     // 0180: stopped on request (or overtaken), not a provider failure: nothing
                     // is noted and no later candidate is started.
-                    if (err.superseded || !routing || !providerRouting.isProviderFailure(err)) throw err;
+                    if (err.superseded || !plan || !providerRouting.isProviderFailure(err)) throw err;
                     // #332: found sending its placeholder during this start: the viewer is told so (C-B).
-                    lastError = !err.placeholder && providerRouting.isPlaceholder(candidate.providerId, candidate.channelKey) ? placeholderError() : err;
-                    failedOver = true;
-                    providerRouting.noteStartFailure(candidate, routing.primaryKey);
-                    const next = candidates.slice(i + 1)[0];
-                    if (failoverPossible) console.warn(`[Playback] failover: ${candidate.providerName} (${candidate.via}) failed for "${eventChannel || routing.channelName || 'channel'}"` +
+                    out.lastError = !err.placeholder && providerRouting.isPlaceholder(candidate.providerId, candidate.channelKey) ? placeholderError() : err;
+                    if (!out.lastError.placeholder) out.placeholderOnly = false;
+                    out.failedOver = true;
+                    providerRouting.noteStartFailure(candidate, plan.primaryKey);
+                    const next = walk.candidates.slice(i + 1)[0];
+                    if (walk.candidates.length > 1) console.warn(`[Playback] failover: ${candidate.providerName} (${candidate.via}) failed for "${walk.label || 'channel'}"` +
                         ` - ${clientSafe(redact(err.message)).split('. ')[0]}; ${next ? `trying ${next.providerName} (${next.via})` : 'no provider left'}`);
                 }
             });
+            return out;
+        };
+
+        // #348: what was played instead of the requested channel (another channel of the same live game), or null.
+        let fallback = null;
+        if (!decision) {
+            const walked = await walkCandidates(requested);
+            ({ decision, chosen, failedOver, lastError } = walked);
+            // #348: every copy of the channel is the provider's placeholder: another channel showing the same live game.
+            if (!decision && lastError && lastError.placeholder && walked.placeholderOnly && routing && live) {
+                const failedOn = lastTried;
+                fallback = await gameFallback({
+                    sourceId: parseInt(sourceId), channelId, eventId: req.body.eventId, userId: req.user ? req.user.id : null,
+                    deadlineAt: resolveStartedAt + providerRouting.DEADLINE_MS, walkOf, walkCandidates,
+                    stopped: () => isSuperseded(owner, generation) || clientGone()
+                });
+                if (!fallback) {
+                    lastTried = failedOn; // the failure is the requested channel's
+                } else {
+                    fallback.failedOn = failedOn;
+                    ({ decision, chosen } = fallback.walked);
+                    failedOver = fallback.walked.failedOver || fallback.walk.routing.primarySkipped;
+                    routing = fallback.walk.routing;
+                    console.log(`[Playback] "${requested.label || 'channel'}" is the provider's placeholder; playing "${fallback.channel.name}" for ${fallback.event.title}`);
+                }
+            }
         }
 
         if (!decision) {
@@ -249,7 +291,7 @@ router.post('/resolve', requireToken, async (req, res) => {
                 settings,
                 owner,
                 providerId: first.providerId,
-                joinIngest: ingestFor(first)?.key || null
+                joinIngest: ingestFor(first, requested.ref)?.key || null
             });
             if (!verdict.allowed) {
                 return sendConflict(res, verdict, { everyProvider: !!routing && routing.providerCount > 1 });
@@ -288,7 +330,7 @@ router.post('/resolve', requireToken, async (req, res) => {
                     live,
                     providerId: first.providerId,
                     lease: verdict.lease,
-                    ingestSource: ingestFor(first),
+                    ingestSource: ingestFor(first, requested.ref),
                     measure: measureFor(first),
                     liveChannel: routing && live ? first : null, // #348
                     ...(failoverPossible ? { deadlineAt } : {}),
@@ -304,10 +346,14 @@ router.post('/resolve', requireToken, async (req, res) => {
             chosen = first;
         }
 
+        // #348: the channel actually played (the requested one, or the game's next channel).
+        const playedLabel = fallback ? fallback.channel.name : requested.label;
+        const playedRef = fallback ? fallback.walk.ref : (live ? { sourceId: parseInt(sourceId), channelId } : null);
+
         if (routing) {
             providerRouting.noteSuccess(chosen);
             const session = decision.sessionId ? require('../services/transcodeSession').getSession(decision.sessionId) : null;
-            providerRouting.watchSession(session, chosen, routing.primaryKey, eventChannel || routing.channelName);
+            providerRouting.watchSession(session, chosen, routing.primaryKey, playedLabel);
             // C-J: which provider this play is on, and whether it got there by failing over.
             decision = {
                 ...decision,
@@ -320,16 +366,29 @@ router.post('/resolve', requireToken, async (req, res) => {
                 }
             };
             if (failedOver || routing.primarySkipped) {
-                console.log(`[Playback] failover: "${eventChannel || routing.channelName || 'channel'}" plays on ${chosen.providerName} (${chosen.via})` +
+                console.log(`[Playback] failover: "${playedLabel || 'channel'}" plays on ${chosen.providerName} (${chosen.via})` +
                     `${routing.primarySkipped ? ' - primary skipped (down, expired or quarantined for this channel)' : ''}`);
             }
+        }
+
+        // #348 (additive): the requested channel was the provider's placeholder and this is another channel of the same
+        // live game; everything else in the answer is the channel played. A client that ignores it still plays.
+        if (fallback) {
+            decision = {
+                ...decision,
+                fallback: {
+                    reason: 'placeholder',
+                    from: { sourceId: parseInt(sourceId), id: channelId, name: requested.label || null },
+                    to: { sourceId: Number(fallback.channel.sourceId), id: fallback.channel.id, stableId: fallback.channel.stableId || null, name: fallback.channel.name || null }
+                }
+            };
         }
 
         // 0188: the baseline for recovery work. This resolve closes the viewer's open loss of
         // this channel, if any; and a loss of the session it started is recorded when it happens.
         {
             const interruptions = require('../services/playbackInterruptions');
-            const channelLabel = eventChannel || (routing && routing.channelName) || null;
+            const channelLabel = playedLabel || null;
             const providerLabel = chosen ? chosen.providerName : null;
             interruptions.noteResolved({ owner, channel: channelLabel, provider: providerLabel });
             const played = decision.sessionId ? require('../services/transcodeSession').getSession(decision.sessionId) : null;
@@ -350,7 +409,7 @@ router.post('/resolve', requireToken, async (req, res) => {
                 // channel play only; off, adopt() does nothing.
                 if (routing && live) {
                     require('../services/streamRelay').adopt(played, {
-                        sourceId: parseInt(sourceId), channelId, capabilities: capabilities || {}, settings,
+                        sourceId: playedRef.sourceId, channelId: playedRef.channelId, capabilities: capabilities || {}, settings,
                         ffprobePath: req.app.locals.ffprobePath, upscale: upscale === true, audioEncode: audioEncode === true,
                         owner, channelName: channelLabel, primaryKey: routing.primaryKey, candidate: chosen
                     });
@@ -365,18 +424,24 @@ router.post('/resolve', requireToken, async (req, res) => {
             return;
         }
 
-        // R12: what this owner is watching now, so a warm request for it is ignored.
-        if (warmKey && decision.sessionId) warming.noteWatching(owner, warmKey, decision.sessionId);
+        // R12: what this owner is watching now, so a warm request for it is ignored (not when another channel plays).
+        if (warmKey && decision.sessionId && !fallback) warming.noteWatching(owner, warmKey, decision.sessionId);
 
-        recordHistory(req, sourceId, channelId);
+        // #348: the requested channel's start failed as the placeholder; the game's next channel is what was watched.
+        if (fallback) {
+            channelHealth.recordResolve({ sourceId, channelId, ok: false, reason: clientSafe(lastError.message), owner,
+                providerId: fallback.failedOn ? fallback.failedOn.providerId : null });
+        }
+        recordHistory(req, playedRef ? playedRef.sourceId : sourceId, playedRef ? playedRef.channelId : channelId);
         // 0133 (C-G): a start the server answered; the client's events may
         // still turn it into a failed start (channelHealth.clientFailed).
         // 0174: the primary identity's health, whichever provider served it.
-        channelHealth.recordResolve({ sourceId, channelId, ok: true, owner, providerId: chosen.providerId });
+        channelHealth.recordResolve({ sourceId: playedRef ? playedRef.sourceId : sourceId, channelId: playedRef ? playedRef.channelId : channelId,
+            ok: true, owner, providerId: chosen.providerId });
 
         console.log(`[Playback] ${decision.strategy} — ${decision.reason}${decision.warm ? ' (warm: adopted a session started ahead)' : ''}`);
-        playbackEvents.noteResolve(owner, { channel: eventChannel, strategy: decision.strategy, videoMode: decision.videoMode || null,
-            provider: showProvider ? chosen.providerName : null });
+        playbackEvents.noteResolve(owner, { channel: playedLabel || eventChannel, strategy: decision.strategy, videoMode: decision.videoMode || null,
+            provider: (fallback ? fallback.walk.showProvider : showProvider) ? chosen.providerName : null });
         res.json(decision);
     } catch (err) {
         // 0180: a start overtaken by the same viewer's next play. Not a failure: no
@@ -435,6 +500,54 @@ router.post('/warm', requireToken, async (req, res) => {
         if (!res.headersSent) res.status(204).end();
     }
 });
+
+/**
+ * #348: the requested channel is the provider's placeholder on every copy: play another channel showing the same live
+ * game. The game is the one live sport event (C-I, kind "event") listing the channel now (by source and stable id, else
+ * id), or `eventId` when a client names it (only if it is such an event and lists the channel). Its other channels are
+ * tried in C-I's order through each one's own routing plan and candidate walk (`walkCandidates`: never one that would
+ * disturb another viewer or a recording), skipping the same stream (source + identity), any whose every candidate was
+ * just found sending the placeholder, any whose own airing is not on now, and stopping once less than MIN_START_MS of the
+ * resolve's deadline is left. -> { walked, walk, channel, event } for the first that plays, or null.
+ */
+async function gameFallback({ sourceId, channelId, eventId = null, userId = null, deadlineAt, walkOf, walkCandidates, stopped }) {
+    const identity = providerRouting.channelIdentity(sourceId, channelId);
+    const failedKey = identity ? String(identity.key) : bareChannelId(channelId);
+    let event = null;
+    try {
+        event = require('../services/sportsEvents').liveEventFor({ sourceId, stableId: identity ? identity.stableId : null,
+            itemId: bareChannelId(channelId), eventId: typeof eventId === 'string' && eventId ? eventId : null, userId });
+    } catch (err) {
+        console.warn('[Playback] game fallback: the live games could not be read:', err.message);
+        return null;
+    }
+    if (!event) return null;
+    for (const channel of event.channels || []) {
+        const now = Date.now();
+        if (Number(channel.sourceId) === Number(sourceId) && String(channel.stableId || channel.id) === failedKey) continue; // the same stream
+        if (Number.isFinite(channel.start) && Number.isFinite(channel.end) && !(channel.start <= now && now < channel.end)) continue; // not airing it now
+        if (deadlineAt - now < providerRouting.MIN_START_MS) {
+            console.warn(`[Playback] game fallback: stopped: less than ${providerRouting.MIN_START_MS / 1000}s left of the resolve`);
+            break;
+        }
+        if (stopped()) throw playbackStrategy.supersededError();
+        let plan;
+        try { plan = await providerRouting.plan(Number(channel.sourceId), channel.id); } catch (e) { continue; } // not playable here
+        if (Number(channel.sourceId) === Number(sourceId) && String(plan.primaryKey) === failedKey) continue;
+        if (plan.candidates.every(c => providerRouting.isPlaceholder(c.providerId, c.channelKey))) continue; // the slate a moment ago
+        const walk = walkOf(plan, { sourceId: Number(channel.sourceId), channelId: channel.id }, deadlineAt, channel.name || plan.channelName || null);
+        let walked;
+        try {
+            walked = await walkCandidates(walk);
+        } catch (err) {
+            if (err.superseded) throw err;
+            console.warn(`[Playback] game fallback: "${channel.name || 'channel'}" could not start - ${clientSafe(redact(err.message)).split('. ')[0]}`);
+            continue;
+        }
+        if (walked.decision) return { walked, walk, channel, event };
+    }
+    return null;
+}
 
 /** The 409 a client repeats with force. */
 function sendConflict(res, verdict, { everyProvider = false } = {}) {
