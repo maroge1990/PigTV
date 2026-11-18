@@ -604,3 +604,39 @@ test('Codex high: a removeSession during the placeholder teardown waits for the 
     await Promise.all([checking, removing]);
     assert.equal(counted(), false);
 });
+
+test('Codex high: a sync that reuses the requested position during its probe: the game, the exclusion and the health row stay the requested stream\'s', async () => {
+    const dbh = sqlite.getDb();
+    const health = load('services/channelHealth');
+    dbh.prepare('DELETE FROM channel_health').run();
+    health.reset();
+    liveGames({ id: 'g', title: 'NHL: Seattle vs Dallas', channels: [ch('pos_2', 's1803789', 'Sportsnet Event'), ch('pos_5', 's105', 'Sportsnet One')] });
+    const realSubscribe = ingest.subscribe;
+    let synced = false;
+    // While the requested channel's probe is pending, a sync moves Sportsnet Event to pos_20 and gives pos_2 to another station.
+    ingest.subscribe = (opts) => {
+        if (!synced) {
+            synced = true;
+            dbh.prepare(`UPDATE playlist_items SET name = 'Shopping Channel', stable_id = 's999', stream_url = ? WHERE id = ?`).run(`${base}/real99.ts`, `${A.id}:pos_2`);
+            dbh.prepare(`INSERT INTO playlist_items (id, source_id, item_id, type, name, category_id, is_hidden, sort_order, stable_id, stream_url)
+                         VALUES (?, ?, 'pos_20', 'live', 'Sportsnet Event', 'Sport', 0, 20, 's1803789', ?)`).run(`${A.id}:pos_20`, A.id, `${base}/file2.ts`);
+        }
+        return realSubscribe(opts);
+    };
+    try {
+        const r = await play('pos_2');
+        assert.ok(synced, 'the sync ran during the play');
+        assert.equal(r.status, 200, JSON.stringify(r.body));
+        assert.equal(r.body.fallback.to.name, 'Sportsnet One', 'the requested stream\'s game, not the new occupant\'s');
+        assert.equal(connections['/file2.ts'], 1, 'the requested stream is not tried again under its new position');
+        assert.equal(connections['/real99.ts'], undefined);
+        const rows = dbh.prepare('SELECT channel_key, ok, reason FROM channel_health WHERE ok = 0').all().map(x => ({ ...x }));
+        assert.deepEqual(rows, [{ channel_key: 's1803789', ok: 0, reason: 'placeholder' }], 'the health row is the requested stream\'s');
+    } finally {
+        ingest.subscribe = realSubscribe;
+        dbh.prepare('DELETE FROM playlist_items WHERE id = ?').run(`${A.id}:pos_20`);
+        dbh.prepare(`UPDATE playlist_items SET name = 'Sportsnet Event', stable_id = 's1803789', stream_url = ? WHERE id = ?`).run(`${base}/file2.ts`, `${A.id}:pos_2`);
+        dbh.prepare('DELETE FROM channel_health').run();
+        health.reset();
+    }
+});

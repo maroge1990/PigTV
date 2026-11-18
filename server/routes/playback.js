@@ -79,6 +79,8 @@ router.post('/resolve', requireToken, async (req, res) => {
     const eventChannel = channelNameFor(req.body?.sourceId, req.body?.channelId);
     // 0174: the provider of the last candidate tried, for a failure's event and health row.
     let lastTried = null;
+    // #348 (Codex): the requested channel as planned (source + stable identity), for its health row and the game fallback.
+    let requestedIdentity = null;
     try {
         const { sourceId, channelId, url: directUrl, capabilities, upscale, force, audioEncode } = req.body || {};
 
@@ -91,6 +93,7 @@ router.post('/resolve', requireToken, async (req, res) => {
                 return res.status(400).json({ error: 'Provide either url, or sourceId and channelId' });
             }
             routing = await providerRouting.plan(parseInt(sourceId), channelId);
+            requestedIdentity = { sourceId: parseInt(sourceId), key: routing.primaryKey, stableId: routing.primaryStableId || null, name: routing.channelName || null };
             url = routing.candidates[0].url;
         }
         if (url && !isStreamUrl(url)) {
@@ -263,7 +266,7 @@ router.post('/resolve', requireToken, async (req, res) => {
             if (!decision && lastError && lastError.placeholder && walked.placeholderOnly && routing && live) {
                 const failedOn = lastTried;
                 fallback = await gameFallback({
-                    sourceId: parseInt(sourceId), channelId, eventId: req.body.eventId, userId: req.user ? req.user.id : null,
+                    sourceId: parseInt(sourceId), channelId, identity: requestedIdentity, eventId: req.body.eventId, userId: req.user ? req.user.id : null,
                     deadlineAt: resolveStartedAt + providerRouting.DEADLINE_MS, walkOf, walkCandidates,
                     stopped: () => isSuperseded(owner, generation) || clientGone()
                 });
@@ -429,7 +432,7 @@ router.post('/resolve', requireToken, async (req, res) => {
 
         // #348: the requested channel's start failed as the placeholder; the game's next channel is what was watched.
         if (fallback) {
-            channelHealth.recordResolve({ sourceId, channelId, ok: false, reason: clientSafe(lastError.message), category: 'placeholder', owner,
+            channelHealth.recordResolve({ sourceId, channelId, identity: requestedIdentity, ok: false, reason: clientSafe(lastError.message), category: 'placeholder', owner,
                 providerId: fallback.failedOn ? fallback.failedOn.providerId : null });
         }
         recordHistory(req, playedRef ? playedRef.sourceId : sourceId, playedRef ? playedRef.channelId : channelId);
@@ -457,7 +460,7 @@ router.post('/resolve', requireToken, async (req, res) => {
         const provider = lastTried && lastTried.providerName ? lastTried.providerName : null;
         playbackEvents.record({ type: 'failure', owner: eventOwner, channel: eventChannel, reason: safe, provider });
         // 0133 (C-G): a failed start, when it names a channel in the playlist.
-        channelHealth.recordResolve({ sourceId: req.body?.sourceId, channelId: req.body?.channelId, ok: false, reason: safe,
+        channelHealth.recordResolve({ sourceId: req.body?.sourceId, channelId: req.body?.channelId, identity: requestedIdentity, ok: false, reason: safe,
             category: err.placeholder === true ? 'placeholder' : null, owner: eventOwner,
             providerId: lastTried ? lastTried.providerId : null });
         res.status(err.status || 500).json({ error: safe, info: err.info });
@@ -511,9 +514,9 @@ router.post('/warm', requireToken, async (req, res) => {
  * just found sending the placeholder, any whose own airing is not on now, and stopping once less than MIN_START_MS of the
  * resolve's deadline is left. -> { walked, walk, channel, event } for the first that plays, or null.
  */
-async function gameFallback({ sourceId, channelId, eventId = null, userId = null, deadlineAt, walkOf, walkCandidates, stopped }) {
-    const identity = providerRouting.channelIdentity(sourceId, channelId);
-    const failedKey = identity ? String(identity.key) : bareChannelId(channelId);
+async function gameFallback({ sourceId, channelId, identity = null, eventId = null, userId = null, deadlineAt, walkOf, walkCandidates, stopped }) {
+    // Codex (#348): the requested channel as it was planned, never re-read from its position (a sync may have reused it).
+    const failedKey = identity && identity.key != null ? String(identity.key) : bareChannelId(channelId);
     let event = null;
     try {
         event = require('../services/sportsEvents').liveEventFor({ sourceId, stableId: identity ? identity.stableId : null,

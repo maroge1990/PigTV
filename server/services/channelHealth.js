@@ -142,9 +142,13 @@ function afterChange(sourceId, key, before, now) {
  * the channel is not in the playlist (nothing to key it on). Never throws:
  * health is a diagnostic and must not be the reason a play fails.
  */
-function recordResolve({ sourceId, channelId, ok, reason, category = null, owner, providerId = null, now = Date.now() }) {
+function recordResolve({ sourceId, channelId, ok, reason, category = null, owner, providerId = null, identity = null, now = Date.now() }) {
     try {
-        const channel = channelFor(sourceId, channelId);
+        // #348 (Codex): `identity` ({ sourceId, key, name }) is the channel as the play planned it; its position may since
+        // have been given to another station by a sync.
+        const channel = identity && identity.key != null && identity.sourceId != null
+            ? { sourceId: Number(identity.sourceId), key: String(identity.key), name: identity.name || null }
+            : channelFor(sourceId, channelId);
         if (!channel) return null;
         // 0174: always the primary channel's row; provider_id says which provider served
         // (or last failed) it - a play that failed over to a backup is an ok start.

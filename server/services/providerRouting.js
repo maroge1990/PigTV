@@ -564,6 +564,8 @@ async function plan(sourceId, channelId, now = Date.now(), { keepTrying = false 
         // #332: the channel has a same-provider copy (in the walk or held back): a recording has somewhere else to go.
         hasCopy: [...candidates, ...held].some(c => c.via === 'copy'),
         primaryKey,
+        // #348 (Codex): the channel's stable identity as it was when the play was planned (null for a row without one).
+        primaryStableId: identity ? identity.stableId : null,
         channelName: identity ? identity.name : null,
         primarySkipped,
         providerCount: new Set(candidates.map(c => c.providerId)).size,
