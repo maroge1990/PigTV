@@ -87,3 +87,12 @@ test('#345: a game linked to the schedule after its recording started survives t
     scheduled.delete(s.id);
     assert.equal(engine.listRecordings().find(x => x.id === r.id).gameId, 'espn:soccer/eng.1:99');
 });
+
+test('#347: a schedule from an F1 session or a cricket match keeps its `card` (C-P, C-S) as gameId, and its recording lists it', async () => {
+    for (const GAME of ['espn:racing/f1:401839128', 'espn:cricket/24203:1525661', 'espn:australian-football/afl:1133711']) {
+        const s = await schedule({ gameId: GAME });
+        const r = recordings.create({ scheduled_id: s.id, title: s.title, channel_name: 'ABC', channel_logo: null, source_id: 1, channel_item_id: 'x', file_path: `/${s.id}.ts`, started_at: Date.now() });
+        assert.equal(engine.listScheduled().find(x => x.id === s.id).gameId, GAME);
+        assert.equal(engine.listRecordings().find(x => x.id === r.id).gameId, GAME);
+    }
+});

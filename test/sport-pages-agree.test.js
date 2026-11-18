@@ -114,7 +114,9 @@ test('the League page and the front page agree about a game\'s status and score 
             lp.fetcher.get = async url => answer(url);
             const page = await lp.page('EPL', now, { zone: 'UTC', ...deps });
             return page.rounds.flatMap(r => r.games).find(x => x.id === '9917001');
-        } });
+        },
+        // #347: the game's `card` is the front card's id, what a recording made from that card carries
+        check: (g, card, who) => g.card !== card.id && `${who}: the page's card ${g.card}, the front card's id ${card.id}` });
     assert.deepEqual(bad, [], seen.join('\n'));
 });
 
@@ -132,7 +134,8 @@ test('the NFL page and the front page agree about a game\'s status and score at 
             nfl.fetcher.get = async url => answer(url);
             const page = await nfl.page(now, { ...deps });
             return page.weeks.flatMap(w => w.games).find(x => x.id === '9917001');
-        } });
+        },
+        check: (g, card, who) => g.card !== card.id && `${who}: the page's card ${g.card}, the front card's id ${card.id}` });
     assert.deepEqual(bad, [], seen.join('\n'));
 });
 
@@ -174,14 +177,15 @@ test('the F1 page and the front page agree about a session\'s status at every mo
             f1.fetcher.get = async url => answer(url);
             const page = await f1.page(now, { ...deps });
             const race = page.weekend.sessions.find(s => s.id === 'race');
-            return { status: race.status, scores: null, top: race.top, phase: page.weekend.phase, results: page.results, standings: page.standings };
+            return { status: race.status, scores: null, top: race.top, phase: page.weekend.phase, results: page.results, standings: page.standings, card: race.card };
         },
         check: (g, card, who) => [
             g.status === 'done' && !g.top && `${who}: a finished race without its result`,
             g.status !== 'done' && g.top && `${who}: a race not over with its result (${g.top.driver})`,
             g.status !== 'done' && g.results?.kind === 'race' && g.results.title.includes('Scripted') && `${who}: the results block names a race not over`,
             g.status !== 'done' && g.standings?.drivers?.[0]?.points === 25 && `${who}: the championship table counts a race not over`,
-            (g.phase === 'after') !== (g.status === 'done') && `${who}: the weekend's phase ${g.phase} with the race ${g.status}`
+            (g.phase === 'after') !== (g.status === 'done') && `${who}: the weekend's phase ${g.phase} with the race ${g.status}`,
+            g.card !== card.id && `${who}: the session's card ${g.card}, the front card's id ${card.id}`
         ] });
     assert.deepEqual(bad, [], seen.join('\n'));
 });
@@ -251,12 +255,14 @@ test('the Cricket page and the front page agree about a match\'s status and scor
             const page = await cricket.page(now, { ...deps, followed: [], leagues: ['Cricket'] });
             const lead = page.lead;
             return { status: lead.status, scores: lead.innings.map(list => (list.length ? `${list.at(-1).runs}/${list.at(-1).wickets}` : null)),
-                summary: lead.summary, result: page.series.matches.find(m => m.current)?.result ?? null, seriesStatus: page.series.matches.find(m => m.current)?.status };
+                summary: lead.summary, result: page.series.matches.find(m => m.current)?.result ?? null, seriesStatus: page.series.matches.find(m => m.current)?.status,
+                card: lead.card, seriesCard: page.series.matches.find(m => m.current)?.card };
         },
         check: (g, card, who) => [
             g.status === 'done' && !/won/.test(g.summary || '') && `${who}: a finished match without its result line`,
             g.status !== 'done' && /won/.test(`${g.summary} ${g.result}`) && `${who}: a match not over with its result (${g.summary} / ${g.result})`,
-            g.seriesStatus !== g.status && `${who}: the series list says ${g.seriesStatus}, the lead ${g.status}`
+            g.seriesStatus !== g.status && `${who}: the series list says ${g.seriesStatus}, the lead ${g.status}`,
+            (g.card !== card.id || g.seriesCard !== card.id) && `${who}: the match's card ${g.card} (series list ${g.seriesCard}), the front card's id ${card.id}`
         ] });
     assert.deepEqual(bad, [], seen.join('\n'));
 });
@@ -608,5 +614,90 @@ test('#328: Events cold, a bout and a match just finished in the first read: a d
         const later = now + 91000;
         const after = (await ev.page(league, later, eventDeps(ACCOUNTS.delayed, later))).events[0];
         if (league !== 'PGA Tour') assert.ok(JSON.stringify(after).includes('"finished"'), `${league}: once the read is 90 s old, its finished match or bout`);
+    }
+});
+
+// #347: a finished card plays its recording by `recordings[].gameId` = the card's id (D-68). A league page's game (C-T,
+// C-Q), an F1 session (C-P) and a cricket match (C-S) carry that id as `card` even when the front page no longer has the
+// game (its card aged out, or the collector holds nothing for it): the same id the front card had, from ESPN's own ids.
+test('#347: with nothing in the collector (no front card), each page\'s `card` is the id the front card has for the same game', async () => {
+    const espn = load('services/sportsScoresEspn');
+    const at = K + 11 * 24 * 60 * MIN, now = at + 40 * MIN; // the game is over
+    const game = { ...scriptedGame({ at, guideMin: 10, finalMin: 25 }), id: '9917011' };
+    const frontId = (json, league, source) => espn.normalize(json, league, source).map(c => c.id);
+    const noCollector = {}; // what the page routes hand a page with the collector off or holding nothing
+
+    const lp = load('services/sportPageLeague');
+    lp.reset();
+    lp.fetcher.get = async url => (url.includes('soccer/eng.1/scoreboard') ? { ok: true, json: scoreboard(game, now) } : { ok: false, error: 'HTTP 404' });
+    const epl = (await lp.page('EPL', now, { zone: 'UTC', ...noCollector })).rounds.flatMap(r => r.games).find(x => x.id === game.id);
+    assert.deepEqual([epl.card], frontId(scoreboard(game, now), 'EPL', 'soccer/eng.1'));
+
+    const nfl = load('services/sportPageNFL');
+    nfl.reset();
+    const asNfl = (json) => ({ ...json, season: { type: 2, year: 2026 }, week: { number: 9 }, leagues: [{ calendar: [] }] });
+    nfl.fetcher.get = async url => (url.endsWith('/football/nfl/scoreboard') ? { ok: true, json: asNfl(scoreboard(game, now)) } : { ok: false, error: 'HTTP 404' });
+    const nflGame = (await nfl.page(now, noCollector)).weeks.flatMap(w => w.games).find(x => x.id === game.id);
+    assert.deepEqual([nflGame.card], frontId(asNfl(scoreboard(game, now)), 'NFL', 'football/nfl'));
+
+    const f1 = load('services/sportPageF1');
+    f1.reset();
+    f1.fetcher.get = async url => (url.includes('/racing/f1/scoreboard') ? { ok: true, json: f1Board(game, now) } : { ok: false, error: 'HTTP 404' });
+    const race = (await f1.page(now, noCollector)).weekend.sessions.find(s => s.id === 'race');
+    assert.deepEqual([race.card], frontId(f1Board(game, now), 'F1', 'racing/f1'));
+
+    const cricket = load('services/sportPageCricket');
+    cricket.reset();
+    const other = { ...game, id: '9917012' };
+    const otherBoard = (t) => { const b = cricketBoard(other, t); return { ...b, leagues: [{ ...b.leagues[0], id: '1602' }] }; };
+    cricket.fetcher.get = async url => (url.includes('scorepanel') ? { ok: true, json: { scores: [cricketBoard(game, now), otherBoard(now)] } }
+        : url.includes('cricket/1500/scoreboard') ? { ok: true, json: cricketBoard(game, now) } : url.includes('cricket/1602/scoreboard') ? { ok: true, json: otherBoard(now) } : { ok: false, error: 'HTTP 404' });
+    const page = await cricket.page(now, { ...noCollector, followed: ['India'], leagues: ['Cricket'] });
+    const leadId = frontId(cricketBoard(game, now), 'Cricket', 'cricket/1500');
+    assert.deepEqual([page.lead.card], leadId, 'the lead');
+    assert.deepEqual(page.series.matches.filter(m => m.id === game.id).map(m => m.card), leadId, 'its series list');
+    assert.deepEqual(page.others.filter(o => o.id === other.id).map(o => o.card), frontId(otherBoard(now), 'Cricket', 'cricket/1602'), 'another match');
+});
+
+// #347 (Codex, medium): a page's `card` is the collector's id or nothing: built from the competition's id exactly as the
+// collector builds it, never from the event's id (which the collector never uses), null when the collector would make none.
+test('#347: `card` is the collector\'s id from the competition (not the event), null where the collector makes none', async () => {
+    const espn = load('services/sportsScoresEspn');
+    const at = K + 12 * 24 * 60 * MIN, now = at + 40 * MIN;
+    const game = { ...scriptedGame({ at, guideMin: 10, finalMin: 25 }), id: '9917021' };
+    // ESPN's competition id differs from its event's (or is missing, or is one the collector rejects)
+    const withComp = (json, compId) => ({ ...json, events: json.events.map(e => ({ ...e, competitions: e.competitions.map(c => {
+        const { id, ...rest } = c; return compId === undefined ? rest : { ...rest, id: compId }; }) })) });
+    const cases = [['777001', (src) => `espn:${src}:777001`], [undefined, () => null], ['7 7', () => null], [' 777001 ', () => null]];
+    for (const [compId, expected] of cases) {
+        const collectorIds = (json, league, src) => espn.normalize(json, league, src).map(c => c.id);
+        const lp = load('services/sportPageLeague');
+        lp.reset();
+        const epl = withComp(scoreboard(game, now), compId);
+        lp.fetcher.get = async url => (url.includes('soccer/eng.1/scoreboard') ? { ok: true, json: epl } : { ok: false, error: 'HTTP 404' });
+        const g = (await lp.page('EPL', now, { zone: 'UTC' })).rounds.flatMap(r => r.games).find(x => x.id === game.id);
+        assert.equal(g.card, expected('soccer/eng.1'), `league, competition ${compId}`);
+        if (g.card) assert.deepEqual([g.card], collectorIds(epl, 'EPL', 'soccer/eng.1'));
+
+        const nfl = load('services/sportPageNFL');
+        nfl.reset();
+        const asNfl = { ...withComp(scoreboard(game, now), compId), season: { type: 2, year: 2026 }, week: { number: 9 }, leagues: [{ calendar: [] }] };
+        nfl.fetcher.get = async url => (url.endsWith('/football/nfl/scoreboard') ? { ok: true, json: asNfl } : { ok: false, error: 'HTTP 404' });
+        const n = (await nfl.page(now, {})).weeks.flatMap(w => w.games).find(x => x.id === game.id);
+        assert.equal(n.card, expected('football/nfl'), `NFL, competition ${compId}`);
+
+        const f1 = load('services/sportPageF1');
+        f1.reset();
+        const board = withComp(f1Board(game, now), compId);
+        f1.fetcher.get = async url => (url.includes('/racing/f1/scoreboard') ? { ok: true, json: board } : { ok: false, error: 'HTTP 404' });
+        const race = (await f1.page(now, {})).weekend.sessions.find(s => s.id === 'race');
+        assert.equal(race.card, expected('racing/f1'), `F1, competition ${compId}`);
+
+        const cricket = load('services/sportPageCricket');
+        cricket.reset();
+        const ck = withComp(cricketBoard(game, now), compId);
+        cricket.fetcher.get = async url => (url.includes('scorepanel') ? { ok: true, json: { scores: [ck] } } : url.includes('cricket/1500/scoreboard') ? { ok: true, json: ck } : { ok: false, error: 'HTTP 404' });
+        const page = await cricket.page(now, { followed: [], leagues: ['Cricket'] });
+        assert.equal(page.lead.card, expected('cricket/1500'), `cricket, competition ${compId}`);
     }
 });

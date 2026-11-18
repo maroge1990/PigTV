@@ -95,6 +95,7 @@
     "rounds": 25,
     "sessions": [
       {
+        "card": "espn:racing/f1:401839123",
         "channels": [],
         "end": 1793388600000,
         "id": "practice 1",
@@ -104,6 +105,7 @@
         "top": null
       },
       {
+        "card": "espn:racing/f1:401839124",
         "channels": [],
         "end": 1793401200000,
         "id": "practice 2",

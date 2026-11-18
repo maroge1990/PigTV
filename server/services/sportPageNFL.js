@@ -83,8 +83,9 @@ function gameOf(event, teams, registerImage) {
     const possession = sit ? (c.competitors || []).find(t => String(t?.id) === String(sit.possession) || String(t?.team?.id) === String(sit.possession)) : null;
     return {
         id: str(String(event.id ?? '')),
-        // the score collector's id for the same competition (sportsScoresEspn.normalize): page() lays its state over this game
-        card: str(String(c.id ?? '')) ? `espn:football/nfl:${String(c.id)}` : null,
+        // the score collector's id for the same competition (sportsScoresEspn.normalize): page() lays its state over this game;
+        // #347: sent, the C-R card id; null when the collector would make none (no usable competition id)
+        card: require('./sportsScoresEspn').cardId('football/nfl', c.id),
         start, status, detail,
         home, away,
         situation: sit ? { downDistance: str(sit.downDistanceText) || str(sit.shortDownDistanceText), possession: abbrOf(possession?.team) || null,
@@ -236,7 +237,7 @@ async function page(now = Date.now(), deps = {}) {
     let value = await espnPart(now, deps);
     if (value.available) {
         const { covered, ...answer } = value; // the cache's own note, never in the answer
-        value = deps.state ? withState(answer, deps.state) : withoutCards(answer);
+        value = deps.state ? withState(answer, deps.state) : answer;
     }
     if (!value.available || !deps.channelsFor) return value;
     const games = value.weeks.flatMap(w => w.games);
@@ -248,14 +249,14 @@ async function page(now = Date.now(), deps = {}) {
 /**
  * #272 (batch D): each game's status, detail, score and situation from the score collector's store for this account
  * (`state(card)`, sportPageState.deps: its delay; only a fresh or final snapshot), as the front page shows it; a game the
- * collector holds nothing usable for keeps the page's own. `card` is the page's note of the collector's id, never sent.
+ * collector holds nothing usable for keeps the page's own. `card` is the collector's id (#347: sent, the C-R card id).
  */
 function withState(value, state) {
     const { scoreOf } = require('./sportPageState');
     const weeks = value.weeks.map(w => ({ ...w, games: w.games.map(g => {
-        const { card, ...game } = g;
+        const game = g;
         let seen = null;
-        try { seen = state(card); } catch { seen = null; }
+        try { seen = state(g.card); } catch { seen = null; }
         const e = seen?.snapshot.espn;
         const status = e ? STATUS[e.key] : null;
         if (!status) return game;
@@ -274,7 +275,6 @@ function withState(value, state) {
     }) }));
     return { ...value, weeks };
 }
-const withoutCards = (value) => ({ ...value, weeks: value.weeks.map(w => ({ ...w, games: w.games.map(({ card, ...g }) => g) })) });
 
 async function espnPart(now, deps) {
     const entry = await cache.get('page', now, () => build(now, deps));

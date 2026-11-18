@@ -62,6 +62,8 @@ const num = (v) => (Number.isFinite(Number(v)) && v !== null && v !== '' ? Numbe
 const ms = (v) => { const t = Date.parse(v); return Number.isFinite(t) ? t : null; };
 /** The numeric id after `/events/` or `/circuits/` in a core `$ref`, or null. */
 const idFromRef = (ref, kind) => (new RegExp(`/${kind === 'circuit' ? 'circuits' : 'events'}/(\\d+)`).exec(String(ref || '')) || [])[1] || null;
+/** A session's C-R card id: the score collector's (sportsScoresEspn.normalize: `espn:racing/f1:<competition id>`), or null. */
+const cardOf = (s) => require('./sportsScoresEspn').cardId(SOURCE, s.rawCompetitionId); // ESPN's id as given, as the collector reads it
 const colour = (v) => (/^[0-9a-f]{6}$/i.test(String(v || '')) ? String(v).toUpperCase() : null);
 const ymd = (t) => new Date(t).toISOString().slice(0, 10).replace(/-/g, '');
 // ESPN's names carry the title sponsor ("MSC Cruises United States Grand Prix"); the page shows the race's own name.
@@ -99,7 +101,7 @@ function sessionsOf(event) {
         if (!session || !Number.isFinite(start)) continue;
         const status = STATUS[edgeKey(espnState(c?.status))];
         const order = (c?.competitors || []).filter(x => Number.isFinite(num(x?.order))).sort((a, b) => a.order - b.order);
-        out.push({ competitionId: str(String(c?.id ?? '')), id: session.id, name: session.label, start,
+        out.push({ competitionId: str(String(c?.id ?? '')), rawCompetitionId: c?.id, id: session.id, name: session.label, start,
             end: ms(c?.endDate) ?? start + (SESSION_MS[session.id] || 3600e3), status, order });
     }
     return out.sort((a, b) => a.start - b.start);
@@ -298,15 +300,16 @@ async function build(now, { registerImage = (u) => u } = {}) {
             circuit: str(event?.circuit?.fullName),
             city: str(event?.circuit?.address?.city), country: str(event?.circuit?.address?.country),
             phase, info,
+            // #347: `card` the session's C-R card id (the collector's), what a recording of it carries as `gameId`
             sessions: sessions.map(s => ({ id: s.id, name: s.name, start: s.start, end: s.end, status: s.status, top: tops(s),
-                channels: [] }))
+                card: cardOf(s), channels: [] }))
         },
         results,
         standings,
         drivers: teamSource ? gridOf(teamSource.session, teams) : null
     };
     META.set(value, {
-        cards: new Map(sessions.map(s => [s.id, s.competitionId ? `espn:${SOURCE}:${s.competitionId}` : null])),
+        cards: new Map(sessions.map(s => [s.id, cardOf(s)])),
         resultsFrom: results?.kind === 'grid' ? 'qualifying' : results && phase === 'after' ? 'race' : null
     });
     return value;

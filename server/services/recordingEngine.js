@@ -412,8 +412,9 @@ async function scheduleFromProgram({
     // never both insert, whichever path (the route, a rule) makes them.
     return getDb().transaction(() => {
         // #329: one game, one active schedule (household-wide, as schedules are): a schedule for a fixture game that one
-        // already records (or will) answers with that one, marked `alreadyScheduled`, and creates nothing.
-        const sameGame = validGameId(gameId) ? scheduledDb.findActiveByGame(gameId) : null;
+        // already records (or will) answers with that one, marked `alreadyScheduled`, and creates nothing. #347: per
+        // airing: an active schedule of the game whose airing overlaps this one (a Test's next day is its own).
+        const sameGame = validGameId(gameId) ? scheduledDb.findActiveByGame(gameId, programStart, programEnd) : null;
         if (sameGame) return { ...sameGame, alreadyScheduled: true };
 
         // One schedule per programme - unless the caller says that one is not this programme's
@@ -739,8 +740,13 @@ function moveScheduled(id, target = {}, { settings = null } = {}) {
         if (!['scheduled', 'waiting'].includes(row.status)) return { status: 409, error: 'This recording has finished or no longer exists, so it cannot be moved.' };
         const there = scheduledDb.findByProgram(sourceId, channelItemId, programStart);
         if (there && there.id !== id) return { status: 409, error: `Something else is already set to record on ${there.channel_name || 'that channel'} at that time.` };
+        // #347 (Codex sign-off): one game, one active schedule per airing, as POST /recordings/schedule: never moved onto an
+        // airing another active schedule of the same game overlaps
+        const same = validGameId(row.sport_game_id) ? scheduledDb.findActiveByGame(row.sport_game_id, programStart, programEnd, id) : null;
+        if (same) return { status: 409, error: `This game is already set to record on ${same.channel_name || 'another channel'} at that time.` };
+        // the new programme's own guide slot: an end the guide moved for the old one (program_end_original) goes with it
         getDb().prepare(`UPDATE scheduled_recordings SET source_id = ?, channel_item_id = ?, channel_stable_id = ?, channel_name = ?,
-            channel_logo = ?, program_start = ?, program_end = ?, image_url = ?, rule_id = NULL, status = 'scheduled', error = NULL,
+            channel_logo = ?, program_start = ?, program_end = ?, program_end_original = NULL, image_url = ?, rule_id = NULL, status = 'scheduled', error = NULL,
             chosen_at = NULL, clash_winner = NULL WHERE id = ?`)
             .run(sourceId, channelItemId, channelIdentity(sourceId, channelItemId), target.channelName || null,
                 channelLogo(target.channelLogo), programStart, programEnd, programmeImage(sourceId, channelItemId, programStart), id);

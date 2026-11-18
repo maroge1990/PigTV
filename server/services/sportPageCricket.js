@@ -138,7 +138,6 @@ function matchOf(event, league, registerImage) {
     const { status, breakLabel } = statusOf(c);
     const dayNumber = num(/^Day (\d{1,2})$/i.exec(str(c.status?.session) || '')?.[1]);
     const seriesId = validId(league?.id) || validId(event?.leagueId);
-    const cardId = validId(c.id) || id;
     return {
         id, seriesId, competition: competitionOf(league), label: text(c.description), format,
         venue: text(c.venue?.fullName), city: text(c.venue?.address?.city),
@@ -150,8 +149,9 @@ function matchOf(event, league, registerImage) {
         winner: raw.findIndex(x => isTrue(x.winner)),
         international: String(c.class?.internationalClassId ?? '0') !== '0',
         league: leagueOfMatch(seriesId, event),
-        // #297: the score collector's id for the same match (sportsScoresEspn.normalize) and which side is home, in `teams`' order
-        card: seriesId ? `espn:cricket/${seriesId}:${cardId}` : null,
+        // #297: the score collector's id for the same match (sportsScoresEspn.normalize) and which side is home, in `teams`' order;
+        // #347: the id is sent as each match's `card` (the C-R card id a recording of the match carries as `gameId`)
+        card: seriesId ? require('./sportsScoresEspn').cardId(`cricket/${seriesId}`, c.id) : null,
         sides: raw.map(x => (x.homeAway === 'home' || x.homeAway === 'away' ? x.homeAway : null))
     };
 }
@@ -376,14 +376,14 @@ async function build(now, { registerImage = (u) => u, followed = followedTeams()
             venue: pick.venue, city: pick.city, start: pick.start, end: dayStart(pick, n) + dayLength(pick),
             status: pick.status, breakLabel: pick.breakLabel, day: n > 1 ? pick.day : null, session: sessionOf(pick, summary, now),
             teams: pick.teams, innings: pick.innings, summary: pick.summary, crease: creaseOf(pick, raws.get(pick.id), summary),
-            seriesLine: seriesLineOf(pick, all), days: daysOf(pick, n, now), nextStart: nextStartOf(pick, n, now), channels: []
+            seriesLine: seriesLineOf(pick, all), days: daysOf(pick, n, now), nextStart: nextStartOf(pick, n, now), card: pick.card, channels: []
         };
         const air = airingOf(pick, n, now);
         if (air) airings.push(air);
         series = {
             id: pick.seriesId, name: competitionOf(league) || pick.competition, season: seasonOf(league, raws.get(pick.id)),
             matches: all.map(m => ({ id: m.id, label: m.label, start: m.start, end: dayStart(m, dayCount(m)) + dayLength(m),
-                status: m.status, result: m.status === 'done' ? m.summary : null, current: m.id === pick.id }))
+                status: m.status, result: m.status === 'done' ? m.summary : null, current: m.id === pick.id, card: m.card }))
         };
     }
     const otherMatches = matches
@@ -395,7 +395,7 @@ async function build(now, { registerImage = (u) => u, followed = followedTeams()
             const air = airingOf(m, n, now);
             if (air) airings.push(air);
             return { id: m.id, seriesId: m.seriesId, competition: m.competition, league: m.league ?? null, teams: m.teams, scores: m.scores,
-                line: m.summary, status: m.status, start: m.start, nextStart: nextStartOf(m, n, now), channels: [] };
+                line: m.summary, status: m.status, start: m.start, nextStart: nextStartOf(m, n, now), card: m.card, channels: [] };
         });
     const value = { available: true, updatedAt: now, lead, series, others };
     AIRINGS.set(value, airings);

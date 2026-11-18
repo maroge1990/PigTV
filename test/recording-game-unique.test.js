@@ -222,3 +222,53 @@ test('#329 rules: a rule never changes another rule\'s (or a viewer\'s) schedule
     }
     assert.equal(ofGame(gameId).length, 1, 'and no second schedule of the game');
 });
+
+// #347 (Codex, high): a cricket Test's days share one game id (the match's C-R card id, C-S `card`); with day one's
+// schedule still active, day two's Record answered "already scheduled" and made nothing. One active schedule per airing.
+test('#347: the next day of a multi-day match is its own schedule; the same day on another channel is still the same', async () => {
+    const gameId = 'espn:cricket/24203:1525661';
+    const day1 = await call('POST', '/api/recordings/schedule', on('pos_1', 'Fox Footy', NOW + 30 * H, { gameId }));
+    assert.equal(day1.status, 201);
+    scheduled.setStatus(day1.body.id, 'recording');
+    const day2 = await call('POST', '/api/recordings/schedule', on('pos_1', 'Fox Footy', NOW + 54 * H, { gameId }));
+    assert.equal(day2.status, 201, 'day two while day one records: a second schedule');
+    assert.notEqual(day2.body.id, day1.body.id);
+    assert.equal(day2.body.gameId, gameId);
+    const sameDay = await call('POST', '/api/recordings/schedule', on('pos_2', 'Fox Footy 2', NOW + 54 * H + 30 * 60000, { gameId }));
+    assert.deepEqual([sameDay.status, sameDay.body.id, sameDay.body.alreadyScheduled], [200, day2.body.id, true]);
+    assert.equal(ofGame(gameId).length, 2);
+});
+
+// #347 (Codex sign-off, medium): the overlap read the schedule's end after the guide had moved it on (an overrun), so a
+// replay of the game listed separately, starting inside that extension, was answered "already scheduled".
+test('#347: the overlap is the guide slot made for: a replay inside a schedule\'s guide extension is its own; a simulcast still the same', async () => {
+    const gameId = 'espn:australian-football/afl:4242';
+    const start = NOW + 80 * H;
+    const live = await call('POST', '/api/recordings/schedule', on('pos_1', 'Fox Footy', start, { gameId }));
+    assert.equal(live.status, 201);
+    // the guide moved its end on by 2 h (recordingGuideEnd.apply), and it is recording
+    sqlite.getDb().prepare('UPDATE scheduled_recordings SET program_end = ?, program_end_original = ?, status = ? WHERE id = ?')
+        .run(start + 4 * H, start + 2 * H, 'recording', live.body.id);
+    const replay = await call('POST', '/api/recordings/schedule', on('pos_3', 'Kayo 3', start + 3 * H, { gameId }));
+    assert.equal(replay.status, 201, 'a separately listed airing inside the extension: its own schedule');
+    const simulcast = await call('POST', '/api/recordings/schedule', on('pos_2', 'Fox Footy 2', start + 30 * 60000, { gameId }));
+    assert.deepEqual([simulcast.status, simulcast.body.id], [200, live.body.id], 'the same airing on another channel: the same');
+});
+
+// #347 (Codex sign-off, medium): a move checked only its exact target, so a game's first airing moved onto a third channel
+// during its second airing left two active schedules of one game at one time.
+test('#347 move: never onto an airing another active schedule of the same game overlaps; both stay as they were', async () => {
+    const gameId = 'espn:cricket/24203:9999';
+    const day1 = await call('POST', '/api/recordings/schedule', on('pos_1', 'Fox Footy', NOW + 100 * H, { gameId }));
+    const day2 = await call('POST', '/api/recordings/schedule', on('pos_1', 'Fox Footy', NOW + 124 * H, { gameId }));
+    assert.deepEqual([day1.status, day2.status], [201, 201]);
+    const [a, b] = [row(day1.body.id), row(day2.body.id)];
+    const r = await call('POST', `/api/recordings/scheduled/${day1.body.id}/move`, on('pos_3', 'Kayo 3', NOW + 124 * H + 30 * 60000));
+    assert.deepEqual([r.status, r.body.error], [409, 'This game is already set to record on Fox Footy at that time.']);
+    assert.deepEqual([row(day1.body.id), row(day2.body.id)], [a, b]);
+    sqlite.getDb().prepare('UPDATE scheduled_recordings SET program_end_original = ? WHERE id = ?').run(NOW + 101 * H, day1.body.id);
+    const ok = await call('POST', `/api/recordings/scheduled/${day1.body.id}/move`, on('pos_3', 'Kayo 3', NOW + 100 * H + 30 * 60000));
+    assert.equal(ok.status, 200, 'its own airing on another channel still moves');
+    assert.equal(sqlite.getDb().prepare('SELECT program_end_original o FROM scheduled_recordings WHERE id = ?').get(day1.body.id).o, null,
+        'the old programme\'s guide end does not go with it (the game\'s airing is the new slot)');
+});

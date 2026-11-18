@@ -474,7 +474,10 @@ test('the Formula 1 page (drivers, map and mapDark) at 30 Oct 2026 12:00 UTC', a
 });
 
 test('the NFL page at 30 Oct 2026 21:42 UTC', async () => {
-    const nfl = (n) => fx(`espn/nfl/${n}`);
+    // #347: ESPN's competitions carry their id (the trimmed fixture left it out): the games' `card` is built from it
+    const withIds = (json) => (Array.isArray(json?.events) ? { ...json, events: json.events.map(e => ({ ...e,
+        competitions: (e.competitions || []).map(c => ({ id: e.id, ...c })) })) } : json);
+    const nfl = (n) => withIds(fx(`espn/nfl/${n}`));
     pages.nfl.reset();
     pages.nfl.fetcher.get = async (url) => /standings/.test(url) ? answer(nfl('standings.json')) : /week=7/.test(url) ? answer(nfl('scoreboard-week7.json'))
         : /scoreboard$/.test(url) ? answer(nfl('scoreboard-week8.json')) : MISSING;

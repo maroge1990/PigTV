@@ -56,7 +56,8 @@ test('AFL (round mode): the Preliminary Finals, then the Grand Final, named by E
     assert.equal(asked.filter(u => /scoreboard/.test(u)).length, 2, 'no next round after the Grand Final');
     const gf = p.rounds[1].games[0];
     assert.deepEqual(gf, { id: '1133711', start: Date.parse('2026-09-26T04:30Z'), status: 'done', detail: 'Final',
-        home: { id: '1', abbr: 'FRE', score: '89' }, away: { id: '11', abbr: 'BL', score: '96' }, venue: 'MCG', competition: null, channels: [] });
+        home: { id: '1', abbr: 'FRE', score: '89' }, away: { id: '11', abbr: 'BL', score: '96' }, venue: 'MCG', competition: null, channels: [],
+        card: 'espn:australian-football/afl:1133711' }); // #347: the C-R card id, sent
     const ladder = p.standings.groups;
     assert.equal(ladder.length, 1);
     assert.equal(ladder[0].name, null, 'a single table has no name');

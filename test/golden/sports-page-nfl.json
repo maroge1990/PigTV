@@ -340,6 +340,7 @@
           "broadcasts": [
             "Prime Video"
           ],
+          "card": "espn:football/nfl:401873010",
           "channels": [],
           "detail": "Final",
           "home": {
@@ -361,6 +362,7 @@
           "broadcasts": [
             "NFL Net"
           ],
+          "card": "espn:football/nfl:401873011",
           "channels": [],
           "detail": "Final",
           "home": {
@@ -393,6 +395,7 @@
           "broadcasts": [
             "Prime Video"
           ],
+          "card": "espn:football/nfl:401873023",
           "channels": [],
           "detail": "Final",
           "home": {
@@ -414,6 +417,7 @@
           "broadcasts": [
             "CBS"
           ],
+          "card": "espn:football/nfl:401873026",
           "channels": [],
           "detail": null,
           "home": {

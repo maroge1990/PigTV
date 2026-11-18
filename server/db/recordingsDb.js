@@ -358,13 +358,24 @@ const scheduled = {
     },
 
     /** #329: the active schedule of a fixture game (the oldest, should there ever be two), or null. */
-    findActiveByGame(gameId) {
+    /**
+     * #329: the game's active schedule, or null. #347 (Codex, high): with the airing's window (`start`, `end`), only one
+     * whose airing overlaps it: another day of a multi-day match (a cricket Test) is its own schedule, while the same
+     * airing on another channel is still the same. The airing is the guide slot it was made for (`program_end_original`
+     * once recordingGuideEnd has moved the end; an event stop is never part of it), so a recording's extension does not
+     * swallow a separately listed airing that starts inside it.
+     */
+    findActiveByGame(gameId, start = null, end = null, excludeId = null) {
         initSchema();
+        const windowed = Number.isFinite(start) && Number.isFinite(end) && end > start;
+        const params = [gameId, ...(windowed ? [end, start] : []), ...(excludeId != null ? [excludeId] : [])];
         return row(getDb().prepare(`
             SELECT * FROM scheduled_recordings
             WHERE sport_game_id = ? AND status IN ('scheduled', 'recording', 'waiting')
+              ${windowed ? 'AND program_start < ? AND COALESCE(program_end_original, program_end) > ?' : ''}
+              ${excludeId != null ? 'AND id != ?' : ''}
             ORDER BY id LIMIT 1
-        `).get(gameId));
+        `).get(...params));
     },
 
     setStatus(id, status, extra = {}) {

@@ -522,9 +522,18 @@ function evaluate({ now = Date.now() } = {}) {
                     const own = existing.rule_id === rule.id;
                     if (own && ['scheduled', 'waiting'].includes(existing.status)
                         && Math.abs(existing.program_start - c.start) > NEAR_MS) {
-                        db().prepare(`UPDATE scheduled_recordings SET program_start = ?, program_end = ? WHERE id = ? AND status IN ('scheduled', 'waiting')`)
-                            .run(c.start, c.end, existing.id);
-                        console.log(`[Rules] Rule #${rule.id}: "${c.title}" moved in the guide; schedule #${existing.id} follows it`);
+                        // #347 (Codex sign-off): one game, one active schedule per airing, as every other path: never moved onto
+                        // an airing another active schedule of its game overlaps (it stays where it is, still this rule's)
+                        const game = existing.sport_game_id || c.gameId || null;
+                        const taken = game ? scheduledDb.findActiveByGame(game, c.start, c.end, existing.id) : null;
+                        if (taken) {
+                            console.log(`[Rules] Rule #${rule.id}: "${c.title}" moved in the guide onto an airing schedule #${taken.id} records; schedule #${existing.id} stays`);
+                        } else {
+                            // the new programme's own guide slot: an end the guide moved for the old one does not go with it
+                            db().prepare(`UPDATE scheduled_recordings SET program_start = ?, program_end = ?, program_end_original = NULL
+                                WHERE id = ? AND status IN ('scheduled', 'waiting')`).run(c.start, c.end, existing.id);
+                            console.log(`[Rules] Rule #${rule.id}: "${c.title}" moved in the guide; schedule #${existing.id} follows it`);
+                        }
                     }
                     // #217: a team rule's schedule records until its game ends (an older one is linked now)
                     if (own && c.gameId && !existing.sport_game_id && ['scheduled', 'waiting', 'recording'].includes(existing.status)) {

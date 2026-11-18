@@ -408,8 +408,8 @@ A rule makes ordinary schedules; one-off recordings are unchanged. Any signed-in
   stands now; it moves). `"event"`: the schedule is linked to a fixture game (a "Record every game" rule's game;
   `POST /recordings/schedule` with the optional `gameId`; else a guide title naming both teams whose play starts within
   90 min of it, of the league the title (or its guide category) names when it names one (0443), never a replay).
-  **A client recording from a sport card (C-O/C-R/C-T) sends that card's `id` as `gameId`**: the title join is only
-  the fallback. It then
+  **A client recording from a sport card (C-O/C-R/C-T) sends that card's `id` as `gameId`** (from a sport page's item
+  with no card, its `card`, #347): the title join is only the fallback. It then
   stops when the score feed says the game is over, plus its `post_buffer_min`, never before `program_end` +
   `post_buffer_min` (the guide end, still the fallback) and at most 4 h after it; with no answer from the feed in the
   last 15 min it stops at the guide end + `post_buffer_min` as before. While it records past that point because the game
@@ -422,14 +422,18 @@ A rule makes ordinary schedules; one-off recordings are unchanged. Any signed-in
   schedule (`scheduled`, `waiting` or `recording`; household-wide, whoever made it, by hand or by a rule) already has
   makes nothing and answers **200** with that schedule (as a 201 would list it, its own `channel_name`) plus
   `alreadyScheduled: true`; a new schedule is still 201 with no `alreadyScheduled`. A finished, failed, missed or
-  cancelled schedule of the game does not count. Without `gameId` nothing changes. Wording: "Already set to record on
+  cancelled schedule of the game does not count. Without `gameId` nothing changes. Since #347 only an active schedule
+  whose airing (the guide slot it was made for: `program_start` to its first `program_end`, never a guide or game
+  overrun) overlaps the new one counts: another day of a multi-day match (a cricket
+  Test, one `card` for all its days) is its own schedule, the same airing on another channel is still the same. Wording: "Already set to record on
   <channel_name>". **Web only (the Apple client does not call it):** `POST
   /api/recordings/scheduled/:id/move` `{sourceId, channelItemId, channelName?, channelLogo?, programStart, programEnd}`
   (as the schedule route takes them; any signed-in user, as cancelling) moves a schedule that has not started to
   another channel or airing in one step, keeping its id, game and padding; it becomes a one-off (`rule_id` null) →
   200 the row as `GET /recordings/scheduled` lists it; 400 a bad target; 404 unknown; 409 with `{error}` when it is
   recording ("It is already recording on <channel>; stop it first to record on another channel."), finished, or
-  another schedule already has that programme. Nothing changes on an error.
+  another schedule already has that programme, or (#347) another active schedule of the same game overlaps that airing
+  ("This game is already set to record on <channel> at that time."). Nothing changes on an error.
 - C-M since 0439 (#207): a keyword `sport` rule records the best channel whose own airing (C-I channel `start`/`end`)
   is still to start, on that airing's times (as `team` rules since 0417), not the event's merged bounds.
 - **Since 0444 (#49): "Change recording".** `PUT /api/recordings/scheduled/:id` `{preBufferMin?, postBufferMin?}` (any
@@ -772,6 +776,9 @@ on a race weekend, 1 h otherwise; nothing is fetched unless the page is asked fo
   its channels' own times; spoiler content stays hidden until the preferences are known. Since Apple 74 every C-I
   Watch/Record uses the chosen channel's `start`/`end` (#20). Since #278 the app only reads this route (`GET`): its
   Hide scores chip saves through `PUT /api/sports/follows` (C-U) and the app keeps no device copy.
+- Since #347 (additive, no flag): each `sessions[]` entry carries `card`, its C-R card id (`espn:racing/f1:<ESPN competition
+  id>`), or null when ESPN gives the session none. Record sends it as `gameId`; a finished session's recording is found by
+  it (C-R › #347).
 
 ### C-Q. Sport pages: NFL. Flag: `sportPageNfl` (0379, #21)
 
@@ -804,6 +811,8 @@ The NFL page (mock-up "NFL · Apple TV", DESIGN.md › Sport pages), built like 
   with `detail` `"Suspended"` (0554; before 0548 `done`, `"Final"`); a game ESPN marks completed is `done`.
 - Since 0379 the preferences (C-P) carry `following.NFL`: a team abbreviation ("GB") or null, the household's. `PUT`
   takes it like `F1` (≤ 80 characters); a server before 0379 answers 400 to it, so send it only with this flag.
+- Since #347 (additive, no flag): each `games[]` entry carries `card`, its C-R card id (`espn:football/nfl:<ESPN id>`).
+  Record sends it as `gameId`; a finished game's recording is found by it (C-R › #347).
 
 ### C-R. The Sport front page. Flag: `sportFront` (0381, #21, D-39)
 
@@ -950,6 +959,9 @@ on demand (kept 2 min while the lead is in play, 10 min on a match day, 1 h othe
   for (`Cricket`, `Women's Cricket`, `BBL`, `Sheffield Shield`...), always one of the account's followed cricket leagues;
   null only if it matches none. Additive; a client files each match under its followed league by it, before
   `competition`.
+- Since #347 (additive, no flag): `lead`, each `series.matches[]` entry and each `others[]` entry carry `card`, the
+  match's C-R card id (`espn:cricket/<seriesId>:<ESPN id>`), or null when ESPN gives the match no series. Record sends it
+  as `gameId`; a finished match's recording is found by it (C-R › #347).
 
 ### C-T. Sport pages: any team league. Flag: `sportPageLeagues` (0388, #21)
 
@@ -999,6 +1011,9 @@ Championship, FA Cup, UEFA, La Liga, Bundesliga, Serie A, Ligue 1, MLS, A-League
 - Since 0548 (#272, the one ESPN status reading; the words are unchanged): a game suspended in play (ESPN state in) is a
   `break`, one ESPN has put in state post (resumed another day) `done` (0554, as before 0548); a forfeit is `done` (was
   `cancelled`: ESPN records a result).
+- Since #347 (additive, no flag): each `games[]` entry carries `card`, its C-R card id (`espn:<ESPN path of the
+  league or competition, e.g. soccer/eng.1>:<ESPN id>`). Record sends it as `gameId`; a finished game's recording is
+  found by it (C-R › #347).
 
 ### C-U. Following, per account: sport → leagues → teams. Flag: `sportFollows` (0391, #193, D-41)
 
@@ -1035,6 +1050,13 @@ account follows nothing; only the server's owner (its first admin account) takes
   `id`, chosen in this order: a whole `completed` row (`is_partial` false; the longest `duration_sec`, then the earliest
   `started_at`); else a `recording` row with `watch_live` (played from its start, never at the live edge); else a partial
   `completed` row (the longest, then the earliest start); else nothing.
+  Since #347 (additive, no flag) a sport page's own items carry `card`: the C-R card id of the same game, made from
+  ESPN's ids, so it is the same whether or not the front page has (or still has) that card: C-P sessions, C-Q and C-T
+  games, C-S matches (`lead`, `series.matches[]`, `others[]`). The rule is the collector's: `espn:<ESPN path>:<ESPN
+  competition id>` (C-T the league's or competition's path, C-Q `football/nfl`, C-P `racing/f1` with the session's
+  competition, C-S `cricket/<seriesId>`); null where ESPN gives no such id. Treat it as opaque. A client recording from
+  such an item sends its `card` as `gameId` (none when null), and a finished item's recording is found by it exactly as
+  a finished card's is by its `id`. Older servers send no `card`: decode it as optional (then no `gameId`, as before).
   Since 0465 (#234) a card whose game waits on a `game` rule, with nothing scheduled yet, carries
   `recordWhenListed: { ruleId }`: say "Records when it's listed" (and offer to cancel: `DELETE` the rule).
   Since 0791 (#334, D-66): when the server cannot read the recording schedules, no card in that answer carries `scores`

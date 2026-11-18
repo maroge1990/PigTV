@@ -153,7 +153,7 @@ test('the NFL page: two accounts on one cached page, the collector\'s state and 
     assert.deepEqual([instant.status, instant.home.score, instant.away.score], ['live', 1, 0]);
     assert.deepEqual(instant.situation, { downDistance: '3rd & 4 at KC 35', possession: 'FUL', redZone: false }, 'the collector\'s situation, its side by abbreviation');
     assert.deepEqual([own.status, own.home.score, own.away.score, own.detail], ['scheduled', 0, 0, null], 'the page\'s own read, untouched');
-    for (const g of [delayed, instant, own]) assert.equal('card' in g, false, 'the page\'s note of the collector\'s id is never sent');
+    for (const g of [delayed, instant, own]) assert.equal(g.card, 'espn:football/nfl:9917001', '#347: the collector\'s id is sent as the C-R card id, with or without the collector');
     process.env.PIGTV_SPORTS_DASHBOARD = '0';
     assert.deepEqual(game(await nfl.page(now, pageState.deps(2, now))), own, 'collector off: the page\'s own');
     delete process.env.PIGTV_SPORTS_DASHBOARD;

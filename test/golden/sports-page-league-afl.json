@@ -12,6 +12,7 @@
             "id": "1",
             "score": "83"
           },
+          "card": "espn:australian-football/afl:1133710",
           "channels": [],
           "competition": null,
           "detail": "Final",
@@ -31,6 +32,7 @@
             "id": "11",
             "score": "131"
           },
+          "card": "espn:australian-football/afl:1133709",
           "channels": [],
           "competition": null,
           "detail": "Final",
@@ -57,6 +59,7 @@
             "id": "11",
             "score": "96"
           },
+          "card": "espn:australian-football/afl:1133711",
           "channels": [],
           "competition": null,
           "detail": "Final",

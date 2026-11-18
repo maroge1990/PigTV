@@ -7,6 +7,11 @@ const { espnState, edgeKey } = require('./espnState');
 const BASE = 'https://site.api.espn.com/apis/site/v2/sports/';
 const text = (v, max = 160) => typeof v === 'string' ? v.trim().slice(0, max) : '';
 const id = v => /^(?:[A-Za-z0-9_-]{1,80})$/.test(String(v ?? '')) ? String(v) : null;
+/**
+ * #347: the collector's card id for one ESPN competition of `source` (`espn:<source>:<competition id>`, as normalize makes
+ * it), or null when the competition's id is one it would not take. The sport pages send it as `card` (the C-R card id).
+ */
+const cardId = (source, competitionId) => (source && id(competitionId) ? `espn:${source}:${id(competitionId)}` : null);
 const number = v => Number.isFinite(v) && v >= 0 ? v : undefined;
 // A team's names as the dashboard's game↔guide join reads them (sportsDashboard.matchBroadcasts); a bare location is
 // not a name unless it is the display name. 0388: also the league page's join (sportPageLeague.js).
@@ -157,4 +162,4 @@ async function fetchJson(url, { signal, maxBytes = 2 * 1024 * 1024, onParsed } =
     if (r.status) throw Object.assign(new Error('Score source unavailable'), { status: r.status, retryAfter: r.retryAfter, hostBackoffRecorded: r.recorded });
     throw new Error(WORDS[r.error] || r.error);
 }
-module.exports = { BASE, normalize, misfiledIds, fetchJson, teamAliases };
+module.exports = { BASE, normalize, misfiledIds, fetchJson, teamAliases, cardId };
