@@ -993,3 +993,35 @@ test('#348: measured quality, not the name, decides the order; quality stays the
         load('services/sportsEvents').reset();
     }
 });
+
+// #348: a channel whose latest attempt in the last 6 h ended on a blank picture or the provider's placeholder ranks with
+// flaky, after untried ones. The old code read one such failure as health "ok", so the placeholder stayed first.
+test('#348: a blank or placeholder picture in the last 6 h sinks the channel below an untried one; an older one does not', async () => {
+    const d = sqlite.getDb();
+    const health = load('services/channelHealth');
+    const kayo = d.prepare(`SELECT source_id, COALESCE(stable_id, item_id) AS k FROM playlist_items WHERE name = 'Kayo 2 HD'`).get();
+    const blankAgo = (ms, reason = 'blank') => {
+        d.prepare('DELETE FROM channel_health').run();
+        d.prepare('DELETE FROM favorites').run();
+        d.prepare(`INSERT INTO channel_health (source_id, channel_key, name, at, ok, reason) VALUES (?, ?, 'Kayo 2 HD', ?, 0, ?)`)
+            .run(kayo.source_id, kayo.k, Date.now() - ms, reason);
+        health.reset();
+    };
+    const rugby = async () => find(await events('?hours=24'), 'Rugby')[0].channels.map(c => c.name);
+    try {
+        blankAgo(H);
+        assert.deepEqual(await rugby(), ['ESPN 2 HD', 'Kayo 2 HD', 'Seven', 'ESPN'], 'a blank an hour ago: the untried HD channel first');
+        blankAgo(H, 'placeholder');
+        assert.deepEqual(await rugby(), ['ESPN 2 HD', 'Kayo 2 HD', 'Seven', 'ESPN'], 'the provider\'s placeholder counts the same');
+        // C-G's rows never carry the sport-only value
+        const row = [{ sourceId: kayo.source_id, stableId: kayo.k }];
+        assert.equal(health.applyHealth(row)[0].health, 'ok');
+        assert.equal(health.applyHealth(row, Date.now(), { blank: true })[0].health, 'blank');
+        blankAgo(7 * H);
+        assert.deepEqual(await rugby(), ['Kayo 2 HD', 'ESPN 2 HD', 'Seven', 'ESPN'], 'a blank 7 h ago no longer sinks it');
+    } finally {
+        d.prepare('DELETE FROM channel_health').run();
+        health.reset();
+        load('services/sportsEvents').reset();
+    }
+});

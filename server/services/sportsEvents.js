@@ -312,7 +312,8 @@ function normaliseTitle(title, channelName = '') {
     return t;
 }
 
-const healthRank = (h) => (h === 'ok' ? 0 : h === 'flaky' ? 2 : 1);
+// #348: 'blank' (a blank or placeholder picture in the last 6 h, applyHealth's sport-only value) ranks with flaky.
+const healthRank = (h) => (h === 'ok' ? 0 : h === 'flaky' || h === 'blank' ? 2 : 1);
 // #348: a channel PigTV has measured ranks by what it measured, not by its name's tag ("Sportsnet Event 4K" measured
 // at 1080p is FHD here); an unmeasured one keeps the name rule. Only the order: C-I's `quality` stays the name's.
 const MEASURED_QUALITY = { '4K': 'UHD', '1080': 'FHD', '720': 'HD', SD: 'SD' };
@@ -413,7 +414,7 @@ function buildEvents({ from, follow: keywords, decorateChannels } = {}) {
     const follow = compileFollow(wanted, rosters);
     const channels = visibleChannels(db);
     if (decorateChannels) decorateChannels(channels);
-    channelHealth.applyHealth(channels);
+    channelHealth.applyHealth(channels, Date.now(), { blank: true }); // #348: 'blank' only orders; C-I never sends health
     // #265 step 2 (D-65): the measured quality, where the audit or a play has measured the channel.
     channelMeasurements.applyMeasured(channels, db);
 

@@ -25,6 +25,9 @@
  * #348: an ok start counts as an attempt only once its play-end says it was watched for
  * JUDGED_SEC (the blank check's 20 s): a shorter or unreported play is too short to judge, so it is
  * neither ok nor a failure. A failure counts however short.
+ * #348: for the sport ranking only (applyHealth's `blank` option), a channel whose latest judged
+ * attempt in the last 6 hours was a blank picture or the provider's placeholder reads 'blank'.
+ * C-G's rows never carry it.
  * Rows are kept 30 days and pruned daily (startPruneTimer, from index.js).
  * library_rev is bumped only when a channel's health *changes*, so a cached
  * guide learns about a new warning dot without every play invalidating it.
@@ -47,6 +50,10 @@ const FLAKY_MIN_WATCH_SEC = 20 * 60;
 const JUDGED_SEC = 20;
 // The attempts that count: every failure, and every ok start watched for JUDGED_SEC.
 const JUDGED_ATTEMPTS = `COALESCE(SUM(ok = 0 OR COALESCE(watched_sec, 0) >= ${JUDGED_SEC}), 0)`;
+const JUDGED = `(ok = 0 OR COALESCE(watched_sec, 0) >= ${JUDGED_SEC})`;
+// #348: how long a blank or placeholder picture keeps a channel at the back of the sport ranking.
+const BLANK_RECENT_MS = 6 * 60 * 60 * 1000;
+const BLANK_REASONS = new Set(['blank', 'placeholder']);
 // Ranking: stalls per hour with the hours floored at 30 minutes, so one stall
 // in a 10-second play counts as 2/hour, not 360/hour.
 const RANK_MIN_WATCH_SEC = 30 * 60;
@@ -95,11 +102,18 @@ function channelFor(sourceId, channelId) {
 }
 
 function countsFor(sourceId, key, now) {
-    return getDb().prepare(`
+    const c = getDb().prepare(`
         SELECT ${JUDGED_ATTEMPTS} AS attempts, COALESCE(SUM(ok = 0), 0) AS failures,
                COALESCE(SUM(stalls), 0) AS stalls, COALESCE(SUM(watched_sec), 0) AS watched
         FROM channel_health WHERE source_id = ? AND channel_key = ? AND at >= ?
     `).get(sourceId, key, now - WINDOW_MS);
+    // #348: whether the latest judged attempt of the last 6 h was blank, so that change moves library_rev too.
+    const last = getDb().prepare(`
+        SELECT reason FROM channel_health WHERE source_id = ? AND channel_key = ? AND at >= ? AND ${JUDGED}
+        ORDER BY at DESC, id DESC LIMIT 1
+    `).get(sourceId, key, now - BLANK_RECENT_MS);
+    c.blank = !!last && BLANK_REASONS.has(last.reason);
+    return c;
 }
 
 /** Write an attempt, and bump library_rev if it changed the channel's health. */
@@ -118,7 +132,7 @@ function writeAttempt(channel, { ok, reason = null, firstPictureSec = null, prov
 function afterChange(sourceId, key, before, now) {
     cache = null;
     const after = countsFor(sourceId, key, now);
-    if (classifyCounts(before) !== classifyCounts(after)) {
+    if (classifyCounts(before) !== classifyCounts(after) || before.blank !== after.blank) {
         try { bumpLibraryRev(); } catch { /* the dot shows on the next guide change instead */ }
     }
 }
@@ -243,20 +257,27 @@ function windowCounts(now = Date.now()) {
         FROM channel_health WHERE at >= ? GROUP BY source_id, channel_key
     `).all(now - WINDOW_MS);
     for (const r of rows) counts.set(`${r.source_id}:${r.channel_key}`, { attempts: r.attempts, failures: r.failures, stalls: r.stalls, watched: r.watched });
+    // #348: the latest judged attempt of the last 6 h per channel; a blank or placeholder one marks the channel.
+    const latest = new Map();
+    for (const r of getDb().prepare(`SELECT source_id, channel_key, reason FROM channel_health WHERE at >= ? AND ${JUDGED} ORDER BY at, id`)
+        .all(now - BLANK_RECENT_MS)) latest.set(`${r.source_id}:${r.channel_key}`, r.reason);
+    for (const [k, reason] of latest) if (BLANK_REASONS.has(reason) && counts.has(k)) counts.get(k).blank = true;
     cache = { builtAt: now, counts };
     return counts;
 }
 
 /**
  * Give each library row its `health`. A row needs `sourceId` and the identity
- * the SQL key uses (`stableId`, else `id`).
+ * the SQL key uses (`stableId`, else `id`). With `blank` (#348, the sport ranking
+ * only; never C-G's rows) a channel whose latest judged attempt of the last 6 h
+ * was a blank or placeholder picture reads 'blank'.
  */
-function applyHealth(rows, now = Date.now()) {
+function applyHealth(rows, now = Date.now(), { blank = false } = {}) {
     let counts;
     try { counts = windowCounts(now); } catch (e) { counts = new Map(); }
     for (const r of rows) {
         const c = counts.get(`${r.sourceId}:${r.stableId || r.id}`);
-        r.health = c ? classifyCounts(c) : null;
+        r.health = c ? (blank && c.blank ? 'blank' : classifyCounts(c)) : null;
     }
     return rows;
 }

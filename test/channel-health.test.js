@@ -309,3 +309,18 @@ test('#348: an ok play under 20 s, or with no play-end, is no health; 30 s is ok
     const byName = rows => Object.fromEntries(rows.map(r => [r.name, r.health]));
     assert.deepEqual(byName((await get('/api/library/channels?limit=50')).channels), { Alpha: null, Bravo: 'ok', Charlie: null, Delta: 'flaky' });
 });
+
+// #348: a blank picture moves library_rev even when the C-G value stays the same, so the sport list (built per library_rev)
+// sinks the channel at once; C-G's rows still read ok/flaky/null. The old code moved it only when C-G's value changed.
+test('#348: a blank picture moves library_rev though C-G health stays ok', async () => {
+    clear();
+    const rev = () => sqlite.getDb().prepare(`SELECT value FROM meta WHERE key = 'library_rev'`).get()?.value || '0';
+    health.recordResolve({ sourceId: source.id, channelId: 'pos_1', ok: true, owner: 'device:b' });
+    health.clientEnded('device:b', 60, 0);
+    health.recordResolve({ sourceId: source.id, channelId: 'pos_1', ok: true, owner: 'device:b' });
+    const r0 = rev();
+    assert.equal(health.sessionBlank('device:b'), true);
+    assert.notEqual(rev(), r0);
+    const alpha = (await get('/api/library/channels?limit=50')).channels.find(c => c.name === 'Alpha');
+    assert.equal(alpha.health, 'ok', 'one judged ok, one failure: C-G says ok, never blank');
+});
