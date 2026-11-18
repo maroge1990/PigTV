@@ -1276,15 +1276,24 @@ class TranscodeSession extends EventEmitter {
             console.error(`[TranscodeSession ${this.id}] Last ffmpeg output:`);
             this.stderrTail.forEach(line => console.error(`[TranscodeSession ${this.id}]   ${stripUrls(line, [this.url])}`));
         }
-        // Drop it from the registry before waiting on ffmpeg to die, so the
-        // coordinator stops counting it straight away rather than after
-        // stop()'s SIGTERM/SIGKILL grace period. cleanup() is idempotent.
-        sessions.delete(this.id);
+        // #350: the player is told at once, but the session stays in the registry (the
+        // coordinator keeps counting its provider connection) until ffmpeg has exited.
         if (this.timings.playlistReady) this.noteLost('stall');
+        await this.endThenUnregister('stalled session');
+    }
+
+    /**
+     * #350: the one way an unrequested ending leaves: the shared teardown (cleanup(), which
+     * awaits ffmpeg's exit), then out of the registry - never before, or a one-connection
+     * provider is handed to another stream while this one still holds its connection.
+     */
+    async endThenUnregister(what) {
         try {
             await this.cleanup();
         } catch (err) {
-            console.error(`[TranscodeSession ${this.id}] Could not clean up stalled session:`, err.message);
+            console.error(`[TranscodeSession ${this.id}] Could not clean up after the ${what}:`, err.message);
+        } finally {
+            if (sessions.get(this.id) === this) sessions.delete(this.id);
         }
     }
 
@@ -1295,6 +1304,8 @@ class TranscodeSession extends EventEmitter {
      */
     noteStderrLine(line, now = Date.now()) {
         if (this.options.live !== true || this._tsLoopHandled) return;
+        // #350: ffmpeg's stderr goes on while it stops: a session being torn down is not judged again.
+        if (this._cleanupPromise || this.stopRequested) return;
         if (RECONNECT_LINE.test(line)) { this._reconnectAt = now; return; }
         if (this._reconnectAt === undefined || now - this._reconnectAt > TS_LOOP_AFTER_RECONNECT_MS) return;
         if (!this.timings.playlistReady || !TIMESTAMP_WARNING.test(line)) return;
@@ -1316,13 +1327,8 @@ class TranscodeSession extends EventEmitter {
     async handleTimestampLoop(sinceReconnectSec) {
         console.error(`[TranscodeSession ${this.id}] Timestamps looping ${sinceReconnectSec}s after ffmpeg reconnected to the provider ` +
             `(${TS_LOOP_LINES}+ timestamp warnings in ${TS_LOOP_WINDOW_MS / 1000}s); ending the session so it restarts cleanly`);
-        sessions.delete(this.id);
         this.noteLost('timestamps');
-        try {
-            await this.cleanup();
-        } catch (err) {
-            console.error(`[TranscodeSession ${this.id}] Could not clean up after the timestamp loop:`, err.message);
-        }
+        await this.endThenUnregister('timestamp loop'); // #350
     }
 
     /** 0191: check a live session's picture data rate once it has BLANK_CHECK_SEC of segments. */
@@ -1417,13 +1423,7 @@ class TranscodeSession extends EventEmitter {
         // Codex (high): the session stays in the registry, so the coordinator keeps counting its provider connection,
         // until ffmpeg has exited (cleanup awaits it), as removeSession does; a one-connection provider is not handed out
         // while this one is still open. The listeners above were told at once.
-        try {
-            await this.cleanup();
-        } catch (err) {
-            console.error(`[TranscodeSession ${this.id}] Could not clean up after the placeholder:`, err.message);
-        } finally {
-            if (sessions.get(this.id) === this) sessions.delete(this.id);
-        }
+        await this.endThenUnregister('placeholder');
     }
 
     /**
