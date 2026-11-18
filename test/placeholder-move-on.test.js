@@ -891,3 +891,43 @@ test('Codex medium: recent-play history is kept per stable identity: a sync that
         clear();
     }
 });
+
+test('Codex medium: the requested channel is marked the placeholder only when every copy was seen as one (a busy copy leaves no verdict), under the provider that sent it', async () => {
+    const dbh = sqlite.getDb();
+    const health = load('services/channelHealth');
+    // Dream 4K's one connection is another viewer's (Sportsnet West); TNT Sports 1's own Dream 4K copy would need it.
+    const other = await play('pos_1', { sourceId: B.id }, 'device:a');
+    assert.equal(other.status, 200, JSON.stringify(other.body));
+    const verdicts = () => dbh.prepare(`SELECT reason, provider_id FROM channel_health WHERE channel_key = 's101' AND ok = 0 ORDER BY id`).all().map(x => ({ ...x }));
+    try {
+        for (const withGame of [false, true]) {
+            routing.reset();
+            dbh.prepare('DELETE FROM channel_health').run();
+            health.reset();
+            if (withGame) liveGames({ id: 'g', title: 'NHL: Colorado vs Minnesota', channels: [ch('pos_1', 's101', 'TNT Sports 1'), ch('pos_5', 's105', 'Sportsnet One')] });
+            else sportsEvents._useBuilt(null);
+            const r = await play('pos_1', {}, 'device:c');
+            if (withGame) assert.equal(r.body.fallback?.to?.name, 'Sportsnet One', JSON.stringify(r.body));
+            else assert.equal(r.body.error, PLACEHOLDER_TEXT, JSON.stringify(r.body));
+            const rows = verdicts();
+            assert.equal(rows.length, 1, `${withGame ? 'fallback' : 'failed resolve'}: one failed row`);
+            assert.notEqual(rows[0].reason, 'placeholder', `${withGame ? 'fallback' : 'failed resolve'}: the busy copy was not seen: no channel-wide verdict`);
+            if (withGame) {
+                const played = await transcodeSession.getAllSessions().find(s => s.owner === 'device:device:c');
+                if (played) await transcodeSession.removeSession(played.id);
+            }
+        }
+        // Every copy seen (Sportsnet Event has one): the verdict, under the provider that sent it.
+        routing.reset();
+        dbh.prepare('DELETE FROM channel_health').run();
+        health.reset();
+        sportsEvents._useBuilt(null);
+        const only = await play('pos_2', {}, 'device:c');
+        assert.equal(only.status, 503);
+        assert.deepEqual(dbh.prepare(`SELECT reason, provider_id FROM channel_health WHERE channel_key = 's1803789' AND ok = 0`).all().map(x => ({ ...x })),
+            [{ reason: 'placeholder', provider_id: A.id }]);
+    } finally {
+        dbh.prepare('DELETE FROM channel_health').run();
+        health.reset();
+    }
+});

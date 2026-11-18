@@ -81,6 +81,9 @@ router.post('/resolve', requireToken, async (req, res) => {
     let lastTried = null;
     // #348 (Codex): the requested channel as planned (source + stable identity), for its health row and the game fallback.
     let requestedIdentity = null;
+    // Codex (#348): whether every copy of the requested channel was seen sending the placeholder (none passed over as busy
+    // or left untried), and the candidate that sent it: only then is its health row the channel-wide 'placeholder'.
+    let requestedVerdict = null;
     try {
         const { sourceId, channelId, url: directUrl, capabilities, upscale, force, audioEncode } = req.body || {};
 
@@ -265,6 +268,8 @@ router.post('/resolve', requireToken, async (req, res) => {
         let fallback = null;
         if (!decision) {
             const walked = await walkCandidates(requested);
+            requestedVerdict = { complete: walked.placeholderOnly && walked.tried === requested.candidates.length && !!walked.placeholderFrom,
+                from: walked.placeholderFrom };
             ({ decision, chosen, failedOver, lastError } = walked);
             // #348: every copy of the channel is the provider's placeholder: another channel showing the same live game.
             if (!decision && lastError && lastError.placeholder && walked.placeholderOnly && routing && live) {
@@ -345,6 +350,9 @@ router.post('/resolve', requireToken, async (req, res) => {
                 });
             } catch (err) {
                 if (!err.superseded && routing && providerRouting.isProviderFailure(err)) providerRouting.noteStartFailure(first, routing.primaryKey);
+                const placeholder = !err.superseded && routing && (err.placeholder || providerRouting.isPlaceholder(first.providerId, first.channelKey));
+                // Codex (#348): the forced start tries the first copy only: a channel-wide verdict only when it is the only one.
+                if (placeholder) requestedVerdict = { complete: candidates.length === 1, from: first };
                 if (!err.superseded && !err.placeholder && routing && providerRouting.isPlaceholder(first.providerId, first.channelKey)) throw placeholderError();
                 throw err;
             } finally {
@@ -436,8 +444,9 @@ router.post('/resolve', requireToken, async (req, res) => {
 
         // #348: the requested channel's start failed as the placeholder; the game's next channel is what was watched.
         if (fallback) {
-            channelHealth.recordResolve({ sourceId, channelId, identity: requestedIdentity, ok: false, reason: clientSafe(lastError.message), category: 'placeholder', owner,
-                providerId: fallback.failedOn ? fallback.failedOn.providerId : null });
+            channelHealth.recordResolve({ sourceId, channelId, identity: requestedIdentity, ok: false, reason: clientSafe(lastError.message),
+                category: requestedVerdict && requestedVerdict.complete ? 'placeholder' : null, owner,
+                providerId: requestedVerdict && requestedVerdict.from ? requestedVerdict.from.providerId : (fallback.failedOn ? fallback.failedOn.providerId : null) });
         }
         // Codex (#348): the channel played as its route planned it (source, stable identity, name), never re-read from its
         // position, which a sync may have given another station while it started.
@@ -472,8 +481,8 @@ router.post('/resolve', requireToken, async (req, res) => {
         playbackEvents.record({ type: 'failure', owner: eventOwner, channel: eventChannel, reason: safe, provider });
         // 0133 (C-G): a failed start, when it names a channel in the playlist.
         channelHealth.recordResolve({ sourceId: req.body?.sourceId, channelId: req.body?.channelId, identity: requestedIdentity, ok: false, reason: safe,
-            category: err.placeholder === true ? 'placeholder' : null, owner: eventOwner,
-            providerId: lastTried ? lastTried.providerId : null });
+            category: err.placeholder === true && requestedVerdict && requestedVerdict.complete ? 'placeholder' : null, owner: eventOwner,
+            providerId: err.placeholder === true && requestedVerdict && requestedVerdict.from ? requestedVerdict.from.providerId : (lastTried ? lastTried.providerId : null) });
         res.status(err.status || 500).json({ error: safe, info: err.info });
     }
 });
