@@ -1020,7 +1020,9 @@ account follows nothing; only the server's owner (its first admin account) takes
   `recording: { scheduleId, status, ruleId, clashesWith? }` (`ruleId` set when "Record every game" made it);
   `clashesWith` (titles) only when that recording loses its clash and waits: show "Clashes with …" on the card.
   Since #345: a finished card has no `recording`; its recording is the `recordings[]` row whose `gameId` equals the card's
-  `id` and whose `status` is `completed` (the rows the Recordings list plays; the newest if several).
+  `id`, chosen in this order: a whole `completed` row (`is_partial` false; the longest `duration_sec`, then the earliest
+  `started_at`); else a `recording` row with `watch_live` (played from its start, never at the live edge); else a partial
+  `completed` row (the longest, then the earliest start); else nothing.
   Since 0465 (#234) a card whose game waits on a `game` rule, with nothing scheduled yet, carries
   `recordWhenListed: { ruleId }`: say "Records when it's listed" (and offer to cancel: `DELETE` the rule).
   Since 0791 (#334, D-66): when the server cannot read the recording schedules, no card in that answer carries `scores`

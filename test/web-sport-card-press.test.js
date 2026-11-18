@@ -80,6 +80,12 @@ test('finished game with no completed recording but one still recording that can
     const partialFirst = await harness({ recordings: [{ id: 5, gameId: 'avl', status: 'completed', is_partial: 1, duration_sec: 99999 }, { id: 6, gameId: 'avl', status: 'completed', is_partial: 0, duration_sec: 10 }] });
     await partialFirst.p.select('avl', partialFirst.card());
     assert.deepEqual(partialFirst.recPlayed, [6], 'a whole recording beats a longer partial one');
+    // a partial completed copy ranks below a whole one still finishing; with nothing else it is played (longest first)
+    const P = require('node:vm').runInContext('SportsPage', browser({ request: async () => ({}) }).context);
+    const rows = [{ id: 1, gameId: 'avl', status: 'completed', is_partial: 1, duration_sec: 5000 }, { id: 2, gameId: 'avl', status: 'recording', watch_live: true },
+        { id: 3, gameId: 'avl', status: 'completed', is_partial: 1, duration_sec: 6000 }];
+    assert.equal(P.recordingFor(rows, { id: 'avl' }).id, 2, 'a watchable copy still recording beats a partial completed one');
+    assert.equal(P.recordingFor(rows.filter(r => r.id !== 2), { id: 'avl' }).id, 3, 'only partial copies: the longest');
 });
 
 test('the menu: live has Watch another channel and Record only; upcoming Record and Remind me; finished only Make hero; never Details', async () => {

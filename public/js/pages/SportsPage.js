@@ -592,16 +592,18 @@ class SportsPage {
     }
 
     /**
-     * #345: this game's recording (recordings[].gameId = the card's id): a completed one, the whole one first (not partial),
-     * then the longest, then the earliest start; else one still recording that can be watched from its start (watch_live).
+     * #345: this game's recording (recordings[].gameId = the card's id), in this order: a whole completed one (not partial:
+     * the longest, then the earliest start); else one still recording that can be watched from its start (watch_live);
+     * else a partial completed one (the longest, then the earliest start).
      */
     static recordingFor(rows, g) {
         if (!g || !g.id || !Array.isArray(rows)) return null;
         const mine = rows.filter(r => r && r.gameId === g.id);
-        const done = mine.filter(r => r.status === 'completed').sort((a, b) =>
-            (a.is_partial ? 1 : 0) - (b.is_partial ? 1 : 0) || (b.duration_sec || 0) - (a.duration_sec || 0) || (a.started_at || 0) - (b.started_at || 0));
-        if (done.length) return done[0];
-        return mine.find(r => r.status === 'recording' && r.watch_live === true) || null;
+        const best = (list) => list.slice().sort((a, b) => (b.duration_sec || 0) - (a.duration_sec || 0) || (a.started_at || 0) - (b.started_at || 0))[0] || null;
+        const done = mine.filter(r => r.status === 'completed');
+        return best(done.filter(r => !r.is_partial))
+            || mine.find(r => r.status === 'recording' && r.watch_live === true)
+            || best(done) || null;
     }
     /** Play this game's recording in the Recordings player (from its start while it still records, never offering Go to live: the live edge of a finished game shows the result); nothing when there is none. */
     async playRecordingOf(g) {
