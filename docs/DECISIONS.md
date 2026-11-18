@@ -775,3 +775,20 @@ reviews.
   shutting down only its own simulators and deleting its build files afterwards.
 - **Consequence:** Mark does the one-time Create Workflow and GitHub access in Xcode on the Mac; the workflow fetches
   the server's `test/golden` for the contract checks. Until then TestFlight uploads stay on `Tools/testflight.sh`.
+
+### D-71. Every return from the background starts from scratch: the opening tab, at its top, with the splash (18 Nov 2026; Mark)
+
+- **Context:** the splash's pig flies into the header (D-69). That works only when the header is on screen at a known
+  place, and a return to a scrolled page or another tab left it nowhere to land.
+- **Choice:** each background→active return resets to the opening tab, scrolled to the top, and plays the splash
+  (Apple 320). A minimum time away (5 minutes was suggested) is still open with Mark.
+- **Consequence:** a quick switch away and back loses the place on the page; the player is not interrupted while it plays.
+
+### D-72. Record waits while a cancellation is in progress (18 Nov 2026; Mark)
+
+- **Context:** cancelling a schedule that is recording takes time to stop. A new Record for the same programme or game
+  during that time raced the cancellation (#347).
+- **Choice:** the server marks the schedule `cancelling` (0861), and a new request makes a new schedule. Clients show a
+  disabled "Cancelling…" in place of Record until the cancellation has finished.
+- **Consequence:** the Apple client's part is held from build 320 (see #347); until it ships, the client lists the
+  row as "Cancelling".
