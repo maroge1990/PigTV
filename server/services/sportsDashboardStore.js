@@ -91,6 +91,19 @@ function createStore(db, { readOnly = false } = {}) {
         const { finishedAt, ...data } = JSON.parse(row.data);
         return { observedAt: Math.min(row.confirmed ?? row.observed_at, asOf), finishedAt: finishedAt ?? null, data };
     };
+    // #343: a final snapshot that lacks its scores (a later read of the same final without them) keeps the last known score of
+    // the finals just before it, among the snapshots the account's delay already allows (observed_at <= asOf): never a
+    // score from a snapshot that is not yet eligible, and never across a snapshot that was not a final.
+    const historyStmt = db.prepare('SELECT data FROM sports_score_history WHERE game_id=? AND observed_at<=? ORDER BY observed_at DESC LIMIT 20');
+    const withLastScore = (gameId, decoded, asOf) => {
+        if (!decoded || decoded.data.state !== 'finished' || decoded.data.scores !== null && decoded.data.scores !== undefined) return decoded;
+        for (const row of historyStmt.all(gameId, asOf === Infinity ? Number.MAX_SAFE_INTEGER : asOf)) {
+            const data = JSON.parse(row.data);
+            if (data.state !== 'finished') break;
+            if (data.scores !== null && data.scores !== undefined) return { ...decoded, data: { ...decoded.data, scores: data.scores } };
+        }
+        return decoded;
+    };
     const preferences = userId => {
         const row = prefStmt.get(String(userId));
         return row ? { avoidSpoilers: Boolean(row.avoid_spoilers), scoreDelaySeconds: row.delay_seconds, revision: row.revision }
@@ -100,9 +113,9 @@ function createStore(db, { readOnly = false } = {}) {
     const catalog = () => catalogStmt.all().map(r => ({ ...JSON.parse(r.data), observedAt: r.observed_at, finishedAt: r.finished_at }));
     const result = {
         preferences, latest, catalog,
-        delayed: (gameId, now, delay) => decode(delayedStmt.get(gameId, now - delay * 1000), now - delay * 1000),
+        delayed: (gameId, now, delay) => withLastScore(gameId, decode(delayedStmt.get(gameId, now - delay * 1000), now - delay * 1000), now - delay * 1000),
         view: db.transaction((now, delay) => ({ catalog: catalog(), selected: new Map(selectedStmt.all(now - delay * 1000)
-            .map(row => [row.game_id, decode(row, now - delay * 1000)])) }))
+            .map(row => [row.game_id, withLastScore(row.game_id, decode(row, now - delay * 1000), now - delay * 1000)])) }))
     };
     if (readOnly) return result;
     const updatePref = db.prepare('INSERT OR REPLACE INTO sports_user_preferences VALUES(?,?,?,?)');
