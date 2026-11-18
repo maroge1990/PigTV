@@ -37,3 +37,23 @@ test('only a score the account\'s delay allows is carried (never from a snapshot
     // 45 minutes: the newest eligible final (60 min old) has none; the one before it does
     assert.deepEqual(scoresAt(45 * 60), ['24', '21']);
 });
+
+test('#343: pruning keeps the scored final a newer scoreless final falls back to', () => {
+    const store = dashboard.store();
+    const id = 'espn:football/nfl:88';
+    const g = (state, scores) => ({ ...game(state, scores), id, start: NOW - 60 * H });
+    const T = NOW - 40 * H; // older than the history window, newer than nothing else
+    store.ingest([g('finished', ['31', '28'])], T);
+    store.ingest([g('finished', null)], T + 60000);
+    store.prune(NOW);
+    const sel = store.view(NOW, 0).selected.get(id);
+    assert.deepEqual(sel.data.scores, ['31', '28'], 'the scored final survived the prune');
+    // not kept across a non-final snapshot after it (a live row would end that final state)
+    const id2 = 'espn:football/nfl:89';
+    const g2 = (state, scores) => ({ ...game(state, scores), id: id2, start: NOW - 60 * H });
+    store.ingest([g2('finished', ['1', '0'])], T);
+    store.ingest([g2('live', ['2', '0'])], T + 30000);
+    store.ingest([g2('finished', null)], T + 60000);
+    store.prune(NOW);
+    assert.equal(store.view(NOW, 0).selected.get(id2).data.scores, null);
+});

@@ -178,7 +178,12 @@ function createStore(db, { readOnly = false } = {}) {
     // delayed-eligible snapshot can be older than the window, and losing it buffers or revives a final.
     const pruneHistory = db.prepare(`DELETE FROM sports_score_history WHERE observed_at<? AND (game_id,observed_at) NOT IN
         (SELECT game_id,MAX(observed_at) FROM sports_score_history GROUP BY game_id) AND (game_id,observed_at) NOT IN
-        (SELECT game_id,MAX(observed_at) FROM sports_score_history WHERE observed_at<=? GROUP BY game_id)`);
+        (SELECT game_id,MAX(observed_at) FROM sports_score_history WHERE observed_at<=? GROUP BY game_id) AND (game_id,observed_at) NOT IN
+        -- #343: the last scored final of a game's current uninterrupted final state (no later snapshot that is not a final): what a
+        -- newer scoreless final falls back to (withLastScore), with its own observation time for the delay check
+        (SELECT h.game_id,MAX(h.observed_at) FROM sports_score_history h WHERE json_extract(h.data,'$.state')='finished'
+            AND json_extract(h.data,'$.scores') IS NOT NULL AND NOT EXISTS (SELECT 1 FROM sports_score_history x
+                WHERE x.game_id=h.game_id AND x.observed_at>h.observed_at AND COALESCE(json_extract(x.data,'$.state'),'')<>'finished') GROUP BY h.game_id)`);
     const pruneOrphans = db.prepare('DELETE FROM sports_score_history WHERE game_id IN (SELECT id FROM sports_dashboard_catalog WHERE start<? AND observed_at<?)');
     const pruneCatalog = db.prepare('DELETE FROM sports_dashboard_catalog WHERE start<? AND observed_at<?');
     // A confirmation whose row is gone (pruned here, or by an earlier build after a rollback) goes too.
