@@ -752,7 +752,8 @@ function rememberChannel(key, ref) {
  * once the stream is confirmed MPEG-TS; rejects (`ingestRefused`) when it is not, or the provider
  * refuses the first connection - the caller then uses its usual path.
  */
-async function subscribe({ pool, url, userAgent, providerId = null, purpose = null, owner = null, channel = null, providerName = null, channelKey = null, channelRef = null, height = null }) {
+async function subscribe({ pool, url, userAgent, providerId = null, purpose = null, owner = null, channel = null, providerName = null, channelKey = null, channelRef = null, height = null,
+    deadlineAt = null }) {
     const key = keyOf(pool, url);
     channelRef = channelRef || channelRefs.get(key) || null;
     let ingest = registry.get(key);
@@ -765,7 +766,30 @@ async function subscribe({ pool, url, userAgent, providerId = null, purpose = nu
         opened = true;
     }
     ingest.waiters++;
-    try { await ingest.ready; } finally { ingest.waiters--; }
+    let timer = null;
+    try {
+        if (!deadlineAt) await ingest.ready;
+        else {
+            // Codex (#348): a resolve's deadline cuts this wait. The waiter goes, and a connection still connecting that no
+            // reader or other waiter needs is closed now, before the caller gives its lease back (nothing would count it).
+            await Promise.race([ingest.ready, new Promise((_, reject) => {
+                timer = setTimeout(() => reject(Object.assign(new Error('Shared ingest not used: the resolve deadline passed'),
+                    { resolveDeadline: true, providerReason: true })), Math.max(0, deadlineAt - Date.now()));
+            })]);
+        }
+    } catch (err) {
+        if (err.resolveDeadline) {
+            ingest.waiters--;
+            if (!ingest.closed && ingest.state === 'connecting' && ingest.waiters === 0 && ingest.subs.size === 0) {
+                ingest.close('nobody waits for it any more (the resolve deadline passed)');
+            }
+            ingest.waiters++; // balanced by the finally
+        }
+        throw err;
+    } finally {
+        clearTimeout(timer);
+        ingest.waiters--;
+    }
     if (ingest.closed) throw Object.assign(new Error('Shared ingest not used: it closed'), { ingestRefused: true, providerReason: true });
     ingest.channel ??= channel;
     ingest.channelRef ??= channelRef;

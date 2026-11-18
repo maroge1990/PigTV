@@ -39,6 +39,8 @@ const PLACEHOLDER_TEXT = 'This channel is not available right now: nothing is on
 // ---- the provider: '/file*.ts' a file with a length (the placeholder file); '/longfile.ts' a long real file;
 // '/real*.ts' a live feed (no length, never ends) ----
 let connections = {};
+const stalled = [];
+let stalledClosed = 0;
 let provider, base;
 function liveFeed(res) {
     const timer = setInterval(() => { if (!res.destroyed) res.write(Buffer.alloc(188 * 40, 0x47)); }, 50);
@@ -93,6 +95,7 @@ before(async () => {
     provider = http.createServer((req, res) => {
         const [p] = req.url.split('?');
         connections[p] = (connections[p] || 0) + 1;
+        if (p.startsWith('/stall')) { stalled.push(req); req.on('close', () => { stalledClosed++; }); return; } // headers never come
         if (p.startsWith('/hls')) {
             // A live HLS playlist: its answer has a length (the manifest's), its media does not end.
             const body = Buffer.from('#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXT-X-MEDIA-SEQUENCE:7\n#EXTINF:4,\nseg7.ts\n');
@@ -554,12 +557,11 @@ test('Codex medium: the resolve deadline bounds the shared ingest\'s wait and th
     const realSubscribe = ingest.subscribe;
     let left = 0;
     try {
-        // The ingest refuses after 1.5 s (its own first-byte budget is 10 s); the resolve has 1 s left.
-        ingest.subscribe = () => new Promise((_, reject) => setTimeout(() => reject(Object.assign(new Error('Shared ingest not used: no MPEG-TS within 10s'),
-            { ingestRefused: true, providerReason: true })), 1500));
+        // The provider never answers (the ingest's own budget is 10 s); the resolve has 1 s left.
+        const stall = ingest.sourceFor({ providerId: A.id, providerName: 'Strong8K', url: `${base}/stall77.ts`, channelKey: 's177' }, settings);
         let started = Date.now();
-        await assert.rejects(strategy.resolve({ url: `${base}/real77.ts`, capabilities: { segmentedDelivery: true }, settings, ffprobePath: PROBE, live: true,
-            providerId: A.id, ingestSource: { pool: 'primary', url: `${base}/real77.ts`, providerId: A.id, channelKey: 's177' }, deadlineAt: Date.now() + 1000 }),
+        await assert.rejects(strategy.resolve({ url: `${base}/stall77.ts`, capabilities: { segmentedDelivery: true }, settings, ffprobePath: PROBE, live: true,
+            providerId: A.id, ingestSource: stall, deadlineAt: Date.now() + 1000 }),
         (err) => err.providerReason === true && /^The provider did not respond/.test(err.message));
         assert.ok(Date.now() - started < 1400, `gave up at the deadline, not after the ingest's wait (${Date.now() - started} ms)`);
         // The ingest refuses within the budget but leaves under half a second: no direct probe either.
@@ -639,4 +641,26 @@ test('Codex high: a sync that reuses the requested position during its probe: th
         dbh.prepare('DELETE FROM channel_health').run();
         health.reset();
     }
+});
+
+test('Codex high: an ingest wait cut by the resolve deadline drops its waiter and closes the connection nobody else needs', async () => {
+    const strategy = load('services/playbackStrategy');
+    const settings = { ...(await db.settings.get()), ffmpegPath: FFMPEG };
+    const source = ingest.sourceFor({ providerId: A.id, providerName: 'Strong8K', url: `${base}/stall.ts`, channelKey: 's188' }, settings);
+    const opened = stalled.length;
+    const closed = stalledClosed;
+    const started = Date.now();
+    await assert.rejects(strategy.resolve({ url: `${base}/stall.ts`, capabilities: { segmentedDelivery: true }, settings, ffprobePath: FFPROBE, live: true,
+        providerId: A.id, ingestSource: source, deadlineAt: Date.now() + 700 }), (err) => err.providerReason === true);
+    assert.ok(Date.now() - started < 1200, `${Date.now() - started} ms`);
+    // By the time the walk gets the failure (and gives back its lease), the stalled connection is gone: nothing holds a
+    // waiter on it, it is not in the registry, and another start in the pool opens no second connection beside it.
+    const left = ingest._registry.get(source.key);
+    const waiting = left ? left.waiters : 0;
+    if (left) left.close('test over'); // the old code leaves it connecting, waited on
+    assert.equal(!!left, false, `the stalled ingest is closed (still registered, ${waiting} waiter(s))`); // (never inspect an Ingest)
+    assert.equal(ingest.idleInPool(source.pool).length, 0);
+    for (let i = 0; i < 50 && stalledClosed - closed < stalled.length - opened; i++) await new Promise(r => setTimeout(r, 10));
+    assert.equal(stalled.length - opened, 1);
+    assert.equal(stalledClosed - closed, 1, 'the provider saw the connection closed');
 });

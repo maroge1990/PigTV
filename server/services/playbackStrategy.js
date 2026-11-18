@@ -111,7 +111,8 @@ async function probedAnalysis({ url, ffprobePath, userAgent, caps, cacheKey, dea
     if (ingestSource) {
         try {
             // Codex (#348): the resolve's deadline bounds the ingest's wait too (its own first-byte budget is 10 s).
-            feed = await withinDeadline(require('./ingest').subscribe({ ...ingestSource, purpose: 'probe' }), deadlineAt);
+            // The wait is cancelled at the deadline: its waiter dropped and an upstream nobody needs closed (ingest.subscribe).
+            feed = await require('./ingest').subscribe({ ...ingestSource, purpose: 'probe', deadlineAt });
         } catch (err) {
             if (err.resolveDeadline) {
                 console.warn(`[Playback] resolve probe on ${providerLabel(providerId)}: the shared ingest had nothing by the resolve's deadline`);
@@ -158,27 +159,6 @@ const PROBE_MIN_MS = 500;
 /** Codex (#348): the resolve's deadline was reached before the probe could run: the provider did not answer in time. */
 function deadlineSpentError() {
     return Object.assign(new Error(FAILURE_TEXT.timeout()), { providerReason: true }); // as a probe timeout's (no status: 500)
-}
-
-/**
- * `promise` (a shared-ingest subscription), or a rejection flagged `resolveDeadline` at `deadlineAt`; a subscription that
- * arrives after that is left at once. No deadline: `promise` itself.
- */
-function withinDeadline(promise, deadlineAt) {
-    if (!deadlineAt) return promise;
-    return new Promise((resolve, reject) => {
-        let late = false;
-        const timer = setTimeout(() => { late = true; reject(Object.assign(new Error('the resolve deadline passed'), { resolveDeadline: true })); },
-            Math.max(0, deadlineAt - Date.now()));
-        promise.then((feed) => {
-            clearTimeout(timer);
-            if (late) { try { feed && feed.leave(); } catch (e) { /* gone */ } return; }
-            resolve(feed);
-        }, (err) => {
-            clearTimeout(timer);
-            if (!late) reject(err);
-        });
-    });
 }
 
 /** 0124: how this start was served, for the admin status page. Observation only. */
