@@ -464,6 +464,7 @@ class RecordingsPage {
         const tag = (item) => {
             const t = (text, tone) => `<span class="rec-tag is-${tone}">${e(text)}</span>`;
             if (item.status === 'recording') return t('Recording', 'live');
+            if (item.status === 'cancelling') return t(this.statusLabel('cancelling'), 'muted'); // #347: its cancel is under way
             if (item.status === 'waiting') return t(item.error ? 'Waiting' : this.statusLabel('waiting'), 'warn');
             if (beaten(item)) return t('Clash: will not record', 'warn');
             return t(this.statusLabel(item.status), 'accent');
@@ -479,8 +480,8 @@ class RecordingsPage {
                 <div class="rec-title" title="${e(item.title)}">${e(item.title)}</div>
                 ${item.status === 'waiting' && item.error ? `<p class="rec-note"><b>Waiting:</b> ${e(item.error)}</p>` : ''}
                 ${clash(item)}
-                <div class="rec-chip-foot">${tag(item)}<div class="rec-actions">${beaten(item) && item.status !== 'recording'
-                    ? `<button type="button" class="btn btn-secondary" data-action="choose" data-id="${e(item.id)}">Record this one instead</button>` : ''}<button type="button" class="btn btn-secondary" data-action="cancel" data-id="${e(item.id)}">${item.status === 'recording' ? 'Stop' : 'Cancel'}</button></div></div>
+                <div class="rec-chip-foot">${tag(item)}<div class="rec-actions">${item.status === 'cancelling' ? '' : `${beaten(item) && item.status !== 'recording'
+                    ? `<button type="button" class="btn btn-secondary" data-action="choose" data-id="${e(item.id)}">Record this one instead</button>` : ''}<button type="button" class="btn btn-secondary" data-action="cancel" data-id="${e(item.id)}">${item.status === 'recording' ? 'Stop' : 'Cancel'}</button>`}</div></div>
             </div>`).join('')}</div>`;
 
         el.querySelectorAll('[data-action="cancel"]').forEach(btn => {
@@ -1320,6 +1321,7 @@ class RecordingsPage {
             completed: 'Completed',
             failed: 'Failed',
             cancelled: 'Cancelled',
+            cancelling: 'Cancelling…',
             missed: 'Missed'
         };
         return labels[status] || status;

@@ -520,7 +520,7 @@ function evaluate({ now = Date.now() } = {}) {
                     // #329 (Codex round 1, high): only this rule's own schedule: one it found already set (a viewer's, or
                     // another rule's, by game or programme) is never changed by it.
                     const own = existing.rule_id === rule.id;
-                    if (own && ['scheduled', 'waiting'].includes(existing.status)
+                    if (own && ['scheduled', 'waiting'].includes(existing.status) && !existing.cancelling
                         && Math.abs(existing.program_start - c.start) > NEAR_MS) {
                         // #347 (Codex sign-off): one game, one active schedule per airing, as every other path: never moved onto
                         // an airing another active schedule of its game overlaps (it stays where it is, still this rule's)

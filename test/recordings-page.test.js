@@ -638,3 +638,18 @@ test('R5: rules are listed with their state, and the box adds a sport rule then 
     assert.equal(elements['rule-add-match'].value, '');
     assert.equal(elements['rule-add-status'].textContent, 'Added: 2 games scheduled');
 });
+
+// #347: a schedule whose cancel is under way is listed `cancelling`: shown so, with nothing more to do to it.
+test('#347: a cancelling schedule reads "Cancelling…", with no Cancel, Stop or Record this one instead', () => {
+    const elements = makeElements();
+    const { context } = makeContext(elements, () => jsonResponse([]));
+    const page = new context.RecordingsPage({});
+    page.renderScheduled([
+        { id: 5, title: 'Derby', channel_name: 'Fox', status: 'cancelling', program_start: 1, program_end: 2, conflictsWith: [6], beatenBy: [6] },
+        { id: 6, title: 'Final', channel_name: 'ESPN', status: 'scheduled', program_start: 1, program_end: 2 }
+    ]);
+    const chips = elements['scheduled-recordings-list'].innerHTML.split('class="rec-chip"').slice(1);
+    assert.match(chips[0], /<span class="rec-tag is-muted">Cancelling…<\/span>/);
+    assert.doesNotMatch(chips[0], /data-action="(cancel|choose)"/);
+    assert.match(chips[1], /data-action="cancel" data-id="6"/);
+});

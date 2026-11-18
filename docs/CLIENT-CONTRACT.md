@@ -418,6 +418,13 @@ A rule makes ordinary schedules; one-off recordings are unchanged. Any signed-in
 - **Recordings name their game (#345, additive, no flag).** `GET /api/recordings` rows and `recordings/scheduled` rows carry
   `gameId`: the sport game (a C-R card's `id`) it was made for, else `null`. A recording keeps its own copy (every part of it,
   and recordings from before are filled from their schedule once), so it stays after its schedule is dismissed. Decode it as optional.
+- **Cancelling (#347, additive, no flag).** While a cancel (`DELETE /api/recordings/scheduled/:id`) is under way (a
+  recording stopping first can take seconds), `GET /api/recordings/scheduled` lists that row with `status: "cancelling"`;
+  once the cancel ends it is `cancelled` (gone from the list), a cancel that fails leaves it with its status before, and
+  one a server restart interrupted is finished at start-up (`cancelled`, what it recorded kept).
+  A cancelling schedule is not active: nothing starts it, `PUT` and `move` answer as for a finished one, a C-R card never
+  names it (`recording`), and `POST /recordings/schedule` for the same programme or game makes a new schedule (201), never
+  answers with it. Show it as "Cancelling…" with no actions. Older clients see an unknown status: treat it as not active.
 - **One game, one active schedule (#329, additive, no flag).** `POST /recordings/schedule` with a `gameId` that an active
   schedule (`scheduled`, `waiting` or `recording`; household-wide, whoever made it, by hand or by a rule) already has
   makes nothing and answers **200** with that schedule (as a 201 would list it, its own `channel_name`) plus

@@ -385,11 +385,12 @@ function withChannelLogo(row) {
 function withImage(row) {
     if (!row) return row;
     // #217: a schedule's link to its game and its event stop stay internal (C-M lists `endsWith`/`overrun` instead).
-    const { image_url: url, sport_game_id: _game, event_stop: _stop, ...rest } = withChannelLogo(row);
+    const { image_url: url, sport_game_id: _game, event_stop: _stop, cancelling: _cancelling, ...rest } = withChannelLogo(row);
     let image = null;
     try { image = url ? require('./logoCache').registerLogo(url) : null; } catch (e) { image = null; }
     // #345: a schedule row names the sport game it records (null for none); recordings rows get theirs in listRecordings
-    return { ...rest, image, ...('sport_game_id' in row ? { gameId: _game || null } : {}) };
+    // #347: a schedule whose cancel is under way is listed as `cancelling` (C-M), whatever it was
+    return { ...rest, ...(_cancelling ? { status: 'cancelling' } : {}), image, ...('sport_game_id' in row ? { gameId: _game || null } : {}) };
 }
 
 async function scheduleFromProgram({
@@ -696,7 +697,7 @@ function listScheduled({ includeRecent = false, settings = null } = {}) {
  */
 function editScheduled(id, { pre = null, post = null } = {}, { now = Date.now(), settings = null } = {}) {
     const schedule = scheduledDb.getById(id);
-    if (!schedule || !['scheduled', 'waiting', 'recording'].includes(schedule.status)) {
+    if (!schedule || !['scheduled', 'waiting', 'recording'].includes(schedule.status) || schedule.cancelling) {
         return { status: 404, error: 'No upcoming or running schedule with that id' };
     }
     if (schedule.status === 'recording' && pre !== null) {
@@ -737,7 +738,7 @@ function moveScheduled(id, target = {}, { settings = null } = {}) {
         if (!row) return { status: 404, error: 'No upcoming schedule with that id' };
         const where = row.channel_name || 'its channel';
         if (row.status === 'recording') return { status: 409, error: `It is already recording on ${where}; stop it first to record on another channel.` };
-        if (!['scheduled', 'waiting'].includes(row.status)) return { status: 409, error: 'This recording has finished or no longer exists, so it cannot be moved.' };
+        if (!['scheduled', 'waiting'].includes(row.status) || row.cancelling) return { status: 409, error: 'This recording has finished or no longer exists, so it cannot be moved.' };
         const there = scheduledDb.findByProgram(sourceId, channelItemId, programStart);
         if (there && there.id !== id) return { status: 409, error: `Something else is already set to record on ${there.channel_name || 'that channel'} at that time.` };
         // #347 (Codex sign-off): one game, one active schedule per airing, as POST /recordings/schedule: never moved onto an
@@ -771,13 +772,14 @@ function moveScheduled(id, target = {}, { settings = null } = {}) {
  * `waiting` already avoided repeating that one; this covers every other
  * caller the same way, since "before" and "after" are simply compared).
  */
-function setScheduleStatus(schedule, status, extra = {}) {
+function setScheduleStatus(schedule, status, extra = {}, { pendingOnly = false } = {}) {
     const id = (typeof schedule === 'object' && schedule !== null) ? schedule.id : schedule;
     const before = (typeof schedule === 'object' && schedule !== null) ? schedule : scheduledDb.getById(id);
     const prevStatus = before?.status;
     // #305: a schedule that waited keeps no reason once it records (unless the caller gives one).
     if (status === 'recording') extra = { error: null, clash_winner: null, ...extra };
-    const updated = scheduledDb.setStatus(id, status, extra);
+    // #347 (Codex): the scheduler's own writes only while it is still pending and not being cancelled
+    const updated = pendingOnly ? scheduledDb.setStatusIfPending(id, status, extra) : scheduledDb.setStatus(id, status, extra);
     if (updated && prevStatus && prevStatus !== status) {
         const title = updated.title || before?.title || 'Untitled';
         const channel = updated.channel_name || before?.channel_name || 'Unknown channel';
@@ -859,9 +861,23 @@ let stopAllGeneration = 0;
 /** #220: a recording or schedule that is not there: the route answers 404 (the text stays, C-M). */
 const notFound = (message) => Object.assign(new Error(message), { status: 404 });
 
+/**
+ * Cancel (or, for a failed or missed one, delete) a schedule. #347: an active one is marked `cancelling` at once, before
+ * anything is awaited, so while its recording stops a new request for the same programme or game makes a new schedule
+ * (never this one, which the cancel then ends), and nothing starts it; a cancel that fails clears the mark (its status is
+ * unchanged), as does one that finishes.
+ */
 async function cancelScheduled(id) {
     const schedule = scheduledDb.getById(id);
     if (!schedule) throw notFound('Scheduled recording not found');
+    const marked = ['scheduled', 'waiting', 'recording'].includes(schedule.status) && scheduledDb.setCancelling(id, true);
+    try {
+        return await cancelMarked(id, schedule);
+    } finally {
+        if (marked) scheduledDb.setCancelling(id, false);
+    }
+}
+async function cancelMarked(id, schedule) {
 
     if (schedule.status === 'recording' && active.has(id)) {
         await stopRecording(id, 'cancelled');
@@ -895,7 +911,8 @@ async function cancelScheduled(id) {
         scheduledDb.delete(id);
         return { deleted: true };
     }
-    return withImage(scheduledDb.getById(id));
+    const after = scheduledDb.getById(id);
+    return withImage(after && { ...after, cancelling: null }); // the answer is the cancel done
 }
 
 /**
@@ -1059,7 +1076,7 @@ function startStillWanted(schedule, owner) {
     }
     if (active.has(schedule.id)) return false;
     const now = scheduledDb.getById(schedule.id);
-    if (!now || (now.status !== 'scheduled' && now.status !== 'waiting')) return false;
+    if (!now || (now.status !== 'scheduled' && now.status !== 'waiting') || now.cancelling) return false; // #347: nor one being cancelled
     // #329: moved to another channel or programme while it got ready (moveScheduled): the next tick starts the new one.
     // The stable identity too (Codex sign-off, high): a sync can hand A's pos_N to B, so a move to B can keep the item.
     if (now.source_id !== schedule.source_id || now.channel_item_id !== schedule.channel_item_id || now.program_start !== schedule.program_start
@@ -1091,8 +1108,14 @@ function joinedAsPromised(schedule, owner, feed, candidate) {
 function waitForSlot(schedule, reason = SLOT_REASON, winnerId = null) {
     const now = scheduledDb.getById(schedule.id) || schedule;
     if (now.status !== 'waiting' || now.error !== reason || (now.clash_winner ?? null) !== winnerId) {
-        setScheduleStatus(now, 'waiting', { error: reason, clash_winner: winnerId });
+        // #347 (Codex): never a cancelled (or cancelling, or started) schedule back to waiting
+        setScheduleStatus(now, 'waiting', { error: reason, clash_winner: winnerId }, { pendingOnly: true });
     }
+}
+/** #347 (Codex): the schedule as it is now, while it is still the tick's to start (pending, not being cancelled), else null. */
+function stillPending(id) {
+    const now = scheduledDb.getById(id);
+    return now && ['scheduled', 'waiting'].includes(now.status) && !now.cancelling ? now : null;
 }
 
 /** #12 (D-42): why a schedule that loses its clash waits, naming the one that wins it. */
@@ -1791,6 +1814,21 @@ async function stopRecording(scheduledId, reasonStatus = 'completed') {
  */
 function reconcileOnStartup() {
     const finishing = [];
+    // #347 (Codex, high): a cancel the restart interrupted (still marked) is finished first, before anything resumes: the
+    // person asked for it (and may have recorded the programme again meanwhile). What it recorded is kept; then every mark
+    // is cleared.
+    for (const schedule of scheduledDb.listCancelling()) {
+        if (schedule.status === 'recording') {
+            const rec = schedule.recording_id ? recordingsDb.getById(schedule.recording_id) : null;
+            if (rec && rec.work_dir && rec.segment_state === 'capturing') endSegmentCapture(schedule.id, rec.id);
+            else if (rec && rec.status === 'recording') finishing.push(finishInterruptedPart(rec));
+        }
+        if (['scheduled', 'waiting', 'recording'].includes(schedule.status)) {
+            setScheduleStatus(schedule.id, 'cancelled');
+            console.warn(`[Recordings] Schedule #${schedule.id} was being cancelled when the server stopped; cancelled`);
+        }
+    }
+    scheduledDb.clearCancelling();
     const orphans = scheduledDb.findOrphanedRecording();
     for (const schedule of orphans) {
         if (resumeSegmentedOnStartup(schedule)) continue;
@@ -1799,22 +1837,7 @@ function reconcileOnStartup() {
             // 0177: only a part still marked as recording. One between parts (its
             // provider died and the next had not started) is already finished, and so
             // is every earlier part: they are kept as they are.
-            const rec = recordingsDb.getById(schedule.recording_id);
-            const endedAt = Date.now();
-            finishing.push((async () => {
-                // 0 when the file is missing; null when the share did not answer (#143: unknown is not
-                // "nothing recorded", so the part is kept as it would be with its file there).
-                const fileSize = rec?.file_path ? await shareFs.sizeOf(rec.file_path) : 0;
-                recordingsDb.finish(rec.id, {
-                    status: (fileSize === null || fileSize > 1024) ? 'completed' : 'failed',
-                    ended_at: endedAt,
-                    file_size_bytes: fileSize,
-                    duration_sec: null,
-                    error: 'Server restarted while this recording was in progress.'
-                });
-                // reconcileJobsOnStartup's backfill ran before this answered.
-                if (media.isPrepareQueueOn()) recordingsDb.queueNativeBackfill();
-            })().catch(err => console.warn(`[Recordings] #${rec.id}: could not finish it after the restart:`, err.message)));
+            finishing.push(finishInterruptedPart(recordingsDb.getById(schedule.recording_id)));
         }
         setScheduleStatus(schedule.id, 'failed', { error: 'Server restarted while this recording was in progress.' });
     }
@@ -1831,6 +1854,25 @@ function reconcileOnStartup() {
             ad_detect_error = NULL WHERE ad_detect_status = 'running'`).run();
     } catch (e) { /* columns may be missing on a very old database */ }
     return Promise.all(finishing);
+}
+
+/** A part the restart left marked as recording: kept when it has a file (or the share did not answer), else failed. */
+function finishInterruptedPart(rec) {
+    const endedAt = Date.now();
+    return (async () => {
+        // 0 when the file is missing; null when the share did not answer (#143: unknown is not
+        // "nothing recorded", so the part is kept as it would be with its file there).
+        const fileSize = rec?.file_path ? await shareFs.sizeOf(rec.file_path) : 0;
+        recordingsDb.finish(rec.id, {
+            status: (fileSize === null || fileSize > 1024) ? 'completed' : 'failed',
+            ended_at: endedAt,
+            file_size_bytes: fileSize,
+            duration_sec: null,
+            error: 'Server restarted while this recording was in progress.'
+        });
+        // reconcileJobsOnStartup's backfill ran before this answered.
+        if (media.isPrepareQueueOn()) recordingsDb.queueNativeBackfill();
+    })().catch(err => console.warn(`[Recordings] #${rec.id}: could not finish it after the restart:`, err.message));
 }
 
 /**
@@ -2064,6 +2106,8 @@ async function tick() {
                 // already being recorded joins that recording's shared ingest, so the cap never holds it back.
                 // #133: only when the start really reads that recording's ingest (checked again once the feed is had).
                 const joins = await sharedRecordingKey(schedule, settings);
+                // #347 (Codex, high): cancelled (or being cancelled) while this tick awaited: nothing more for it here
+                if (!stillPending(schedule.id)) continue;
                 // D-42: a schedule that loses its clash waits for the winner, even when a connection is free now (it would
                 // otherwise hold the connection the winner needs later). Joining a running recording costs no connection.
                 const epoch = choiceEpoch;
@@ -2089,8 +2133,9 @@ async function tick() {
                 const choice = await chooseProvider(schedule, settings, joins);
                 const verdict = choice.verdict;
                 if (!verdict.allowed) {
-                    if (schedule.status !== 'waiting') {
-                        setScheduleStatus(schedule.id, 'waiting', { error: verdict.reason });
+                    const current = stillPending(schedule.id);
+                    if (current && current.status !== 'waiting') {
+                        setScheduleStatus(current, 'waiting', { error: verdict.reason }, { pendingOnly: true });
                     }
                     continue;
                 }
@@ -2336,6 +2381,8 @@ module.exports = {
     /** Tests: is a start of this (possibly stale) schedule still wanted, with no lease and no shutdown since. */
     _startStillWanted: (schedule) => startStillWanted(schedule, { lease: null, generation: stopAllGeneration }),
     _owners: owners, // 0270: the deletion's writer wait and the start-up sweep
+    _active: active, // #347: a capture in progress, as cancelScheduled stops it
+    _continuations: continuations, // #347: what a restart resumes
     _reconcileJobsOnStartup: reconcileJobsOnStartup,
     _reconcileOnStartup: reconcileOnStartup, // R3: what a restart does to a recording in progress
     _failoverTuning: failoverTuning,

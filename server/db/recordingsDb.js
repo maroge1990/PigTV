@@ -149,6 +149,14 @@ function initSchema() {
         db.exec('ALTER TABLE scheduled_recordings ADD COLUMN program_end_original INTEGER');
     } catch (e) { /* already present */ }
 
+    // #347: a schedule whose cancel (DELETE /recordings/scheduled/:id) is under way (stopping its recording can take a
+    // while): set before anything is awaited, so no new schedule request is answered with it, nothing starts it, and it is
+    // listed as `cancelling`. A restart finds a cancel it interrupted still set: recordingEngine.reconcileOnStartup finishes
+    // it (the person asked for it), then clears every mark.
+    try {
+        db.exec('ALTER TABLE scheduled_recordings ADD COLUMN cancelling INTEGER');
+    } catch (e) { /* already present */ }
+
     // R5: recording rules. A rule makes schedules (scheduled_recordings.rule_id says which); each
     // airing or event it has acted on is a hit, kept even when its schedule is cancelled, so a
     // cancelled one is never made again. services/recordingRules.js.
@@ -318,7 +326,7 @@ const scheduled = {
         const db = getDb();
         return db.prepare(`
             SELECT * FROM scheduled_recordings
-            WHERE status IN ('scheduled', 'waiting')
+            WHERE status IN ('scheduled', 'waiting') AND COALESCE(cancelling, 0) = 0
               AND (program_start - (pre_buffer_min * 60000)) <= ?
         `).all(nowMs);
     },
@@ -353,7 +361,7 @@ const scheduled = {
         return row(db.prepare(`
             SELECT * FROM scheduled_recordings
             WHERE source_id = ? AND channel_item_id = ? AND program_start = ?
-              AND status IN ('scheduled', 'recording', 'waiting')
+              AND status IN ('scheduled', 'recording', 'waiting') AND COALESCE(cancelling, 0) = 0
         `).get(sourceId, channelItemId, programStart));
     },
 
@@ -371,11 +379,17 @@ const scheduled = {
         const params = [gameId, ...(windowed ? [end, start] : []), ...(excludeId != null ? [excludeId] : [])];
         return row(getDb().prepare(`
             SELECT * FROM scheduled_recordings
-            WHERE sport_game_id = ? AND status IN ('scheduled', 'recording', 'waiting')
+            WHERE sport_game_id = ? AND status IN ('scheduled', 'recording', 'waiting') AND COALESCE(cancelling, 0) = 0
               ${windowed ? 'AND program_start < ? AND COALESCE(program_end_original, program_end) > ?' : ''}
               ${excludeId != null ? 'AND id != ?' : ''}
             ORDER BY id LIMIT 1
         `).get(...params));
+    },
+
+    /** #347: mark (or clear) a schedule's cancel as under way; true when the row was there to mark. */
+    setCancelling(id, on) {
+        initSchema();
+        return getDb().prepare('UPDATE scheduled_recordings SET cancelling = ? WHERE id = ?').run(on ? 1 : null, id).changes > 0;
     },
 
     setStatus(id, status, extra = {}) {
@@ -387,6 +401,29 @@ const scheduled = {
         if ('clash_winner' in extra) fields.push('clash_winner = @clash_winner');
         db.prepare(`UPDATE scheduled_recordings SET ${fields.join(', ')} WHERE id = @id`).run(params);
         return this.getById(id);
+    },
+
+    /**
+     * #347 (Codex): the scheduler's write: only while the schedule is still pending (`scheduled` or `waiting`) and not being
+     * cancelled, so a tick that awaited meanwhile never revives a cancelled schedule. -> the row, or null when not written.
+     */
+    setStatusIfPending(id, status, extra = {}) {
+        const fields = ['status = @status'];
+        if ('error' in extra) fields.push('error = @error');
+        if ('clash_winner' in extra) fields.push('clash_winner = @clash_winner');
+        const changed = getDb().prepare(`UPDATE scheduled_recordings SET ${fields.join(', ')} WHERE id = @id
+            AND status IN ('scheduled', 'waiting') AND COALESCE(cancelling, 0) = 0`).run({ id, status, ...extra }).changes;
+        return changed ? this.getById(id) : null;
+    },
+
+    /** #347: schedules whose cancel was under way (a restart finds them so when it did not finish). */
+    listCancelling() {
+        initSchema();
+        return getDb().prepare('SELECT * FROM scheduled_recordings WHERE cancelling IS NOT NULL AND cancelling != 0').all();
+    },
+
+    clearCancelling() {
+        getDb().prepare('UPDATE scheduled_recordings SET cancelling = NULL WHERE cancelling IS NOT NULL').run();
     },
 
     cancel(id) {
