@@ -19,16 +19,16 @@ async function harness({ recordings = [] } = {}) {
     f.games.push({ ...nxt, id: 'far', title: 'Everton v Fulham', competitors: [{ id: 'e', name: 'Everton' }, { id: 'f', name: 'Fulham' }], channels: [], start: NOW + 9 * 24 * H, followed: false, nextRound: false });
     f.games.push({ ...nxt, id: 'rnd', title: 'Leeds v Wolves', competitors: [{ id: 'l', name: 'Leeds' }, { id: 'w', name: 'Wolves' }], channels: [], start: NOW + 9 * 24 * H, followed: false, nextRound: true });
     f.rails[0].gameIds.push('far', 'rnd');
-    const calls = [], played = [], recPlayed = [];
+    const calls = [], played = [], recPlayed = [], recOpts = [];
     const b = browser({ request: async (m, url) => { calls.push([m, url]); return url === '/sports/front' ? f : url === '/sports/pages/preferences' ? { spoilerFree: false } : url === '/recordings' ? recordings : {}; } });
     const app = { currentUser: { role: 'admin' }, navigateTo() {}, setLocation() {},
-        pages: { recordings: { play: async (id) => { recPlayed.push(id); } } },
+        pages: { recordings: { play: async (id, o) => { recPlayed.push(id); recOpts.push(o); } } },
         channelList: { channels: [{ sourceId: 1, stableId: 's1', id: 'p1' }, { sourceId: 1, stableId: 's9', id: 'p9' }], loadSources: async () => {}, loadChannels: async () => {}, selectChannel: async (d) => played.push(d.channelId) } };
     const p = page(b, app);
     await p.show('');
     const card = () => { const el = b.document.createElement('button'); b.document.body.appendChild(el); return el; };
     const menu = () => b.document.body.querySelector('.sp-menu');
-    return { b, p, f, calls, played, recPlayed, card, menu };
+    return { b, p, f, calls, played, recPlayed, recOpts, card, menu };
 }
 const acts = (m) => [...m.innerHTML.matchAll(/data-act="([\w-]+)" data-id="/g)].map(x => x[1]);
 
@@ -48,27 +48,38 @@ test('live: a press plays; upcoming and not listed yet: a press opens the record
     assert.equal(h.b.document.body.querySelector('dialog'), null, 'and never a details window');
 });
 
-test('finished: a press plays the completed recording whose gameId is the card\'s id; none: nothing', async () => {
+test('finished: a press plays the whole completed recording of the game (not partial, longest, earliest); none: nothing', async () => {
     const rows = [
-        { id: 7, gameId: 'avl', status: 'failed', started_at: 5 },
-        { id: 8, gameId: 'avl', status: 'completed', started_at: 10 },
-        { id: 9, gameId: 'avl', status: 'completed', started_at: 20 },
-        { id: 10, gameId: 'pen', status: 'recording', started_at: 30 },
+        { id: 7, gameId: 'avl', status: 'failed', started_at: 5, duration_sec: 9000 },
+        { id: 8, gameId: 'avl', status: 'completed', started_at: 10, duration_sec: 3000, is_partial: 1 },
+        { id: 9, gameId: 'avl', status: 'completed', started_at: 20, duration_sec: 7000, is_partial: 0 },
+        { id: 12, gameId: 'avl', status: 'completed', started_at: 30, duration_sec: 7000, is_partial: 0 },
+        { id: 13, gameId: 'avl', status: 'completed', started_at: 40, duration_sec: 6000, is_partial: 0 },
+        { id: 10, gameId: 'pen', status: 'recording', started_at: 30, watch_live: false },
         { id: 11, gameId: null, status: 'completed', started_at: 40, title: 'Aston Villa v Brentford' }
     ];
     const h = await harness({ recordings: rows });
     await h.p.select('avl', h.card());
-    assert.deepEqual(h.recPlayed, [9], 'the newest completed one');
+    assert.deepEqual(h.recPlayed, [9], 'not partial, longest, then the earliest start');
     await h.p.select('pen', h.card());
-    assert.deepEqual(h.recPlayed, [9], 'still recording: not playable here');
+    assert.deepEqual(h.recPlayed, [9], 'still recording but not watchable: nothing');
     await h.p.select('nfl', h.card());
     assert.deepEqual(h.recPlayed, [9], 'no recording: nothing');
     assert.equal(h.menu(), null);
-    // the list unreadable: nothing, no error
     const bad = await harness();
     bad.b.context.API.request = async () => { throw new Error('down'); };
     await bad.p.select('avl', bad.card());
     assert.deepEqual(bad.recPlayed, []);
+});
+
+test('finished game with no completed recording but one still recording that can be watched live: plays it from its start', async () => {
+    const h = await harness({ recordings: [{ id: 21, gameId: 'avl', status: 'recording', watch_live: true, started_at: 1 }] });
+    await h.p.select('avl', h.card());
+    assert.deepEqual(h.recPlayed, [21]);
+    assert.deepEqual(plain(h.recOpts), [{ watch: true }]);
+    const partialFirst = await harness({ recordings: [{ id: 5, gameId: 'avl', status: 'completed', is_partial: 1, duration_sec: 99999 }, { id: 6, gameId: 'avl', status: 'completed', is_partial: 0, duration_sec: 10 }] });
+    await partialFirst.p.select('avl', partialFirst.card());
+    assert.deepEqual(partialFirst.recPlayed, [6], 'a whole recording beats a longer partial one');
 });
 
 test('the menu: live has Watch another channel and Record only; upcoming Record and Remind me; finished only Make hero; never Details', async () => {

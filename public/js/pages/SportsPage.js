@@ -591,13 +591,19 @@ class SportsPage {
         return this.openMenu(g, anchor);
     }
 
-    /** #345: the finished, playable recording made for this game (recordings[].gameId = the card's id), the newest. */
+    /**
+     * #345: this game's recording (recordings[].gameId = the card's id): a completed one, the whole one first (not partial),
+     * then the longest, then the earliest start; else one still recording that can be watched from its start (watch_live).
+     */
     static recordingFor(rows, g) {
         if (!g || !g.id || !Array.isArray(rows)) return null;
-        const mine = rows.filter(r => r && r.gameId === g.id && r.status === 'completed');
-        return mine.sort((a, b) => (b.started_at || 0) - (a.started_at || 0))[0] || null;
+        const mine = rows.filter(r => r && r.gameId === g.id);
+        const done = mine.filter(r => r.status === 'completed').sort((a, b) =>
+            (a.is_partial ? 1 : 0) - (b.is_partial ? 1 : 0) || (b.duration_sec || 0) - (a.duration_sec || 0) || (a.started_at || 0) - (b.started_at || 0));
+        if (done.length) return done[0];
+        return mine.find(r => r.status === 'recording' && r.watch_live === true) || null;
     }
-    /** Play this game's recording in the Recordings player; nothing when PigTV has none (or the list cannot be read). */
+    /** Play this game's recording in the Recordings player (from its start while it still records); nothing when there is none. */
     async playRecordingOf(g) {
         this.closeMenu();
         let rows;
@@ -605,7 +611,7 @@ class SportsPage {
         const rec = SportsPage.recordingFor(rows, g);
         const recordings = this.app && this.app.pages && this.app.pages.recordings;
         if (!rec || !recordings || typeof recordings.play !== 'function') return undefined;
-        return recordings.play(rec.id);
+        return recordings.play(rec.id, rec.status === 'recording' ? { watch: true } : {});
     }
 
     /** Play the game's best channel, found again in the channel list by its identity (never a stored position). */
@@ -778,7 +784,7 @@ class SportsPage {
             const el = e.target?.closest?.('[data-act]');
             if (!el) return;
             const name = el.getAttribute('data-act');
-                        if (name === 'watch-on') {
+            if (name === 'watch-on') {
                 const list = el.nextElementSibling, open = list && list.hidden;
                 if (list) { list.hidden = !open; el.setAttribute('aria-expanded', String(!!open)); if (open) list.querySelector('[role=menuitem]')?.focus?.(); }
                 return;
