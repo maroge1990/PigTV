@@ -901,7 +901,7 @@ const SportView = (() => {
             note: (w.byes || []).length ? `Bye: ${w.byes.map(a => nflName(a, page)).join(', ')}` : null,
             games: (w.games || []).map(g => ({ id: g.id, start: g.start, status: g.status, detail: fixtureDetail(g.detail, g.status, hide),
                 situation: hide || g.status !== 'live' || !g.situation ? null : g.situation.downDistance || null,
-                home: side(g.home, g), away: side(g.away, g), channels: g.channels || [] })) }));
+                home: side(g.home, g), away: side(g.away, g), channels: g.channels || [], card: g.card || null })) }));
         const divisions = (page.standings && page.standings.divisions) || [];
         const mine = divisions.flatMap(d => d.teams || []).find(r => followed(r.abbr));
         const row = (rank, r) => ({ id: r.abbr, rank, abbr: r.abbr, name: nflName(r.abbr, page), logo: logo(page.teams && page.teams[r.abbr] && page.teams[r.abbr].logo),
@@ -938,7 +938,7 @@ const SportView = (() => {
         };
         const rounds = (page.rounds || []).map(r => ({ key: r.key, label: r.label, current: !!r.current, note: null,
             games: (r.games || []).map(g => ({ id: g.id, start: g.start, status: g.status, detail: fixtureDetail(g.detail, g.status, hide), situation: null,
-                home: side(g.home, g), away: side(g.away, g), channels: g.channels || [] })) }));
+                home: side(g.home, g), away: side(g.away, g), channels: g.channels || [], card: g.card || null })) }));
         const tables = ((page.standings && page.standings.groups) || []).map(gr => ({ title: gr.name || null, columns: (gr.columns || []).map(c => c.label),
             rows: (gr.rows || []).map(r => { const t = teams[r.id] || {};
                 return { id: r.id || r.abbr, rank: r.rank, abbr: r.abbr || t.abbr, color: t.color || null, name: t.name || t.full || r.abbr, logo: logo(t.logo),
@@ -966,9 +966,17 @@ const SportView = (() => {
         return out;
     }
 
-    /** A fixture's C-R card (same league, both teams named, starting within 90 minutes): its channels and actions. */
+    /** #347: a page item's C-R card id (C-P, C-Q, C-S, C-T `card`), what its recording carries as `gameId`; null when none. */
+    const cardOf = (x) => (x && typeof x.card === 'string' && x.card ? x.card : null);
+    /**
+     * A fixture's C-R card: the one whose id is the fixture's `card` (#347; none when the front has no such card, never
+     * another game's), else, with no `card` (an older server), the same league, both teams named, starting within 90
+     * minutes: its channels and actions.
+     */
     function fixtureCard(g, league, front) {
-        return ((front && front.games) || []).find(c => {
+        const games = (front && front.games) || [];
+        if (cardOf(g)) return games.find(c => c.id === cardOf(g)) || null;
+        return games.find(c => {
             if (c.league !== league || Math.abs(c.start - g.start) > 90 * 60000 || !twoSided(c)) return false;
             const names = c.competitors.map(x => lower(x.name));
             const named = (s) => { const mine = [s.name, s.abbr].map(lower); return names.some(n => mine.some(m => m === n || m.endsWith(' ' + n) || n.endsWith(' ' + m))); };
@@ -980,7 +988,7 @@ const SportView = (() => {
         const starts = g.channels.map(c => c.start).filter(Number.isFinite), ends = g.channels.map(c => c.end).filter(Number.isFinite);
         const start = starts.length ? Math.min(...starts) : g.start, end = ends.length ? Math.max(...ends) : g.start + 3 * 3600000;
         const sides = fx.awayFirst ? [g.away, g.home] : [g.home, g.away];
-        return { id: `fx:${fx.league}:${g.id}`, synthetic: true, league: fx.league, title: sides.map(s => s.name).join(fx.awayFirst ? ' at ' : ' v '),
+        return { id: `fx:${fx.league}:${g.id}`, synthetic: true, card: cardOf(g), league: fx.league, title: sides.map(s => s.name).join(fx.awayFirst ? ' at ' : ' v '),
             start, end: Math.max(end, start + 60000), status: g.status === 'done' ? 'finished' : g.status === 'live' || g.status === 'break' ? 'live' : g.status,
             competitors: sides.map(s => ({ name: s.name, logo: s.logo })), channels: g.channels, events: [], freshness: 'unavailable', progress: {} };
     }
@@ -1135,7 +1143,7 @@ const SportView = (() => {
     }
     /** A session as a game on its channels' own airing (Watch, Remind me, Record). */
     function sessionGame(s, w, now) {
-        return { id: `f1s:${s.id}`, synthetic: true, league: 'F1', title: `${shortGp(w.name)} · ${s.name}`, session: s.name,
+        return { id: `f1s:${s.id}`, synthetic: true, card: cardOf(s), league: 'F1', title: `${shortGp(w.name)} · ${s.name}`, session: s.name,
             start: s.start, end: s.end, status: s.status === 'done' ? 'finished' : f1Live(s, now) ? 'live' : 'scheduled',
             competitors: [], channels: s.channels || [], events: [], freshness: 'unavailable', progress: {}, onAir: s.onAir === true };
     }
@@ -1257,7 +1265,7 @@ const SportView = (() => {
     function cricketGame(m) {
         const starts = (m.channels || []).map(c => c.start).filter(Number.isFinite), ends = (m.channels || []).map(c => c.end).filter(Number.isFinite);
         const start = starts.length ? Math.min(...starts) : m.nextStart ?? m.start ?? 0, end = ends.length ? Math.max(...ends) : start + 8 * 3600000;
-        return { id: `ck:${m.id}`, synthetic: true, league: 'Cricket', title: cricketTitle(m.teams), start, end: Math.max(end, start + 60000),
+        return { id: `ck:${m.id}`, synthetic: true, card: cardOf(m), league: 'Cricket', title: cricketTitle(m.teams), start, end: Math.max(end, start + 60000),
             status: m.status === 'done' ? 'finished' : m.status === 'scheduled' ? 'scheduled' : 'live', competitors: (m.teams || []).map(t => ({ name: t.name, logo: t.logo })),
             channels: m.channels || [], events: [], freshness: 'unavailable', progress: {} };
     }
@@ -1301,6 +1309,8 @@ const SportView = (() => {
         }
         const days = (lead.days || []).length > 1 ? `<div class="days">${lead.days.map(d => `<div class="day ${e(d.state)}"><b>Day ${e(d.number)}</b><small>${e(daySub(d, lead, now))}</small></div>`).join('')}</div>` : '';
         let actions = '';
+        // #347 (Codex): a finished lead plays its recording (found by its `card`), as a finished card's press does
+        if (lead.status === 'done' && cardOf(lead)) actions += `<button type="button" class="pill primary" data-act="game" data-id="${e(g.id)}" data-key="lead:recording">${ICON.play}Play recording</button>`;
         if (ev) {
             if (act === 'watch') actions += `<button type="button" class="pill primary" data-act="watch" data-id="${e(g.id)}" data-key="lead:watch">${ICON.play}Watch live</button>`;
             if (act !== 'none' && act !== 'details') actions += `<button type="button" class="pill" data-act="record-menu" aria-haspopup="menu" data-id="${e(g.id)}" data-key="lead:record">${ICON.rec}Record</button>`;
@@ -1312,7 +1322,13 @@ const SportView = (() => {
     function seriesPanel(series, lead, ctx) {
         const pill = (m) => (lead && (m.current || m.id === lead.id) ? (lead.status === 'live' ? ' lpill live' : ' lpill') : '');
         return `<section class="series" aria-label="${e(series.name || 'Series')}"><div class="sh"><b>${e(series.name || '')}</b>${series.season ? `<span>${e(String(series.season).replace('/', '–'))}</span>` : ''}</div>`
-            + (series.matches || []).map(m => `<div class="sm${m.current || (lead && m.id === lead.id) ? ' cur' : ''}"><div class="a"><b>${e(m.label || '')}</b>${m.start != null ? `<span>${e(UI.date(m.start))}</span>` : ''}</div><span class="res${pill(m)}">${e(seriesResult(m, lead, ctx.hide, ctx.now))}</span></div>`).join('')
+            + (series.matches || []).map(m => {
+                const inner = `<div class="a"><b>${e(m.label || '')}</b>${m.start != null ? `<span>${e(UI.date(m.start))}</span>` : ''}</div><span class="res${pill(m)}">${e(seriesResult(m, lead, ctx.hide, ctx.now))}</span>`;
+                const cls = `sm${m.current || (lead && m.id === lead.id) ? ' cur' : ''}`;
+                // #347 (Codex): a finished match of the tour plays its recording (found by its `card`) when pressed
+                return m.status === 'done' && cardOf(m) ? `<button type="button" class="${cls} smbtn" data-act="game" data-id="${e(`ck:${m.id}`)}" data-key="sm:${e(m.id)}" aria-label="${e(`${m.label || 'Match'}: play its recording`)}">${inner}</button>`
+                    : `<div class="${cls}">${inner}</div>`;
+            }).join('')
             + '</section>';
     }
     /** The cricket page for one followed league: its lead match (scoreboard, days, actions) beside its tour, then its other matches. */

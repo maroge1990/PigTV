@@ -49,7 +49,8 @@ test('set to record on its best channel while the page is open, another channel 
 test('set to record as C-R now says (a refresh while the page is open): found by its schedule id, nothing new', async () => {
     const h = await harness();
     h.nxt.recording = { scheduleId: 9, status: 'scheduled' };
-    h.state.scheduled = [row({ id: 9, source_id: 3, channel_stable_id: 'zz', channel_item_id: '9', program_start: 0, program_end: 1 })];
+    // #347: on a channel not the game's, during the airing chosen: C-R's schedule id says it is this game's
+    h.state.scheduled = [row({ id: 9, source_id: 3, channel_stable_id: 'zz', channel_item_id: '9', program_start: h.nxt.start, program_end: h.nxt.start + 2 * H })];
     await h.save();
     assert.equal(h.calls.filter(c => c[0] === 'schedule').length, 0);
     assert.equal(h.calls.filter(c => c[0] === 'PUT').length, 0, 'Usual padding: nothing to change');
@@ -79,4 +80,91 @@ test('#329: the server answers alreadyScheduled (set to record between the read 
     assert.equal(h.calls.filter(c => c[0] === 'schedule').length, 1);
     assert.equal(h.b.document.body.querySelector('dialog'), null);
     assert.equal(h.b.context.toasts.at(-1)[0], 'Already set to record on Stan Sport 2.');
+});
+
+// #347 (Codex sign-off, high): Record options found "a" schedule of the game before reading the airing chosen, so with an
+// earlier airing set to record (the front card's, or a rule's) a later, separate airing chosen PUT the earlier one's
+// padding and never recorded the one chosen. Only a schedule of the chosen airing is this recording.
+test('a later airing chosen while an earlier one of the game is set to record (its card\'s, a rule\'s): it records the one chosen', async () => {
+    const h = await harness();
+    const later = h.nxt.start + 26 * H;
+    h.nxt.channels.push({ sourceId: 2, stableId: 'k6', id: '506', name: 'Kayo 6', start: later, end: later + 2 * H });
+    h.p.closeWindow(); h.p.openRecord('nxt');
+    h.nxt.recording = { scheduleId: 4, status: 'scheduled' }; // a refresh while the page is open: C-R names the earlier one
+    const body = h.body();
+    const index = [...body.matchAll(/data-act="r-on" data-index="(\d+)"[^>]*>[\s\S]*?<\/button>/g)].find(m => m[0].includes('Kayo 6'));
+    assert.ok(index, 'Kayo 6 is offered');
+    h.pick(Number(index[1]));
+    h.choose('sp-rec-post', '30');
+    h.state.scheduled = [row({ program_start: h.nxt.start, program_end: h.nxt.start + 2 * H, gameId: 'nxt', rule_id: 3 })];
+    h.state.made = { id: 7 };
+    await h.save();
+    assert.equal(h.calls.filter(c => c[0] === 'PUT').length, 0, 'the earlier recording is left as it is');
+    const made = h.calls.filter(c => c[0] === 'schedule').map(c => JSON.parse(JSON.stringify(c[1])));
+    assert.deepEqual(made.map(d => [d.channelItemId, d.programStart, d.gameId, d.postBufferMin]), [['506', later, 'nxt', 30]]);
+});
+
+// #347 (Codex sign-off 2, high): staggered channels. The game airs on Stan Sport 2 now-ish and on Kayo 5 three hours later;
+// another programme on Kayo 5 during the Stan Sport 2 airing, or another game's schedule, was taken for this recording and
+// got the padding (a PUT on someone else's programme) while the chosen airing was never recorded.
+test('staggered channels: a schedule of another programme on a channel that carries the game later, or of another game, is not this one', async () => {
+    for (const other of [
+        { source_id: 2, channel_stable_id: 'k5', channel_item_id: '505', channel_name: 'Kayo 5' }, // no game: another programme on Kayo 5
+        { gameId: 'espn:soccer/eng.1:999' } // another game's schedule on Stan Sport 2 itself
+    ]) {
+        const h = await harness();
+        const k5 = h.nxt.channels.find(c => c.id === '505');
+        k5.start = h.nxt.start + 3 * H; k5.end = h.nxt.start + 5 * H;
+        h.p.closeWindow(); h.p.openRecord('nxt');
+        assert.match(h.body(), /aria-checked="true" data-act="r-on" data-index="0"/, 'Stan Sport 2 chosen');
+        h.choose('sp-rec-post', '30');
+        h.state.scheduled = [row({ id: 8, program_start: h.nxt.start, program_end: h.nxt.start + 2 * H, ...other })];
+        h.state.made = { id: 9 };
+        await h.save();
+        assert.equal(h.calls.filter(c => c[0] === 'PUT').length, 0, `not changed: ${JSON.stringify(other)}`);
+        assert.deepEqual(h.calls.filter(c => c[0] === 'schedule').map(c => [c[1].channelItemId, c[1].programStart]), [['102', h.nxt.start]]);
+    }
+});
+
+test('staggered channels: an older row with no game, on the later channel during ITS airing of the game, is still this game', async () => {
+    const h = await harness();
+    const k5 = h.nxt.channels.find(c => c.id === '505');
+    k5.start = h.nxt.start + 1 * H; k5.end = h.nxt.start + 3 * H; // overlaps the Stan Sport 2 airing chosen
+    h.p.closeWindow(); h.p.openRecord('nxt');
+    h.choose('sp-rec-post', '30');
+    h.state.scheduled = [row({ id: 8, source_id: 2, channel_stable_id: 'k5', channel_item_id: '505', channel_name: 'Kayo 5', program_start: k5.start, program_end: k5.end })];
+    await h.save();
+    assert.equal(h.calls.filter(c => c[0] === 'schedule').length, 0);
+    assert.deepEqual(JSON.parse(JSON.stringify(h.calls.find(c => c[0] === 'PUT'))), ['PUT', '/recordings/scheduled/8', { postBufferMin: 30 }]);
+});
+
+// #347 (Codex sign-off 2, medium): More options opened Change recording when the card already named a schedule, so a
+// second airing could not be picked from it.
+test('More options with the card already set to record: the airings to choose; a later airing chosen records it', async () => {
+    const h = await harness();
+    const later = h.nxt.start + 26 * H;
+    h.nxt.channels.push({ sourceId: 2, stableId: 'k6', id: '506', name: 'Kayo 6', start: later, end: later + 2 * H });
+    h.nxt.recording = { scheduleId: 4, status: 'scheduled' };
+    h.p.closeWindow();
+    const el = h.b.document.createElement('button');
+    el.setAttribute('data-act', 'record-options'); el.setAttribute('data-id', 'nxt');
+    h.p.root.appendChild(el); el.click();
+    await new Promise(setImmediate);
+    const body = h.body();
+    assert.doesNotMatch(body, /CHANGE RECORDING/, 'not the Change recording window');
+    const k6 = [...body.matchAll(/data-act="r-on" data-index="(\d+)"[^>]*>[\s\S]*?<\/button>/g)].find(m => m[0].includes('Kayo 6'));
+    assert.ok(k6, 'the airings to choose, Kayo 6 among them');
+    h.pick(Number(k6[1]));
+    h.state.scheduled = [row({ program_start: h.nxt.start, program_end: h.nxt.start + 2 * H, gameId: 'nxt' })];
+    h.state.made = { id: 7 };
+    await h.save();
+    assert.equal(h.calls.filter(c => c[0] === 'PUT').length, 0);
+    assert.deepEqual(h.calls.filter(c => c[0] === 'schedule').map(c => [c[1].channelItemId, c[1].programStart]), [['506', later]]);
+    // Change recording still edits the named schedule
+    h.p.closeWindow();
+    const ch = h.b.document.createElement('button');
+    ch.setAttribute('data-act', 'change-recording'); ch.setAttribute('data-id', 'nxt');
+    h.p.root.appendChild(ch); ch.click();
+    await new Promise(setImmediate);
+    assert.match(h.body(), /CHANGE RECORDING · RECORDING SCHEDULED/, 'Change recording: the named schedule\'s own window');
 });

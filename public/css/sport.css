@@ -391,6 +391,10 @@
 .sp .series .sh span { margin-left: auto; font-size: 13px; color: var(--color-text-secondary); }
 .sp .sm { display: flex; align-items: center; gap: 12px; padding: 9px 6px; border-bottom: 1px solid var(--color-border); }
 .sp .sm:last-child { border-bottom: 0; }
+.sp .sm.smbtn { width: 100%; font: inherit; color: inherit; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--color-border); cursor: pointer; }
+.sp .sm.smbtn:last-child { border-bottom: 0; }
+.sp .sm.smbtn.cur { background: color-mix(in srgb, var(--live) 8%, transparent); }
+.sp .sm.smbtn:hover { background: var(--color-surface-hover, color-mix(in srgb, currentColor 6%, transparent)); }
 .sp .sm.cur { background: color-mix(in srgb, var(--live) 8%, transparent); }
 .sp .sm .a b { display: block; font-size: 14px; }
 .sp .sm .a span { font-size: 12px; color: var(--color-text-secondary); }

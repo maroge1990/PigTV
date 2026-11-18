@@ -492,7 +492,9 @@ class SportsPage {
             case 'more': case 'record-menu': { const g = this.game(id); return g ? this.openMenu(g, el) : undefined; }
             case 'record-every': return this.recordEvery(id);
             // #327: iOS's record page (More options…, Change recording)
-            case 'record-options': case 'change-recording': return this.openRecord(id, { opener: this.openerFor(el) });
+            // #347 (Codex): Change recording edits the schedule the card names; More options always picks an airing first
+            case 'change-recording': return this.openRecord(id, { opener: this.openerFor(el) });
+            case 'record-options': return this.openRecord(id, { opener: this.openerFor(el), pick: true });
             case 'record-listed': return this.recordListed(id);
             case 'unlisted-cancel': return this.recordListed(id, true);
             case 'pin': return this.pin(id);
@@ -532,13 +534,21 @@ class SportsPage {
      * Before a new action on a game, a cancel of its recording still waiting for its Undo is sent now and awaited (iOS:
      * commitPendingUndo): Record then makes a new recording, never one that the waiting cancel would remove later.
      */
-    async settleCancels(gameId) {
+    async settleCancels(g) {
+        const key = SportsPage.cancelKey(g);
         for (const entry of [...this.cancels.values()]) {
-            if (entry.gameId !== gameId) continue;
+            if (entry.gameId !== key) continue;
             const sending = entry.send();
             entry.notice?.close?.(); // its Undo is gone
             await sending.catch(() => {});
         }
+    }
+    /**
+     * #347 (Codex, high): the one identity a waiting cancel is held and settled by, the same for a front card and the sport
+     * page's item for the same game (its `card`): the game's recording id (gameIdOf), else its own id.
+     */
+    static cancelKey(g) {
+        return SportsPage.gameIdOf(g) || (g && g.id) || null;
     }
     /** A league page's game without a C-R card, as a game on its own channels ("fx:<league>:<id>"). */
     fixtureById(id) {
@@ -557,7 +567,10 @@ class SportsPage {
             return s ? SportView.sessionGame(s, a.weekend, this.now()) : null;
         }
         const m = [a.lead, ...(a.others || [])].find(x => x && `ck:${x.id}` === id);
-        return m ? SportView.cricketGame(m) : null;
+        if (m) return SportView.cricketGame(m);
+        // #347: a match of the lead's tour (its series list), with the lead's teams for its title
+        const sm = ((a.series && a.series.matches) || []).find(x => x && `ck:${x.id}` === id);
+        return sm ? SportView.cricketGame({ teams: a.lead && a.lead.teams, ...sm, channels: [] }) : null;
     }
     /** A round, a standings view or a table group chosen on a league page. */
     chooseFixture(choice) {
@@ -601,13 +614,23 @@ class SportsPage {
      * else a partial completed one (the longest, then the earliest start).
      */
     static recordingFor(rows, g) {
-        if (!g || !g.id || !Array.isArray(rows)) return null;
-        const mine = rows.filter(r => r && r.gameId === g.id);
+        const id = SportsPage.gameIdOf(g);
+        if (!id || !Array.isArray(rows)) return null;
+        const mine = rows.filter(r => r && r.gameId === id);
         const best = (list) => list.slice().sort((a, b) => (b.duration_sec || 0) - (a.duration_sec || 0) || (a.started_at || 0) - (b.started_at || 0))[0] || null;
         const done = mine.filter(r => r.status === 'completed');
         return best(done.filter(r => !r.is_partial))
             || mine.find(r => r.status === 'recording' && r.watch_live === true)
             || best(done) || null;
+    }
+    /**
+     * The game's id as a recording carries it (`gameId`): a card's own id; a sport page's game without a card (a fixture,
+     * an F1 session, a cricket match) its `card`, the C-R card id of the same game (#347); null when it has none.
+     */
+    static gameIdOf(g) {
+        if (!g) return null;
+        if (!g.synthetic) return g.id || null;
+        return typeof g.card === 'string' && g.card ? g.card : null;
     }
     /** Play this game's recording in the Recordings player (from its start while it still records, never offering Go to live: the live edge of a finished game shows the result); nothing when there is none. */
     async playRecordingOf(g) {
@@ -684,11 +707,11 @@ class SportsPage {
         this.closeMenu();
         const g = this.game(id), ev = g && SportView.event(g);
         if (!ev || SportView.terminal(g)) return;
-        await this.settleCancels(g.id);
+        await this.settleCancels(g);
         try {
             const c = ev.channel;
             const made = await API.recordings.schedule({ sourceId: Number(c.sourceId), channelItemId: c.id, channelName: c.name,
-                title: g.title, programStart: ev.start, programEnd: ev.end, ...(g.synthetic ? {} : { gameId: g.id }) });
+                title: g.title, programStart: ev.start, programEnd: ev.end, ...(SportsPage.gameIdOf(g) ? { gameId: SportsPage.gameIdOf(g) } : {}) });
             const clash = Array.isArray(made?.conflictsWith) && made.conflictsWith.length;
             UI.toast(SportsPage.already(made) || (clash ? `Set to record. It clashes with ${made.conflictsWith.map(x => x.title || x).join(', ')}.` : `Set to record: ${g.title}.`));
             this.refresh();
@@ -1098,7 +1121,11 @@ class SportsPage {
      * (C-R `recording`) opens as Change recording on that schedule (0662: its padding is changed with PUT, never a second
      * schedule), whichever channel was asked for.
      */
-    openRecord(id, { channel = null, opener = null } = {}) {
+    /**
+     * The record window: Change recording of the schedule the card names, or (none, or `pick`: More options) Record with
+     * its airing to choose; the choice then edits a schedule of that airing or makes one (recordNow).
+     */
+    openRecord(id, { channel = null, opener = null, pick = false } = {}) {
         const g = this.game(id), ev = g && SportView.event(g);
         if (!ev || SportView.terminal(g)) return undefined;
         opener = opener || this.openerFor(null);
@@ -1106,7 +1133,7 @@ class SportsPage {
         const now = this.now();
         let airings = (g.channels || []).map(c => ({ c, key: SportsPage.channelKey(c), ...this.airing(g, c) })).filter(a => a.end > now);
         if (!airings.length) airings = [{ c: ev.channel, key: SportsPage.channelKey(ev.channel), start: ev.start, end: ev.end }];
-        const rec = SportsPage.recordingOf(g);
+        const rec = pick ? null : SportsPage.recordingOf(g);
         // Opus review of #327: the chosen channel is never switched silently: one whose airing has ended by now leaves
         // the choice to the person
         const index = channel ? airings.findIndex(a => a.key === channel) : 0;
@@ -1155,17 +1182,26 @@ class SportsPage {
         if (this.window === w) w.redraw();
     }
     /**
-     * The game's active schedule in `GET /recordings/scheduled` rows: the one C-R names for it now, else one on any of its
-     * channels (its identity) whose times overlap that channel's airing of the game. Rows do not carry the game's id.
+     * #347: the active schedule that already records the chosen airing `a` ({ c, start, end }), or null. It must be active
+     * and its guide slot (`program_start` to its first `program_end`) overlap the chosen airing; then it is this game's:
+     * - a row naming a game (`gameId`): only this game's id (a row of another game never is, whatever its channel);
+     * - the schedule the card names (C-R `recording`);
+     * - an older row naming no game: on one of the game's channels, overlapping the game's own airing THERE too (a channel
+     *   that carries the game hours later does not make another programme on it this game).
+     * A schedule of another airing of the game (a Test's other day, an earlier showing) is not this one.
      */
-    scheduleOf(g, rows) {
+    scheduleForAiring(g, a, rows) {
+        if (!a) return null;
         const active = (r) => r && ['scheduled', 'waiting', 'recording'].includes(r.status);
-        const named = SportsPage.recordingOf(this.game(g.id) || g);
-        const byId = named && rows.find(r => active(r) && r.id === named.id);
-        if (byId) return byId;
-        const airings = (g.channels || []).map(c => ({ c, ...this.airing(g, c) }));
-        return rows.find(r => active(r) && airings.some(a => SportsPage.rowOnChannel(r, a.c)
-            && r.program_start < a.end && r.program_end > a.start)) || null;
+        const named = SportsPage.recordingOf(this.game(g.id) || g), id = SportsPage.gameIdOf(g);
+        const slotEnd = (r) => (Number.isFinite(r.program_end_original) ? r.program_end_original : r.program_end);
+        const overlaps = (r, w) => r.program_start < w.end && slotEnd(r) > w.start;
+        const ours = (r) => {
+            if (r.gameId) return Boolean(id) && r.gameId === id;
+            if (named && r.id === named.id) return true;
+            return (g.channels || []).some(c => SportsPage.rowOnChannel(r, c) && overlaps(r, this.airing(g, c)));
+        };
+        return rows.find(r => active(r) && overlaps(r, a) && ours(r)) || null;
     }
     /** What Save changes sends (RecordPlan.change): only what changed, Start early not once it records; null when nothing has. */
     static change(st) {
@@ -1200,7 +1236,7 @@ class SportsPage {
             html += '</div>';
         }
         // When it stops: with the game (ESPN) for a card's game or a schedule linked to one, else the guide's end
-        const withGame = changing && st.schedule ? st.schedule.endsWith === 'event' : !g.synthetic;
+        const withGame = changing && st.schedule ? st.schedule.endsWith === 'event' : Boolean(SportsPage.gameIdOf(g));
         const stop = withGame ? 'When the game ends (ESPN)' : 'When the guide says it ends';
         html += `<h3 class="rsec">When it stops</h3><div class="rstop"><span class="rradio on" aria-hidden="true"></span><span class="rcht"><b>${e(stop)}</b></span></div>`;
         const startLocked = changing && (!st.schedule || st.schedule.status === 'recording' || st.gone);
@@ -1276,7 +1312,7 @@ class SportsPage {
             if (fresh && !fresh.recording) fresh.recording = recording;
             this.render();
         };
-        const entry = { id, gameId: g.id, notice: null, sending: null };
+        const entry = { id, gameId: SportsPage.cancelKey(g), notice: null, sending: null };
         entry.send = (keepalive = false) => {
             if (!entry.sending) {
                 entry.sending = API.request('DELETE', `/recordings/scheduled/${id}`, null, { keepalive }).then(
@@ -1344,7 +1380,7 @@ class SportsPage {
     }
     /** What the primary button does; answers the notice to show, or null (the page says why); throws a failure. */
     async recordNow(st) {
-        await this.settleCancels(st.g.id);
+        await this.settleCancels(st.g);
         const g = st.g, pad = { ...(st.pre != null ? { preBufferMin: st.pre } : {}), ...(st.post != null ? { postBufferMin: st.post } : {}) };
         const plain = (message) => Object.assign(new Error(message), { plain: true });
         const failing = (failText, run) => Promise.resolve().then(run).catch((err) => { if (err && !err.plain && !err.failText) err.failText = failText; throw err; });
@@ -1379,19 +1415,20 @@ class SportsPage {
             await failing('The rule could not be added.', () => API.recordings.addRule({ kind: 'sport', match: what.league, ...pad }));
             return `Recording every ${SportView.label(what.league, this.labels)} game.`;
         }
+        // #347 (Codex sign-off, high): the chosen airing first; only a schedule of THAT airing is this recording
+        const a = st.airings[st.index];
+        if (!a) throw plain('Choose a channel to record on.');
         // Codex #327 (high): set to record meanwhile (another tab, person or rule)? Then the person's padding goes to that
         // recording (0662: never a second schedule); a list that cannot be read records nothing.
-        const row = this.scheduleOf(g, await rows(SportsPage.UNCHECKED));
+        const row = this.scheduleForAiring(g, a, await rows(SportsPage.UNCHECKED));
         if (row) {
             const body = SportsPage.change({ schedule: row, pre: st.pre, post: st.post });
             if (body) await failing('The recording could not be changed.', () => API.request('PUT', `/recordings/scheduled/${row.id}`, body));
             return body ? 'This game was already set to record, so your changes went to that recording.' : 'This game is already set to record.';
         }
-        const a = st.airings[st.index];
-        if (!a) throw plain('Choose a channel to record on.');
         const c = a.c;
         const made = await failing('The recording could not be scheduled.', () => API.recordings.schedule({ sourceId: Number(c.sourceId), channelItemId: c.id,
-            channelName: c.name, title: g.title, programStart: a.start, programEnd: a.end, ...pad, ...(g.synthetic ? {} : { gameId: g.id }) }));
+            channelName: c.name, title: g.title, programStart: a.start, programEnd: a.end, ...pad, ...(SportsPage.gameIdOf(g) ? { gameId: SportsPage.gameIdOf(g) } : {}) }));
         const already = SportsPage.already(made);
         if (already) return already;
         const clash = Array.isArray(made?.conflictsWith) && made.conflictsWith.length;

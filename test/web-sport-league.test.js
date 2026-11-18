@@ -119,7 +119,7 @@ test('#sports/Football/EPL asks for the league\'s page, draws it under "‹ Foot
     assert.doesNotMatch(p.root.innerHTML, /class="more-row"/);
 });
 
-test('a fixture with no front-page card plays and records on its own channels, with no game id', async () => {
+test('a fixture with no front-page card plays and records on its own channels, with its C-T `card` as the game id (#347)', async () => {
     const sent = [];
     const data = afl();
     const g = data.rounds[1].games[0];
@@ -136,5 +136,7 @@ test('a fixture with no front-page card plays and records on its own channels, w
     assert.equal(game.title, 'Fremantle v Brisbane Lions');
     assert.equal(b.V.action(game, p.now()), 'remind');
     await p.record(id);
-    eq(sent, [{ sourceId: 2, channelItemId: '77', channelName: 'Fox Footy', title: 'Fremantle v Brisbane Lions', programStart: NOW + 7000000, programEnd: NOW + 18000000 }]);
+    eq(sent, [{ sourceId: 2, channelItemId: '77', channelName: 'Fox Footy', title: 'Fremantle v Brisbane Lions', programStart: NOW + 7000000, programEnd: NOW + 18000000,
+        gameId: g.card }]);
+    assert.match(g.card, /^espn:australian-football\/afl:\d+$/);
 });

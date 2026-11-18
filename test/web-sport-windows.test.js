@@ -147,8 +147,7 @@ test('a page game without a card (no game id): the guide\'s end, and no game id 
 
 // 0662 (#323 Codex review of step 5): a game already set to record is changed, never scheduled a second time.
 const row = (o) => ({ id: 4, status: 'scheduled', pre_buffer_min: 2, post_buffer_min: 15, endsWith: 'event', source_id: 1, channel_item_id: '102', channel_stable_id: 's2', channel_name: 'Stan Sport 2', ...o });
-for (const [entry, how] of [['More options…', (h) => h.p.act('record-options', { getAttribute: (k) => ({ 'data-id': 'nxt' })[k] ?? null })],
-    ['the record page on another channel', (h) => { h.p.openRecord('nxt', { channel: '2:k5' }); }]]) {
+for (const [entry, how] of [['the record page on another channel', (h) => { h.p.openRecord('nxt', { channel: '2:k5' }); }]]) {
     test(`Change recording from ${entry}: its own padding, Save changes sends only what changed with PUT`, async () => {
         const h = await harness({ scheduled: [row()] });
         h.f.games.find(x => x.id === 'nxt').recording = { scheduleId: 4, status: 'scheduled' };
@@ -174,6 +173,26 @@ for (const [entry, how] of [['More options…', (h) => h.p.act('record-options',
         assert.deepEqual(plain(h.calls.find(c => c[0] === 'PUT')), ['PUT', '/recordings/scheduled/4', { postBufferMin: 30 }]);
     });
 }
+
+// #347 (Codex sign-off 2): More options… always picks an airing first, even with the game set to record; Save then
+// changes the schedule of the airing chosen (0662: never a second schedule of it), or records another airing.
+test('More options… on a game set to record: the airings to choose; the same airing chosen changes its schedule with PUT', async () => {
+    const listed = [];
+    const h = await harness({ scheduled: listed });
+    const nxt = h.f.games.find(x => x.id === 'nxt');
+    nxt.recording = { scheduleId: 4, status: 'scheduled' };
+    h.p.act('record-options', { getAttribute: (k) => ({ 'data-id': 'nxt' })[k] ?? null });
+    await h.settle();
+    const html = h.body();
+    assert.doesNotMatch(html, /CHANGE RECORDING/);
+    assert.match(html, /aria-checked="true" data-act="r-on" data-index="0"/, 'the best airing chosen, the others offered');
+    h.choose('sp-rec-post', '30');
+    listed.push(row({ program_start: nxt.channels[0].start, program_end: nxt.channels[0].end, gameId: 'nxt' }));
+    h.footer('r-save').click();
+    await h.settle();
+    assert.equal(h.calls.filter(c => c[0] === 'schedule').length, 0, 'no second schedule');
+    assert.deepEqual(plain(h.calls.find(c => c[0] === 'PUT')), ['PUT', '/recordings/scheduled/4', { postBufferMin: 30 }]);
+});
 
 test('Change recording while it records: Start early is locked, only Finish late changes; Stop recording; a gone schedule changes nothing', async () => {
     const h = await harness({ scheduled: [row({ status: 'recording' })] });
