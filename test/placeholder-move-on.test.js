@@ -501,8 +501,9 @@ test('Codex high: the game\'s channels are found by stable id after a sync moved
         assert.equal(connections['/real99.ts'], undefined, 'the station now at pos_5 is never played');
         assert.equal(connections['/real10.ts'], undefined, 'a channel whose identity is gone is skipped, not played by its old position');
         assert.ok(connections['/real12.ts'] > 0);
-        const history = dbh.prepare('SELECT channel_item_id, stable_id FROM channel_history ORDER BY watched_at DESC, rowid DESC LIMIT 1').get();
-        assert.deepEqual({ ...history }, { channel_item_id: 'pos_12', stable_id: 's105' });
+        // History is kept per stable identity (the recent list joins on it): the latest row is Sportsnet One's.
+        const history = dbh.prepare('SELECT channel_name, stable_id FROM channel_history ORDER BY watched_at DESC, rowid DESC LIMIT 1').get();
+        assert.deepEqual({ ...history }, { channel_name: 'Sportsnet One', stable_id: 's105' });
     } finally {
         dbh.prepare('DELETE FROM playlist_items WHERE id = ?').run(`${A.id}:pos_12`);
         dbh.prepare(`UPDATE playlist_items SET name = 'Sportsnet One', stable_id = 's105', stream_url = ? WHERE id = ?`).run(`${base}/real5.ts`, `${A.id}:pos_5`);
@@ -828,4 +829,65 @@ test('Codex high: a session removed while its start waits on a stalled shared in
     assert.equal(stalledClosed - closed, 1, 'the provider saw the connection closed');
     const outcome = await starting;
     assert.ok(outcome instanceof Error && outcome.superseded, 'the replaced start ends as superseded');
+});
+
+test('Codex medium: recent-play history is kept per stable identity: a sync that gives A\'s position to B never lets one overwrite the other, in either order', async () => {
+    const dbh = sqlite.getDb();
+    const user = String(userId);
+    const realSubscribe = ingest.subscribe;
+    const moveAway = () => {
+        // The sync: Sportsnet Ontario (s107) moves to pos_7x; pos_7 is now an unrelated live station (s997).
+        dbh.prepare(`INSERT INTO playlist_items (id, source_id, item_id, type, name, category_id, is_hidden, sort_order, stable_id, stream_url)
+                     VALUES (?, ?, 'pos_7x', 'live', 'Sportsnet Ontario', 'Sport', 0, 31, 's107', ?)`).run(`${A.id}:pos_7x`, A.id, `${base}/real7.ts`);
+        dbh.prepare(`UPDATE playlist_items SET name = 'Shopping Channel', stable_id = 's997', stream_url = ? WHERE id = ?`).run(`${base}/real97.ts`, `${A.id}:pos_7`);
+    };
+    const restore = () => {
+        dbh.prepare('DELETE FROM playlist_items WHERE id = ?').run(`${A.id}:pos_7x`);
+        dbh.prepare(`UPDATE playlist_items SET name = 'Sportsnet Ontario', stable_id = 's107', stream_url = ? WHERE id = ?`).run(`${base}/real7.ts`, `${A.id}:pos_7`);
+    };
+    const history = () => Object.fromEntries(dbh.prepare('SELECT stable_id, channel_name FROM channel_history WHERE user_id = ? AND stable_id IN (\'s107\', \'s997\')').all(user)
+        .map(r => [r.stable_id, r.channel_name]));
+    const clear = () => dbh.prepare('DELETE FROM channel_history WHERE user_id = ?').run(user);
+    try {
+        // 1. A's resolve finishes late: the sync ran during its start and B was already watched at pos_7.
+        clear();
+        let once = false;
+        ingest.subscribe = (opts) => {
+            if (!once && /real7\.ts/.test(opts.url)) {
+                once = true;
+                moveAway();
+                dbh.prepare(`INSERT INTO channel_history (user_id, source_id, channel_item_id, channel_name, watched_at, play_count, stable_id)
+                             VALUES (?, ?, 'pos_7', 'Shopping Channel', ?, 1, 's997')`).run(user, A.id, Date.now());
+            }
+            return realSubscribe(opts);
+        };
+        const late = await play('pos_7');
+        assert.equal(late.status, 200, JSON.stringify(late.body));
+        assert.deepEqual(history(), { s107: 'Sportsnet Ontario', s997: 'Shopping Channel' }, 'A late: B\'s row is untouched, A has its own');
+        ingest.subscribe = realSubscribe;
+        restore();
+        await transcodeSession.removeSession(late.body.sessionId);
+        coordinator._leases.clear();
+        // 2. A first, then the sync, then B played at the position A had.
+        clear();
+        const first = await play('pos_7');
+        assert.equal(first.status, 200, JSON.stringify(first.body));
+        await transcodeSession.removeSession(first.body.sessionId);
+        coordinator._leases.clear();
+        moveAway();
+        const second = await play('pos_7');
+        assert.equal(second.status, 200, JSON.stringify(second.body));
+        assert.deepEqual(history(), { s107: 'Sportsnet Ontario', s997: 'Shopping Channel' }, 'B after A: A\'s row is untouched, B has its own');
+        // A played again under its new position: still its one row.
+        await transcodeSession.removeSession(second.body.sessionId);
+        coordinator._leases.clear();
+        const again = await play('pos_7x');
+        assert.equal(again.status, 200, JSON.stringify(again.body));
+        assert.equal(dbh.prepare('SELECT COUNT(*) AS n FROM channel_history WHERE user_id = ? AND stable_id = \'s107\'').get(user).n, 1);
+        assert.equal(dbh.prepare('SELECT play_count FROM channel_history WHERE user_id = ? AND stable_id = \'s107\'').get(user).play_count, 2);
+    } finally {
+        ingest.subscribe = realSubscribe;
+        restore();
+        clear();
+    }
 });

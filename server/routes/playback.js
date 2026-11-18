@@ -589,6 +589,39 @@ function currentRow(listed) {
     } catch (e) { return null; }
 }
 
+/**
+ * #348 (Codex): a play of a channel with a stable identity is recorded on the user's row for that identity (the recent
+ * list joins on it), never upserted on a position a sync may have given another channel since. The row's
+ * `channel_item_id` (part of the key) is the channel's current position; when another identity's row already holds that
+ * position, `stable:<id>` stands in, so neither overwrites the other.
+ */
+function recordHistoryByIdentity(user, sourceId, stableId, name, fallbackItemId) {
+    const db = getDb();
+    const now = Date.now();
+    const current = db.prepare(`
+        SELECT item_id, name FROM playlist_items WHERE source_id = ? AND type = 'live' AND stable_id = ?
+        ORDER BY CASE WHEN sort_order IS NULL THEN 1 ELSE 0 END, sort_order ASC LIMIT 1
+    `).get(sourceId, stableId);
+    const label = name || (current && current.name) || null;
+    const mine = db.prepare('SELECT channel_item_id FROM channel_history WHERE user_id = ? AND source_id = ? AND stable_id = ? ORDER BY watched_at DESC LIMIT 1')
+        .get(user, sourceId, stableId);
+    if (mine) {
+        db.prepare(`UPDATE channel_history SET watched_at = ?, play_count = play_count + 1, channel_name = COALESCE(?, channel_name)
+                    WHERE user_id = ? AND source_id = ? AND channel_item_id = ?`).run(now, label, user, sourceId, mine.channel_item_id);
+        return;
+    }
+    let itemId = (current && current.item_id) || fallbackItemId;
+    const taken = db.prepare('SELECT stable_id FROM channel_history WHERE user_id = ? AND source_id = ? AND channel_item_id = ?').get(user, sourceId, itemId);
+    if (taken) itemId = `stable:${stableId}`;
+    db.prepare(`
+        INSERT INTO channel_history (user_id, source_id, channel_item_id, channel_name, watched_at, play_count, stable_id)
+        VALUES (?, ?, ?, ?, ?, 1, ?)
+        ON CONFLICT(user_id, source_id, channel_item_id) DO UPDATE SET
+            watched_at = excluded.watched_at, play_count = play_count + 1, channel_name = COALESCE(excluded.channel_name, channel_name)
+        WHERE stable_id = excluded.stable_id
+    `).run(user, sourceId, itemId, label, now, stableId);
+}
+
 /** The 409 a client repeats with force. */
 function sendConflict(res, verdict, { everyProvider = false } = {}) {
     const isViewer = verdict.conflict && verdict.conflict.type === 'viewer-in-progress';
@@ -620,6 +653,12 @@ function everyProviderMessage(conflict) {
  * never be the reason playback fails.
  */
 function recordHistory(req, sourceId, channelId, identity = null) {
+    if (sourceId !== undefined && channelId !== undefined && req.user && identity && identity.stableId) {
+        try { recordHistoryByIdentity(String(req.user.id), Number(identity.sourceId ?? sourceId), String(identity.stableId), identity.name || null, bareChannelId(channelId)); } catch (e) {
+            console.warn('[Playback] Could not record history:', e.message);
+        }
+        return;
+    }
     if (sourceId !== undefined && channelId !== undefined && req.user) {
         try {
             const stripped = bareChannelId(channelId);
