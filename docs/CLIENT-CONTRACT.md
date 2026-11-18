@@ -253,6 +253,8 @@ work is in `docs/architecture/sports.md` › Recognition; the shape the client r
   - `live`: on now. `quality`: `"UHD"` | `"FHD"` | `"HD"` | `"SD"` | null from the channel name (C-X's rule; `"FHD"` since
     #265, an older client reads it as no label).
   - `channels`: best first (quality UHD, FHD, HD, untagged, SD; health ok, favourite, guide order). `channels[0]` plays through the ordinary resolve.
+    Since #348 a measured channel (`measured`, below) ranks by its measured `label` (4K as UHD, 1080 as FHD, 720 as HD, SD)
+    instead of its name's tag; `quality` stays the name's.
   - Since #265 step 2 (D-65, additive) a channel the server has measured also carries `measured: { label, fps }` (C-X);
     absent when never measured. Every projection of C-I channels (C-O/C-R cards, the sport pages) keeps it.
   - With it (D-65, additive) every channel carries `nameKey` (C-X), and copies sharing a `nameKey` are ordered best first

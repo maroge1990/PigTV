@@ -952,15 +952,44 @@ test('C-I: within the preferred name its best measured copy is channels[0]; othe
     try {
         for (const query of ['', '?hours=24']) {
             const nfl = find(await events(query), 'NFL')[0].channels;
-            // the old order: Sky Sports UHD, ESPN 2 HD, Sky Sports HD (both HD tags, guide order), Fox Sports 505 SD. The two
-            // Sky copies swap within the places their name holds; ESPN 2 (4K 60) stays where it was.
-            assert.deepEqual(nfl.map(c => c.name), ['Sky Sports HD', 'ESPN 2 HD', 'Sky Sports UHD', 'Fox Sports 505 SD'],
+            // #348: measured quality first: ESPN 2 HD (4K) and Sky Sports HD (4K) as UHD, in guide order, then Sky Sports UHD
+            // (measured 1080: FHD), then Fox Sports 505 SD. The two Sky copies then swap within the places their name holds.
+            assert.deepEqual(nfl.map(c => c.name), ['ESPN 2 HD', 'Sky Sports HD', 'Sky Sports UHD', 'Fox Sports 505 SD'],
                 `${query}: the 4K copy leads its name; no name moves ahead of another`);
-            assert.deepEqual(nfl.map(c => c.nameKey), ['sky sports', 'espn 2', 'sky sports', 'fox sports 505']);
+            assert.deepEqual(nfl.map(c => c.nameKey), ['espn 2', 'sky sports', 'sky sports', 'fox sports 505']);
         }
     } finally {
         d.prepare('DELETE FROM channel_measurements').run();
         d.prepare(`DELETE FROM playlist_items WHERE item_id = 'copy_sky'`).run();
+        load('services/sportsEvents').reset();
+    }
+});
+
+// #348: a measured channel ranks by what was measured (4K -> UHD, 1080 -> FHD, 720 -> HD, SD), not by its name's tag; an
+// unmeasured one keeps the name rule; `quality` stays the name's. The old code ranked by the name only, so a "4K"-named
+// channel measured at 1080p led an HD-named one also measured at 1080p, and an HD-named one measured 4K stayed with HD.
+test('#348: measured quality, not the name, decides the order; quality stays the name\'s', async () => {
+    const d = sqlite.getDb();
+    d.prepare('DELETE FROM channel_health').run();
+    d.prepare('DELETE FROM favorites').run();
+    load('services/channelHealth').reset();
+    const keyOf = (name) => d.prepare(`SELECT source_id, COALESCE(stable_id, item_id) AS k FROM playlist_items WHERE name = ?`).get(name);
+    const ins = d.prepare(`INSERT INTO channel_measurements (source_id, channel_key, height, fps, kbps, measured_at, source) VALUES (?, ?, ?, ?, 1, 1, 'audit')`);
+    const measure = (name, height) => { const c = keyOf(name); ins.run(c.source_id, c.k, height, 30); };
+    try {
+        measure('Sky Sports UHD', 1080);
+        measure('ESPN 2 HD', 1080);
+        measure('ESPN', 2160);
+        const body = await events('?hours=24');
+        const nfl = find(body, 'NFL')[0].channels;
+        // both measured 1080 (FHD): guide order decides, ESPN 2 HD first; the unmeasured SD-named one last
+        assert.deepEqual(nfl.map(c => c.name), ['ESPN 2 HD', 'Sky Sports UHD', 'Fox Sports 505 SD']);
+        assert.deepEqual(nfl.map(c => c.quality), ['HD', 'UHD', 'SD'], 'quality is still read from the name');
+        // ESPN (no tag) measured 4K ranks as UHD, ahead of the HD-named Kayo 2 and the measured-1080 ESPN 2 HD
+        const rugby = find(body, 'Rugby')[0].channels.map(c => c.name);
+        assert.deepEqual(rugby, ['ESPN', 'ESPN 2 HD', 'Kayo 2 HD', 'Seven']);
+    } finally {
+        d.prepare('DELETE FROM channel_measurements').run();
         load('services/sportsEvents').reset();
     }
 });

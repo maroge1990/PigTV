@@ -313,6 +313,10 @@ function normaliseTitle(title, channelName = '') {
 }
 
 const healthRank = (h) => (h === 'ok' ? 0 : h === 'flaky' ? 2 : 1);
+// #348: a channel PigTV has measured ranks by what it measured, not by its name's tag ("Sportsnet Event 4K" measured
+// at 1080p is FHD here); an unmeasured one keeps the name rule. Only the order: C-I's `quality` stays the name's.
+const MEASURED_QUALITY = { '4K': 'UHD', '1080': 'FHD', '720': 'HD', SD: 'SD' };
+const rankQuality = (ch) => qualityRank((ch.measured && MEASURED_QUALITY[ch.measured.label]) || ch.quality);
 
 // ---- the follow list -----------------------------------------------------------
 
@@ -956,10 +960,10 @@ function overrunOut(ev, now, isFav, end, withRule = false) {
     return { ...out, end, live: true, channels: out.channels.map(ch => (ch.end === undefined ? ch : { ...ch, end })) };
 }
 
-/** One cached event as C-I answers it: its channels best first (quality, health ok, favourite, guide order). */
+/** One cached event as C-I answers it: its channels best first (quality: measured, else the name's; health ok, favourite, guide order). */
 function eventOut(ev, now, isFav, withRule = false) {
     const channels = bestWithinName(ev.channels.slice().sort((a, b) =>
-        qualityRank(a.quality) - qualityRank(b.quality)
+        rankQuality(a) - rankQuality(b)
         || healthRank(a.health) - healthRank(b.health)
         || (isFav(b) ? 1 : 0) - (isFav(a) ? 1 : 0)
         || a.order - b.order));
@@ -1083,7 +1087,7 @@ const channelJson = (ch) => JSON.stringify({
     number: ch.number, logo: ch.logo, quality: ch.quality, nameKey: ch.nameKey, ...(ch.measured ? { measured: ch.measured } : {})
 });
 const favKeysOf = (ch) => [`${ch.sourceId}:${ch.stableId || ch.id}`, `${ch.sourceId}:${ch.id}`];
-const byBaseOrder = (a, b) => qualityRank(a.quality) - qualityRank(b.quality)
+const byBaseOrder = (a, b) => rankQuality(a) - rankQuality(b)
     || healthRank(a.health) - healthRank(b.health)
     || a.order - b.order;
 
@@ -1142,7 +1146,7 @@ function favouriteTails(prep, favs, favSig) {
         for (const entry of prep.byFav.get(k) || []) {
             if (tails.has(entry)) continue;
             const channels = bestWithinName(entry.ev.channels.slice().sort((a, b) =>
-                qualityRank(a.quality) - qualityRank(b.quality)
+                rankQuality(a) - rankQuality(b)
                 || healthRank(a.health) - healthRank(b.health)
                 || (isFav(b) ? 1 : 0) - (isFav(a) ? 1 : 0)
                 || a.order - b.order));
