@@ -65,6 +65,7 @@ const target = args.find(a => /^https?:/.test(a)) || '';
 let video = { width: 1920, height: 1080, avg_frame_rate: '25/1' }, format = { format_name: 'mpegts' };
 if (/\\/file25/.test(target)) { video = { width: 1920, height: 1080, avg_frame_rate: '25/1' }; format = { format_name: 'mpegts', duration: '600.0', size: '9000000' }; }
 else if (/\\/file/.test(target)) { video = { width: 1920, height: 1080, avg_frame_rate: '30/1' }; format = { format_name: 'mpegts', duration: '600.0', size: '9000000' }; }
+else if (/\\/hls/.test(target)) { video = { width: 1920, height: 1080, avg_frame_rate: '30/1' }; format = { format_name: 'hls' }; }
 else if (/\\/longfile/.test(target)) { video = { width: 1280, height: 720, avg_frame_rate: '25/1' }; format = { format_name: 'mpegts', duration: '7200.0', size: '3000000000' }; }
 const answer = () => { process.stdout.write(JSON.stringify({ streams: [
   { codec_type: 'video', codec_name: 'h264', ...video },
@@ -92,6 +93,12 @@ before(async () => {
     provider = http.createServer((req, res) => {
         const [p] = req.url.split('?');
         connections[p] = (connections[p] || 0) + 1;
+        if (p.startsWith('/hls')) {
+            // A live HLS playlist: its answer has a length (the manifest's), its media does not end.
+            const body = Buffer.from('#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXT-X-MEDIA-SEQUENCE:7\n#EXTINF:4,\nseg7.ts\n');
+            res.writeHead(200, { 'Content-Type': 'application/vnd.apple.mpegurl', 'Content-Length': String(body.length) });
+            return res.end(body);
+        }
         if (p.startsWith('/file') || p.startsWith('/longfile')) {
             const body = Buffer.alloc(188 * 100, 0x47);
             res.writeHead(200, { 'Content-Type': 'video/mp2t', 'Content-Length': String(body.length) });
@@ -120,6 +127,7 @@ before(async () => {
     item.run(`${A.id}:pos_8`, A.id, 'pos_8', 'TSN 4', 8, 's108', `${base}/file8.ts`);             // in two live games
     item.run(`${A.id}:pos_9`, A.id, 'pos_9', 'NHL Center Ice 1', 9, 's1803789', `${base}/file9.ts`); // Sportsnet Event's stream again
     item.run(`${A.id}:pos_10`, A.id, 'pos_10', 'TSN 5', 10, 's110', `${base}/real10.ts`);          // a live channel
+    item.run(`${A.id}:pos_11`, A.id, 'pos_11', 'Sky Sports Arena', 11, 's111', `${base}/hls11.m3u8`); // a live HLS channel, 1080p30
     item.run(`${B.id}:pos_1`, B.id, 'pos_1', 'Sportsnet West', 1, 'sw1', `${base}/realB.ts`);       // on the backup's own pool (1 connection)
     sqlite.getDb().prepare(`INSERT INTO backup_channels (source_id, stream_id, name, url_data) VALUES (?, '901', 'TNT Sports 1', ?)`).run(B.id, `${base}/real.ts`);
     sqlite.getDb().prepare(`INSERT INTO channel_links (primary_source_id, primary_key, backup_source_id, backup_stream_id, method, status, rank, updated_at)
@@ -245,7 +253,10 @@ test('the rule: a source with a length that has the slate\'s shape or lasts at m
     assert.equal(isPlaceholderFile({ width: 1280, height: 720, fps: 25, finite: true, durationSec: 7200 }), false, 'a long real file');
     assert.equal(isPlaceholderFile({ width: 1920, height: 1080, fps: 29.97, finite: true, durationSec: 7200 }), false, '29.97 is a real US channel\'s');
     assert.equal(isPlaceholderFile({ ...shape, finite: false, durationSec: null }), false, 'a live stream');
-    assert.equal(isPlaceholderFile({ ...shape, finite: false }, { refusedFinite: true }), true, 'the ingest refused it as a file');
+    assert.equal(isPlaceholderFile({ ...shape, container: 'hls', finite: true, durationSec: null }), false, 'an HLS manifest\'s size');
+    assert.equal(isPlaceholderFile({ ...shape, container: 'hls', finite: true, durationSec: 600 }), true, 'a 10-minute HLS VOD list');
+    assert.equal(isPlaceholderFile({ ...shape, finite: false }), false,
+        'the ingest\'s Content-Length alone is no evidence the media ends (an HLS manifest has one)');
 });
 
 // ---- part 2: mid-play, a feed-less blank verdict with the placeholder's shape ends the play as the placeholder --------
@@ -436,4 +447,11 @@ test('after a play ended mid-way as the placeholder, the player\'s re-resolve sk
     assert.equal(r.body.fallback.from.id, 'pos_5');
     assert.equal(r.body.fallback.to.id, 'pos_7');
     assert.equal(connections['/real5.ts'], undefined, 'no connection for the slate');
+});
+
+test('Codex high: a live HLS channel answered with a Content-Length (the manifest\'s) at 1080p30 plays; it is not the placeholder file', async () => {
+    const r = await play('pos_11');
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.equal(routing.isPlaceholder(A.id, 's111'), false, 'not held back');
+    assert.equal(routing.isQuarantined(A.id, 's111'), false);
 });

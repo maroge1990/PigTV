@@ -121,8 +121,6 @@ async function probedAnalysis({ url, ffprobePath, userAgent, caps, cacheKey, dea
             // today's C-B text and failover), and the session reads the URL too.
             console.log(`[Playback] shared ingest not used: ${stripUrls(err.message, [url])}`);
             ingestSource.refused = true;
-            // #348: refused as a file with a length (the provider's placeholder file, when it is short or 1080p30).
-            if (err.finite === true) ingestSource.refusedFinite = true;
         }
     }
     let raw;
@@ -179,7 +177,7 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, owner = 
 
     // #348: a live channel's candidate answered with the provider's placeholder file: never started (no session, no
     // provider connection beyond the probe), its analysis not kept, and the walk tries the next candidate.
-    if (liveChannel && isPlaceholderFile(info, ingestSource)) {
+    if (liveChannel && isPlaceholderFile(info)) {
         dropPlaceholderAnalysis({ cacheKey, fromProfile, probedAt, measure });
         try { require('./providerRouting').notePlaceholder(liveChannel.providerId, liveChannel.channelKey); } catch (e) { /* observation only */ }
         console.warn(`[Playback] ${providerLabel(providerId)} answers this channel with a file` +
@@ -441,14 +439,17 @@ async function afterStart({ session, ready, info, plan, probeNote, fromProfile, 
 const PLACEHOLDER_FILE_MAX_SEC = 15 * 60;
 
 /**
- * #348: is this analysis of a live channel's stream the provider's placeholder file? A source with a length (the probe
- * says it ends, or the shared ingest refused it as a file) that has the placeholder's shape (1920x1080 at 30 fps) or
+ * #348: is this analysis of a live channel's stream the provider's placeholder file? A source whose media ends (by the
+ * probe: a duration or size; for HLS a duration) that has the placeholder's shape (1920x1080 at 30 fps) or
  * lasts at most PLACEHOLDER_FILE_MAX_SEC (the provider's is 10 min; #333). A long real-rate file is not.
  */
-function isPlaceholderFile(info, ingestSource = null) {
+function isPlaceholderFile(info) {
     if (!info) return false;
-    const finite = info.finite === true || !!(ingestSource && ingestSource.refusedFinite === true);
-    if (!finite) return false;
+    // Codex (high): the media must end, by the probe's own reading. The ingest's `finite` comes from a Content-Length, which
+    // for HLS is the manifest's while its media is open-ended: never evidence on its own.
+    if (info.finite !== true) return false;
+    // An HLS answer ends only when its playlist has a duration (a VOD list); a size is the manifest's.
+    if (/hls|applehttp/i.test(String(info.container || '')) && !(Number(info.durationSec) > 0)) return false;
     if (hasPlaceholderShape({ width: info.width, height: info.height, fps: info.fps })) return true;
     return Number(info.durationSec) > 0 && Number(info.durationSec) <= PLACEHOLDER_FILE_MAX_SEC;
 }
