@@ -603,7 +603,7 @@ class SportsPage {
         if (done.length) return done[0];
         return mine.find(r => r.status === 'recording' && r.watch_live === true) || null;
     }
-    /** Play this game's recording in the Recordings player (from its start while it still records); nothing when there is none. */
+    /** Play this game's recording in the Recordings player (from its start while it still records, never offering Go to live: the live edge of a finished game shows the result); nothing when there is none. */
     async playRecordingOf(g) {
         this.closeMenu();
         let rows;
@@ -611,7 +611,7 @@ class SportsPage {
         const rec = SportsPage.recordingFor(rows, g);
         const recordings = this.app && this.app.pages && this.app.pages.recordings;
         if (!rec || !recordings || typeof recordings.play !== 'function') return undefined;
-        return recordings.play(rec.id, rec.status === 'recording' ? { watch: true } : {});
+        return recordings.play(rec.id, rec.status === 'recording' ? { watch: true, noLive: true } : {});
     }
 
     /** Play the game's best channel, found again in the channel list by its identity (never a stored position). */

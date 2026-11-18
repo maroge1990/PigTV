@@ -172,3 +172,12 @@ test('#335 (Codex medium): the active list, every 30 s: missing or not recording
     u.page.closePlayer();
     assert.equal(pending.done, true, 'the check is cleared on close');
 });
+
+test('#345: a recording opened from a sport card (noLive) plays from its start and never shows Go to live', async () => {
+    const t = make(watching);
+    await t.page.play(2, { watch: true, noLive: true });
+    await settle();
+    t.video().fire('timeupdate');
+    assert.equal(t.part('.go-live-btn').hidden, true, 'no Go to live, however far behind');
+    assert.equal(t.video().currentTime, 0, 'from the start');
+});

@@ -76,7 +76,7 @@ test('finished game with no completed recording but one still recording that can
     const h = await harness({ recordings: [{ id: 21, gameId: 'avl', status: 'recording', watch_live: true, started_at: 1 }] });
     await h.p.select('avl', h.card());
     assert.deepEqual(h.recPlayed, [21]);
-    assert.deepEqual(plain(h.recOpts), [{ watch: true }]);
+    assert.deepEqual(plain(h.recOpts), [{ watch: true, noLive: true }], 'from its start, with no way to the live edge');
     const partialFirst = await harness({ recordings: [{ id: 5, gameId: 'avl', status: 'completed', is_partial: 1, duration_sec: 99999 }, { id: 6, gameId: 'avl', status: 'completed', is_partial: 0, duration_sec: 10 }] });
     await partialFirst.p.select('avl', partialFirst.card());
     assert.deepEqual(partialFirst.recPlayed, [6], 'a whole recording beats a longer partial one');

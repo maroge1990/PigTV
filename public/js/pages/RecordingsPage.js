@@ -929,9 +929,9 @@ class RecordingsPage {
     /**
      * Open the player. #62: the page asks the server for the address (`/playback?async=1`, or `/watch` for a recording
      * still in progress), shows "Preparing…" while the server gets it ready, then plays it; every failure is written in
-     * the player with Try again, never a silent black box. `watch` plays a recording in progress from its start.
+     * the player with Try again, never a silent black box. `watch` plays a recording in progress from its start; `noLive` leaves out its Go to live.
      */
-    async play(id, { watch = false } = {}) {
+    async play(id, { watch = false, noLive = false } = {}) {
         this.closePlayer();
 
         const overlay = document.createElement('div');
@@ -976,7 +976,7 @@ class RecordingsPage {
         }
         if (resumeAt === null || this._playerOverlay !== overlay) return; // closed while asking
 
-        await this.startPlayback(overlay, id, { watch, resumeAt });
+        await this.startPlayback(overlay, id, { watch, resumeAt, noLive });
     }
 
     /** Show a state in the player's status area (hidden when `kind` is null). */
@@ -989,8 +989,8 @@ class RecordingsPage {
     }
 
     /** Resolve, then play; any failure is shown with Try again, which starts this again. */
-    async startPlayback(overlay, id, { watch, resumeAt }) {
-        const retry = () => this.startPlayback(overlay, id, { watch, resumeAt });
+    async startPlayback(overlay, id, { watch, resumeAt, noLive = false }) {
+        const retry = () => this.startPlayback(overlay, id, { watch, resumeAt, noLive });
         const fail = (title) => this.playerStatus(overlay, 'error', { title, detail: 'Your place in it is kept.' }, { label: 'Try again', run: retry });
         this.teardownMedia(overlay);
         this.playerStatus(overlay, 'loading', { title: 'Preparing…', detail: watch ? 'Getting this recording ready to watch while it records.' : 'Getting this recording ready to play. A long one can take a minute.' });
@@ -1042,7 +1042,8 @@ class RecordingsPage {
             this.attachAdSkipping(overlay, id);
         }
         // #335 (D-67): a recording still being made can catch up to its newest point, never by itself
-        if (target.live) this.attachGoToLive(overlay, video, id);
+        // #345: not when a sport card opens it (`noLive`): the live edge of a finished game is post-match coverage, a spoiler
+        if (target.live && !noLive) this.attachGoToLive(overlay, video, id);
     }
 
     /**
