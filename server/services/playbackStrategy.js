@@ -233,6 +233,8 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, owner = 
         // The names go too (0287's feed_lag): a play from a cached analysis or a profile has no probe, so its session opens the ingest.
         ...(ingestSource && !ingestSource.refused && info.finite !== true ? { ingestSource: { pool: ingestSource.pool, url: ingestSource.url, userAgent: ingestSource.userAgent, providerId: ingestSource.providerId,
             channelKey: ingestSource.channelKey ?? null, channel: ingestSource.channel ?? null, providerName: ingestSource.providerName ?? null } } : {}),
+        // Codex (#348): the session's own ingest wait (no probe went first) ends at the resolve's deadline.
+        ...(deadlineAt ? { startDeadlineAt: deadlineAt } : {}),
         // 0189: extra session options from the relay (a standby is marked as one).
         ...(sessionOptions || {}),
         ...(coordinator ? { onRegistered: (s) => { leaseLost = !coordinator.bindLease(lease, s.id); } } : {})
@@ -244,7 +246,16 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, owner = 
     }
 
     const sessionStartedAt = Date.now();
-    await session.start();
+    try {
+        await session.start();
+    } catch (err) {
+        if (!err.resolveDeadline) throw err;
+        // Codex (#348): the shared ingest had nothing by the deadline: a failed start for a provider reason; the
+        // registered session goes (after its teardown) before the walk gives the lease back.
+        console.warn(`[Playback] resolve on ${providerLabel(providerId)}: the shared ingest had nothing by the resolve's deadline`);
+        try { await transcodeSession.removeSession(session.id); } catch (e) { /* already gone */ }
+        throw deadlineSpentError();
+    }
 
     const ready = deadlineAt ? await session.waitForPlaylist(15000, { deadlineAt }) : await session.waitForPlaylist(15000);
     // 0180: stopped on request while it was starting (the viewer's next play replaced it,

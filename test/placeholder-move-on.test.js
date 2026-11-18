@@ -742,3 +742,33 @@ test('Codex medium: a successful start\'s health row (and the play-start / play-
         health.reset();
     }
 });
+
+test('Codex medium: a start from a cached analysis opens the shared ingest within the resolve deadline; past it the session is removed and the start fails', async () => {
+    const strategy = load('services/playbackStrategy');
+    const { analyzeProbeResult } = load('services/streamProbe');
+    const settings = { ...(await db.settings.get()), ffmpegPath: FFMPEG };
+    const { key, caps } = await analysisKeyOf('/stall5.ts');
+    const info = analyzeProbeResult({ streams: [{ codec_type: 'video', codec_name: 'h264', width: 1920, height: 1080, avg_frame_rate: '25/1' },
+        { codec_type: 'audio', codec_name: 'aac', profile: 'LC', channels: 2 }], format: { format_name: 'mpegts' } }, `${base}/stall5.ts`, caps);
+    probeCache.set(key, { result: info, timestamp: Date.now(), probedAt: Date.now() });
+    const source = ingest.sourceFor({ providerId: A.id, providerName: 'Strong8K', url: `${base}/stall5.ts`, channelKey: 's155' }, settings);
+    const opened = stalled.length;
+    const closed = stalledClosed;
+    const started = Date.now();
+    let outcome;
+    try {
+        await strategy.resolve({ url: `${base}/stall5.ts`, capabilities: { segmentedDelivery: true }, settings, ffprobePath: FFPROBE, live: true,
+            providerId: A.id, ingestSource: source, deadlineAt: Date.now() + 700 });
+        outcome = 'played';
+    } catch (err) { outcome = err; }
+    const took = Date.now() - started;
+    assert.notEqual(outcome, 'played', 'past the deadline the start fails');
+    assert.equal(outcome.providerReason, true);
+    assert.match(outcome.message, /^The provider did not respond/);
+    assert.ok(took < 1500, `gave up at the deadline (${took} ms)`);
+    assert.equal(transcodeSession.getAllSessions().length, 0, 'the registered session is removed');
+    assert.equal(!!ingest._registry.get(source.key), false, 'the stalled connection is closed');
+    for (let i = 0; i < 50 && stalledClosed - closed < stalled.length - opened; i++) await new Promise(r => setTimeout(r, 10));
+    assert.equal(stalled.length - opened, 1, 'no direct connection of the session\'s own after it');
+    assert.equal(stalledClosed - closed, 1);
+});

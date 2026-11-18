@@ -259,8 +259,17 @@ class TranscodeSession extends EventEmitter {
             let feed = null;
             try {
                 feed = await ingest.subscribe({ ...src, purpose: this.options.standby ? 'standby' : this.options.warm ? 'warm' : 'viewer', owner: this.owner || null,
-                    height: this.options.height || null });
+                    height: this.options.height || null,
+                    // Codex (#348): a resolve's start (a cached analysis or a profile: no probe went first) waits on the
+                    // ingest no longer than the resolve's deadline; a later restart is not bound by it.
+                    deadlineAt: this.timings.playlistReady ? null : (this.options.startDeadlineAt || null) });
             } catch (err) {
+                // Past the resolve's deadline: a failed start (the resolve removes the session), never a direct read.
+                if (err.resolveDeadline && !this.ended()) {
+                    this.status = 'error';
+                    this.error = 'the provider did not answer by the resolve\'s deadline';
+                    throw err;
+                }
                 // PB1: stopped meanwhile, or the ingest was closed under us (released, shutdown): a
                 // cancellation, never a reason to open a connection of our own.
                 if (this.ended() || err.ingestCancelled) return this.abandonStart(null);
