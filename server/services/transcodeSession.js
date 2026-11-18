@@ -1628,18 +1628,23 @@ class TranscodeSession extends EventEmitter {
         return this._cleanupPromise;
     }
 
-    async _teardown() {
-        // Codex (#348): a start still waiting on the shared ingest gives that wait up first (the ingest closes a
-        // connecting upstream it was the last waiter of), so nothing is left connecting once this session is unregistered.
+    /**
+     * Codex (#348): a start still waiting on the shared ingest gives that wait up (the ingest closes a connecting upstream
+     * it was the last waiter of), so nothing is left connecting once this session is unregistered. ingest.subscribe
+     * settles at once on the abort; the bound only keeps a teardown from hanging on a broken one.
+     */
+    async cancelPendingSubscribe() {
         if (this._subscribeAbort) this._subscribeAbort.abort();
-        if (this._pendingSubscribe) {
-            // ingest.subscribe settles at once on the abort; the bound only keeps a teardown from hanging on a broken one.
-            let bound;
-            const gaveUp = await Promise.race([this._pendingSubscribe.then(() => false),
-                new Promise((resolve) => { bound = setTimeout(() => resolve(true), SUBSCRIBE_CANCEL_WAIT_MS); })]);
-            clearTimeout(bound);
-            if (gaveUp) console.warn(`[TranscodeSession ${this.id}] Its shared-ingest wait did not end on cancel within ${SUBSCRIBE_CANCEL_WAIT_MS / 1000}s; tearing down anyway`);
-        }
+        if (!this._pendingSubscribe) return;
+        let bound;
+        const gaveUp = await Promise.race([this._pendingSubscribe.then(() => false),
+            new Promise((resolve) => { bound = setTimeout(() => resolve(true), SUBSCRIBE_CANCEL_WAIT_MS); })]);
+        clearTimeout(bound);
+        if (gaveUp) console.warn(`[TranscodeSession ${this.id}] Its shared-ingest wait did not end on cancel within ${SUBSCRIBE_CANCEL_WAIT_MS / 1000}s; tearing down anyway`);
+    }
+
+    async _teardown() {
+        await this.cancelPendingSubscribe();
         // stop() now resolves only once ffmpeg has actually exited (see
         // above), so by the time rm() runs below nothing is still writing
         // into this.dir.
