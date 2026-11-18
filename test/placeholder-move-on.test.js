@@ -455,3 +455,29 @@ test('Codex high: a live HLS channel answered with a Content-Length (the manifes
     assert.equal(routing.isPlaceholder(A.id, 's111'), false, 'not held back');
     assert.equal(routing.isQuarantined(A.id, 's111'), false);
 });
+
+test('Codex high: a feed-less play ended as the placeholder still counts its connection until ffmpeg has exited', async () => {
+    const s = await transcodeSession.createSession(`${base}/file2.ts`, { live: true, segmentType: 'mpegts', videoMode: 'copy',
+        width: 1920, height: 1080, fps: '30/1', providerId: A.id, owner: 'device:tv' });
+    const { s: shaped } = playedSession('teardown', {});
+    s.dir = shaped.dir;
+    s.playlistPath = shaped.playlistPath;
+    s.retainDir = true;
+    s.timings.playlistReady = Date.now();
+    let exited;
+    s.stop = () => new Promise((resolve) => { exited = resolve; }); // ffmpeg takes its time to die
+    const lost = [];
+    s.on('lost', (info) => lost.push(info));
+    const counted = () => coordinator.activeStreams().some(x => x.id === s.id);
+    assert.equal(counted(), true);
+    const checking = s.checkPicture();
+    const until = Date.now() + 2000;
+    while (!exited && Date.now() < until) await new Promise(r => setImmediate(r));
+    assert.ok(exited, 'the teardown is waiting on ffmpeg');
+    assert.deepEqual(lost, [{ how: 'exit', providerReason: true }], 'the listeners are told at once');
+    assert.equal(counted(), true, 'while ffmpeg is still connected, its connection is counted');
+    exited();
+    await checking;
+    assert.equal(counted(), false, 'gone from the count once ffmpeg has exited');
+    assert.equal(transcodeSession.getSession(s.id), undefined);
+});

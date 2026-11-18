@@ -1406,19 +1406,23 @@ class TranscodeSession extends EventEmitter {
      * #348: the play is the provider's placeholder and has no shared feed to end: it ends the way a placeholder feed's
      * session does - `feedLost` { reason: 'placeholder' }, 'placeholder' (the resolve forgets the analysis), then 'lost' for
      * a provider reason (providerRouting.watchSession holds the channel back PLACEHOLDER_MS; the player's re-resolve
-     * goes elsewhere) and the session is removed.
+     * goes elsewhere) and the session is removed once its ffmpeg has exited.
      */
     async endAsPlaceholder(detail) {
         if (this.ended()) return;
         console.warn(`[TranscodeSession ${this.id}] ${providerLabel(this.options.providerId)} is sending its placeholder, not the channel (${detail}); ending the play`);
         this.feedLost = { reason: 'placeholder', providerReason: true, detail };
         try { this.emit('placeholder', this.feedLost); } catch (err) { console.warn(`[TranscodeSession ${this.id}] A placeholder listener failed:`, err.message); }
-        sessions.delete(this.id);
         if (this.timings.playlistReady) this.noteLost('exit');
+        // Codex (high): the session stays in the registry, so the coordinator keeps counting its provider connection,
+        // until ffmpeg has exited (cleanup awaits it), as removeSession does; a one-connection provider is not handed out
+        // while this one is still open. The listeners above were told at once.
         try {
             await this.cleanup();
         } catch (err) {
             console.error(`[TranscodeSession ${this.id}] Could not clean up after the placeholder:`, err.message);
+        } finally {
+            if (sessions.get(this.id) === this) sessions.delete(this.id);
         }
     }
 
