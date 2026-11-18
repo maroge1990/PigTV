@@ -92,6 +92,8 @@ const TIMESTAMP_WARNING = /timestamp discontinuity|Non-monotonic DTS|Packet dura
 const BLANK_CHECK_SEC = 20;
 // #332: the threshold is shared with the shared ingest's placeholder rule (feedPlaceholder.js).
 const { blankKbps, hasPlaceholderShape } = require('./feedPlaceholder');
+// Codex (#348): the longest a teardown waits for a cancelled shared-ingest wait to end (it ends at once).
+const SUBSCRIBE_CANCEL_WAIT_MS = 5000;
 
 // How many segments a live session keeps on disk before rotating the
 // oldest ones out. Unbounded (the old 0) means the whole session gets
@@ -257,9 +259,15 @@ class TranscodeSession extends EventEmitter {
             const ingest = require('./ingest');
             const src = this.options.ingestSource;
             let feed = null;
+            // Codex (#348): a teardown while this waits cancels the wait (and closes a connecting ingest nobody else
+            // needs) and awaits it, before the session leaves the registry.
+            const abort = new AbortController();
+            this._subscribeAbort = abort;
+            let settled;
+            this._pendingSubscribe = new Promise((resolve) => { settled = resolve; });
             try {
                 feed = await ingest.subscribe({ ...src, purpose: this.options.standby ? 'standby' : this.options.warm ? 'warm' : 'viewer', owner: this.owner || null,
-                    height: this.options.height || null,
+                    height: this.options.height || null, signal: abort.signal,
                     // Codex (#348): a resolve's start (a cached analysis or a profile: no probe went first) waits on the
                     // ingest no longer than the resolve's deadline; a later restart is not bound by it.
                     deadlineAt: this.timings.playlistReady ? null : (this.options.startDeadlineAt || null) });
@@ -275,6 +283,9 @@ class TranscodeSession extends EventEmitter {
                 if (this.ended() || err.ingestCancelled) return this.abandonStart(null);
                 console.warn(`[TranscodeSession ${this.id}] Shared ingest not used: ${stripUrls(err.message, [this.url])}`);
                 this.options.ingestSource = null;
+            } finally {
+                if (this._subscribeAbort === abort) this._subscribeAbort = null;
+                settled();
             }
             // PB1: the subscription arrived after a stop or cleanup: give it straight back.
             if (this.ended()) return this.abandonStart(feed);
@@ -1618,6 +1629,17 @@ class TranscodeSession extends EventEmitter {
     }
 
     async _teardown() {
+        // Codex (#348): a start still waiting on the shared ingest gives that wait up first (the ingest closes a
+        // connecting upstream it was the last waiter of), so nothing is left connecting once this session is unregistered.
+        if (this._subscribeAbort) this._subscribeAbort.abort();
+        if (this._pendingSubscribe) {
+            // ingest.subscribe settles at once on the abort; the bound only keeps a teardown from hanging on a broken one.
+            let bound;
+            const gaveUp = await Promise.race([this._pendingSubscribe.then(() => false),
+                new Promise((resolve) => { bound = setTimeout(() => resolve(true), SUBSCRIBE_CANCEL_WAIT_MS); })]);
+            clearTimeout(bound);
+            if (gaveUp) console.warn(`[TranscodeSession ${this.id}] Its shared-ingest wait did not end on cancel within ${SUBSCRIBE_CANCEL_WAIT_MS / 1000}s; tearing down anyway`);
+        }
         // stop() now resolves only once ffmpeg has actually exited (see
         // above), so by the time rm() runs below nothing is still writing
         // into this.dir.

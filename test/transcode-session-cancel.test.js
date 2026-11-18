@@ -50,7 +50,12 @@ after(() => {
 });
 
 function deferSubscribe() {
-    ingest.subscribe = () => new Promise((resolve, reject) => { pending = { resolve, reject }; });
+    // As the real one: a cancelled wait (the session's teardown aborts `signal`) settles at once as a cancellation.
+    ingest.subscribe = ({ signal } = {}) => new Promise((resolve, reject) => {
+        pending = { resolve, reject, signal };
+        if (signal) signal.addEventListener('abort', () => reject(Object.assign(new Error('Shared ingest not used: its reader stopped'),
+            { ingestCancelled: true, providerReason: false })), { once: true });
+    });
 }
 function fakeFeed() {
     const feed = new EventEmitter();
@@ -76,16 +81,18 @@ async function waitingForSubscription(s) {
     assert.ok(pending, 'the start is waiting for its subscription');
 }
 
-test('PB1: cleanup while the subscription is pending - it resolves late, is given back, and nothing spawns', async () => {
+test('PB1: cleanup while the subscription is pending - the wait is cancelled before the cleanup ends, and nothing spawns', async () => {
     deferSubscribe(); pending = null;
     const s = newSession();
     const started = s.start();
+    started.catch(() => {}); // it settles during the cleanup, before the assertion below is attached
     await waitingForSubscription(s);
     await s.cleanup();
+    assert.equal(pending.signal.aborted, true, 'Codex #348: the waiting subscription is cancelled by the teardown');
     const feed = fakeFeed();
-    pending.resolve(feed);
+    pending.resolve(feed); // too late: already settled as cancelled
     await assert.rejects(started, (err) => err.superseded === true);
-    assert.equal(feed.left, 1, 'the late subscription is released');
+    assert.equal(feed.left, 0, 'never handed over');
     assert.equal(s.process, null);
     assert.equal(s.status, 'stopped');
     await new Promise(r => setTimeout(r, 200));

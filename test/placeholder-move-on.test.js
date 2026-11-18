@@ -798,3 +798,34 @@ test('Codex medium: a game channel is marked the placeholder only when every cop
         health.reset();
     }
 });
+
+test('Codex high: a session removed while its start waits on a stalled shared ingest gives that wait up and closes the connection before it leaves', async () => {
+    const strategy = load('services/playbackStrategy');
+    const { analyzeProbeResult } = load('services/streamProbe');
+    const settings = { ...(await db.settings.get()), ffmpegPath: FFMPEG, maxProviderStreams: 1 };
+    const { key, caps } = await analysisKeyOf('/stall6.ts');
+    probeCache.set(key, { result: analyzeProbeResult({ streams: [{ codec_type: 'video', codec_name: 'h264', width: 1920, height: 1080, avg_frame_rate: '25/1' },
+        { codec_type: 'audio', codec_name: 'aac', profile: 'LC', channels: 2 }], format: { format_name: 'mpegts' } }, `${base}/stall6.ts`, caps), timestamp: Date.now(), probedAt: Date.now() });
+    const source = ingest.sourceFor({ providerId: A.id, providerName: 'Strong8K', url: `${base}/stall6.ts`, channelKey: 's166' }, settings);
+    const opened = stalled.length;
+    const closed = stalledClosed;
+    // A cached start: no probe, its session opens the shared ingest itself, and the provider never answers.
+    const starting = strategy.resolve({ url: `${base}/stall6.ts`, capabilities: { segmentedDelivery: true }, settings, ffprobePath: FFPROBE, live: true,
+        providerId: A.id, owner: 'device:tv', ingestSource: source }).catch(err => err);
+    let session = null;
+    for (let i = 0; i < 200 && !(session = transcodeSession.getAllSessions()[0]); i++) await new Promise(r => setTimeout(r, 5));
+    assert.ok(session, 'the session is registered');
+    for (let i = 0; i < 200 && stalled.length - opened < 1; i++) await new Promise(r => setTimeout(r, 5));
+    assert.equal(stalled.length - opened, 1, 'its ingest is connecting');
+    // The same device's next play replaces it.
+    await transcodeSession.removeSession(session.id);
+    const left = ingest._registry.get(source.key);
+    assert.equal(!!left, false, `by the time the session has left, its connecting ingest is closed (${left ? left.waiters : 0} waiter(s))`);
+    if (left) left.close('test over');
+    assert.equal(coordinator.canAdmitWithoutDisturbing({ providerId: A.id, owner: 'device:other', settings, joinIngest: null }), true,
+        'a new stream is admitted only now that the first connection is gone');
+    for (let i = 0; i < 50 && stalledClosed - closed < 1; i++) await new Promise(r => setTimeout(r, 10));
+    assert.equal(stalledClosed - closed, 1, 'the provider saw the connection closed');
+    const outcome = await starting;
+    assert.ok(outcome instanceof Error && outcome.superseded, 'the replaced start ends as superseded');
+});

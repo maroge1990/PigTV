@@ -753,7 +753,7 @@ function rememberChannel(key, ref) {
  * refuses the first connection - the caller then uses its usual path.
  */
 async function subscribe({ pool, url, userAgent, providerId = null, purpose = null, owner = null, channel = null, providerName = null, channelKey = null, channelRef = null, height = null,
-    deadlineAt = null }) {
+    deadlineAt = null, signal = null }) {
     const key = keyOf(pool, url);
     channelRef = channelRef || channelRefs.get(key) || null;
     let ingest = registry.get(key);
@@ -767,27 +767,38 @@ async function subscribe({ pool, url, userAgent, providerId = null, purpose = nu
     }
     ingest.waiters++;
     let timer = null;
+    let onAbort = null;
     try {
-        if (!deadlineAt) await ingest.ready;
+        if (!deadlineAt && !signal) await ingest.ready;
         else {
-            // Codex (#348): a resolve's deadline cuts this wait. The waiter goes, and a connection still connecting that no
-            // reader or other waiter needs is closed now, before the caller gives its lease back (nothing would count it).
+            // Codex (#348): a resolve's deadline, or the caller giving up (`signal`: its session was removed), cuts this
+            // wait. The waiter goes, and a connection still connecting that no reader or other waiter needs is closed now,
+            // before the caller gives its lease back or leaves the registry (nothing would count it any more).
             await Promise.race([ingest.ready, new Promise((_, reject) => {
-                timer = setTimeout(() => reject(Object.assign(new Error('Shared ingest not used: the resolve deadline passed'),
-                    { resolveDeadline: true, providerReason: true })), Math.max(0, deadlineAt - Date.now()));
+                if (deadlineAt) {
+                    timer = setTimeout(() => reject(Object.assign(new Error('Shared ingest not used: the resolve deadline passed'),
+                        { resolveDeadline: true, providerReason: true, cut: 'the resolve deadline passed' })), Math.max(0, deadlineAt - Date.now()));
+                }
+                if (signal) {
+                    onAbort = () => reject(Object.assign(new Error('Shared ingest not used: its reader stopped'),
+                        { ingestCancelled: true, providerReason: false, cut: 'its reader stopped' }));
+                    if (signal.aborted) onAbort();
+                    else signal.addEventListener('abort', onAbort, { once: true });
+                }
             })]);
         }
     } catch (err) {
-        if (err.resolveDeadline) {
+        if (err.cut) {
             ingest.waiters--;
             if (!ingest.closed && ingest.state === 'connecting' && ingest.waiters === 0 && ingest.subs.size === 0) {
-                ingest.close('nobody waits for it any more (the resolve deadline passed)');
+                ingest.close(`nobody waits for it any more (${err.cut})`);
             }
             ingest.waiters++; // balanced by the finally
         }
         throw err;
     } finally {
         clearTimeout(timer);
+        if (signal && onAbort) signal.removeEventListener('abort', onAbort);
         ingest.waiters--;
     }
     if (ingest.closed) throw Object.assign(new Error('Shared ingest not used: it closed'), { ingestRefused: true, providerReason: true });
