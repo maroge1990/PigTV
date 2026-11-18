@@ -120,3 +120,19 @@ test('SportsPage.recordingFor ignores rows of other games, unfinished rows and b
     assert.equal(P.recordingFor([{ id: 1, gameId: 'b', status: 'completed' }], { id: 'a' }), null);
     assert.equal(P.recordingFor([{ id: 1, gameId: 'a', status: 'completed' }], { id: 'a' }).id, 1);
 });
+
+test('#345: a recording lookup is invalidated by a newer press or leaving Sport: answers in reverse order play only the newest', async () => {
+    const h = await harness();
+    const pending = [];
+    h.b.context.API.request = (m, url) => (url === '/recordings' ? new Promise(res => pending.push(res)) : Promise.resolve({}));
+    h.p.front.games.push({ ...h.p.game('avl'), id: 'avl2', title: 'Second final' });
+    const a = h.p.select('avl', h.card());          // first press
+    const b = h.p.select('avl2', h.card());         // a newer press
+    pending[1]([{ id: 2, gameId: 'avl2', status: 'completed' }]); await b;
+    pending[0]([{ id: 1, gameId: 'avl', status: 'completed' }]); await a;
+    assert.deepEqual(h.recPlayed, [2], 'the older answer arriving last plays nothing');
+    const c = h.p.select('avl', h.card());
+    h.p.hide();
+    pending[2]([{ id: 1, gameId: 'avl', status: 'completed' }]); await c;
+    assert.deepEqual(h.recPlayed, [2], 'left Sport meanwhile: nothing');
+});

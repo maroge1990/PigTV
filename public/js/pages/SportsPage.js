@@ -13,6 +13,7 @@ class SportsPage {
         this.app = app;
         this.root = typeof document !== 'undefined' ? document.getElementById('page-sports') : null;
         this.active = false;
+        this.lookup = 0; // #345: a recording lookup's token; a newer press, a route change or leaving Sport invalidates it
         this.serial = 0;
         this.front = null; this.loaded = false; this.failed = false; this.stale = false; this.updatedAt = null; this.received = 0;
         this.prefs = { known: false, spoilerFree: true };
@@ -74,6 +75,7 @@ class SportsPage {
     }
     hide() {
         this.active = false;
+        this.lookup++;
         clearTimeout(this.timer); this.timer = null;
         if (this.waiting) { clearTimeout(this.waiting.timer); this.waiting = null; this.watchCancelled = true; }
         this.closeMenu();
@@ -90,6 +92,7 @@ class SportsPage {
         }
         if (history === 'push' && path !== this.path) this.stack.push(this.path);
         this.path = path;
+        this.lookup++;
         this.closeMenu();
         this.render();
         this.loadMap();
@@ -582,6 +585,7 @@ class SportsPage {
      */
     select(id, anchor) {
         const g = this.game(id);
+        this.lookup++; // a newer press ends a recording lookup still on its way
         if (!g) return undefined;
         if (SportView.isNextRound(g)) return undefined;
         if (SportView.terminal(g)) return this.playRecordingOf(g);
@@ -608,8 +612,10 @@ class SportsPage {
     /** Play this game's recording in the Recordings player (from its start while it still records, never offering Go to live: the live edge of a finished game shows the result); nothing when there is none. */
     async playRecordingOf(g) {
         this.closeMenu();
+        const token = this.lookup;
         let rows;
         try { rows = await API.request('GET', '/recordings'); } catch (err) { return undefined; }
+        if (token !== this.lookup || !this.active) return undefined; // an older answer never plays over a newer press
         const rec = SportsPage.recordingFor(rows, g);
         const recordings = this.app && this.app.pages && this.app.pages.recordings;
         if (!rec || !recordings || typeof recordings.play !== 'function') return undefined;
