@@ -742,3 +742,26 @@ reviews.
   iPad's.
 - **Consequence:** building any of these needs simulator screenshots of the Apple TV, iPad, iPhone and web players
   side by side, confirming they look the same (Mark's condition). #58 stays as the audit's other player inputs.
+
+### D-68. Sport cards: select plays or records, hold for the rest; Remind me only in the hold menu (18 Nov 2026; Mark)
+
+- **Context:** from TestFlight 291, Mark found the card actions scattered: select opened a details page for an upcoming
+  game, Remind me had its own buttons, and the hold menu differed by platform and page.
+- **Choice:** selecting a game card plays its preferred channel when live, opens the recording options when it has
+  not started (including a game no channel lists yet), and plays its recording when it has finished (the whole
+  recording, else one still finishing; nothing when there is none). Holding a card opens a menu on the card itself:
+  live, Watch another channel and Record; upcoming, Record and Remind me; Make this the hero stays on the front page.
+  Remind me appears nowhere else. The game details page is retired. The same rules apply on Apple TV, iPad, iPhone and
+  the web (#345).
+- **Consequence:** a recording carries the game it records (`gameId`, C-M), so a finished card can find it.
+
+### D-69. The splash plays in full and the pig flies into the Home header (18 Nov 2026; Mark)
+
+- **Context:** the splash switched to a second pig drawing halfway, vanished before the logo registered, and cut hard
+  into the app (#342). Mark chose option C of four animated mock-ups.
+- **Choice:** one pig from the launch frame to the end; the name alone fades in under it; then the pig glides into
+  its place in the Home page header as the page rises in, about 3.2 s from launch. The splash holds its full length
+  even when start-up is quicker. This replaces PigBrand's rules that the splash never adds delay (brand 1.8 §8) and
+  that the wordmark image is not used on its own (§3) for the splash only. No splash without a saved sign-in, as
+  before; Reduce Motion gets a plain cross-fade.
+- **Consequence:** PigBrand's guide should record the exception at its next release.
