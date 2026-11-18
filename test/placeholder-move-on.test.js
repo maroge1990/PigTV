@@ -505,3 +505,41 @@ test('Codex high: the game\'s channels are found by stable id after a sync moved
         dbh.prepare(`UPDATE playlist_items SET name = 'Sportsnet One', stable_id = 's105', stream_url = ? WHERE id = ?`).run(`${base}/real5.ts`, `${A.id}:pos_5`);
     }
 });
+
+test('Codex medium: a resolve-time placeholder detection is health reason "placeholder", so the channel sinks in the game\'s order', async () => {
+    const dbh = sqlite.getDb();
+    const health = load('services/channelHealth');
+    dbh.prepare('DELETE FROM channel_health').run();
+    health.reset();
+    const order = () => {
+        const now = Date.now();
+        const channels = [{ sourceId: A.id, id: 'pos_2', stableId: 's1803789', name: 'Sportsnet Event', quality: 'HD', order: 0 },
+            { sourceId: A.id, id: 'pos_5', stableId: 's105', name: 'Sportsnet One', quality: 'HD', order: 1 }];
+        health.applyHealth(channels, now, { blank: true });
+        sportsEvents._useBuilt({ from: now - 3600e3, events: [{ id: 'g', kind: 'event', title: 'NHL: K vs L', league: 'NHL', start: now - 3600e3, end: now + 3600e3,
+            channels: channels.map(c => ({ ...c, key: `${A.id}:${c.stableId}` })), airingTimes: {} }] });
+        return sportsEvents.liveEventFor({ sourceId: A.id, stableId: 's105' }).channels.map(c => c.name);
+    };
+    try {
+        assert.deepEqual(order(), ['Sportsnet Event', 'Sportsnet One']);
+        sportsEvents._useBuilt(null); // no game known: the failed resolve's own write
+        const r = await play('pos_2');
+        assert.equal(r.status, 503);
+        assert.equal(r.body.error, PLACEHOLDER_TEXT, 'the client\'s text is unchanged');
+        assert.equal(dbh.prepare('SELECT reason FROM channel_health ORDER BY id DESC LIMIT 1').get().reason, 'placeholder');
+        assert.deepEqual(order(), ['Sportsnet One', 'Sportsnet Event'], 'sunk below the untried channel');
+        // The fallback's write for the requested channel says the same.
+        dbh.prepare('DELETE FROM channel_health').run();
+        health.reset();
+        routing.reset();
+        order(); // the game is known now
+        const moved = await play('pos_2');
+        assert.equal(moved.status, 200, JSON.stringify(moved.body));
+        assert.ok(moved.body.fallback);
+        const failed = dbh.prepare(`SELECT reason FROM channel_health WHERE channel_key = 's1803789' AND ok = 0 ORDER BY id DESC LIMIT 1`).get();
+        assert.equal(failed.reason, 'placeholder');
+    } finally {
+        dbh.prepare('DELETE FROM channel_health').run();
+        health.reset();
+    }
+});

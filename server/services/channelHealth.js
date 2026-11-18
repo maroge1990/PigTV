@@ -142,13 +142,15 @@ function afterChange(sourceId, key, before, now) {
  * the channel is not in the playlist (nothing to key it on). Never throws:
  * health is a diagnostic and must not be the reason a play fails.
  */
-function recordResolve({ sourceId, channelId, ok, reason, owner, providerId = null, now = Date.now() }) {
+function recordResolve({ sourceId, channelId, ok, reason, category = null, owner, providerId = null, now = Date.now() }) {
     try {
         const channel = channelFor(sourceId, channelId);
         if (!channel) return null;
         // 0174: always the primary channel's row; provider_id says which provider served
         // (or last failed) it - a play that failed over to a backup is an ok start.
-        const rowId = writeAttempt(channel, { ok, reason: ok ? null : reasonCategory(reason), providerId, now });
+        // Codex (#348): `category` names the cause when the client's text cannot ('placeholder': C-B's "not available
+        // right now" is also other causes), so the sport ranking sees a resolve-time placeholder.
+        const rowId = writeAttempt(channel, { ok, reason: ok ? null : (category || reasonCategory(reason)), providerId, now });
         if (owner) {
             pending.delete(owner);
             if (ok) pending.set(owner, { rowId, at: now, started: false });

@@ -429,7 +429,7 @@ router.post('/resolve', requireToken, async (req, res) => {
 
         // #348: the requested channel's start failed as the placeholder; the game's next channel is what was watched.
         if (fallback) {
-            channelHealth.recordResolve({ sourceId, channelId, ok: false, reason: clientSafe(lastError.message), owner,
+            channelHealth.recordResolve({ sourceId, channelId, ok: false, reason: clientSafe(lastError.message), category: 'placeholder', owner,
                 providerId: fallback.failedOn ? fallback.failedOn.providerId : null });
         }
         recordHistory(req, playedRef ? playedRef.sourceId : sourceId, playedRef ? playedRef.channelId : channelId);
@@ -457,7 +457,8 @@ router.post('/resolve', requireToken, async (req, res) => {
         const provider = lastTried && lastTried.providerName ? lastTried.providerName : null;
         playbackEvents.record({ type: 'failure', owner: eventOwner, channel: eventChannel, reason: safe, provider });
         // 0133 (C-G): a failed start, when it names a channel in the playlist.
-        channelHealth.recordResolve({ sourceId: req.body?.sourceId, channelId: req.body?.channelId, ok: false, reason: safe, owner: eventOwner,
+        channelHealth.recordResolve({ sourceId: req.body?.sourceId, channelId: req.body?.channelId, ok: false, reason: safe,
+            category: err.placeholder === true ? 'placeholder' : null, owner: eventOwner,
             providerId: lastTried ? lastTried.providerId : null });
         res.status(err.status || 500).json({ error: safe, info: err.info });
     }
