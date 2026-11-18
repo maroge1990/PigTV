@@ -495,7 +495,7 @@ test('#306: the reclaim log says "a shared feed with no viewer", never "Infinity
 
 test('the session routes: a relay answers for its id, later legs\' names are allowed, DELETE ends it', () => {
     const route = fs.readFileSync(path.join(sandbox, 'server/routes/transcode.js'), 'utf8');
-    assert.match(route, /return relay\.get\(sessionId\) \|\| transcodeSession\.getSession\(sessionId\);/);
+    assert.match(route, /return relay\.get\(sessionId\) \|\| servable\(transcodeSession\.getSession\(sessionId\)\);/);
     const allow = /^(L\d{1,3}-)?(seg\d{4,}\.(ts|m4s)|init\.mp4)$/;
     assert.ok(route.includes(String(allow).slice(1, -1)));
     for (const ok of ['seg0001.m4s', 'init.mp4', 'L1-seg0042.ts', 'L12-init.mp4']) assert.ok(allow.test(ok), ok);

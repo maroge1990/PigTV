@@ -31,7 +31,12 @@ const relay = require('../services/streamRelay');
 
 /** What serves this id: a relay, else the session. */
 function lookup(sessionId) {
-    return relay.get(sessionId) || transcodeSession.getSession(sessionId);
+    return relay.get(sessionId) || servable(transcodeSession.getSession(sessionId));
+}
+
+/** #350: a session being torn down stays registered (counted) until ffmpeg exits, but is gone to its player. */
+function servable(session) {
+    return session && typeof session.isEnding === 'function' && session.isEnding() ? null : session;
 }
 
 // A 404 on a playlist or segment ends playback in hls.js at once (it does not retry a 4xx), yet

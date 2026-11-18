@@ -29,6 +29,22 @@ const RECONNECT = '[http @ 0x1] Will reconnect at 90799524 in 0 second(s), error
 const AUDIO_JUMP = '[aist#0:1/aac @ 0x2] timestamp discontinuity (stream id=257): -140478, new offset= -91889983655';
 const tick = () => new Promise(r => setImmediate(r));
 
+// The HLS routes, as a player polls them (no auth: a test app).
+const express = require('express');
+const { once } = require('node:events');
+let hls = null;
+async function hlsBase() {
+    if (hls) return hls.base;
+    const app = express();
+    app.use((req, _res, next) => { req.user = { id: 1, role: 'admin', deviceId: 'tv' }; next(); });
+    app.use('/api/transcode', load('routes/transcode'));
+    const server = app.listen(0, '127.0.0.1');
+    await once(server, 'listening');
+    hls = { server, base: `http://127.0.0.1:${server.address().port}/api/transcode` };
+    return hls.base;
+}
+after(() => { hls?.server.closeAllConnections?.(); hls?.server.close(); ts.stopCleanupInterval?.(); });
+
 /** A registered live session that has played, whose ffmpeg takes its time to exit (`exit()` lets it). */
 async function playing() {
     const s = await ts.createSession('http://provider.invalid/live/u/p/1.ts', { live: true, segmentType: 'fmp4', videoMode: 'copy', providerId: 1, owner: 'device:tv' });
@@ -83,4 +99,24 @@ test('once a teardown has started, ffmpeg\'s late timestamp warnings start no en
     ctl.exit();
     await removing;
     assert.equal(counted(), false);
+});
+
+test('a session that is ending answers its playlist as gone at once, while the coordinator still counts it until ffmpeg exits', async () => {
+    const base = await hlsBase();
+    for (const end of ['stall', 'timestamps']) {
+        const { s, ctl, counted } = await playing();
+        fs.mkdirSync(s.dir, { recursive: true });
+        fs.writeFileSync(path.join(s.dir, 'stream.m3u8'), '#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXTINF:4,\nseg0000.ts\n');
+        fs.writeFileSync(path.join(s.dir, 'seg0000.ts'), Buffer.alloc(188));
+        assert.equal((await fetch(`${base}/${s.id}/stream.m3u8`)).status, 200, 'playing: served');
+        const ending = end === 'stall' ? s.handleStall() : (timestampLoop(s), null);
+        await untilStopping(ctl);
+        assert.equal(counted(), true, `${end}: still counted for admission`);
+        assert.equal((await fetch(`${base}/${s.id}/stream.m3u8`)).status, 404, `${end}: the player is sent to recover now`);
+        assert.equal((await fetch(`${base}/${s.id}/seg0000.ts`)).status, 404, `${end}: its segments too`);
+        ctl.exit();
+        if (ending) await ending;
+        for (let i = 0; i < 50 && counted(); i++) await tick();
+        assert.equal(counted(), false);
+    }
 });

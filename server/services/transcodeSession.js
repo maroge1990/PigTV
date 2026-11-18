@@ -1580,6 +1580,12 @@ class TranscodeSession extends EventEmitter {
     ended() { return this.stopRequested === true || this._cleanedUp === true; }
 
     /**
+     * #350: being torn down (or asked to stop): still counted by the coordinator until ffmpeg has exited, but no longer
+     * served - its playlist and segments answer 404 at once, so a player starts its recovery straight away.
+     */
+    isEnding() { return !!this._cleanupPromise || this.stopRequested === true; }
+
+    /**
      * PB1: a start overtaken by stop()/cleanup() while it awaited: release what it got (a late
      * subscription), remove a folder cleanup() may already have deleted before our mkdir landed,
      * spawn nothing, and say so the way a stopped start does.
