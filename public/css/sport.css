@@ -90,7 +90,7 @@
 .sp .brow { position: relative; flex: 0 0 auto; display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; border-radius: 10px;
   background: var(--raised); border: 0; text-align: left; width: 100%; }
 .sp .brow:hover { background: var(--color-hover-raised); }
-.sp .brow.sel::before { content: ""; position: absolute; left: 3px; top: 10px; bottom: 10px; width: 4px; border-radius: 2px; background: var(--color-accent); }
+.sp .brow.sel { background: var(--sel); }
 .sp .brow .t { flex: 1; min-width: 0; font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sp .brow.sel .t { color: var(--color-accent-text); }
 .sp .brow .tr { font-size: 12px; font-weight: 600; color: var(--color-text-secondary); white-space: nowrap; }
@@ -245,7 +245,6 @@
 .sp .lchip { position: relative; flex: 0 0 auto; display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 999px;
   border: 0; background: var(--raised); color: var(--color-text-secondary); font-size: 14px; font-weight: 700; white-space: nowrap; }
 .sp .lchip.on { background: var(--sel); color: var(--color-accent-text); }
-.sp .lchip.on::after { content: ""; position: absolute; left: 50%; bottom: 6px; width: 18px; height: 2px; margin-left: -9px; border-radius: 1px; background: var(--color-accent); }
 .sp .sp-league-empty { margin-top: 24px; }
 .sp .sp-league-empty .state-block { background: none; border: 0; padding: 40px 24px; }
 .sp .sp-league-empty .state-block-title { font-size: 20px; font-weight: 800; }
@@ -257,8 +256,6 @@
   font-weight: 600; background: var(--raised); color: var(--color-text-primary); border: 0; white-space: nowrap; }
 .sp .fchip:hover { background: var(--color-hover-raised); }
 .sp .fchip.on { background: var(--sel); color: var(--color-accent-text); }
-.sp .fchip.on::after { content: ""; position: absolute; left: 50%; bottom: 5px; width: 26px; height: 3px; margin-left: -13px; border-radius: 2px;
-  background: var(--color-accent); }
 .sp .rounds .rnote { margin-left: 6px; font-size: 14px; color: var(--color-text-secondary); }
 .sp .league { display: grid; grid-template-columns: minmax(0, 1fr) 460px; gap: 28px; align-items: start; }
 .sp .league.solo { grid-template-columns: minmax(0, 1fr); }
@@ -622,7 +619,7 @@
 .sp-win .qchip, .sp-menu .qchip { min-height: 32px; padding: 4px 10px; font-size: 13px; cursor: pointer; }
 .sp-win .qchip:hover, .sp-menu .qchip:hover { filter: brightness(1.15); }
 .sp-win .qchip:focus-visible, .sp-menu .qchip:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
-.sp-win .qchip.on, .sp-menu .qchip.on { box-shadow: 0 0 0 2px var(--color-accent); }
+.sp-win .qchip.on, .sp-menu .qchip.on { filter: brightness(1.35); } /* #344: shading, no ring */
 .sp-win .rchg { margin-bottom: 8px; }
 .sp-win .rchg .rch { margin-bottom: 0; }
 .sp-win .rchg .qchips { margin: 6px 0 0 14px; }
@@ -640,7 +637,6 @@
 .sp-win .rchoice > span, .sp-win .rcht > span { font-size: 13px; color: var(--color-text-secondary); }
 /* the selection (D-44 brand): a pink fill and a short bar on the leading edge, never a tick */
 .sp-win .rchoice.on { background: var(--sel); }
-.sp-win .rchoice.on::before { content: ''; position: absolute; left: 0; top: 10px; bottom: 10px; width: 4px; border-radius: 2px; background: var(--color-accent); }
 .sp-win .rch { flex-direction: row; align-items: center; gap: 12px; width: 100%; margin-bottom: 8px; }
 .sp-win .rcht { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .sp-win .rradio { flex: 0 0 20px; width: 20px; height: 20px; border: 3px solid var(--color-text-secondary); border-radius: 50%; }

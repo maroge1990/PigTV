@@ -12,13 +12,10 @@ test('a chip: raised, no border', () => {
     assert.match(r, /border:\s*0/);
 });
 
-test('the selected chip: the tint, accent text and the underline bar; never the solid accent fill', () => {
+test('the selected chip: the tint and accent text, no underline bar (#344); never the solid accent fill', () => {
     const on = rulesFor('.sp .fchip.on');
     assert.match(on, /background:\s*var\(--sel\)/);
     assert.match(on, /color:\s*var\(--color-accent-text\)/);
     assert.doesNotMatch(on, /background:\s*var\(--color-accent\)|--color-on-accent/);
-    const bar = rulesFor('.sp .fchip.on::after');
-    assert.match(bar, /width:\s*26px/);
-    assert.match(bar, /height:\s*3px/);
-    assert.match(bar, /background:\s*var\(--color-accent\)/);
+    assert.equal(rulesFor('.sp .fchip.on::after'), '', 'no accent line');
 });
