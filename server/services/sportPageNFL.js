@@ -263,7 +263,9 @@ function withState(value, state) {
         const score = (side) => {
             if (status === 'scheduled') return game.status === 'scheduled' ? game[side].score : 0;
             const v = scoreOf(seen.snapshot, side);
-            return v !== null && Number.isFinite(Number(v)) ? Number(v) : null;
+            // #343: a final cannot change: a snapshot with no score (its text was not all digits) never blanks the page's own
+            const own = status === 'done' && game.status === 'done' ? game[side].score : null;
+            return v !== null && Number.isFinite(Number(v)) ? Number(v) : own;
         };
         const sit = status === 'live' ? e.situation : null;
         return { ...game, status, detail: detailOf(e.key, status, e.detail, e.period, e.clock),

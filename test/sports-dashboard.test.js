@@ -597,3 +597,20 @@ test('#235: just after local midnight, a final from last evening keeps its resul
     // Once no longer recent, yesterday's final leaves the front page, as before.
     assert.equal(dashboard.buildDashboard(s, { now: now + 2 * H, userId: '1', timezone: 'Australia/Melbourne', events: [], keepFinishedToday: true }).games.length, 0);
 });
+
+// #343: a final shown on a league page or /dashboard (no keepFinishedToday) kept its score only while its last reading was
+// at most the delay and two minutes old: nothing reads a final again, so its score vanished minutes after full time while
+// the card stayed listed. A final that is listed shows its result, delayed and hidden exactly as before.
+test('#343: a listed final keeps its score on a league page whatever the age of its last reading, and the spoiler switch still hides it', () => {
+    const s = store();
+    s.ingest([game({ start: NOW - 3 * H, snapshot: { state: 'live', progress: {}, scores: ['7', '3'], situation: null } })], NOW - 2 * H);
+    s.ingest([game({ start: NOW - 3 * H, snapshot: { state: 'finished', progress: {}, scores: ['24', '21'], situation: null } })], NOW - 20 * 60000);
+    for (const opts of [{ league: 'NFL' }, {}]) {
+        const card = dashboard.buildDashboard(s, { now: NOW, userId: '1', timezone: 'UTC', events: [], ...opts }).games[0];
+        assert.equal(card.status, 'finished', JSON.stringify(opts));
+        assert.deepEqual(card.scores, ['24', '21'], JSON.stringify(opts));
+        assert.equal(card.freshness, 'fresh', 'clients draw the result');
+    }
+    const hidden = dashboard.buildDashboard(s, { now: NOW, userId: '1', timezone: 'UTC', events: [], league: 'NFL', spoilerFree: true }).games[0];
+    assert.equal(hidden.scores, undefined, 'spoiler-free still hides it');
+});

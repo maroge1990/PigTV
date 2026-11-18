@@ -72,5 +72,5 @@ test('a slowly polled final with a running guide airing stays unwatchable after 
     s.ingest([game('finished')],t0);s.prune(t0);
     s.ingest([game('finished')],NOW);s.prune(NOW);
     const card=dashboard.buildDashboard(s,{now:NOW+30000,userId:'1',events:[airing],timezone:'UTC'}).games[0];
-    assert.equal(card.canWatch,false);assert.deepEqual(card.channels,[]);assert.equal(card.freshness,'stale');
+    assert.equal(card.canWatch,false);assert.deepEqual(card.channels,[]);assert.equal(card.freshness,'fresh'); // #343: a listed final shows its result (was 'stale')
 });

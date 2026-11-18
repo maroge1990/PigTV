@@ -413,9 +413,11 @@ function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagu
         if(g.start>horizon || (!league && localDay(g.start,zone)!==today && !ongoing && !recent && !pending && !onGuide && !upcoming && !running && !nextRound)) continue;
         if(g.start<now-8*24*H && !running || (g.start<now-12*H && !ongoing && !recent && !finalToday && !pending && !onGuide && (!g.end || g.end<now))) continue;
         const terminal=['finished','cancelled','postponed'].includes(state);
-        const shown=fresh || finalToday; // a final does not go stale
+        // #343: a final that is listed at all (today's, or recent: its result hour) shows its result however long ago it was last read.
+        const kept=state==='finished';
+        const shown=fresh || kept; // a final does not go stale
         const scheduled=g.start>now && (state==='scheduled' || !selected);
-        const projectedState=scheduled ? 'scheduled' : finalToday ? 'finished' : !fresh ? 'unknown' : state;
+        const projectedState=scheduled ? 'scheduled' : kept ? 'finished' : !fresh ? 'unknown' : state;
         // #191: only the status this card reports (delayed, eligible, fresh) extends an overrunning airing.
         const extend=!terminal && ['live','break','suspended'].includes(projectedState);
         const liveChannels=terminal ? [] : channelsFor(airings,now,false,channelTimes,extend,endedMatches.get(g.id));

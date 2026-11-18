@@ -159,3 +159,21 @@ test('#191: a cached live game keeps an overrun channel only while the last good
     await new Promise(resolve => setImmediate(resolve)); // let the failed refresh settle
     assert.deepEqual(await channelsAt(at + 16 * 60e3), [], 'the cached live status is too old to keep renewing Watch');
 });
+
+// #343: a finished game lost its score on the NFL page when the collector's snapshot for it had none (its page text was not
+// all digits): the null overrode the score ESPN's own page read had. A final cannot change, so the known score stays.
+test('#343: a final the collector holds with no score keeps the score ESPN\'s page read has; a live one is the collector\'s', async () => {
+    const plain = await nfl.page(NOW, {});
+    const thursday = plain.weeks[1].games[0];
+    assert.equal(thursday.status, 'done');
+    const snap = (key, scores) => ({ snapshot: { espn: { key, sides: ['home', 'away'], detail: 'Final' }, scores } });
+    const withNull = await nfl.page(NOW, { state: () => snap('finished', null) });
+    const g = withNull.weeks[1].games[0];
+    assert.equal(g.status, 'done');
+    assert.deepEqual([g.away.score, g.home.score], [thursday.away.score, thursday.home.score], 'not blanked');
+    assert.equal(typeof g.home.score, 'number');
+    const sideless = await nfl.page(NOW, { state: () => ({ snapshot: { espn: { key: 'finished', detail: 'Final' }, scores: ['1', '2'] } }) });
+    assert.equal(sideless.weeks[1].games[0].home.score, thursday.home.score, 'a snapshot without sides says nothing about scores');
+    const collected = await nfl.page(NOW, { state: () => snap('finished', ['30', '10']) });
+    assert.deepEqual([collected.weeks[1].games[0].home.score, collected.weeks[1].games[0].away.score], [30, 10], 'a collected score still wins');
+});

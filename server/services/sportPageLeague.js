@@ -537,8 +537,10 @@ function withState(league, value, join, state) {
         const status = seen ? WORD[seen.snapshot.espn.key] : null;
         if (!status) return g;
         const before = status === 'scheduled' || status === 'postponed' || status === 'cancelled';
+        // #343: a final cannot change: a snapshot with no score never blanks the page's own
+        const score = (side) => (before ? null : scoreOf(seen.snapshot, side) ?? (status === 'done' && g.status === 'done' ? g[side].score : null));
         const game = { ...g, status, detail: detailOf(competitionOf(seen.snapshot), status, family),
-            home: { ...g.home, score: before ? null : scoreOf(seen.snapshot, 'home') }, away: { ...g.away, score: before ? null : scoreOf(seen.snapshot, 'away') } };
+            home: { ...g.home, score: score('home') }, away: { ...g.away, score: score('away') } };
         changed.set(g.id, status);
         return game;
     }) }));

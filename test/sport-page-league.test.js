@@ -295,3 +295,14 @@ test('a reused table still resolves every row through `teams` once its teams lea
     assert.equal(p.teams['363'].full, 'Chelsea');
     assert.equal(p.following, '363');
 });
+
+// #343: as on the NFL page, a collector snapshot with no score must not blank the score of a game that is over.
+test('#343: a final the collector holds with no score keeps the score ESPN\'s page read has', async () => {
+    const plain = await lp.page('NBA', NOW, { zone: ZONE });
+    const done = plain.rounds.flatMap(r => r.games).find(g => g.status === 'done' && g.home.score !== null);
+    assert.ok(done, 'the fixture has a final with a score');
+    const state = () => ({ snapshot: { espn: { key: 'finished', sides: ['home', 'away'], detail: 'Final' }, scores: null } });
+    const got = (await lp.page('NBA', NOW, { zone: ZONE, state })).rounds.flatMap(r => r.games).find(g => g.id === done.id);
+    assert.equal(got.status, 'done');
+    assert.deepEqual([got.home.score, got.away.score], [done.home.score, done.away.score]);
+});

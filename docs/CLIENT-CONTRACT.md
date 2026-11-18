@@ -538,7 +538,9 @@ They answer `Cache-Control: private, no-store`; no shared response cache or clie
   delay plus two minutes of observation age. Stale/unknown progress is `{}`; never animate a clock locally. A known
   future scheduled event retains its scheduled label between the slower catalog polls. Observation age is receipt
   age, not proof of upstream freshness or video alignment. Since 0464 (#235) a final from today (the front page's,
-  `keepFinishedToday`) is `fresh` with its result however long ago it was read: a result does not change.
+  `keepFinishedToday`) is `fresh` with its result however long ago it was read: a result does not change. Since #343 so is
+  any final that is listed at all (a league page's or `/dashboard`'s, during its result hour), and the NFL and league pages
+  keep a final's own score when the collector's snapshot has none.
 - A complete observed snapshot becomes eligible at `observedAt + scoreDelaySeconds * 1000`. Scores, clock, period,
   breaks and final status come from that snapshot together. `progress` contains available clock/period, MLB half-inning,
   or cricket day/overs. No missing clock, base situation, innings score or 0–0 is fabricated. With `avoidSpoilers`
