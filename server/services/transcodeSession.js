@@ -1589,14 +1589,20 @@ class TranscodeSession extends EventEmitter {
     /**
      * Delete session directory and all segments
      */
-    async cleanup() {
+    cleanup() {
         // Idempotent: removeSession() and a stale-session sweep can race
-        // each other onto the same session, and a second cleanup() must be
-        // a no-op rather than a second concurrent rm() of a directory the
-        // first call is already deleting.
-        if (this._cleanedUp) return;
+        // each other onto the same session, and a second cleanup() must not
+        // start a second concurrent rm() of a directory the first call is
+        // already deleting. Codex (#348): every caller gets the ONE teardown in
+        // flight and resolves only when it is done (ffmpeg has exited), so none
+        // takes the session out of the registry while its connection is open.
+        if (this._cleanupPromise) return this._cleanupPromise;
         this._cleanedUp = true;
+        this._cleanupPromise = this._teardown();
+        return this._cleanupPromise;
+    }
 
+    async _teardown() {
         // stop() now resolves only once ffmpeg has actually exited (see
         // above), so by the time rm() runs below nothing is still writing
         // into this.dir.

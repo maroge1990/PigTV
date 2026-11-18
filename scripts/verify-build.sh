@@ -257,7 +257,7 @@ stop_i = src.index('    stop() {')
 stop_body = src[stop_i:stop_i + src[stop_i:].index('\n    }\n') + 7]
 returns_promise = 'return this._stopPromise' in stop_body and 'new Promise' in stop_body
 
-cleanup_i = src.index('async cleanup()')
+cleanup_i = src.index('async _teardown()')  # cleanup()'s one teardown (Codex #348: shared by every caller)
 cleanup_body = src[cleanup_i:cleanup_i + 700]
 awaits_stop = 'await this.stop()' in cleanup_body
 

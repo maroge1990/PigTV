@@ -577,3 +577,30 @@ test('Codex medium: the resolve deadline bounds the shared ingest\'s wait and th
         ingest.subscribe = realSubscribe;
     }
 });
+
+test('Codex high: a removeSession during the placeholder teardown waits for the same teardown; counted until ffmpeg has exited', async () => {
+    const s = await transcodeSession.createSession(`${base}/file2.ts`, { live: true, segmentType: 'mpegts', videoMode: 'copy',
+        width: 1920, height: 1080, fps: '30/1', providerId: A.id, owner: 'device:tv' });
+    const { s: shaped } = playedSession('teardown-race', {});
+    s.dir = shaped.dir;
+    s.playlistPath = shaped.playlistPath;
+    s.retainDir = true;
+    s.timings.playlistReady = Date.now();
+    let exited;
+    let stops = 0;
+    s.stop = () => { stops++; return new Promise((resolve) => { exited = resolve; }); };
+    const counted = () => coordinator.activeStreams().some(x => x.id === s.id);
+    const checking = s.checkPicture();
+    const until = Date.now() + 2000;
+    while (!exited && Date.now() < until) await new Promise(r => setImmediate(r));
+    assert.ok(exited, 'the teardown is waiting on ffmpeg');
+    let removed = false;
+    const removing = transcodeSession.removeSession(s.id).then(() => { removed = true; }); // a replacement play, or a DELETE
+    for (let i = 0; i < 20; i++) await new Promise(r => setImmediate(r));
+    assert.equal(removed, false, 'the second caller waits for the teardown in flight');
+    assert.equal(counted(), true, 'still counted while ffmpeg is connected');
+    assert.equal(stops, 1, 'one teardown');
+    exited();
+    await Promise.all([checking, removing]);
+    assert.equal(counted(), false);
+});
