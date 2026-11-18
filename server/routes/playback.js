@@ -153,6 +153,8 @@ router.post('/resolve', requireToken, async (req, res) => {
                 ingestSource: ingestFor(candidate),
                 // #265 step 2: a channel's own stream (its primary provider) is measured for the clients' badge.
                 measure: measureFor(candidate),
+                // #348: a live channel answered with the provider's placeholder file is refused at once (the next candidate).
+                liveChannel: routing && live ? candidate : null,
                 // 0174: only the last candidate gets 0143's two refused-connection
                 // retries; an earlier one gets one, after 1 s, then the next provider.
                 ...(failoverPossible ? {
@@ -288,6 +290,7 @@ router.post('/resolve', requireToken, async (req, res) => {
                     lease: verdict.lease,
                     ingestSource: ingestFor(first),
                     measure: measureFor(first),
+                    liveChannel: routing && live ? first : null, // #348
                     ...(failoverPossible ? { deadlineAt } : {}),
                     ...(showProvider ? { timingNote: `, provider ${first.providerName} (${first.via})` } : {})
                 });

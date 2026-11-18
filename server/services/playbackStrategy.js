@@ -28,7 +28,8 @@ const { probeStream, analyzeProbeResult, probeCache, CACHE_TTL, parseFrameRate }
 const transcodeSession = require('./transcodeSession');
 const channelProfiles = require('./channelProfiles');
 const channelMeasurements = require('./channelMeasurements');
-const { MESSAGES: FAILURE_TEXT } = require('./playbackErrors');
+const { MESSAGES: FAILURE_TEXT, placeholderError } = require('./playbackErrors');
+const { hasPlaceholderShape } = require('./feedPlaceholder');
 const playbackHandles = require('./playbackHandles');
 const playbackEvents = require('./playbackEvents');
 const { stripUrls } = require('../redact');
@@ -120,6 +121,8 @@ async function probedAnalysis({ url, ffprobePath, userAgent, caps, cacheKey, dea
             // today's C-B text and failover), and the session reads the URL too.
             console.log(`[Playback] shared ingest not used: ${stripUrls(err.message, [url])}`);
             ingestSource.refused = true;
+            // #348: refused as a file with a length (the provider's placeholder file, when it is short or 1080p30).
+            if (err.finite === true) ingestSource.refusedFinite = true;
         }
     }
     let raw;
@@ -156,7 +159,8 @@ function noteStart(owner, analysis) {
  * network to it) is what failed, which is what makes the route try the next one.
  */
 async function resolve({ url, capabilities = {}, settings, ffprobePath, owner = null, live = false, audioEncode = false, providerId = null,
-    refusedRetryDelaysMs = undefined, deadlineAt = null, timingNote = '', sessionOptions = null, lease = null, ingestSource = null, measure = null }) {
+    refusedRetryDelaysMs = undefined, deadlineAt = null, timingNote = '', sessionOptions = null, lease = null, ingestSource = null, measure = null,
+    liveChannel = null }) {
     const caps = { ...DEFAULT_CAPABILITIES, ...capabilities };
     const userAgent = db.getUserAgent(settings);
 
@@ -172,6 +176,17 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, owner = 
     // route) probes through it and its session reads it; one provider connection for both.
     const analysis = storedAnalysis(cacheKey) || await probedAnalysis({ url, ffprobePath, userAgent, caps, cacheKey, deadlineAt, ingestSource, providerId });
     const { info, probeNote, fromProfile, probedAt } = analysis;
+
+    // #348: a live channel's candidate answered with the provider's placeholder file: never started (no session, no
+    // provider connection beyond the probe), its analysis not kept, and the walk tries the next candidate.
+    if (liveChannel && isPlaceholderFile(info, ingestSource)) {
+        dropPlaceholderAnalysis({ cacheKey, fromProfile, probedAt, measure });
+        try { require('./providerRouting').notePlaceholder(liveChannel.providerId, liveChannel.channelKey); } catch (e) { /* observation only */ }
+        console.warn(`[Playback] ${providerLabel(providerId)} answers this channel with a file` +
+            `${info.durationSec ? ` of ${Math.round(info.durationSec / 60)} min` : ''} (${info.width}x${info.height} at ${info.fps ?? '?'} fps, probe ${probeNote}): ` +
+            'the provider\'s placeholder, not the channel');
+        throw placeholderError();
+    }
 
     // 0124: how this start was served, for the admin status page's recent plays.
     // Observation only: nothing here changes what is decided.
@@ -420,6 +435,32 @@ async function afterStart({ session, ready, info, plan, probeNote, fromProfile, 
     }
 }
 
+/** #348: the longest file a live channel's answer can be and still be taken for the provider's placeholder file. */
+const PLACEHOLDER_FILE_MAX_SEC = 15 * 60;
+
+/**
+ * #348: is this analysis of a live channel's stream the provider's placeholder file? A source with a length (the probe
+ * says it ends, or the shared ingest refused it as a file) that has the placeholder's shape (1920x1080 at 30 fps) or
+ * lasts at most PLACEHOLDER_FILE_MAX_SEC (the provider's is 10 min; #333). A long real-rate file is not.
+ */
+function isPlaceholderFile(info, ingestSource = null) {
+    if (!info) return false;
+    const finite = info.finite === true || !!(ingestSource && ingestSource.refusedFinite === true);
+    if (!finite) return false;
+    if (hasPlaceholderShape({ width: info.width, height: info.height, fps: info.fps })) return true;
+    return Number(info.durationSec) > 0 && Number(info.durationSec) <= PLACEHOLDER_FILE_MAX_SEC;
+}
+
+/** #348: the placeholder file's analysis is the slate's, never the channel's: no profile, cached probe or measurement. */
+function dropPlaceholderAnalysis({ cacheKey, fromProfile, probedAt, measure }) {
+    probeCache.delete(cacheKey);
+    if (fromProfile) {
+        channelProfiles.remove(cacheKey);
+        // A play that kept the profile also kept its measurement, with the profile's probe time.
+        if (measure) channelMeasurements.forgetPlay(measure, probedAt);
+    }
+}
+
 /** #332: was this candidate's feed found sending the placeholder (providerRouting, 3 min)? */
 function placeholderNoted(ingestSource) {
     if (!ingestSource || ingestSource.providerId === null || ingestSource.providerId === undefined || ingestSource.channelKey == null) return false;
@@ -490,4 +531,4 @@ function probeFailureMessage(err) {
     return reason ? reason.message : FAILURE_TEXT.couldNotRead();
 }
 
-module.exports = { supersededError, SUPERSEDED_MESSAGE, resolve, DEFAULT_CAPABILITIES, probeFailureMessage, placeholderSuspect };
+module.exports = { supersededError, SUPERSEDED_MESSAGE, resolve, DEFAULT_CAPABILITIES, probeFailureMessage, placeholderSuspect, isPlaceholderFile, PLACEHOLDER_FILE_MAX_SEC };
