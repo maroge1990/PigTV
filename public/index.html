@@ -394,7 +394,6 @@
             <!-- R5: recording rules -->
             <section id="rules-section" class="rec-card" aria-labelledby="rules-heading">
               <div class="rec-card-head"><h3 id="rules-heading">Recording rules</h3><span id="rules-count" class="rec-count"></span></div>
-              <p id="rules-sub" class="rec-card-sub" hidden>Have every game recorded for you, without picking each one.</p>
               <form id="rule-add-form" class="rec-form">
                 <label for="rule-add-match">Record every game of a team or league</label>
                 <div class="rec-form-row">
@@ -402,8 +401,6 @@
                   <button type="submit" class="btn btn-secondary">Add rule</button>
                 </div>
                 <p id="rule-add-status" class="rec-hint" role="status"></p>
-                <p class="rec-hint">Live games only, never replays, on the best channel showing them. To record a series, open a
-                  programme in the TV Guide and choose Record series.</p>
               </form>
               <div id="recording-rules-list"></div>
             </section>
@@ -626,7 +623,6 @@
               <div class="setting-item" id="custom-user-agent-container-tc" style="display: none;">
                 <div class="setting-info" style="flex: 1;">
                   <span class="setting-label">Custom User-Agent</span>
-                  <span class="setting-hint">Enter your own User-Agent string.</span>
                 </div>
                 <input type="text" id="setting-user-agent-custom-tc" class="search-input" style="width: 300px;"
                   placeholder="Custom User-Agent string…">
@@ -660,7 +656,6 @@
               </div>
               <!-- #10 (0359): groups the provider added since the last sync arrive hidden and are listed here -->
               <div id="content-new-groups" class="settings-section new-groups" hidden></div>
-              <p class="hint" style="margin-bottom: var(--space-sm);">Ticked groups and channels are shown; unticked ones are hidden.</p>
               <div id="content-tree" class="content-tree">
                 <div class="state-block state-empty"><p class="state-block-title">Choose a provider to see its groups and channels.</p></div>
               </div>
@@ -851,8 +846,6 @@
                 a show (magazines, highlights, pre and post shows) or a placeholder (empty PPV slots, old listings, 24/7 replay
                 channels). Listings of the same game on different channels are merged. The Apple TV lists events and replays.</p>
               <h4>Leagues that count as sport</h4>
-              <p class="setting-hint">Since D-42 these are the leagues any account follows (each account chooses its own sports
-                and leagues); the old keyword list is retired.</p>
               <div id="sports-follow-chips" class="epg-candidates sports-chips"></div>
               <span id="sports-status" class="lineup-status"></span>
               <h4>Recognised in the next 72 hours</h4>
@@ -984,7 +977,7 @@
               <p class="setting-hint">A message to this address when a provider goes down, a recording fails, a
                 subscription is about to end, the guide is running out or recordings stop because appdata is nearly
                 full (at most once an hour each). For ntfy use the topic address and Text; for
-                Home Assistant a webhook address and JSON. Leave empty for none.</p>
+                Home Assistant a webhook address and JSON.</p>
               <div class="form-group">
                 <label for="notify-url">Webhook address</label>
                 <input type="url" id="notify-url" placeholder="https://ntfy.sh/your-topic" autocomplete="off" spellcheck="false">
@@ -1012,7 +1005,6 @@
                   <option value="light">Light</option>
                   <option value="dark">Dark</option>
                 </select>
-                <span class="setting-hint">Matching the system follows your device's appearance setting, including automatic day/night switching.</span>
               </div>
             </div>
 
@@ -1041,7 +1033,6 @@
           <div id="tab-users" class="tab-content">
             <div class="settings-section">
               <h3>User management</h3>
-              <p class="hint">Manage user accounts and permissions</p>
 
               <div class="user-list-container">
                 <table class="user-table">

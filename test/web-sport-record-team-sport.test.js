@@ -33,7 +33,7 @@ async function harness({ catalog = true } = {}) {
 
 test('every Broncos game, a team in a league the front page does not list: a team rule with the catalogue\'s sport', async () => {
     const h = await harness();
-    assert.match(h.body(), /data-index="1" data-key="r:what:1"><b>Every Broncos game<\/b><span class="pig-amount">Never replays<\/span>/);
+    assert.match(h.body(), /data-index="1" data-key="r:what:1"><b>Every Broncos game<\/b><\/button>/);
     h.pick(1);
     await h.save();
     assert.deepEqual(JSON.parse(JSON.stringify(h.calls.find(c => c[0] === 'rule'))), ['rule', { kind: 'team', match: 'Broncos', sport: 'Rugby league' }]);

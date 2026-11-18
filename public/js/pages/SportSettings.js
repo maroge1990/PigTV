@@ -560,10 +560,9 @@ class SportFollowSettings {
             <p class="setting-hint">For your account only, on every device you sign in on: the sports you follow, in your order, their leagues and your teams.</p>
             <fieldset class="sport-follow-body" ${this.unknown ? 'disabled' : ''}>
             <div class="setting-item"><label class="setting-toggle"><input type="checkbox" id="sport-follow-spoilers" ${this.state.spoilerFree ? 'checked' : ''}><span class="toggle-slider"></span></label>
-                <div class="setting-info"><span class="setting-label">Hide scores</span><span class="setting-hint">Hide scores and results everywhere in Sport.</span></div></div>
-            ${this.delay ? `<div class="setting-item sport-delay"><div class="setting-info"><label class="setting-label" for="sport-delay">Score delay</label>
-                <span class="setting-hint" id="sport-delay-hint">Clocks and scores follow it: how many seconds behind the scores feed they show, 0 to 300.</span></div>
-                <div class="sport-delay-field"><input type="number" id="sport-delay" min="0" max="300" step="1" inputmode="numeric" value="${e(this.delay.scoreDelaySeconds)}" aria-describedby="sport-delay-hint">
+                <div class="setting-info"><span class="setting-label">Hide scores</span></div></div>
+            ${this.delay ? `<div class="setting-item sport-delay"><div class="setting-info"><label class="setting-label" for="sport-delay">Score delay</label></div>
+                <div class="sport-delay-field"><input type="number" id="sport-delay" min="0" max="300" step="1" inputmode="numeric" value="${e(this.delay.scoreDelaySeconds)}">
                 <button class="btn btn-sm btn-secondary" data-act="delay-save">Save score delay</button></div></div>` : ''}
             ${suggestions ? `<ul class="sport-follow-suggestions">${suggestions}</ul>` : ''}
             ${cards || UI.stateBlock('empty', { title: 'You follow no sport yet', detail: 'Choose one below to follow it.' })}

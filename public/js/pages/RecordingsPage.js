@@ -33,7 +33,6 @@ class RecordingsPage {
         this.scheduledList = $('scheduled-recordings-list');
         this.rulesSection = $('rules-section');
         this.rulesCount = $('rules-count');
-        this.rulesSub = $('rules-sub');
         this.rulesList = $('recording-rules-list'); // R5
         this.recentProblemsSection = $('recent-problems-section');
         this.recentProblemsList = $('recent-problems-list');
@@ -498,7 +497,6 @@ class RecordingsPage {
         const el = this.rulesList;
         if (!el) return;
         if (this.rulesCount) this.rulesCount.innerHTML = '';
-        if (this.rulesSub) this.rulesSub.hidden = true;
         if (this.failed.rules) {
             UI.setState(el, 'error', { title: 'The recording rules could not be loaded.', detail: 'Rules already made still record.' },
                 { run: () => this.loadRules() });
@@ -507,7 +505,6 @@ class RecordingsPage {
         if (this.data.rules === null) { el.innerHTML = this.skeleton('rows'); return; }
         const rules = this.visible(this.data.rules, 'rule');
         if (!rules.length) {
-            if (this.rulesSub) this.rulesSub.hidden = false;
             el.innerHTML = '';
             return;
         }

@@ -44,7 +44,7 @@ test('tennis: Live now, Tonight and Results today are always there, with their e
     assert.match(html, /aria-label="Live now">[^]*?<p class="sp-muted rail-empty">No match in play right now\.<\/p>/);
     assert.match(html, /aria-label="Tonight">[^]*?<p class="sp-muted rail-empty">Nothing more today\.<\/p>/);
     const hidden = V.leaguePage('Tennis', 'ATP Tour', 'events', { answer: tennis('finished') }, ctx(V, answer(), { hide: true }));
-    assert.match(hidden, /<span class="s">Results today<\/span><span class="note">Hidden while Hide scores is on<\/span>/);
+    assert.match(hidden, /<span class="s">Results today<\/span><\/span>/);
     assert.doesNotMatch(hidden, /class="sets|trow won|>Final</, 'no set, winner or result word');
 });
 
@@ -58,7 +58,7 @@ test('golf: your player hidden says the round only; shown, "To the lead" before 
     assert.match(shown, /<span class="gk">To the lead<\/span><span class="gap">/);
     const hidden = V.leaguePage('Golf', 'PGA Tour', 'events', { answer: p }, ctx(V, answer(), { hide: true }));
     assert.match(hidden, /<div class="rd">In the field( · round \d+ in play)?<\/div>/);
-    assert.match(hidden, /<b>Leaderboard hidden<\/b>/);
+    assert.match(hidden, /<b>Leaderboard<\/b><\/div><p class="hidden-note">[^]*?<span>Scores hidden<\/span>/);
 });
 
 test('UFC: a followed bout tinted, a live bout\'s line red', () => {

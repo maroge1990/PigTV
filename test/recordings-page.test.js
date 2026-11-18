@@ -269,7 +269,6 @@ test('#276: when nothing is recorded the rose button is "Open the TV Guide", and
     assert.match(elements['recordings-list'].innerHTML, /No recordings yet/);
     assert.match(elements['recordings-list'].innerHTML, /btn-primary[^>]*>Open the TV Guide</);
     assert.equal(elements['scheduled-section'].hidden, true, 'no empty Coming up box');
-    assert.equal(elements['rules-sub'].hidden, false, 'the rules card says what a rule is');
     assert.equal(elements['recent-problems-section'].hidden, true);
     page.openGuide();
     assert.deepEqual(went, ['guide']);
@@ -633,7 +632,6 @@ test('R5: rules are listed with their state, and the box adds a sport rule then 
     assert.match(html, /data-action="toggle-rule" data-id="2" data-enabled="false"[^>]*>Turn on/);
     assert.match(html, /data-action="delete-rule" data-id="1"/);
     assert.match(elements['rules-count'].innerHTML, /<span class="pig-amount">2<\/span> rules/);
-    assert.equal(elements['rules-sub'].hidden, true);
 
     await page.addSportRule();
     assert.deepEqual(bodies[0], { kind: 'sport', match: 'Collingwood' });

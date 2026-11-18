@@ -47,7 +47,7 @@ for (const phone of [false, true]) {
         const c = (o = {}) => ctx(V, answer(), { hide: true, phone, ...o });
         const g = V.leaguePage('Golf', 'PGA Tour', 'events', { answer: golf(), loaded: true }, c());
         for (const s of GOLF_SECRETS) assert.ok(!g.includes(s), `golf: "${s}"`);
-        assert.match(g, /<b>Leaderboard hidden<\/b><span>Hide scores is on\. Positions and scores reveal the result; the field and its round stay visible\.<\/span>/);
+        assert.match(g, /<b>Leaderboard<\/b><\/div><p class="hidden-note">[^]*?<span>Scores hidden<\/span>/);
         assert.match(g, /<div class="pcard"><div class="t"><span class="star"[^>]*>★<\/span><span class="visually-hidden">Your player, <\/span>Matthieu Pavon<\/div><div class="rd">In the field · round 3 in play<\/div><\/div>/, 'your player: the name and the round alone');
         const t = V.leaguePage('Tennis', 'ATP Tour', 'events', { answer: tennis(), loaded: true }, c({ now: NOW }));
         for (const s of TENNIS_SECRETS) assert.ok(!t.includes(s), `tennis: "${s}"`);

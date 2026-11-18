@@ -1010,7 +1010,7 @@ const SportView = (() => {
         const viewChips = fx.views.length > 1 ? fx.views.map(v => `<button type="button" class="fchip${v === view ? ' on' : ''}" data-act="standings-view" data-view="${e(v.name)}" aria-pressed="${v === view}" data-key="view:${e(v.name)}">${e(v.name)}</button>`).join('') : '';
         let body;
         if (hide) {
-            body = `<div class="lcard"><div class="lh"><b>Standings hidden</b></div><p class="hidden-note">${ICON.eyeOff}<span>Records, positions and points reveal results while Hide scores is on.</span></p></div>`;
+            body = `<div class="lcard"><div class="lh"><b>Standings hidden</b></div><p class="hidden-note">${ICON.eyeOff}<span>Scores hidden</span></p></div>`;
         } else {
             const groups = tableGroups(view), group = groups.find(g => g.name === ctx.tableGroup) || groups[0];
             const groupChips = groups.length > 1 ? `<div class="rounds">${groups.map(g => `<button type="button" class="fchip${g === group ? ' on' : ''}" data-act="table-group" data-group="${e(g.name)}" aria-pressed="${g === group}" data-key="tg:${e(g.name)}">${e(g.name)}</button>`).join('')}</div>` : '';
@@ -1165,7 +1165,7 @@ const SportView = (() => {
         const want = following.map(lower);
         const results = page.results, st = page.standings;
         const card = (title, note, rows) => `<div class="lcard"><div class="lh"><b>${e(title)}</b>${note ? `<span>${e(note)}</span>` : ''}</div>${rows}</div>`;
-        const hiddenRows = evHiddenNote('Hide scores is on. Grids, finishing orders and points stay hidden until it is turned off in Settings.', 'Results hidden');
+        const hiddenRows = evHiddenNote('Scores hidden');
         const mrow = (pos, name, color, detail, points, followed) => `<div class="mrow${followed ? ' me' : ''}"><span class="ps pig-amount">${e(pos)}</span><span class="bar" style="background:${hex(color) || 'var(--disc)'}"></span>${followed ? star('Your driver') : ''}<span class="nm">${e(name)}</span>${points != null ? `<span class="pt pig-amount">${e(points)}</span>` : detail ? `<span class="dt">${e(detail)}</span>` : ''}</div>`;
         const lists = [];
         if (results) lists.push(card(results.kind === 'grid' ? 'Starting grid' : results.title || 'Last race', '',
@@ -1355,7 +1355,7 @@ const SportView = (() => {
         const { hide, phone, now } = ctx;
         const parOf = (t) => { if (t == null) return null; const s = String(t).trim().replace('−', '-').replace('+', ''); return s.toUpperCase() === 'E' ? 0 : Number.isFinite(Number(s)) && s !== '' ? Number(s) : null; };
         const lb = focus.leaderboard || [], leader = lb.find(r => r.pos != null);
-        const board = hide ? `<div class="lcard"><div class="lh"><b>Leaderboard</b></div>${evHiddenNote('Hide scores is on. Positions and scores reveal the result; the field and its round stay visible.', 'Leaderboard hidden')}</div>`
+        const board = hide ? `<div class="lcard"><div class="lh"><b>Leaderboard</b></div>${evHiddenNote('Scores hidden')}</div>`
             : `<div class="lcard"><div class="lh"><b>Leaderboard</b><span>Top ${Math.min(11, lb.length)}</span></div><table class="lb"><thead><tr><th scope="col" class="tl">Pos</th><th scope="col" class="tl">Player</th><th scope="col">To par</th>${phone ? '' : '<th scope="col">R1</th><th scope="col">R2</th><th scope="col">R3</th>'}</tr></thead><tbody>`
                 + lb.slice(0, 11).map(r => `<tr${evFollowed(r.name, focus) ? ' class="me"' : ''}><td class="pos">${e(r.pos ?? (r.status ? r.status.toUpperCase() : '–'))}</td><td class="nm">${evFollowed(r.name, focus) ? star('Your player') : ''}${e(r.name)}</td><td class="tp pig-amount">${e(r.toPar ?? '–')}</td>${phone ? '' : [0, 1, 2].map(i => `<td class="r pig-amount">${e((r.rounds || [])[i] ?? '–')}</td>`).join('')}</tr>`).join('')
                 + '</tbody></table></div>';
@@ -1416,7 +1416,7 @@ const SportView = (() => {
                 + (list.length ? railHtml(`tennis:${title}`, title, list.slice(0, 20).map(matchCard).join(''), ctx) : `<p class="sp-muted rail-empty">${e(empty)}</p>`) + '</section>'
             : '');
         return rail('Your players', yours) + rail('Live now', live, 'No match in play right now.') + rail('Tonight', tonight, 'Nothing more today.')
-            + rail('Results today', results, 'No results yet today.', hide ? 'Hidden while Hide scores is on' : null);
+            + rail('Results today', results, 'No results yet today.');
     }
 
     /** UFC: the main card and the prelims, the main event last; with scores hidden "Finished", no winner. */

@@ -59,7 +59,7 @@ for (const phone of [false, true]) {
             for (const round of [null, '3:4', '7']) {
                 const html = V.leaguePage('X', league, kind, { answer: data, loaded: true }, ctx(V, answer(), { hide: true, phone, round }));
                 assertNothingRevealed(html, `${league} round ${round}`);
-                assert.match(html, /Standings hidden[\s\S]*Records, positions and points reveal results while Hide scores is on\./);
+                assert.match(html, /Standings hidden[\s\S]*Scores hidden/);
                 assert.match(html, /<span class="clk pig-amount">Live<\/span>|Played · /, 'neutral words only');
             }
         }

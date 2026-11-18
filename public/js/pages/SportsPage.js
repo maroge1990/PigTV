@@ -664,7 +664,7 @@ class SportsPage {
             { action: { label: 'Cancel', run: () => { if (this.waiting === token) { clearTimeout(token.timer); this.waiting = null; } } } });
     }
 
-    /** Record this game: its best channel's airing, with the usual padding, stopping when the game ends (gameId). */
+    /** Record this game: its best channel's airing, padded as usual, stopping when the game ends (gameId). */
     async record(id) {
         this.closeMenu();
         const g = this.game(id), ev = g && SportView.event(g);
@@ -721,18 +721,18 @@ class SportsPage {
         }
         if (ev && !V.terminal(g) && ev.end > now) {
             const r = g.recording;
-            if (r && r.scheduleId != null && r.status) items.push({ act: 'change-recording', icon: red, title: 'Change recording', detail: r.status === 'recording' ? 'Recording now' : 'Recording scheduled', section: 'Record' });
-            else items.push({ act: 'record', icon: red, title: 'Record this game', detail: `${UI.clock(ev.start)} – ${UI.clock(ev.end)}, with the usual padding`, section: 'Record' });
+            if (r && r.scheduleId != null && r.status) items.push({ act: 'change-recording', icon: red, title: 'Change recording', detail: '', section: 'Record' });
+            else items.push({ act: 'record', icon: red, title: 'Record this game', detail: '', section: 'Record' });
             const team = this.teamFor(g);
-            if (team) items.push({ act: 'record-every', icon: V.ICON.repeat, title: `Record every ${team.name} game`, detail: 'Every game of the team, never replays', section: 'Record' });
-            items.push({ act: 'record-options', icon: V.ICON.sliders, title: 'More options…', detail: 'Start early, finish late', section: 'Record' });
+            if (team) items.push({ act: 'record-every', icon: V.ICON.repeat, title: `Record every ${team.name} game`, detail: '', section: 'Record' });
+            items.push({ act: 'record-options', icon: V.ICON.sliders, title: 'More options…', detail: '', section: 'Record' });
         } else if (!ev && !g.synthetic && g.status === 'scheduled' && (g.competitors || []).length === 2 && !g.recording && g.start > now) {
             // #234: a game the TV Guide does not list yet is recorded once it is
             if (g.recordWhenListed && g.recordWhenListed.ruleId != null) items.push({ act: 'unlisted-cancel', icon: red, title: 'Don’t record it', detail: 'It records when the TV Guide lists it', section: 'Record' });
-            else items.push({ act: 'record-listed', icon: red, title: 'Record when it’s listed', detail: 'Not in the TV Guide yet', section: 'Record' });
+            else items.push({ act: 'record-listed', icon: red, title: 'Record when it’s listed', detail: '', section: 'Record' });
         }
         // #345: Remind me is only here, and only before the game starts (a live one plays at once)
-        if (act === 'remind') items.push({ act: 'remind', icon: V.ICON.bell, title: 'Remind me', detail: `Plays on ${ev.channel.name} at ${UI.clock(ev.start)}`, section: '' });
+        if (act === 'remind') items.push({ act: 'remind', icon: V.ICON.bell, title: 'Remind me', detail: '', section: '' });
         if (front && !g.synthetic && this.heroId !== g.id) items.push({ act: 'pin', icon: V.ICON.star, title: 'Make this the hero', detail: 'Show it in the banner', section: '' });
         return items;
     }
@@ -746,7 +746,7 @@ class SportsPage {
                 section = it.section;
                 html += `<div class="mdiv" role="separator"></div>${section ? `<div class="ms" aria-hidden="true">${e(section)}</div>` : ''}`;
             }
-            html += `<button type="button" class="mi" role="menuitem" tabindex="-1" data-act="${e(it.act)}" data-id="${e(g.id)}"${it.expands ? ' aria-expanded="false"' : ''}>${it.icon}<span><b>${e(it.title)}</b><span>${e(it.detail)}</span></span></button>`;
+            html += `<button type="button" class="mi" role="menuitem" tabindex="-1" data-act="${e(it.act)}" data-id="${e(g.id)}"${it.expands ? ' aria-expanded="false"' : ''}>${it.icon}<span><b>${e(it.title)}</b>${it.detail ? `<span>${e(it.detail)}</span>` : ''}</span></button>`;
             if (it.expands) html += `<div class="msub" hidden>${V.channelGroups(this.channelsOnAir(g)).map(row => {
                 const copies = row.chips.flatMap(x => x.channels), c = copies[0], single = copies.length === 1;
                 // a row whose chips show has no best badge of its own (its first chip is it): only a closed row (phone) has it
@@ -1073,9 +1073,9 @@ class SportsPage {
     whatLabel(w, st) {
         const a = st.airings[0];
         if (w.kind === 'this') return { title: 'This game', detail: a ? `${SportsPage.day(a.start, this.now())} ${UI.clock(a.start)}` : '' };
-        if (w.kind === 'team') return { title: `Every ${w.name} game`, detail: this.teamSport(w, st.g) ? 'Never replays' : 'Not available: PigTV doesn’t know this league’s sport' };
+        if (w.kind === 'team') return { title: `Every ${w.name} game`, detail: this.teamSport(w, st.g) ? '' : 'Not available: PigTV doesn’t know this league’s sport' };
         const name = SportView.label(w.league, this.labels);
-        return { title: (st.g.competitors || []).length === 2 ? `Every ${name} game` : `Everything in ${name}`, detail: 'On your channels, never replays' };
+        return { title: (st.g.competitors || []).length === 2 ? `Every ${name} game` : `Everything in ${name}`, detail: '' };
     }
 
     /**
@@ -1180,15 +1180,14 @@ class SportsPage {
             html += '<h3 class="rsec" id="sp-rec-what">What</h3><div class="rwhat" role="radiogroup" aria-labelledby="sp-rec-what">';
             st.whats.forEach((w, i) => {
                 const l = this.whatLabel(w, st), on = i === st.what, off = w.kind === 'team' && !this.teamSport(w, g);
-                html += `<button type="button" class="rchoice${on ? ' on' : ''}" role="radio" aria-checked="${on}" data-act="r-what" data-index="${i}" data-key="r:what:${i}"${off ? ' disabled' : ''}><b>${e(l.title)}</b><span class="pig-amount">${e(l.detail)}</span></button>`;
+                html += `<button type="button" class="rchoice${on ? ' on' : ''}" role="radio" aria-checked="${on}" data-act="r-what" data-index="${i}" data-key="r:what:${i}"${off ? ' disabled' : ''}><b>${e(l.title)}</b>${l.detail ? `<span class="pig-amount">${e(l.detail)}</span>` : ''}</button>`;
             });
             html += '</div>';
         }
         // When it stops: with the game (ESPN) for a card's game or a schedule linked to one, else the guide's end
         const withGame = changing && st.schedule ? st.schedule.endsWith === 'event' : !g.synthetic;
-        const end = UI.clock(a.end);
-        const stop = withGame ? ['When the game ends (ESPN)', `Else the guide end, ${end}, + Finish late`] : ['When the guide says it ends', `${end} + Finish late`];
-        html += `<h3 class="rsec">When it stops</h3><div class="rstop"><span class="rradio on" aria-hidden="true"></span><span class="rcht"><b>${e(stop[0])}</b><span class="pig-amount">${e(stop[1])}</span></span></div>`;
+        const stop = withGame ? 'When the game ends (ESPN)' : 'When the guide says it ends';
+        html += `<h3 class="rsec">When it stops</h3><div class="rstop"><span class="rradio on" aria-hidden="true"></span><span class="rcht"><b>${e(stop)}</b></span></div>`;
         const startLocked = changing && (!st.schedule || st.schedule.status === 'recording' || st.gone);
         const endLocked = changing && (!st.schedule || st.gone);
         const select = (id, title, options, value, locked) => `<label class="rrow" for="${id}"><span>${e(title)}</span><select id="${id}" data-key="r:${id}"${locked ? ' disabled' : ''}>`
@@ -1197,7 +1196,7 @@ class SportsPage {
         html += select('sp-rec-post', 'Finish late', P.chips(P.FINISH_LATE, st.schedule && st.schedule.post_buffer_min, changing), st.post, endLocked);
         // Record on: when several channels carry it, each on its own airing
         if (!changing && (st.airings.length > 1 || !chosen)) {
-            html += `<div class="rsech"><h3 class="rsec" id="sp-rec-on">Record on</h3><span>${st.airings.length} channels in your guide carry it</span></div><div class="ron" role="radiogroup" aria-labelledby="sp-rec-on">`;
+            html += `<div class="rsech"><h3 class="rsec" id="sp-rec-on">Record on</h3></div><div class="ron" role="radiogroup" aria-labelledby="sp-rec-on">`;
             const first = st.airings[0];
             // D-65: one row per channel name; a row with several qualities has its chips (the chosen one pressed)
             const indexOf = (c) => st.airings.findIndex(x => x.c === c);
@@ -1219,7 +1218,6 @@ class SportsPage {
         let note;
         if (changing) note = st.gone ? P.GONE : !st.schedule ? '' : st.schedule.status === 'recording' ? 'It is recording: only Finish late can change.' : 'Changes apply to this recording only.';
         else if (a.start <= now) note = 'It has started: only the rest of it is recorded.';
-        else note = `If every provider connection is in use ${st.pre == null ? 'when it starts' : `at ${UI.clock(a.start - st.pre * 60000)}`}, the recording waits for one to free up.`;
         if (note) html += `<p class="rnote">${e(note)}</p>`;
         if (st.error) html += `<p class="rerr" role="alert">${e(st.error)}</p>`;
         // the buttons: Cancel (Close); Cancel recording (Stop recording); Record game / Record every game / Save changes

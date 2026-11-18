@@ -244,6 +244,30 @@ const ROWS = [
 
     // public/site.webmanifest
     { file: 'site.webmanifest', text: '"scope": "/"', why: '0021: PigTV rebrand + recording fix: manifest scope' },
+
+    // #341: helper text the owner approved for removal
+    { file: 'index.html', text: "Have every game recorded for you", absent: true, why: '#341: web: helper line that repeats what the control already says is removed' },
+    { file: 'index.html', text: "never replays, on the best channel", absent: true, why: '#341: web: helper line that repeats what the control already says is removed' },
+    { file: 'index.html', text: "Enter your own User-Agent string", absent: true, why: '#341: web: helper line that repeats what the control already says is removed' },
+    { file: 'index.html', text: "Ticked groups and channels are shown", absent: true, why: '#341: web: helper line that repeats what the control already says is removed' },
+    { file: 'index.html', text: "the old keyword list is retired", absent: true, why: '#341: web: helper line that repeats what the control already says is removed' },
+    { file: 'index.html', text: "Leave empty for none", absent: true, why: '#341: web: helper line that repeats what the control already says is removed' },
+    { file: 'index.html', text: "Matching the system follows", absent: true, why: '#341: web: helper line that repeats what the control already says is removed' },
+    { file: 'index.html', text: "Manage user accounts and permissions", absent: true, why: '#341: web: helper line that repeats what the control already says is removed' },
+    { file: 'js/pages/SportSettings.js', text: "Hide scores and results everywhere", absent: true, why: '#341: web: helper line that repeats what the control already says is removed' },
+    { file: 'js/pages/SportSettings.js', text: "Clocks and scores follow it", absent: true, why: '#341: web: helper line that repeats what the control already says is removed' },
+    { file: 'js/pages/SportView.js', text: "Hidden while Hide scores is on", absent: true, why: '#341: web: helper line that repeats what the control already says is removed' },
+    { file: 'js/pages/SportView.js', text: "reveal results while Hide scores is on", absent: true, why: '#341: web: helper line that repeats what the control already says is removed' },
+    { file: 'js/pages/SportView.js', text: "Hide scores is on.", absent: true, why: '#341: web: helper line that repeats what the control already says is removed' },
+    { file: 'js/pages/SportsPage.js', text: "Not in the TV Guide yet", absent: true, why: '#341: web: helper line that repeats what the control already says is removed' },
+    { file: 'js/pages/SportsPage.js', text: "with the usual padding", absent: true, why: '#341: web: helper line that repeats what the control already says is removed' },
+    { file: 'js/pages/SportsPage.js', text: "Start early, finish late", absent: true, why: '#341: web: helper line that repeats what the control already says is removed' },
+    { file: 'js/pages/SportsPage.js', text: "never replays", absent: true, why: '#341: web: helper line that repeats what the control already says is removed' },
+    { file: 'js/pages/SportsPage.js', text: "Never replays", absent: true, why: '#341: web: helper line that repeats what the control already says is removed' },
+    { file: 'js/pages/SportsPage.js', text: "channels in your guide carry it", absent: true, why: '#341: web: helper line that repeats what the control already says is removed' },
+    { file: 'js/pages/SportsPage.js', text: "Else the guide end", absent: true, why: '#341: web: helper line that repeats what the control already says is removed' },
+    { file: 'js/pages/SportsPage.js', text: "If every provider connection is in use", absent: true, why: '#341: web: helper line that repeats what the control already says is removed' },
+    { file: 'js/pages/SportsPage.js', text: "Plays on ${", absent: true, why: '#341: web: helper line that repeats what the control already says is removed' },
 ];
 
 // Translate a GNU basic regular expression (as `grep` reads it) into a JS RegExp that matches within one line.

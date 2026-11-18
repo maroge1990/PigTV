@@ -26,7 +26,7 @@ test('F1: "Results hidden" with iOS\'s words; the iPhone\'s F1 league page has n
     const { V } = browser();
     const p = golden('sports-page-f1.json');
     const hidden = V.leaguePage('Motorsport', 'F1', 'f1', { answer: p }, ctx(V, answer(), { hide: true }));
-    assert.match(hidden, /<b>Results hidden<\/b><span>Hide scores is on\. Grids, finishing orders and points stay hidden until it is turned off in Settings\.<\/span>/);
+    assert.match(hidden, /<span>Scores hidden<\/span>/);
     const phone = V.leaguePage('Motorsport', 'F1', 'f1', { answer: p }, ctx(V, answer(), { phone: true }));
     assert.match(phone, /^<div class="tiles">/);
     assert.doesNotMatch(phone, /hero-actions|class="kicker/);

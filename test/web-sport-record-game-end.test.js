@@ -69,7 +69,7 @@ test('Change recording keeps the link: it sends only padding, with PUT, and says
     h.f.games.find(g => g.id === 'nxt').recording = { scheduleId: 4, status: 'scheduled' };
     h.p.act('change-recording', h.el({ 'data-id': 'nxt' }));
     await h.settle();
-    assert.match(h.b.document.body.querySelector('dialog .ui-dialog-body').innerHTML, /<b>When the game ends \(ESPN\)<\/b><span class="pig-amount">Else the guide end, [^<]+, \+ Finish late<\/span>/);
+    assert.match(h.b.document.body.querySelector('dialog .ui-dialog-body').innerHTML, /<b>When the game ends \(ESPN\)<\/b><\/span>/);
     const post = h.b.document.getElementById('sp-rec-post');
     post.value = '30'; post.dispatchEvent(new (require('./helpers/fakeDom').FakeEvent)('change'));
     h.save();
@@ -83,5 +83,5 @@ test('a schedule the server does not link to a game says it stops at the guide\'
     h.f.games.find(g => g.id === 'nxt').recording = { scheduleId: 4, status: 'scheduled' };
     h.p.openRecord('nxt');
     await h.settle();
-    assert.match(h.b.document.body.querySelector('dialog .ui-dialog-body').innerHTML, /<b>When the guide says it ends<\/b><span class="pig-amount">[^<]+ \+ Finish late<\/span>/);
+    assert.match(h.b.document.body.querySelector('dialog .ui-dialog-body').innerHTML, /<b>When the guide says it ends<\/b><\/span>/);
 });

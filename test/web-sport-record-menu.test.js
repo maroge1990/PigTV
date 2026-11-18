@@ -56,8 +56,7 @@ test('a game to come: RECORD (this game, every Tottenham game, More options…),
     assert.deepEqual(items(m.innerHTML), [['record', 'Record this game'], ['record-every', 'Record every Tottenham game'],
         ['record-options', 'More options…'], ['remind', 'Remind me'], ['pin', 'Make this the hero']]);
     assert.match(m.innerHTML, /<div class="ms" aria-hidden="true">Record<\/div>/);
-    assert.match(m.innerHTML, /<span>[^<]+, with the usual padding<\/span>/);
-    assert.match(m.innerHTML, /Every game of the team, never replays/);
+    assert.ok(!/with the usual padding|never replays/.test(m.innerHTML));
     h.p.act('record-every', { getAttribute: (k) => ({ 'data-id': 'nxt' })[k] ?? null });
     await new Promise(setImmediate);
     assert.deepEqual(JSON.parse(JSON.stringify(h.calls.find(c => c[0] === 'rule'))), ['rule', { kind: 'team', match: 'Tottenham', sport: 'Football' }]);
@@ -78,7 +77,7 @@ test('Change recording when it is set; Record when it\'s listed, or Don\'t recor
     h.f.games.find(g => g.id === 'nxt').recording = { scheduleId: 4, status: 'recording' };
     h.p.openMenu(h.p.game('nxt'), h.anchor());
     assert.deepEqual(items(h.menu().innerHTML).slice(0, 3), [['change-recording', 'Change recording'], ['record-every', 'Record every Tottenham game'], ['record-options', 'More options…']]);
-    assert.match(h.menu().innerHTML, /<b>Change recording<\/b><span>Recording now<\/span>/);
+    assert.match(h.menu().innerHTML, /<b>Change recording<\/b><\/span>/);
     h.p.openMenu(h.p.game('far'), h.anchor());
     assert.deepEqual(items(h.menu().innerHTML), [['record-listed', 'Record when it’s listed'], ['pin', 'Make this the hero']]);
     await h.p.recordListed('far');
