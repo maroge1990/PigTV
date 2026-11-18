@@ -765,3 +765,13 @@ reviews.
   that the wordmark image is not used on its own (§3) for the splash only. No splash without a saved sign-in, as
   before; Reduce Motion gets a plain cross-fade.
 - **Consequence:** PigBrand's guide should record the exception at its next release.
+
+### D-70. Release jobs run in Xcode Cloud; the Mac does quick checks, one PigTV job at a time (18 Nov 2026; Mark)
+
+- **Context:** the Mac clogged on 18 Nov (three PigTV builders testing at once beside two other projects; SSH refused,
+  then a reboot). Mark has free Xcode Cloud hours (25 a month).
+- **Choice:** the full Apple test run, both archives and the TestFlight upload run in an Xcode Cloud workflow started at
+  release time, never on every push. The Mac keeps quick simulator checks of unpushed work, one PigTV job at a time,
+  shutting down only its own simulators and deleting its build files afterwards.
+- **Consequence:** Mark does the one-time Create Workflow and GitHub access in Xcode on the Mac; the workflow fetches
+  the server's `test/golden` for the contract checks. Until then TestFlight uploads stay on `Tools/testflight.sh`.

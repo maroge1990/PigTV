@@ -5,23 +5,22 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 17 Nov 2026 (early hours), the design-to-build session (nothing unpushed).*
+*Overwritten at the end of every session. 18 Nov 2026 (afternoon), the TestFlight-291 feedback session (nothing unpushed).*
 
-- **Running:** production runs **0695** (Mark holds the Force Update until the channel audit's window ends, 17 Nov 11:30
-  AEDT). main is at **0814**, all CI green: everything below reaches production at his next Force Update (D-58).
-  `:release` stays **v0579** until Mark's device checks of the new build, then moves (Mark, 16 Nov). Apple main **291**
-  (TestFlight still 246; the next upload is cloud-signed, D-64). Next builds: server **0815**, Apple **292**.
-- **Designs decided 16 Nov (mock-up canvases):** pickers D-65; Top Shelf with scores unless recording, and search kept
-  side-by-side from every page, D-66; players (sport player's live games, guarded Go to live, quality badge) D-67.
-- **Built and pushed 16–17 Nov, each with Codex rounds and simulator/browser screenshots on every platform:**
-  sport player and Go to live (0788–0797, Apple 256–261; #334, #335); measured quality and one-row pickers (0798–0808,
-  Apple 262–279; #265, #266); Top Shelf live games (#232), #336 iPhone rotation crash, a flaky record-page test;
-  search and richer guide programmes (0810–0814, Apple 280–291; #57, #56); a recent final keeping its result after local
-  midnight (0809, #337 closed). All T5 steps are on their issues (`needs-device-test`).
-- **Mark's decisions 16 Nov:** Appdata Backup keeps stopping PigTV, moved to a quiet slot (#246, proposed Wed 04:00);
-  #240 captures after the audit; #283 parked; `:release` after the device checks.
-- **Not done:** the measured-quality import of the audit (`scripts/import-channel-audit.js`) runs after the window;
-  the iPad search page uses the app's 820 pt page width (right side empty); iPhone search titles truncate.
+- **Running:** production runs **0819** (Force Update 17 Nov 22:13). main is at **0834**, Apple main **319**, all CI
+  green: the server reaches production at Mark's next Force Update (D-58), not during the 18 Nov game run (10:50–17:00).
+  TestFlight is **291**; 319 is not uploaded yet. `:release` stays **v0579** until Mark's device checks. Next builds:
+  server **0835**, Apple **320**.
+- **Built and pushed 18 Nov from Mark's TestFlight 291 feedback** (Opus stood in while Codex was out, then Codex rounds
+  and sign-offs; simulator shots on Apple TV, iPad, iPhone and web): finished games keep their score (#343, closed);
+  sport cards select and hold per D-68 (#345), recordings carry their game; no pink selection line (#344); helper lines
+  removed (#341); tvOS Sport header clearance (#339); flat iPhone record page (#340); the splash per D-69 (#342).
+  Evidence: `docs/evidence/2026-11-18-sport-cards/`. T5 steps on each issue (`needs-device-test`).
+- **Mark's decisions 18 Nov:** sport cards D-68, splash option C D-69; release jobs move to Xcode Cloud, D-70 (Mark does
+  the one-time Create Workflow in Xcode on the Mac); one PigTV Mac job at a time.
+- **Not done:** #347 durable game id for fixture, F1 and cricket cards; review leftovers noted on #343 and #345; #346
+  an iPhone unit test failing on main (iOS unit tests never run in CI); the 18 Nov game run's summary
+  (`node /app/data/audit/channel-audit.js summary /app/data/audit/events-1118`); hiding the 50 dead channels waits on Mark.
 
 ## Now
 
