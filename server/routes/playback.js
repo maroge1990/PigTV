@@ -553,6 +553,13 @@ async function gameFallback({ sourceId, channelId, identity = null, eventId = nu
             continue;
         }
         if (walked.decision) return { walked, walk, channel, event };
+        // Codex (#348): this channel of the game is the provider's placeholder too: its health says so, so it sinks in
+        // the game's order as the requested one does (a channel that played after a failover of its own is a success).
+        if (walked.lastError && walked.lastError.placeholder && walked.placeholderOnly) {
+            channelHealth.recordResolve({ sourceId: Number(channel.sourceId), channelId: channel.id, ok: false, category: 'placeholder',
+                reason: clientSafe(walked.lastError.message), identity: { sourceId: Number(channel.sourceId), key: plan.primaryKey, name: channel.name || plan.channelName || null },
+                providerId: walk.candidates.length ? walk.candidates[walk.candidates.length - 1].providerId : null });
+        }
     }
     return null;
 }

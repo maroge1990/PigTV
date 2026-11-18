@@ -664,3 +664,29 @@ test('Codex high: an ingest wait cut by the resolve deadline drops its waiter an
     assert.equal(stalled.length - opened, 1);
     assert.equal(stalledClosed - closed, 1, 'the provider saw the connection closed');
 });
+
+test('Codex medium: each game channel found to be the placeholder on the way gets a placeholder health row; the one that played stays a success', async () => {
+    const dbh = sqlite.getDb();
+    const health = load('services/channelHealth');
+    dbh.prepare('DELETE FROM channel_health').run();
+    health.reset();
+    liveGames({ id: 'g', title: 'NHL: Utah vs Chicago', channels: [ch('pos_2', 's1803789', 'Sportsnet Event'), ch('pos_6', 's106', 'Sportsnet East'),
+        ch('pos_8', 's108', 'TSN 4'), ch('pos_5', 's105', 'Sportsnet One')] });
+    try {
+        const r = await play('pos_2');
+        assert.equal(r.status, 200, JSON.stringify(r.body));
+        assert.equal(r.body.fallback.to.name, 'Sportsnet One');
+        const rows = Object.fromEntries(dbh.prepare('SELECT channel_key, ok, reason FROM channel_health').all().map(x => [x.channel_key, [x.ok, x.reason]]));
+        assert.deepEqual(rows, { s1803789: [0, 'placeholder'], s106: [0, 'placeholder'], s108: [0, 'placeholder'], s105: [1, null] });
+        // Both slates now rank after the channel that plays.
+        const now = Date.now();
+        const channels = [['pos_2', 's1803789', 'Sportsnet Event'], ['pos_6', 's106', 'Sportsnet East'], ['pos_8', 's108', 'TSN 4'], ['pos_5', 's105', 'Sportsnet One']]
+            .map(([id, stableId, name], order) => ({ sourceId: A.id, id, stableId, name, quality: 'HD', order, key: `${A.id}:${stableId}` }));
+        health.applyHealth(channels, now, { blank: true });
+        sportsEvents._useBuilt({ from: now - 3600e3, events: [{ id: 'g2', kind: 'event', title: 'NHL: Utah vs Chicago', league: 'NHL', start: now - 3600e3, end: now + 3600e3, channels, airingTimes: {} }] });
+        assert.equal(sportsEvents.liveEventFor({ sourceId: A.id, stableId: 's105' }).channels[0].name, 'Sportsnet One');
+    } finally {
+        dbh.prepare('DELETE FROM channel_health').run();
+        health.reset();
+    }
+});
