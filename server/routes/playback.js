@@ -218,7 +218,9 @@ router.post('/resolve', requireToken, async (req, res) => {
         // -> { decision, chosen, failedOver, lastError, placeholderOnly } (placeholderOnly: every start that failed was the
         // provider's placeholder, found now or skipped as one).
         const walkCandidates = async (walk) => {
-            const out = { decision: null, chosen: null, failedOver: false, lastError: null, placeholderOnly: true };
+            // `tried`: candidates that reached a start (so none was passed over as busy, nor left when the time ran out);
+            // `placeholderFrom`: the last candidate seen sending the placeholder (Codex #348: health names its provider).
+            const out = { decision: null, chosen: null, failedOver: false, lastError: null, placeholderOnly: true, tried: 0, placeholderFrom: null };
             const plan = walk.routing;
             await startOnFirstFree(walk.candidates, {
                 before: () => {
@@ -233,6 +235,7 @@ router.post('/resolve', requireToken, async (req, res) => {
                 ask: (candidate) => ({ force: false, settings, owner, providerId: candidate.providerId, joinIngest: ingestFor(candidate, walk.ref)?.key || null }),
                 start: async (candidate, i, lease) => {
                     if (clientGone()) throw playbackStrategy.supersededError();
+                    out.tried++;
                     // #332: this feed was sending the provider's placeholder a moment ago (held back 3 min; the plan
                     // gives it only when nothing else can play the channel): no connection for a still slate.
                     if (plan && providerRouting.isPlaceholder(candidate.providerId, candidate.channelKey)) throw placeholderError();
@@ -247,6 +250,7 @@ router.post('/resolve', requireToken, async (req, res) => {
                     // #332: found sending its placeholder during this start: the viewer is told so (C-B).
                     out.lastError = !err.placeholder && providerRouting.isPlaceholder(candidate.providerId, candidate.channelKey) ? placeholderError() : err;
                     if (!out.lastError.placeholder) out.placeholderOnly = false;
+                    else out.placeholderFrom = candidate;
                     out.failedOver = true;
                     providerRouting.noteStartFailure(candidate, plan.primaryKey);
                     const next = walk.candidates.slice(i + 1)[0];
@@ -562,10 +566,12 @@ async function gameFallback({ sourceId, channelId, identity = null, eventId = nu
         if (walked.decision) return { walked, walk, channel, event };
         // Codex (#348): this channel of the game is the provider's placeholder too: its health says so, so it sinks in
         // the game's order as the requested one does (a channel that played after a failover of its own is a success).
-        if (walked.lastError && walked.lastError.placeholder && walked.placeholderOnly) {
+        // Codex (#348): only when every copy was seen as the placeholder (none passed over as busy or left untried when the
+        // time ran out), under the provider that sent it.
+        if (walked.lastError && walked.lastError.placeholder && walked.placeholderOnly && walked.tried === walk.candidates.length && walked.placeholderFrom) {
             channelHealth.recordResolve({ sourceId: Number(channel.sourceId), channelId: channel.id, ok: false, category: 'placeholder',
                 reason: clientSafe(walked.lastError.message), identity: { sourceId: Number(channel.sourceId), key: plan.primaryKey, name: channel.name || plan.channelName || null },
-                providerId: walk.candidates.length ? walk.candidates[walk.candidates.length - 1].providerId : null });
+                providerId: walked.placeholderFrom.providerId });
         }
     }
     return null;

@@ -772,3 +772,29 @@ test('Codex medium: a start from a cached analysis opens the shared ingest withi
     assert.equal(stalled.length - opened, 1, 'no direct connection of the session\'s own after it');
     assert.equal(stalledClosed - closed, 1);
 });
+
+test('Codex medium: a game channel is marked the placeholder only when every copy of it was seen as one, under the provider that sent it', async () => {
+    const dbh = sqlite.getDb();
+    const health = load('services/channelHealth');
+    // Dream 4K's one connection is another viewer's (Sportsnet West). TNT Sports 1's primary is the slate; its Dream 4K
+    // copy, another stream, would need that connection.
+    const other = await play('pos_1', { sourceId: B.id }, 'device:a');
+    assert.equal(other.status, 200, JSON.stringify(other.body));
+    assert.equal(other.body.provider.name, 'Dream 4K');
+    routing.reset();
+    dbh.prepare('DELETE FROM channel_health').run();
+    health.reset();
+    liveGames({ id: 'g', title: 'NHL: Anaheim vs San Jose', channels: [ch('pos_2', 's1803789', 'Sportsnet Event'), ch('pos_1', 's101', 'TNT Sports 1'),
+        ch('pos_6', 's106', 'Sportsnet East'), ch('pos_5', 's105', 'Sportsnet One')] });
+    try {
+        const r = await play('pos_2', {}, 'device:c');
+        assert.equal(r.status, 200, JSON.stringify(r.body));
+        assert.equal(r.body.fallback.to.name, 'Sportsnet One');
+        const failed = Object.fromEntries(dbh.prepare('SELECT channel_key, reason, provider_id FROM channel_health WHERE ok = 0').all().map(x => [x.channel_key, [x.reason, x.provider_id]]));
+        assert.equal(failed.s101, undefined, 'TNT Sports 1\'s Dream 4K copy was busy, not seen: no channel-wide verdict');
+        assert.deepEqual(failed.s106, ['placeholder', A.id], 'Sportsnet East\'s only copy sent it, on Strong8K');
+    } finally {
+        dbh.prepare('DELETE FROM channel_health').run();
+        health.reset();
+    }
+});
