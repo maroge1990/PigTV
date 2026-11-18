@@ -5,22 +5,17 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 18 Nov 2026 (afternoon), the TestFlight-291 feedback session (nothing unpushed).*
+*Overwritten at the end of every session. 18 Nov 2026 (evening), the TestFlight-291 feedback session.*
 
-- **Running:** production runs **0819** (Force Update 17 Nov 22:13). main is at **0834**, Apple main **319**, all CI
-  green: the server reaches production at Mark's next Force Update (D-58), not during the 18 Nov game run (10:50–17:00).
-  TestFlight is **291**; 319 is not uploaded yet. `:release` stays **v0579** until Mark's device checks. Next builds:
-  server **0835**, Apple **320**.
-- **Built and pushed 18 Nov from Mark's TestFlight 291 feedback** (Opus stood in while Codex was out, then Codex rounds
-  and sign-offs; simulator shots on Apple TV, iPad, iPhone and web): finished games keep their score (#343, closed);
-  sport cards select and hold per D-68 (#345), recordings carry their game; no pink selection line (#344); helper lines
-  removed (#341); tvOS Sport header clearance (#339); flat iPhone record page (#340); the splash per D-69 (#342).
-  Evidence: `docs/evidence/2026-11-18-sport-cards/`. T5 steps on each issue (`needs-device-test`).
-- **Mark's decisions 18 Nov:** sport cards D-68, splash option C D-69; release jobs move to Xcode Cloud, D-70 (Mark does
-  the one-time Create Workflow in Xcode on the Mac); one PigTV Mac job at a time.
-- **Not done:** #347 durable game id for fixture, F1 and cricket cards; review leftovers noted on #343 and #345; #346
-  an iPhone unit test failing on main (iOS unit tests never run in CI); the 18 Nov game run's summary
-  (`node /app/data/audit/channel-audit.js summary /app/data/audit/events-1118`); hiding the 50 dead channels waits on Mark.
+- **Running:** production runs **0819**. main is at **0837**, Apple main and TestFlight **319** (uploaded 18 Nov 17:31
+  after the full UI run), all CI green; the server reaches production at Mark's next Force Update (D-58). `:release`
+  stays **v0579** until Mark's device checks. Next builds: server **0838**, Apple **320**.
+- **Pushed 18 Nov:** Mark's TestFlight 291 feedback (#339–#345, D-68, D-69; evidence `docs/evidence/2026-11-18-sport-cards/`)
+  and #348's game channel ranking (0835–0837: measured beats the name, short plays are not health, a recent blank sinks).
+- **Held, not pushed:** #348's play fallback (placeholder file at resolve, feed-less blank ends the play, the game's
+  next channel with `fallback`) on the lead's `int/batch-348`; four Codex sign-off findings left, listed on #348.
+- **Not done:** #349 two tuning screens (Apple) and #348's player channel list and notice (Apple); #350 stall and
+  timestamp-loop endings free the slot early; #347; #346; the 50 dead channels wait on Mark. Game run 18 Nov: #331.
 
 ## Now
 
