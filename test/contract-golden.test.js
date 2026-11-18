@@ -305,9 +305,11 @@ test('recordings: a finished and a recording-in-progress row; the schedule list 
     };
     const art = programme(footy, T0 + 20 * H);
     assert.ok(art && JSON.parse(art.data).img.startsWith(providerBase), 'the fake guide gives sport programmes artwork');
-    const scheduleProgramme = (ch, p) => call('POST', '/api/recordings/schedule', { body: { sourceId: source.id, channelItemId: ch.item_id,
-        channelName: ch.name, title: p.title, programStart: p.start_time, programEnd: p.end_time } });
-    const fresh = await scheduleProgramme(footy, art);
+    const scheduleProgramme = (ch, p, extra = {}) => call('POST', '/api/recordings/schedule', { body: { sourceId: source.id, channelItemId: ch.item_id,
+        channelName: ch.name, title: p.title, programStart: p.start_time, programEnd: p.end_time, ...extra } });
+    // #345: a schedule made from a sport card carries its game (gameId, a string), listed again on the recording row
+    const fresh = await scheduleProgramme(footy, art, { gameId: 'espn:australian-football/afl:9' });
+    assert.equal(fresh.body.gameId, 'espn:australian-football/afl:9');
     golden('recordings-schedule', 'POST', '/api/recordings/schedule', fresh, { status: 201 });
     assert.match(fresh.body.image, /^\/api\/logo\//);
     assert.equal('image_url' in fresh.body, false);
@@ -355,6 +357,7 @@ test('recordings: a finished and a recording-in-progress row; the schedule list 
     const done = row('Finished golden');
     recordingsDb.finish(done.id, { status: 'completed', ended_at: now - H, file_size_bytes: 123456789, duration_sec: 3600, error: null });
     recordingsDb.setSegmentFields(done.id, { image_url: JSON.parse(art.data).img }); // its programme's artwork (C-N)
+    sqlite.getDb().prepare('UPDATE recordings SET sport_game_id = ? WHERE id = ?').run('espn:australian-football/afl:9', done.id); // #345: its game
     const live = row('Recording golden');
     const work = (id, { view }) => {
         const dir = path.join(sandbox, 'work', `rec-${id}`), e1 = path.join(dir, 'e1');

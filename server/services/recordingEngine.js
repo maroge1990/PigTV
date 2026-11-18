@@ -838,8 +838,8 @@ function listRecordings(userId = null) {
     try { gameIds = scheduledDb.gameIds(); } catch (e) { /* no links: null */ }
     return rows.map(withImage).map(r => ({
         ...r,
-        // #345: the sport game (a C-R card's `id`) the schedule behind this recording was made for, else null
-        gameId: gameIds.get(r.scheduled_id) || null,
+        // #345: the sport game (a C-R card's `id`) this recording was made for (its own, else its schedule's), else null
+        gameId: r.gameId || gameIds.get(r.scheduled_id) || null,
         // R3: an in-progress segmented recording can be played from the start (GET /:id/watch).
         watch_live: segments.isWatchable(r),
         position_sec: positions.get(r.id)?.position_sec ?? 0,

@@ -101,6 +101,8 @@ function initSchema() {
         // mid-recording. NULL on recordings made before.
         'provider_id INTEGER',
         'part INTEGER',
+        // #345: the sport game it records (a C-R card's id), kept here so it outlives its schedule being dismissed
+        'sport_game_id TEXT',
         // 0192 (audit R06): preparing a finished recording for the Apple client
         // ahead of the first Play. null (never queued) | pending | preparing |
         // ready | failed; the error and the number of attempts made so far.
@@ -223,6 +225,13 @@ function initSchema() {
             db.exec(`ALTER TABLE scheduled_recordings ADD COLUMN ${col}`);
         } catch (e) { /* already present */ }
     }
+
+    // #345: a recording keeps its schedule's game (the schedule can be dismissed, the recording survives). One-time and
+    // idempotent: fills only the rows that have none; after both columns exist. Fail-safe (some tests open a partial db).
+    try {
+        db.exec(`UPDATE recordings SET sport_game_id = (SELECT s.sport_game_id FROM scheduled_recordings s WHERE s.id = recordings.scheduled_id)
+            WHERE sport_game_id IS NULL AND scheduled_id IS NOT NULL`);
+    } catch (e) { /* not there yet: the next open fills it */ }
 
     // Pending schedules only: a completed or cancelled one never resolves again,
     // and rewriting history would be dishonest about what was recorded.
@@ -615,9 +624,11 @@ const recordings = {
         const stmt = db.prepare(`
             INSERT INTO recordings
                 (scheduled_id, title, channel_name, channel_logo, source_id, channel_item_id,
-                 file_path, started_at, status, provider_id, part)
+                 file_path, started_at, status, provider_id, part, sport_game_id)
             VALUES (@scheduled_id, @title, @channel_name, @channel_logo, @source_id, @channel_item_id,
-                    @file_path, @started_at, 'recording', @provider_id, @part)
+                    @file_path, @started_at, 'recording', @provider_id, @part,
+                    -- #345: every part and continuation carries its schedule's game
+                    (SELECT s.sport_game_id FROM scheduled_recordings s WHERE s.id = @scheduled_id))
         `);
         const info = stmt.run({ provider_id: null, part: null, ...data });
         return this.getById(info.lastInsertRowid);

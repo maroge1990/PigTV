@@ -405,7 +405,8 @@ A rule makes ordinary schedules; one-off recordings are unchanged. Any signed-in
   is still on, the row adds `overrun: true` (re-read the list: the stop rolls on 10 min at a time). `"guide"`: as
   before. Wording: "When it stops: when ESPN says it's over (or the guide end + Finish late)".
 - **Recordings name their game (#345, additive, no flag).** `GET /api/recordings` rows and `recordings/scheduled` rows carry
-  `gameId`: the sport game (a C-R card's `id`) the schedule behind it was made for, else `null`. Decode it as optional.
+  `gameId`: the sport game (a C-R card's `id`) it was made for, else `null`. A recording keeps its own copy (every part of it,
+  and recordings from before are filled from their schedule once), so it stays after its schedule is dismissed. Decode it as optional.
 - **One game, one active schedule (#329, additive, no flag).** `POST /recordings/schedule` with a `gameId` that an active
   schedule (`scheduled`, `waiting` or `recording`; household-wide, whoever made it, by hand or by a rule) already has
   makes nothing and answers **200** with that schedule (as a 201 would list it, its own `channel_name`) plus
