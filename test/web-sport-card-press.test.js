@@ -71,10 +71,10 @@ test('finished: a press plays the completed recording whose gameId is the card\'
     assert.deepEqual(bad.recPlayed, []);
 });
 
-test('the menu: live has Watch another channel, Record and Remind me; upcoming Record and Remind me; finished only Make hero; never Details', async () => {
+test('the menu: live has Watch another channel and Record only; upcoming Record and Remind me; finished only Make hero; never Details', async () => {
     const h = await harness();
     const items = (id, front = false) => [...h.p.menuItems(h.p.game(id), { front }).map(i => i.act)];
-    assert.deepEqual(plain(items('ars')), ['watch-on', 'record', 'record-every', 'record-options', 'remind']);
+    assert.deepEqual(plain(items('ars')), ['watch-on', 'record', 'record-every', 'record-options']);
     assert.deepEqual(plain(items('nxt')), ['record', 'record-every', 'record-options', 'remind']);
     assert.deepEqual(plain(items('far')), ['record-listed']);
     assert.deepEqual(plain(items('avl')), []);

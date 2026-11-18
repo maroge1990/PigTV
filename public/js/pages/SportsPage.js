@@ -731,8 +731,8 @@ class SportsPage {
             if (g.recordWhenListed && g.recordWhenListed.ruleId != null) items.push({ act: 'unlisted-cancel', icon: red, title: 'Don’t record it', detail: 'It records when the TV Guide lists it', section: 'Record' });
             else items.push({ act: 'record-listed', icon: red, title: 'Record when it’s listed', detail: 'Not in the TV Guide yet', section: 'Record' });
         }
-        // #345: Remind me is only here, for a game that has not finished its airing (a live one plays at once)
-        if (ev && !V.terminal(g) && !V.isNextRound(g) && ev.end > now) items.push({ act: 'remind', icon: V.ICON.bell, title: 'Remind me', detail: act === 'watch' ? `Plays on ${ev.channel.name} now` : `Plays on ${ev.channel.name} at ${UI.clock(ev.start)}`, section: '' });
+        // #345: Remind me is only here, and only before the game starts (a live one plays at once)
+        if (act === 'remind') items.push({ act: 'remind', icon: V.ICON.bell, title: 'Remind me', detail: `Plays on ${ev.channel.name} at ${UI.clock(ev.start)}`, section: '' });
         if (front && !g.synthetic && this.heroId !== g.id) items.push({ act: 'pin', icon: V.ICON.star, title: 'Make this the hero', detail: 'Show it in the banner', section: '' });
         return items;
     }

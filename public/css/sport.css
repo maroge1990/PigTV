@@ -587,19 +587,8 @@
 .sp.sp-win { padding: 0; font-size: 16px; }
 .sp-win .pill svg { width: 18px; height: 18px; }
 .sp-win .pill:focus-visible, .sp-win .rchoice:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
-.sp-win .dk { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--color-accent-text); }
-.sp-win .dk.live { color: var(--live); }
-.sp-win .dline { margin: 4px 0 0; font-size: 14px; color: var(--color-text-secondary); }
-.sp-win .dprog { height: 6px; margin-top: 10px; border-radius: 3px; background: var(--raised); overflow: hidden; }
-.sp-win .dprog i { display: block; height: 100%; background: var(--color-text-secondary); }
-.sp-win .dacts { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
-.sp-win .dnote, .sp-win .rnote { margin: 12px 0 0; font-size: 14px; color: var(--color-text-secondary); }
-.sp-win .dsec, .sp-win .rsec { margin: 20px 0 8px; font-size: 14px; font-weight: 700; color: var(--color-text-secondary); }
-.sp-win .dchs { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin: 0; padding: 0; list-style: none; }
-.sp-win .dch { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 14px; background: var(--raised); }
-.sp-win .dct { flex: 1; min-width: 0; }
-.sp-win .dct b { font-weight: 700; }
-.sp-win .dsub { display: block; font-size: 13px; color: var(--color-text-secondary); }
+.sp-win .rnote { margin: 12px 0 0; font-size: 14px; color: var(--color-text-secondary); }
+.sp-win .rsec { margin: 20px 0 8px; font-size: 14px; font-weight: 700; color: var(--color-text-secondary); }
 .sp-win .num { font-size: 14px; color: var(--color-text-secondary); }
 /* D-65: the quality badge: "4K" the accent fill, the others subtle, then the frame rate; a quality taken from the name
    (never measured) dashed. A row with several qualities has them as chips, best first (on a phone: touch and hold). */
@@ -625,7 +614,6 @@
 .sp-win .rchg .qchips { margin: 6px 0 0 14px; }
 .sp-menu .mgrp .qchips { margin: 0 0 6px 44px; }
 .sp-win [data-hold], .sp-menu [data-hold] { -webkit-touch-callout: none; user-select: none; }
-.sp-win .dca { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .sp-win .rhead { display: flex; align-items: center; gap: 14px; }
 .sp-win .rbadges { display: flex; gap: 8px; }
 .sp-win .rk { display: block; font-size: 12px; font-weight: 700; letter-spacing: 2px; color: var(--color-text-secondary); }
@@ -653,7 +641,6 @@
   .ui-dialog.sp-window { width: 100vw; max-width: 100vw; max-height: 90dvh; margin: auto 0 0; border-bottom: 0; border-radius: 20px 20px 0 0; }
   .ui-dialog.sp-window .ui-dialog-footer { flex-direction: column-reverse; }
   .ui-dialog.sp-window .ui-dialog-footer .btn { width: 100%; min-height: 44px; }
-  .sp-win .dch { flex-wrap: wrap; }
 }
 .sp-win .rmove { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; font-size: 14px; color: var(--color-text-secondary); }
 .sp-win .rmove p { margin: 0; }
