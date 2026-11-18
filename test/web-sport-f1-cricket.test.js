@@ -23,13 +23,14 @@ function f1() {
 }
 const F1_SECRETS = ['Pole · ', 'Fastest · ', 'Winner · ', '3651', '6071', 'class="mrow', 'Antonelli</span>'];
 
-test('Formula 1: the banner (the next session, Remind me), the session tiles and the circuit, the lists with your driver', () => {
+test('Formula 1: the banner (the next session, Record; no Remind me pill), the session tiles and the circuit, the lists with your driver', () => {
     const { V } = browser();
     const html = V.leaguePage('Motorsport', 'F1', 'f1', { answer: f1(), loaded: true }, ctx(V, answer(), { following: ['Lando Norris'], dark: true }));
     assert.match(html, /<section class="banner full" aria-label="Mexico City Grand Prix"><img class="art map" src="\/api\/logo\/lvd\?size=3840"/, 'the dark circuit map');
     assert.match(html, /<span>Next · Motorsport · Formula 1 · Your driver<\/span>/);
     assert.match(html, /<div class="line pig-amount">Race · [^<]+ · Fox Sports 506<\/div>/);
-    assert.match(html, /data-act="remind" data-id="f1s:race"/);
+    assert.doesNotMatch(html, /data-act="remind"/, '#345: Remind me is in the menu only');
+    assert.match(html, /data-act="record-menu" aria-haspopup="menu" data-id="f1s:race"/);
     assert.match(html, /<button type="button" class="tile done" data-act="game" data-id="f1s:qualifying"[^>]*><span class="tt">Qualifying<\/span><span class="wh pig-amount">[^<]+<\/span><span class="ln">Pole · Antonelli<\/span>/);
     assert.match(html, /<span class="tt">Race<span class="tag next">Next<\/span><\/span>[\s\S]*?<span class="ln">In 6 days<\/span>/);
     assert.match(html, /<dt>Length<\/dt><dd class="pig-amount">4\.304 km<\/dd>/);

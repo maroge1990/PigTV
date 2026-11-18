@@ -14,9 +14,8 @@ test('the chosen channel ended by the press: told, nothing chosen, Record game o
         recordings: { schedule: async (d) => { calls.push(d); return {}; } } });
     const p = page(b, { setLocation() {}, navigateTo() {} });
     await p.show('');
-    p.openDetails('ars');
     p.received = Date.now() - 1.5 * H; // Stan Sport 1's airing has ended; the HD channel's has not
-    p.detailsAct('d-record-on', { getAttribute: (k) => (k === 'data-channel' ? '1:s1' : null) }, p.game('ars'));
+    p.openRecord('ars', { channel: '1:s1' });
     const body = b.document.body.querySelector('dialog .ui-dialog-body').innerHTML;
     assert.match(body, /<p class="rerr" role="alert">Stan Sport 1 isn’t showing the game any more\. Choose a channel to record on\.<\/p>/);
     assert.doesNotMatch(body, /aria-checked="true" data-act="r-on"/, 'no channel chosen for the person');

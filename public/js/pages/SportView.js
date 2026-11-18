@@ -229,8 +229,8 @@ const SportView = (() => {
         return ev.start > now ? 'remind' : 'details';
     }
     function actionLabel(g, now) {
-        return { watch: 'Watch', remind: 'Remind me', details: 'Details' }[action(g, now)]
-            || (terminal(g) || isNextRound(g) ? '' : 'Not on your channels');
+        return { watch: 'Watch', remind: 'Record' }[action(g, now)]
+            || (action(g, now) === 'details' ? '' : terminal(g) || isNextRound(g) ? '' : 'Not on your channels');
     }
 
     // ---------- follows, stars, sections (SportFrontLayout) ----------
@@ -535,14 +535,13 @@ const SportView = (() => {
             + `<div class="actions">${actions}</div></div>${list}</section>`;
     }
 
-    /** The hero's buttons: Watch (on now) or Remind me (before), the one rose button; Record; "Open Football". */
+    /** The hero's buttons: Watch (on now, the one rose button); Record; "Open Football". Remind me is in the game's menu (#345). */
     function heroButtons(g, now, open = null) {
         let out = '';
         const act = g ? action(g, now) : 'none';
         const ev = g && !terminal(g) ? event(g) : null;
         if (g && ev) {
             if (act === 'watch') out += `<button type="button" class="pill primary" data-act="watch" data-id="${e(g.id)}" data-key="hero:watch">${ICON.play}Watch</button>`;
-            else if (act === 'remind') out += `<button type="button" class="pill primary" data-act="remind" data-id="${e(g.id)}" data-key="hero:remind">${ICON.bell}Remind me</button>`;
             out += `<button type="button" class="pill" data-act="record-menu" aria-haspopup="menu" data-id="${e(g.id)}" data-key="hero:record">${ICON.rec}Record</button>`;
         }
         if (open) out += `<button type="button" class="pill" data-act="open-sport" data-sport="${e(open)}" data-key="hero:open">Open ${e(open)}${ICON.chev}</button>`;
@@ -658,7 +657,7 @@ const SportView = (() => {
         }
         return gameCard(g, ctx, { key: `fc:${index}`, leagueWord, solo: f });
     }
-    /** A game's carousel card: kicker, the two sides and the short score (or "v"), the line, Watch or Remind me and Record. */
+    /** A game's carousel card: kicker, the two sides and the short score (or "v"), the line, Watch and Record (Remind me is in the menu, #345). */
     function gameCard(g, ctx, { key, leagueWord, solo = null }) {
         const { front, now } = ctx;
         const r = row(g, ctx), live = r.live != null;
@@ -688,7 +687,6 @@ const SportView = (() => {
         let buttons = '';
         if (ev) {
             if (act === 'watch') buttons += `<button type="button" class="pill primary" data-act="watch" data-id="${e(g.id)}" data-key="${e(key)}:watch">${ICON.play}Watch</button>`;
-            else if (act === 'remind') buttons += `<button type="button" class="pill primary" data-act="remind" data-id="${e(g.id)}" data-key="${e(key)}:remind">${ICON.bell}Remind me</button>`;
             buttons += `<button type="button" class="pill" data-act="record-menu" aria-haspopup="menu" data-id="${e(g.id)}" data-key="${e(key)}:record">${ICON.rec}Record</button>`;
         }
         return `<div class="fcard"><div class="kicker k${live ? ' live' : ''}">${live ? dot() : ''}<span>${e(kicker)}</span></div>`
@@ -1305,7 +1303,6 @@ const SportView = (() => {
         let actions = '';
         if (ev) {
             if (act === 'watch') actions += `<button type="button" class="pill primary" data-act="watch" data-id="${e(g.id)}" data-key="lead:watch">${ICON.play}Watch live</button>`;
-            else if (act === 'remind') actions += `<button type="button" class="pill primary" data-act="remind" data-id="${e(g.id)}" data-key="lead:remind">${ICON.bell}Remind me</button>`;
             if (act !== 'none' && act !== 'details') actions += `<button type="button" class="pill" data-act="record-menu" aria-haspopup="menu" data-id="${e(g.id)}" data-key="lead:record">${ICON.rec}Record</button>`;
         }
         const chn = ev ? (act === 'remind' ? `${when(ev.start, now)} on ${ev.channel.name}` : `on ${ev.channel.name}`) : lead.status === 'done' ? '' : 'Not in guide yet';

@@ -22,8 +22,7 @@ async function harness({ fail = null, status = 'scheduled' } = {}) {
     }, recordings: { schedule: async (d) => { calls.push(['schedule', d]); return { id: 5 }; } } });
     const p = page(b, { setLocation() {}, navigateTo() {} });
     await p.show('');
-    p.openDetails('nxt');
-    p.detailsAct('d-record-on', { getAttribute: (k) => (k === 'data-channel' ? '2:k5' : null) }, p.game('nxt'));
+    p.openRecord('nxt', { channel: '2:k5' });
     const settle = async () => { for (let i = 0; i < 4; i++) await new Promise(setImmediate); };
     await settle();
     const body = () => b.document.body.querySelector('dialog .ui-dialog-body')?.innerHTML || '';

@@ -59,67 +59,32 @@ async function harness({ phone = false, scheduled = [], hide = false } = {}) {
 }
 const plain = (o) => JSON.parse(JSON.stringify(o));
 
-test('pressing a game to come opens its details (iOS), not its menu; a game on now still plays', async () => {
+test('#345: pressing a game to come opens its menu (the record options), not a details window; a game on now still plays', async () => {
     const h = await harness();
     const card = h.b.document.createElement('button'); h.p.root.appendChild(card);
     h.p.select('nxt', card);
-    assert.equal(h.b.document.body.querySelector('.sp-menu'), null);
-    assert.ok(h.dialog()?.open, 'a window');
-    assert.match(h.dialog().className, /\bsp-window\b/);
-    assert.equal(h.dialog().querySelector('.ui-dialog-title').textContent, 'Newcastle v Tottenham');
-    assert.match(h.body(), /<div class="dk"><span>PREMIER LEAGUE · (TODAY|TOMORROW)<\/span><\/div><p class="dline pig-amount">[^<]+ – [^<]+ · starts in 2 h<\/p>/);
-    assert.match(h.body(), /data-act="d-remind" data-key="d:watch">[\s\S]*?Watch Stan Sport 2 when it starts<\/button><button type="button" class="pill" data-act="d-record" data-key="d:record">[\s\S]*?Record<\/button>/);
-    h.dialog().close();
-    assert.equal(h.b.document.activeElement, card, 'focus goes back to the card');
+    assert.equal(h.dialog(), null, 'no details window');
+    const menu = h.b.document.body.querySelector('.sp-menu');
+    assert.ok(menu, 'the record options');
+    assert.match(menu.innerHTML, /data-act="record" data-id="nxt"/);
+    assert.doesNotMatch(menu.innerHTML, /data-act="details"|<b>Details<\/b>/, 'no Details in the menu');
     await h.p.select('ars', card);
     assert.deepEqual(h.played, ['p1']);
 });
 
-test('the details list every channel airing it, the first Recommended; Watch only on a channel that airs it now', async () => {
-    const h = await harness();
-    h.p.openDetails('nxt');
-    const html = h.body();
-    assert.match(html, /<h3 class="dsec">Channels<\/h3>/);
-    assert.match(html, /<b>Stan Sport 2<\/b><span class="dsub">Recommended<\/span><\/span><span class="dca"><button type="button" class="pill" data-act="d-record-on" data-channel="1:s2" data-key="d:r:1:s2" aria-label="Record on Stan Sport 2">/);
-    assert.match(html, /<b>Kayo 5<\/b><span class="dsub">(Today|Tomorrow) [^<]+<\/span>/, 'another channel on its own times');
-    assert.doesNotMatch(html, /d-watch-on/, 'not on yet: no Watch on a channel');
-    h.p.openDetails('ars');
-    const live = h.body();
-    assert.match(live, /<div class="dk live"><span class="dot" aria-hidden="true"><\/span><span>LIVE · PREMIER LEAGUE<\/span>/);
-    assert.match(live, /data-act="d-watch" data-key="d:watch">[\s\S]*?Watch Stan Sport 1<\/button>/);
-    assert.match(live, /data-act="d-watch-on" data-channel="1:s9" data-key="d:w:1:s9" aria-label="Watch on Stan Sport 3 HD">/);
-    assert.match(live, /<b>Stan Sport 3 HD<\/b> <span class="qb guess" title="HD from the channel’s name \(not measured yet\)">HD<\/span>/);
-    h.press({ 'data-act': 'd-watch-on', 'data-channel': '1:s9' });
-    await h.settle();
-    assert.deepEqual(h.played, ['p9'], 'the chosen channel, found by its identity');
-    assert.equal(h.dialog(), null, 'the window closes first');
-});
-
 test('Watch on a channel is decided again at the press, on that channel\'s own airing', async () => {
     const h = await harness();
-    h.p.openDetails('ars');
     h.p.received = Date.now() - 1.5 * H; // the page was left open: Stan Sport 1's airing has ended, the HD one's has not
-    h.press({ 'data-act': 'd-watch-on', 'data-channel': '1:s1' });
-    await h.settle();
+    await h.p.watch('ars', '1:s1');
     assert.deepEqual(h.played, [], 'an airing that ended meanwhile plays nothing');
     assert.match(h.b.context.toasts.at(-1)[0], /That channel isn’t showing the game now/);
-    h.p.openDetails('ars');
-    assert.doesNotMatch(h.body(), /data-act="d-watch-on" data-channel="1:s1"/, 'redrawn: no Watch on it');
-    assert.match(h.body(), /<b>Stan Sport 1<\/b><span class="dsub">Recommended · Not on now<\/span>/);
-    h.press({ 'data-act': 'd-watch-on', 'data-channel': '1:s9' });
-    await h.settle();
+    await h.p.watch('ars', '1:s9');
     assert.deepEqual(h.played, ['p9'], 'another channel still airing it plays');
 });
 
-test('Details is in the game\'s menu and opens the window; Record on the second channel opens the record page on it and records it there, with the game\'s id', async () => {
+test('Record on the second channel opens the record page on it and records it there, with the game\'s id', async () => {
     const h = await harness();
-    const card = h.b.document.createElement('button'); h.p.root.appendChild(card);
-    h.p.openMenu(h.p.game('nxt'), card);
-    assert.match(h.b.document.body.querySelector('.sp-menu').innerHTML, /data-act="details" data-id="nxt"><svg[\s\S]*?<\/svg><span><b>Details<\/b><span>Every channel showing it, to watch or record<\/span>/);
-    h.p.act('details', Object.assign(h.b.document.createElement('button'), { getAttribute: (k) => ({ 'data-id': 'nxt' })[k] ?? null }));
-    assert.equal(h.b.document.body.querySelector('.sp-menu'), null);
-    assert.ok(h.dialog());
-    h.press({ 'data-act': 'd-record-on', 'data-channel': '2:k5' });
+    h.p.openRecord('nxt', { channel: '2:k5' });
     const rec = h.body();
     assert.equal(h.b.document.body.querySelectorAll('dialog').length, 1, 'one window at a time');
     assert.match(rec, /<span class="rk">RECORD · PREMIER LEAGUE<\/span><span class="rmeta pig-amount">[^<]+ · [^<]+ · Kayo 5<\/span>/);
@@ -183,7 +148,7 @@ test('a page game without a card (no game id): the guide\'s end, and no game id 
 // 0662 (#323 Codex review of step 5): a game already set to record is changed, never scheduled a second time.
 const row = (o) => ({ id: 4, status: 'scheduled', pre_buffer_min: 2, post_buffer_min: 15, endsWith: 'event', source_id: 1, channel_item_id: '102', channel_stable_id: 's2', channel_name: 'Stan Sport 2', ...o });
 for (const [entry, how] of [['More options…', (h) => h.p.act('record-options', { getAttribute: (k) => ({ 'data-id': 'nxt' })[k] ?? null })],
-    ['the details\' Record on another channel', (h) => { h.p.openDetails('nxt'); h.press({ 'data-act': 'd-record-on', 'data-channel': '2:k5' }); }]]) {
+    ['the record page on another channel', (h) => { h.p.openRecord('nxt', { channel: '2:k5' }); }]]) {
     test(`Change recording from ${entry}: its own padding, Save changes sends only what changed with PUT`, async () => {
         const h = await harness({ scheduled: [row()] });
         h.f.games.find(x => x.id === 'nxt').recording = { scheduleId: 4, status: 'scheduled' };
@@ -247,11 +212,11 @@ test('Cancel recording closes the window and cancels with Undo', async () => {
     assert.deepEqual(plain(h.calls.find(c => c[0] === 'DELETE')).slice(0, 2), ['DELETE', '/recordings/scheduled/4']);
 });
 
-test('HARD RULE: with scores hidden neither window holds a score, a result or a winner (markup, labels, buttons)', async () => {
+test('HARD RULE: with scores hidden the record page holds no score, result or winner (markup, labels, buttons)', async () => {
     const h = await harness({ hide: true });
     assert.equal(h.p.hidden, true);
     for (const id of ['ars', 'pen', 'nfl', 'cri']) {
-        for (const open of [(x) => h.p.openDetails(x), (x) => h.p.openRecord(x)]) {
+        for (const open of [(x) => h.p.openRecord(x)]) {
             open(id);
             await h.settle();
             const d = h.dialog();
@@ -261,15 +226,6 @@ test('HARD RULE: with scores hidden neither window holds a score, a result or a 
             assert.doesNotMatch(text, /\bFinal\b|FINAL|won\b|winner/i, `${id}: no result`);
         }
     }
-});
-
-test('a window\'s details redraw with a new answer and keep the focused control', async () => {
-    const h = await harness();
-    h.p.openDetails('nxt');
-    h.f.games.find(x => x.id === 'nxt').recording = { scheduleId: 9, status: 'scheduled' };
-    h.p.render();
-    assert.match(h.body(), / · Recording scheduled<\/p>/);
-    assert.match(h.body(), /Change recording<\/button>/);
 });
 
 test('on a phone the windows are a sheet from the bottom with full-width buttons', () => {

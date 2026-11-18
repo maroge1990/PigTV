@@ -39,8 +39,9 @@ const paths = {
         h.p.act('record', h.el({ 'data-id': 'nxt' }));
     },
     'More options…, Record game': async (h) => { h.p.act('record-options', h.el({ 'data-id': 'nxt' })); h.save(); },
-    'the details\' Record, Record game': async (h) => { h.p.select('nxt', h.el({})); h.inDialog({ 'data-act': 'd-record' }); h.save(); },
-    'the details\' Record on another channel, Record game': async (h) => { h.p.openDetails('nxt'); h.inDialog({ 'data-act': 'd-record-on', 'data-channel': '2:k5' }); h.save(); }
+    // #345: a press on a game to come opens its menu (the record options); the record page can start on another channel
+    'a press on the card (its menu), More options…, Record game': async (h) => { h.p.select('nxt', h.el({ 'data-key': 'card:nxt' })); h.p.act('record-options', h.el({ 'data-id': 'nxt' })); h.save(); },
+    'the record page on another channel, Record game': async (h) => { h.p.openRecord('nxt', { channel: '2:k5' }); h.save(); }
 };
 for (const [name, run] of Object.entries(paths)) {
     test(`${name}: the recording is linked to the game (gameId), so it stops when the game ends`, async () => {
@@ -53,11 +54,11 @@ for (const [name, run] of Object.entries(paths)) {
     });
 }
 
-test('the phone carousel\'s Record (a sheet), then Record this game: linked to the game', async () => {
+test('the phone carousel\'s Record (its menu on the card), then Record this game: linked to the game', async () => {
     const h = await harness({ phone: true });
     assert.match(h.p.root.innerHTML, /data-act="record-menu" aria-haspopup="menu" data-id="ars" data-key="[^"]+:record"/, 'the carousel card has Record');
     h.p.act('record-menu', h.el({ 'data-id': 'ars' }));
-    assert.match(h.b.document.body.querySelector('.sp-menu').className, /\bsheet\b/);
+    assert.doesNotMatch(h.b.document.body.querySelector('.sp-menu').className, /\bsheet\b/, '#345: no bottom sheet on a phone');
     h.p.act('record', h.el({ 'data-id': 'ars' }));
     await h.settle();
     assert.equal(h.scheduledBodies()[0].gameId, 'ars');

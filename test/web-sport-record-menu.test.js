@@ -4,8 +4,8 @@ const { FakeEvent } = require('./helpers/fakeDom');
 const { browser, answer, NOW, ctx, page, assertNoScores } = require('./helpers/sportWeb');
 
 // #323 step 5: Apple's record menu (SportRecordMenu / ProgrammeMenu) in place of the old ⋯ dialog: a "⋯" on each card
-// (and right-click) on a computer, a sheet from the bottom on a phone. Items: Remind me; "Watch on… (n channels)";
-// RECORD: Record this game (or Change recording), Record every <team> game, More options…; for a game not in the TV
+// (and right-click), on its card on a computer or a phone (#345). Items: "Watch another channel";
+// RECORD: Record this game (or Change recording), Record every <team> game, More options…; Remind me; for a game not in the TV
 // Guide yet, Record when it's listed (or Don't record it); on the front page, Make this the hero.
 const H = 3600000;
 function front() {
@@ -48,13 +48,13 @@ test('every card still to come has its "⋯" beside it (after it in keyboard ord
     assert.match(html, /data-act="record-menu" aria-haspopup="menu" data-id="ars" data-key="hero:record">/, 'the hero\'s Record opens the menu');
 });
 
-test('a game to come: Remind me, then RECORD (this game, every Tottenham game, More options…), then Make this the hero', async () => {
+test('a game to come: RECORD (this game, every Tottenham game, More options…), then Remind me, then Make this the hero (#345: no Details)', async () => {
     const h = await harness();
     h.p.act('more', Object.assign(h.anchor(), { getAttribute: (k) => ({ 'data-id': 'nxt' })[k] ?? null }));
     const m = h.menu();
     assert.equal(m.getAttribute('role'), 'menu');
-    assert.deepEqual(items(m.innerHTML), [['remind', 'Remind me'], ['details', 'Details'], ['record', 'Record this game'], ['record-every', 'Record every Tottenham game'],
-        ['record-options', 'More options…'], ['pin', 'Make this the hero']]);
+    assert.deepEqual(items(m.innerHTML), [['record', 'Record this game'], ['record-every', 'Record every Tottenham game'],
+        ['record-options', 'More options…'], ['remind', 'Remind me'], ['pin', 'Make this the hero']]);
     assert.match(m.innerHTML, /<div class="ms" aria-hidden="true">Record<\/div>/);
     assert.match(m.innerHTML, /<span>[^<]+, with the usual padding<\/span>/);
     assert.match(m.innerHTML, /Every game of the team, never replays/);
@@ -64,10 +64,10 @@ test('a game to come: Remind me, then RECORD (this game, every Tottenham game, M
     assert.equal(h.menu(), null);
 });
 
-test('a game on two channels now: "Watch on… (2 channels)" opens their list, and the chosen one plays', async () => {
+test('a game on two channels now: "Watch another channel" opens their list, and the chosen one plays', async () => {
     const h = await harness();
     h.p.openMenu(h.p.game('ars'), h.anchor());
-    assert.match(h.menu().innerHTML, /data-act="watch-on" data-id="ars" aria-expanded="false">[\s\S]*?<b>Watch on… \(2 channels\)<\/b><span>Stan Sport 1, Stan Sport 3 HD<\/span>/);
+    assert.match(h.menu().innerHTML, /data-act="watch-on" data-id="ars" aria-expanded="false">[\s\S]*?<b>Watch another channel<\/b><span>Stan Sport 1, Stan Sport 3 HD<\/span>/);
     assert.match(h.menu().innerHTML, /<div class="msub" hidden>[\s\S]*data-act="watch-channel" data-id="ars" data-channel="1:s9"/);
     await h.p.act('watch-channel', { getAttribute: (k) => ({ 'data-id': 'ars', 'data-channel': '1:s9' })[k] ?? null });
     assert.deepEqual(h.played, ['p9'], 'the chosen channel, by its identity');
@@ -77,7 +77,7 @@ test('Change recording when it is set; Record when it\'s listed, or Don\'t recor
     const h = await harness();
     h.f.games.find(g => g.id === 'nxt').recording = { scheduleId: 4, status: 'recording' };
     h.p.openMenu(h.p.game('nxt'), h.anchor());
-    assert.deepEqual(items(h.menu().innerHTML).slice(0, 3), [['remind', 'Remind me'], ['details', 'Details'], ['change-recording', 'Change recording']]);
+    assert.deepEqual(items(h.menu().innerHTML).slice(0, 3), [['change-recording', 'Change recording'], ['record-every', 'Record every Tottenham game'], ['record-options', 'More options…']]);
     assert.match(h.menu().innerHTML, /<b>Change recording<\/b><span>Recording now<\/span>/);
     h.p.openMenu(h.p.game('far'), h.anchor());
     assert.deepEqual(items(h.menu().innerHTML), [['record-listed', 'Record when it’s listed'], ['pin', 'Make this the hero']]);
@@ -103,18 +103,18 @@ test('right-click on a card opens its menu; Make this the hero puts it in the ba
     assert.match(h.p.root.innerHTML, /<section class="banner" aria-label="Newcastle v Tottenham">/);
 });
 
-test('on a phone the menu is a sheet from the bottom over a scrim, with Cancel; Cancel closes it and focus goes back', async () => {
+test('#345: on a phone the menu opens on its card, not as a bottom sheet over a scrim, and Escape closes it with focus back', async () => {
     const h = await harness({ phone: true });
     const a = h.anchor();
     h.p.openMenu(h.p.game('nxt'), a);
-    const sheet = h.menu();
-    assert.match(sheet.className, /\bsheet\b/);
-    assert.ok(h.b.document.body.querySelector('.sp-scrim'));
-    assert.match(sheet.innerHTML, /<div class="grab" aria-hidden="true"><\/div>[\s\S]*<button type="button" class="pill cancel" data-act="menu-cancel">Cancel<\/button>$/);
-    const cancel = h.b.document.createElement('button'); cancel.setAttribute('data-act', 'menu-cancel'); sheet.appendChild(cancel);
-    cancel.click();
-    assert.equal(h.menu(), null);
+    const m = h.menu();
+    assert.doesNotMatch(m.className, /\bsheet\b/);
     assert.equal(h.b.document.body.querySelector('.sp-scrim'), null);
+    assert.doesNotMatch(m.innerHTML, /menu-cancel|class="grab"/);
+    assert.match(m.style.left, /^\d+px$/, 'placed by the card');
+    assert.match(m.style.top, /^\d+px$/);
+    m.dispatchEvent(new FakeEvent('keydown', { key: 'Escape' }));
+    assert.equal(h.menu(), null);
     assert.equal(h.b.document.activeElement, a);
 });
 

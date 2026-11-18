@@ -340,8 +340,6 @@ class SportsPage {
         this.updateRails();
         if (focusKey) [...(this.root.querySelectorAll?.('[data-key]') || [])].find(n => n.getAttribute('data-key') === focusKey)?.focus?.({ preventScroll: true });
         if (this.menu) { const a = this.anchorFor(this.menu); if (a) { this.menu.anchor = a; a.setAttribute?.('aria-expanded', 'true'); } }
-        // the details follow a new answer (its channels and recording); the record page keeps the person's choices
-        if (this.window && this.window.kind === 'details') this.window.redraw();
     }
 
     /** The markup for what is shown now: the header, then the state block or the page. */
@@ -490,9 +488,8 @@ class SportsPage {
             case 'record': return this.record(id);
             case 'more': case 'record-menu': { const g = this.game(id); return g ? this.openMenu(g, el) : undefined; }
             case 'record-every': return this.recordEvery(id);
-            // #327: iOS's record page (More options…, Change recording) and the game's details
+            // #327: iOS's record page (More options…, Change recording)
             case 'record-options': case 'change-recording': return this.openRecord(id, { opener: this.openerFor(el) });
-            case 'details': return this.openDetails(id, this.openerFor(el));
             case 'record-listed': return this.recordListed(id);
             case 'unlisted-cancel': return this.recordListed(id, true);
             case 'pin': return this.pin(id);
@@ -579,17 +576,36 @@ class SportsPage {
     }
 
     /**
-     * A card pressed (iOS SportGamePress): Watch while its channel airs it (checked now, not when drawn); before or after
-     * its airing the game's details; a game with no channel yet its menu (Record when it's listed); a result nothing.
+     * A card pressed (#345): Watch while its channel airs it (checked now, not when drawn); a game not started, or not
+     * listed yet, its record options (its menu: Record when it's listed); a finished game its recording, when PigTV has
+     * one; a next round nothing.
      */
     select(id, anchor) {
         const g = this.game(id);
         if (!g) return undefined;
+        if (SportView.isNextRound(g)) return undefined;
+        if (SportView.terminal(g)) return this.playRecordingOf(g);
         const act = SportView.action(g, this.now());
         if (act === 'watch') return this.watch(id);
-        if (act === 'remind' || act === 'details') return this.openDetails(id, anchor);
-        if (SportView.terminal(g)) return undefined;
+        if (act === 'details') return this.playRecordingOf(g); // its airing is over, the feed has not called it final
         return this.openMenu(g, anchor);
+    }
+
+    /** #345: the finished, playable recording made for this game (recordings[].gameId = the card's id), the newest. */
+    static recordingFor(rows, g) {
+        if (!g || !g.id || !Array.isArray(rows)) return null;
+        const mine = rows.filter(r => r && r.gameId === g.id && r.status === 'completed');
+        return mine.sort((a, b) => (b.started_at || 0) - (a.started_at || 0))[0] || null;
+    }
+    /** Play this game's recording in the Recordings player; nothing when PigTV has none (or the list cannot be read). */
+    async playRecordingOf(g) {
+        this.closeMenu();
+        let rows;
+        try { rows = await API.request('GET', '/recordings'); } catch (err) { return undefined; }
+        const rec = SportsPage.recordingFor(rows, g);
+        const recordings = this.app && this.app.pages && this.app.pages.recordings;
+        if (!rec || !recordings || typeof recordings.play !== 'function') return undefined;
+        return recordings.play(rec.id);
     }
 
     /** Play the game's best channel, found again in the channel list by its identity (never a stored position). */
@@ -666,7 +682,7 @@ class SportsPage {
         }
     }
 
-    // ---------- the game's menu: Apple's record menu (SportRecordMenu / ProgrammeMenu), a sheet on a phone ----------
+    // ---------- the game's menu: Apple's record menu (SportRecordMenu / ProgrammeMenu) ----------
 
     /** The followed team "Record every <team> game" is for: the follow the game is for, else its followed side. */
     teamFor(g) {
@@ -697,15 +713,12 @@ class SportsPage {
      */
     menuItems(g, { front = false } = {}) {
         const V = SportView, ev = V.event(g), now = this.now(), items = [], act = V.action(g, now), red = V.ICON.rec.replace('<svg', '<svg class="red"');
-        if (act === 'remind') items.push({ act: 'remind', icon: V.ICON.bell, title: 'Remind me', detail: `Plays on ${ev.channel.name} at ${UI.clock(ev.start)}` });
         if (act === 'watch') {
-            // D-65: one row per channel name; one name in several qualities still opens the list (its chips)
+            // #345: Watch another channel, only when another channel shows it now (D-65: one row per channel name; one name
+            // in several qualities still opens the list, its chips); the card's own press is Watch
             const rows = V.channelGroups(this.channelsOnAir(g)), qualities = rows.length === 1 ? rows[0].chips.length : 0;
-            if (rows.length > 1 || qualities > 1) items.push({ act: 'watch-on', icon: V.ICON.channels, title: `Watch on… (${rows.length > 1 ? `${rows.length} channels` : `${qualities} qualities`})`, detail: rows.map(SportsPage.rowName).join(', '), expands: true });
-            else items.push({ act: 'watch', icon: V.ICON.play, title: 'Watch', detail: ev.channel.name });
+            if (rows.length > 1 || qualities > 1) items.push({ act: 'watch-on', icon: V.ICON.channels, title: 'Watch another channel', detail: rows.map(SportsPage.rowName).join(', '), expands: true });
         }
-        // #327: iOS's details: every channel airing it, each with Watch and Record
-        if (ev && !V.terminal(g)) items.push({ act: 'details', icon: V.ICON.info, title: 'Details', detail: 'Every channel showing it, to watch or record' });
         if (ev && !V.terminal(g) && ev.end > now) {
             const r = g.recording;
             if (r && r.scheduleId != null && r.status) items.push({ act: 'change-recording', icon: red, title: 'Change recording', detail: r.status === 'recording' ? 'Recording now' : 'Recording scheduled', section: 'Record' });
@@ -718,6 +731,8 @@ class SportsPage {
             if (g.recordWhenListed && g.recordWhenListed.ruleId != null) items.push({ act: 'unlisted-cancel', icon: red, title: 'Don’t record it', detail: 'It records when the TV Guide lists it', section: 'Record' });
             else items.push({ act: 'record-listed', icon: red, title: 'Record when it’s listed', detail: 'Not in the TV Guide yet', section: 'Record' });
         }
+        // #345: Remind me is only here, for a game that has not finished its airing (a live one plays at once)
+        if (ev && !V.terminal(g) && !V.isNextRound(g) && ev.end > now) items.push({ act: 'remind', icon: V.ICON.bell, title: 'Remind me', detail: act === 'watch' ? `Plays on ${ev.channel.name} now` : `Plays on ${ev.channel.name} at ${UI.clock(ev.start)}`, section: '' });
         if (front && !g.synthetic && this.heroId !== g.id) items.push({ act: 'pin', icon: V.ICON.star, title: 'Make this the hero', detail: 'Show it in the banner', section: '' });
         return items;
     }
@@ -745,23 +760,14 @@ class SportsPage {
         if (!items.length) html += '<p class="mempty">Not on your channels yet.</p>';
         return html;
     }
-    /** The menu for a game: under its card or button on a computer, a sheet from the bottom on a phone. */
+    /** The menu for a game: under its card or button on a computer, on its card on a phone too. */
     openMenu(g, anchor, opts = {}) {
         this.closeMenu();
-        const sheet = this.phone;
         const menu = document.createElement('div');
-        menu.className = `rmenu sp-menu${sheet ? ' sheet' : ''}`;
+        menu.className = 'rmenu sp-menu'; // #345: on its card on a phone too (no bottom sheet), kept on screen by placeMenu
         menu.setAttribute('role', 'menu');
         menu.setAttribute('aria-label', g.title);
-        menu.innerHTML = (sheet ? '<div class="grab" aria-hidden="true"></div>' : '') + this.menuMarkup(g, { front: opts.front ?? !this.route.sport })
-            + (sheet ? '<button type="button" class="pill cancel" data-act="menu-cancel">Cancel</button>' : '');
-        let scrim = null;
-        if (sheet) {
-            scrim = document.createElement('div');
-            scrim.className = 'sp-scrim';
-            scrim.setAttribute('aria-hidden', 'true');
-            document.body.appendChild(scrim);
-        }
+        menu.innerHTML = this.menuMarkup(g, { front: opts.front ?? !this.route.sport });
         document.body.appendChild(menu);
         this.held = null;
         this.holdRows(menu);
@@ -772,8 +778,7 @@ class SportsPage {
             const el = e.target?.closest?.('[data-act]');
             if (!el) return;
             const name = el.getAttribute('data-act');
-            if (name === 'menu-cancel') { close(); return; }
-            if (name === 'watch-on') {
+                        if (name === 'watch-on') {
                 const list = el.nextElementSibling, open = list && list.hidden;
                 if (list) { list.hidden = !open; el.setAttribute('aria-expanded', String(!!open)); if (open) list.querySelector('[role=menuitem]')?.focus?.(); }
                 return;
@@ -791,9 +796,9 @@ class SportsPage {
         });
         const outside = (e) => { if (!menu.contains(e.target) && !anchor?.contains?.(e.target)) close(false); };
         document.addEventListener('pointerdown', outside, true);
-        this.menu = { el: menu, scrim, anchor, key: anchor?.getAttribute?.('data-key') || null, gameId: g.id, outside };
+        this.menu = { el: menu, anchor, key: anchor?.getAttribute?.('data-key') || null, gameId: g.id, outside };
         anchor?.setAttribute?.('aria-expanded', 'true');
-        if (!sheet) this.placeMenu(opts.point);
+        this.placeMenu(opts.point);
         (rows()[0] || menu).focus?.();
     }
     placeMenu(point = null) {
@@ -808,6 +813,7 @@ class SportsPage {
         let top = b.bottom + 4;
         if (top + h > vh - 8 && b.top - h - 4 >= 8) top = b.top - h - 4;
         m.el.style.left = `${Math.round(left)}px`;
+        top = Math.min(top, vh - h - 8); // never off the bottom (a menu taller than the window scrolls: CSS max-height)
         m.el.style.top = `${Math.round(Math.max(8, top))}px`;
     }
     closeMenu(focus = false) {
@@ -816,7 +822,6 @@ class SportsPage {
         this.menu = null;
         document.removeEventListener('pointerdown', m.outside, true);
         m.el.remove();
-        m.scrim?.remove();
         // #323 review: a poll may have redrawn the page under the menu: its card is found again by its data-key
         const anchor = this.anchorFor(m);
         anchor?.setAttribute?.('aria-expanded', 'false');
@@ -1026,86 +1031,6 @@ class SportsPage {
         w.redraw();
         d.open(opener || undefined);
         return w;
-    }
-
-    // ----- the details (iOS SportEventDetails: a press on a game to come, or Details in its menu) -----
-
-    /** The game's details: its kicker, times and state, Watch and Record, then every channel airing it, each with Watch and Record. */
-    openDetails(id, opener = null) {
-        const first = this.game(id);
-        if (!first || !SportView.event(first)) return undefined;
-        opener = opener || this.openerFor(null);
-        this.closeMenu();
-        let last = first;
-        const current = () => (last = this.game(id) || last);
-        const w = this.makeWindow({ kind: 'details', id, title: first.title, opener,
-            draw: () => ({ body: this.detailsMarkup(current()) }),
-            act: (name, el) => this.detailsAct(name, el, current()) });
-        // the clock moves while it is open (TimelineView every 30 s): Watch, the times and the channels follow it
-        const tick = () => { if (this.window !== w) return; w.redraw(); w.timer = setTimeout(tick, 30000); };
-        w.timer = setTimeout(tick, 30000);
-        return w;
-    }
-    detailsAct(name, el, g) {
-        const key = el.getAttribute('data-channel');
-        switch (name) {
-            // Watch is decided again at the press (watch() checks the channel airs it now)
-            case 'd-watch': this.closeWindow(); return this.watch(g.id);
-            case 'd-watch-on': this.closeWindow(); return this.watch(g.id, key);
-            case 'd-remind': this.closeWindow(); return this.remind(g.id);
-            case 'd-unwait': if (this.waiting) { clearTimeout(this.waiting.timer); this.waiting = null; } return this.window?.redraw();
-            case 'd-record': this.closeWindow(); return this.openRecord(g.id);
-            case 'd-record-on': this.closeWindow(); return this.openRecord(g.id, { channel: key });
-            default: return undefined;
-        }
-    }
-    /**
-     * The details' content. Never a score, a result or a winner, whatever Hide scores says: only the game's title, league,
-     * times and channels (#327: the hidden-scores rule holds for this window by construction).
-     */
-    detailsMarkup(g) {
-        const V = SportView, e = V.e, ev = V.event(g), now = this.now(), P = SportsPage;
-        if (!ev) return '<p class="sp-muted">Not on your channels yet.</p>';
-        const best = ev.channel, live = ev.start <= now && now < ev.end, ended = ev.end <= now;
-        const league = V.label(g.league, this.labels).toUpperCase(), rec = P.recordingOf(g);
-        const kicker = live ? `LIVE · ${league}` : `${league} · ${P.day(ev.start, now).toUpperCase()}`;
-        const when = live ? `ends in ${P.span(ev.end - now)}` : ended ? 'ended' : `starts in ${P.span(ev.start - now)}`;
-        let html = `<div class="dk${live ? ' live' : ''}">${live ? V.dot() : ''}<span>${e(kicker)}</span></div>`
-            + `<p class="dline pig-amount">${e(`${P.range(ev)} · ${when}${rec && !live ? ` · ${rec.word}` : ''}`)}</p>`;
-        if (live) html += `<div class="dprog" aria-hidden="true"><i style="width:${Math.round(100 * Math.min(1, Math.max(0, (now - ev.start) / (ev.end - ev.start))))}%"></i></div>`;
-        // Watch (or Watch when it starts, or Don't watch at …) and Record (Change recording when it is set)
-        const pending = !!(this.waiting && this.waiting.id === g.id);
-        let actions = '';
-        if (pending) actions += `<button type="button" class="pill" data-act="d-unwait" data-key="d:watch">Don’t watch at ${e(UI.clock(ev.start))}</button>`;
-        else if (ended) actions += '<button type="button" class="pill" disabled data-key="d:watch">Not on now</button>';
-        else if (live) actions += `<button type="button" class="pill primary" data-act="d-watch" data-key="d:watch">${V.ICON.play}Watch ${e(best.name)}</button>`;
-        else actions += `<button type="button" class="pill primary" data-act="d-remind" data-key="d:watch">${V.ICON.bell}Watch ${e(best.name)} when it starts</button>`;
-        if (!V.terminal(g) && ev.end > now) actions += `<button type="button" class="pill" data-act="d-record" data-key="d:record">${V.ICON.rec}${rec ? 'Change recording' : 'Record'}</button>`;
-        html += `<div class="dacts">${actions}</div>`;
-        if (pending) html += `<p class="dnote">PigTV will start ${e(best.name)} at ${e(UI.clock(ev.start))} while Sport stays open.</p>`;
-        // D-65: one row per channel name, one chip per measured quality and frame rate (best first); Watch and Record on a
-        // row use its best copy that can (the server's order), a chip its own best copy
-        const rows = V.channelGroups(g.channels || []);
-        html += `<h3 class="dsec">${rows.length === 1 && rows[0].chips.length === 1 && rows[0].chips[0].channels.length === 1 ? 'Channel' : 'Channels'}</h3><ul class="dchs">`;
-        const state = (c) => { const a = this.airing(g, c); return { a, on: a.start <= now && now < a.end, gone: a.end <= now }; };
-        rows.forEach((row, i) => {
-            const copies = row.chips.flatMap(x => x.channels), single = copies.length === 1;
-            const c = copies[0], { a } = state(c), name = single ? c.name : row.name;
-            const watchOn = copies.find(x => state(x).on), recordOn = V.terminal(g) ? null : copies.find(x => !state(x).gone);
-            const sub = [i === 0 && (rows.length > 1 || !single) ? 'Recommended' : '', !recordOn ? 'Not on now' : watchOn || (a.start === ev.start && a.end === ev.end) ? '' : `${P.day(a.start, now)} ${P.range(a)}`].filter(Boolean);
-            let btns = '';
-            if (watchOn) { const k = P.channelKey(watchOn); btns += `<button type="button" class="pill primary" data-act="d-watch-on" data-channel="${e(k)}" data-key="d:w:${e(k)}" aria-label="${e(`Watch on ${name}`)}">${V.ICON.play}Watch</button>`; }
-            if (recordOn) { const k = P.channelKey(recordOn); btns += `<button type="button" class="pill" data-act="d-record-on" data-channel="${e(k)}" data-key="d:r:${e(k)}" aria-label="${e(`Record on ${name}`)}">${V.ICON.rec}Record</button>`; }
-            const chips = row.chips.length > 1 ? this.chipsHtml(row, (chip) => {
-                const best = chip.channels.find(x => state(x).on) || chip.channels.find(x => !state(x).gone && !V.terminal(g));
-                if (!best) return null;
-                const k = P.channelKey(best), watch = state(best).on;
-                return ` type="button" data-act="${watch ? 'd-watch-on' : 'd-record-on'}" data-channel="${e(k)}" data-key="d:q:${e(k)}" aria-label="${e(`${watch ? 'Watch' : 'Record'} ${row.name} in ${P.chipWords(row, chip)}`)}"`;
-            }) : '';
-            const badge = row.chips.length > 1 ? this.bestBadge(row, row.chips[0].q) : single ? V.copyBadge(c) : V.qualityBadge(row.chips[0].q);
-            html += `<li class="dch${chips ? ' dq' : ''}"${chips && this.phone ? ` data-hold="${e(row.key)}"` : ''}><span class="dct"><b>${e(name)}</b>${single && c.number != null ? ` <span class="num pig-amount">${e(c.number)}</span>` : ''}${badge ? ` ${badge}` : ''}${sub.length ? `<span class="dsub">${e(sub.join(' · '))}</span>` : ''}${chips}</span><span class="dca">${btns}</span></li>`;
-        });
-        return `${html}</ul>`;
     }
 
     // ----- the record page (iOS RecordPage: More options…, Record in the details, Change recording) -----

@@ -77,21 +77,6 @@ test('grouping: one row per name (quality words aside), chips best first, same q
     assert.match(V.qualityBadge({ label: 'HD', fps: null, measured: false }), /^<span class="qb guess" title="HD from the channel’s name \(not measured yet\)">HD<\/span>$/);
 });
 
-test('the details window (wide): one row for the copies with its chips; a chip plays its best copy', async () => {
-    const h = await harness();
-    h.p.openDetails('ars');
-    const html = h.body();
-    assert.equal((html.match(/<li class="dch/g) || []).length, 2, 'two rows: the Sky copies and Stan Sport 1');
-    assert.match(html, /<li class="dch dq"><span class="dct"><b>UK\| SKY SPORTS F1<\/b><span class="dsub">Recommended<\/span><span class="qchips" role="group"/);
-    const sky = html.slice(html.indexOf('dch dq'), html.indexOf('</li>'));
-    assert.deepEqual(chipsOf(sky), ['4K 50 accent → 1:u2', '1080 50 → 1:u1', '1080 25 → 1:u4', 'SD dashed → 1:u5']);
-    assert.match(sky, /data-act="d-watch-on" data-channel="1:u2" data-key="d:q:1:u2" aria-label="Watch UK\| SKY SPORTS F1 in 4K at 50 fps"/);
-    assert.match(html, /<b>Stan Sport 1<\/b><\/span>/, 'one copy, nothing measured: no badge, no chips');
-    h.press({ 'data-act': 'd-watch-on', 'data-channel': '1:u1' });
-    await h.settle();
-    assert.deepEqual(h.played, ['p201'], 'the 1080 50 chip plays the first of its copies');
-});
-
 test('the record page (wide): one Record on row per name, its chips choose the copy, the chosen chip pressed', async () => {
     const h = await harness();
     h.p.openRecord('ars');
@@ -107,36 +92,13 @@ test('the record page (wide): one Record on row per name, its chips choose the c
     assert.match(html, /role="radio" aria-checked="false" data-act="r-on" data-index="5"[^>]*>[\s\S]*?<b>Stan Sport 1<\/b>/);
 });
 
-test('the menu: one name in several qualities still opens "Watch on…", with its chips', async () => {
+test('the menu: one name in several qualities still opens "Watch another channel", with its chips', async () => {
     const h = await harness();
     const items = h.p.menuItems(h.p.game('ars'));
-    assert.deepEqual(plain(items.filter(i => i.act === 'watch-on').map(i => [i.title, i.detail])), [['Watch on… (2 channels)', 'UK| SKY SPORTS F1, Stan Sport 1']]);
+    assert.deepEqual(plain(items.filter(i => i.act === 'watch-on').map(i => [i.title, i.detail])), [['Watch another channel', 'UK| SKY SPORTS F1, Stan Sport 1']]);
     const html = h.p.menuMarkup(h.p.game('ars'));
     assert.match(html, /<div class="mgrp"><button type="button" class="mi" role="menuitem" tabindex="-1" data-act="watch-channel" data-id="ars" data-channel="1:u2">[\s\S]*?<b>UK\| SKY SPORTS F1<\/b>/);
     assert.deepEqual(chipsOf(html.slice(html.indexOf('class="qchips"'))).slice(0, 4), ['4K 50 accent → 1:u2', '1080 50 → 1:u1', '1080 25 → 1:u4', 'SD dashed → 1:u5']);
-});
-
-test('narrow window (iPhone layout): the row shows its best chip; touch and hold opens its chips', async () => {
-    const h = await harness({ phone: true });
-    h.p.openDetails('ars');
-    let html = h.body();
-    assert.match(html, /<li class="dch dq" data-hold="uk\| sky sports f1"><span class="dct"><b>UK\| SKY SPORTS F1<\/b> <span class="qb top qbest" title="Measured 4K at 50 fps">4K<i class="pig-amount">50<\/i><\/span>/);
-    assert.match(html, /<span class="qchips" role="group" aria-label="UK\| SKY SPORTS F1: qualities" hidden>/, 'chips closed');
-    assert.match(html, /data-act="d-watch-on" data-channel="1:u2" data-key="d:w:1:u2"/, 'Watch plays the best copy: the best chip\'s first');
-    // a long press (the phone browser's contextmenu) on the row opens it
-    const row = h.b.document.createElement('li');
-    row.setAttribute('data-hold', 'uk| sky sports f1');
-    h.dialog().querySelector('.ui-dialog-body').appendChild(row);
-    const ev = new FakeEvent('contextmenu', { bubbles: true, cancelable: true });
-    row.dispatchEvent(ev);
-    assert.equal(ev.defaultPrevented, true, 'no browser menu');
-    h.p.window.redraw();
-    html = h.body();
-    assert.match(html, /<span class="qchips" role="group" aria-label="UK\| SKY SPORTS F1: qualities">/, 'chips open after the hold');
-    // a wide window has no hold
-    const wide = await harness();
-    wide.p.openDetails('ars');
-    assert.doesNotMatch(wide.body(), /data-hold=/);
 });
 
 test('the server\'s nameKey decides the rows when it is sent (both clients group alike)', () => {
@@ -168,8 +130,7 @@ test('same name and quality on different airings: two chips, both can be recorde
     assert.match(h.body(), /<span class="rmeta pig-amount">[^<]* · Sky Sports F1<\/span>/, 'the second airing chosen');
     // the watch pickers keep them apart too
     h.dialog().close();
-    h.p.openDetails('ars');
-    assert.deepEqual(chipsOf(h.body().slice(h.body().indexOf('class="qchips"'))).map(c => c.split(' → ')[1]), ['1:u1', '1:u2']);
+    assert.deepEqual(chipsOf(h.p.menuMarkup(ars).slice(h.p.menuMarkup(ars).indexOf('class="qchips"'))).map(c => c.split(' → ')[1]), ['1:u1', '1:u2']);
     assert.match(h.p.menuMarkup(ars), /data-channel="1:u2" aria-label="Watch Sky Sports F1 in 1080 at 50 fps, starting /);
 });
 
@@ -195,14 +156,10 @@ test('a row showing its chips has no best badge of its own (the first chip is it
     assert.doesNotMatch(button, /class="qb/, 'the Record on row with chips shown: no row badge');
 
     const phone = await harness({ phone: true });
-    phone.p.openDetails('ars');
-    let html = phone.body();
+    let html = phone.p.menuMarkup(phone.p.game('ars'));
     assert.match(html, /<span class="qb top qbest" title="Measured 4K at 50 fps">4K/, 'a closed row: its best badge');
     assert.doesNotMatch(html, /class="qb[^"]*qbest"[^>]* hidden/);
     phone.p.held = 'uk| sky sports f1';
-    phone.p.window.redraw();
-    html = phone.body();
-    assert.match(html, /<span class="qb top qbest" hidden title="Measured 4K at 50 fps">/, 'the row held open: the badge goes, the chips show it');
     const pm = phone.p.menuMarkup(phone.p.game('ars'));
     assert.match(pm, /class="qb top qbest" hidden title=/, 'the menu row held open: no row badge');
 });
