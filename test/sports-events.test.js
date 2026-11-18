@@ -450,7 +450,7 @@ test('channels are ordered by quality, then health ok, then favourite, then guid
     // A good start on ESPN 2 HD puts it ahead of the other HD channel.
     const d = sqlite.getDb();
     const espn2 = d.prepare(`SELECT stable_id FROM playlist_items WHERE name = 'ESPN 2 HD'`).get().stable_id;
-    d.prepare('INSERT INTO channel_health (source_id, channel_key, name, at, ok) VALUES (?, ?, ?, ?, 1)').run(source.id, espn2, 'ESPN 2 HD', Date.now());
+    d.prepare('INSERT INTO channel_health (source_id, channel_key, name, at, ok, watched_sec) VALUES (?, ?, ?, ?, 1, 60)').run(source.id, espn2, 'ESPN 2 HD', Date.now());
     load('services/channelHealth').reset();
     assert.deepEqual(await rugby(), ['ESPN 2 HD', 'Kayo 2 HD', 'Seven', 'ESPN']);
 

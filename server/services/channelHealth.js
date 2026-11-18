@@ -22,6 +22,9 @@
  *          or (0142) >= 3 stalls per hour watched over at least 20 minutes
  *   ok     any attempt, and not flaky
  *   null   no attempts
+ * #348: an ok start counts as an attempt only once its play-end says it was watched for
+ * JUDGED_SEC (the blank check's 20 s): a shorter or unreported play is too short to judge, so it is
+ * neither ok nor a failure. A failure counts however short.
  * Rows are kept 30 days and pruned daily (startPruneTimer, from index.js).
  * library_rev is bumped only when a channel's health *changes*, so a cached
  * guide learns about a new warning dot without every play invalidating it.
@@ -39,6 +42,11 @@ const FLAKY_MIN_ATTEMPTS = 3;
 // 0142: stalls make a channel flaky only over enough watching to mean something.
 const FLAKY_STALLS_PER_HOUR = 3;
 const FLAKY_MIN_WATCH_SEC = 20 * 60;
+// #348: an ok start is judged once watched this long. Mirrors transcodeSession.BLANK_CHECK_SEC (not
+// required here: this module also runs in the sport build's worker): before it, a placeholder looks ok.
+const JUDGED_SEC = 20;
+// The attempts that count: every failure, and every ok start watched for JUDGED_SEC.
+const JUDGED_ATTEMPTS = `COALESCE(SUM(ok = 0 OR COALESCE(watched_sec, 0) >= ${JUDGED_SEC}), 0)`;
 // Ranking: stalls per hour with the hours floored at 30 minutes, so one stall
 // in a 10-second play counts as 2/hour, not 360/hour.
 const RANK_MIN_WATCH_SEC = 30 * 60;
@@ -88,7 +96,7 @@ function channelFor(sourceId, channelId) {
 
 function countsFor(sourceId, key, now) {
     return getDb().prepare(`
-        SELECT COUNT(*) AS attempts, COALESCE(SUM(ok = 0), 0) AS failures,
+        SELECT ${JUDGED_ATTEMPTS} AS attempts, COALESCE(SUM(ok = 0), 0) AS failures,
                COALESCE(SUM(stalls), 0) AS stalls, COALESCE(SUM(watched_sec), 0) AS watched
         FROM channel_health WHERE source_id = ? AND channel_key = ? AND at >= ?
     `).get(sourceId, key, now - WINDOW_MS);
@@ -230,7 +238,7 @@ function windowCounts(now = Date.now()) {
     if (cache && now - cache.builtAt < CACHE_MS && now >= cache.builtAt) return cache.counts;
     const counts = new Map();
     const rows = getDb().prepare(`
-        SELECT source_id, channel_key, COUNT(*) AS attempts, COALESCE(SUM(ok = 0), 0) AS failures,
+        SELECT source_id, channel_key, ${JUDGED_ATTEMPTS} AS attempts, COALESCE(SUM(ok = 0), 0) AS failures,
                COALESCE(SUM(stalls), 0) AS stalls, COALESCE(SUM(watched_sec), 0) AS watched
         FROM channel_health WHERE at >= ? GROUP BY source_id, channel_key
     `).all(now - WINDOW_MS);
@@ -266,11 +274,12 @@ function leastReliable({ limit = 10, now = Date.now() } = {}) {
     const byKey = new Map();
     for (const r of rows) {
         const k = `${r.source_id}:${r.channel_key}`;
-        const e = byKey.get(k) || { name: null, attempts: 0, failures: 0, stalls: 0, watched: 0, pictures: [], blank: false, placeholder: false };
+        const e = byKey.get(k) || { name: null, attempts: 0, judged: 0, failures: 0, stalls: 0, watched: 0, pictures: [], blank: false, placeholder: false };
         e.name = r.name || e.name; // the latest name wins
         e.blank = r.reason === 'blank'; // 0191: whether the latest attempt was a blank picture
         e.placeholder = r.reason === 'placeholder'; // #332: or the provider's placeholder
         e.attempts++;
+        if (!r.ok || (r.watched_sec || 0) >= JUDGED_SEC) e.judged++; // #348: as countsFor
         if (!r.ok) e.failures++;
         e.stalls += r.stalls || 0;
         e.watched += r.watched_sec || 0;
@@ -294,7 +303,7 @@ function leastReliable({ limit = 10, now = Date.now() } = {}) {
             watchedMin: round1(e.watched / 60),
             stallsPerHour: e.watched > 0 ? round1(e.stalls / (e.watched / 3600)) : null,
             medianFirstPictureSec: median(e.pictures),
-            health: classify(e.attempts, e.failures, e.stalls, e.watched),
+            health: classify(e.judged, e.failures, e.stalls, e.watched),
             blank: e.blank,
             placeholder: e.placeholder,
             score: round1(e.failures + e.stalls / (Math.max(e.watched, RANK_MIN_WATCH_SEC) / 3600))
@@ -337,5 +346,5 @@ function reset() {
 module.exports = {
     recordResolve, clientStarted, clientFailed, clientEnded, sessionBlank, applyHealth, leastReliable, prune, startPruneTimer,
     classify, reasonCategory, reset,
-    WINDOW_MS, KEEP_MS
+    WINDOW_MS, KEEP_MS, JUDGED_SEC
 };

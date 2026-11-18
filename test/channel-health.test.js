@@ -116,11 +116,11 @@ test('guide and channels rows carry health: flaky, ok, or null with no data; onl
     clear();
     insertAttempt('s1001', { ok: false });
     insertAttempt('s1001', { ok: false, ago: DAY });          // Alpha: 2 failures -> flaky
-    insertAttempt('s1002', { ok: true });
+    insertAttempt('s1002', { ok: true, watched: 60 });
     insertAttempt('s1002', { ok: false, ago: 8 * DAY });      // Bravo: the failure is too old -> ok
     insertAttempt('s1002', { ok: false, ago: 9 * DAY });
-    insertAttempt('pos_4', { ok: true });                     // Delta: no stable id, keyed by item_id
-    insertAttempt('pos_4', { ok: true });
+    insertAttempt('pos_4', { ok: true, watched: 60 });        // Delta: no stable id, keyed by item_id
+    insertAttempt('pos_4', { ok: true, watched: 60 });
     insertAttempt('pos_4', { ok: false });                    // 1 of 3 = 33% -> flaky
     // Charlie: nothing -> null
 
@@ -190,10 +190,13 @@ test('library_rev moves when a channel\'s health changes, not on every play', as
     clear();
     const rev = () => sqlite.getDb().prepare(`SELECT value FROM meta WHERE key = 'library_rev'`).get()?.value || '0';
     const r0 = rev();
-    health.recordResolve({ sourceId: source.id, channelId: 'pos_1', ok: true });          // null -> ok
+    health.recordResolve({ sourceId: source.id, channelId: 'pos_1', ok: true, owner: 'device:rev' });
+    assert.equal(rev(), r0, '#348: a start not yet watched for 20 s is no health yet');
+    health.clientEnded('device:rev', 60, 0);                                                 // null -> ok
     const r1 = rev();
     assert.notEqual(r1, r0);
-    health.recordResolve({ sourceId: source.id, channelId: 'pos_1', ok: true });          // ok -> ok
+    health.recordResolve({ sourceId: source.id, channelId: 'pos_1', ok: true, owner: 'device:rev' });
+    health.clientEnded('device:rev', 60, 0);                                                 // ok -> ok
     assert.equal(rev(), r1);
     health.recordResolve({ sourceId: source.id, channelId: 'pos_1', ok: false, reason: 'x' });
     health.recordResolve({ sourceId: source.id, channelId: 'pos_1', ok: false, reason: 'x' }); // -> flaky
@@ -292,4 +295,17 @@ test('a play-end that makes a channel flaky moves library_rev', async () => {
     const r1 = rev();
     assert.equal(health.clientEnded('device:tv', 3600, 5), true);
     assert.notEqual(rev(), r1);
+});
+
+// #348: an ok start whose play ended before the 20 s blank check (or never reported an end) is too short to judge: it is
+// neither ok nor a failure. The old code counted every ok start, so a 3 s play of a placeholder read "ok".
+test('#348: an ok play under 20 s, or with no play-end, is no health; 30 s is ok; a failure counts however short', async () => {
+    clear();
+    insertAttempt('s1001', { ok: true, watched: 3 });         // Alpha: a 3 s play -> null
+    insertAttempt('s1002', { ok: true, watched: 30 });        // Bravo: 30 s -> ok
+    insertAttempt('s1003', { ok: true });                     // Charlie: no play-end -> null
+    insertAttempt('pos_4', { ok: false, watched: 1 });        // Delta: a failure, however short ...
+    insertAttempt('pos_4', { ok: false });                    // ... counts: 2 -> flaky
+    const byName = rows => Object.fromEntries(rows.map(r => [r.name, r.health]));
+    assert.deepEqual(byName((await get('/api/library/channels?limit=50')).channels), { Alpha: null, Bravo: 'ok', Charlie: null, Delta: 'flaky' });
 });

@@ -232,7 +232,8 @@ which sends one `av-desync` client event (C-A `clientEvents`) at most every 10 s
 
 `library/guide` and `/channels` rows carry `health`: `"ok" | "flaky" | null`. `flaky` = in the last 7 days ≥2 failed starts,
 or >30% of ≥3, or ≥3 stalls per hour over ≥20 min watched. Stalls and watched time come from the client's `play-end`
-(`stalls`, `watchedSec`), matched to that owner's last resolve. Apple: a small warning dot.
+(`stalls`, `watchedSec`), matched to that owner's last resolve. Since #348 a started play counts (for `ok` and the rate
+rule) only once its `play-end` says `watchedSec` ≥ 20; a failed start counts however short. Apple: a small warning dot.
 
 ### C-H. Sport categories. Flag: `sportCategories`
 
