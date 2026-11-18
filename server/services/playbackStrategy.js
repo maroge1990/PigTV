@@ -323,6 +323,8 @@ function sessionPlan({ info, caps, settings, userAgent, owner, live, audioEncode
         width: videoMode === 'copy' ? info.width : 0,
         height: videoMode === 'copy' ? info.height : 0,
         fps: info.fps,
+        // #348: the source has the provider's placeholder's shape (the blank check judges a feed-less play by it).
+        placeholderShape: hasPlaceholderShape({ width: info.width, height: info.height, fps: info.fps }),
         audioMode: audioEncode ? 'encode' : (codecsOk ? 'copy' : undefined),
         videoCodec: info.video,
         audioCodec: info.audio,

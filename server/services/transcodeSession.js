@@ -91,7 +91,7 @@ const TIMESTAMP_WARNING = /timestamp discontinuity|Non-monotonic DTS|Packet dura
 // which is the point: neither is the channel.
 const BLANK_CHECK_SEC = 20;
 // #332: the threshold is shared with the shared ingest's placeholder rule (feedPlaceholder.js).
-const { blankKbps } = require('./feedPlaceholder');
+const { blankKbps, hasPlaceholderShape } = require('./feedPlaceholder');
 
 // How many segments a live session keeps on disk before rotating the
 // oldest ones out. Unbounded (the old 0) means the whole session gets
@@ -1373,15 +1373,53 @@ class TranscodeSession extends EventEmitter {
             // #332: on the shared ingest, after a short low-rate connection or with the placeholder's shape, it is the
             // provider's placeholder: the feed is ended as one (ingest.noteBlank), which the listeners are told.
             const feed = this.feed && !this.feed.endReason ? this.feed.ingest : null;
-            const placeholder = !!feed && typeof feed.noteBlank === 'function'
+            let placeholder = !!feed && typeof feed.noteBlank === 'function'
                 && feed.noteBlank({ width: Number(this.options.width) || null, height: height || null, fps: this.options.fps ?? null, kbps }) === true;
+            // #348: no shared feed (refused as a file, or off): with the placeholder's shape, or from a source with a length,
+            // it is the provider's placeholder too, and the play is ended as one (a dark real channel: noted only, as before).
+            const feedLess = !placeholder && !this.feed && this.blankIsPlaceholderWithoutFeed();
+            if (feedLess) placeholder = true;
             try {
                 this.emit('blank', { kbps, seconds, placeholder });
             } catch (err) {
                 console.warn(`[TranscodeSession ${this.id}] A blank-picture listener failed:`, err.message);
             }
+            if (feedLess) await this.endAsPlaceholder(`a blank picture at ${kbps} kbps ${this.options.paceInput === true ? 'from a source with a length' : 'with the placeholder\'s shape'}`);
         }
         return { kbps, seconds };
+    }
+
+    /**
+     * #348: a blank verdict on a session without a shared feed is the provider's placeholder when the picture has its
+     * shape (1920x1080 at 30 fps: the source's, so an encode is judged too) or the source has a length (the provider's
+     * placeholder file). PIGTV_INGEST_PLACEHOLDER_CHECK=0 turns it off with the ingest's own rule.
+     */
+    blankIsPlaceholderWithoutFeed() {
+        let on = true;
+        try { on = require('./ingest').tuning.placeholderCheck !== false; } catch (e) { /* the default */ }
+        if (!on) return false;
+        if (this.options.paceInput === true || this.options.placeholderShape === true) return true;
+        return hasPlaceholderShape({ width: this.options.width, height: this.options.height, fps: this.options.fps });
+    }
+
+    /**
+     * #348: the play is the provider's placeholder and has no shared feed to end: it ends the way a placeholder feed's
+     * session does - `feedLost` { reason: 'placeholder' }, 'placeholder' (the resolve forgets the analysis), then 'lost' for
+     * a provider reason (providerRouting.watchSession holds the channel back PLACEHOLDER_MS; the player's re-resolve
+     * goes elsewhere) and the session is removed.
+     */
+    async endAsPlaceholder(detail) {
+        if (this.ended()) return;
+        console.warn(`[TranscodeSession ${this.id}] ${providerLabel(this.options.providerId)} is sending its placeholder, not the channel (${detail}); ending the play`);
+        this.feedLost = { reason: 'placeholder', providerReason: true, detail };
+        try { this.emit('placeholder', this.feedLost); } catch (err) { console.warn(`[TranscodeSession ${this.id}] A placeholder listener failed:`, err.message); }
+        sessions.delete(this.id);
+        if (this.timings.playlistReady) this.noteLost('exit');
+        try {
+            await this.cleanup();
+        } catch (err) {
+            console.error(`[TranscodeSession ${this.id}] Could not clean up after the placeholder:`, err.message);
+        }
     }
 
     /**

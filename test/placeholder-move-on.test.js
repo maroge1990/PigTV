@@ -242,3 +242,77 @@ test('the rule: a source with a length that has the slate\'s shape or lasts at m
     assert.equal(isPlaceholderFile({ ...shape, finite: false, durationSec: null }), false, 'a live stream');
     assert.equal(isPlaceholderFile({ ...shape, finite: false }, { refusedFinite: true }), true, 'the ingest refused it as a file');
 });
+
+// ---- part 2: mid-play, a feed-less blank verdict with the placeholder's shape ends the play as the placeholder --------
+
+/** A live session that has played 24 s at `kbps` (its folder kept, nothing spawned), watched as the route watches it. */
+function playedSession(name, options, { kbps = 117 } = {}) {
+    const dir = fs.mkdtempSync(path.join(sandbox, `played-${name}-`));
+    const lines = ['#EXTM3U', '#EXT-X-VERSION:7', '#EXT-X-TARGETDURATION:4', '#EXT-X-MEDIA-SEQUENCE:0'];
+    for (let i = 0; i < 6; i++) {
+        const seg = `seg${String(i).padStart(4, '0')}.ts`;
+        fs.writeFileSync(path.join(dir, seg), Buffer.alloc(Math.round((kbps * 1000 / 8) * 4)));
+        lines.push('#EXTINF:4.000000,', seg);
+    }
+    fs.writeFileSync(path.join(dir, 'stream.m3u8'), lines.join('\n') + '\n');
+    const s = new transcodeSession.TranscodeSession(`${base}/file2.ts`, { live: true, segmentType: 'mpegts', videoMode: 'copy', height: 1080, providerId: A.id, ...options });
+    s.dir = dir;
+    s.playlistPath = path.join(dir, 'stream.m3u8');
+    s.retainDir = true;
+    s.timings.playlistReady = Date.now();
+    const seen = { lost: [], blank: [], placeholder: 0 };
+    s.on('lost', (info) => seen.lost.push(info));
+    s.on('blank', (info) => seen.blank.push(info));
+    s.on('placeholder', () => { seen.placeholder++; });
+    return { s, seen };
+}
+
+test('mid-play: a feed-less blank picture with the placeholder\'s shape ends the play as the placeholder, held back 3 min', async () => {
+    const { s, seen } = playedSession('slate', { width: 1920, fps: '30/1', paceInput: false });
+    const candidate = { providerId: A.id, providerName: 'Strong8K', channelKey: 's1803789' };
+    routing.watchSession(s, candidate, 's1803789', 'Sportsnet Event');
+    const log = captureLog();
+    try { await s.checkPicture(); } finally { log.restore(); }
+    assert.equal(s.blank, true);
+    assert.deepEqual(seen.blank.map(b => b.placeholder), [true]);
+    assert.equal(seen.placeholder, 1, 'the resolve forgets the analysis it played from');
+    assert.deepEqual(seen.lost, [{ how: 'exit', providerReason: true }], 'lost for a provider reason: the player asks again');
+    assert.equal(s.feedLost.reason, 'placeholder');
+    assert.equal(interruptions.reasonOf('exit', s), 'placeholder');
+    assert.equal(routing.isPlaceholder(A.id, 's1803789'), true, 'its re-resolve skips it');
+    assert.equal(routing._breakers.get(A.id)?.failures.length ?? 0, 0, 'not counted toward the provider');
+    assert.equal(s.ended(), true, 'the session is ended');
+    assert.ok(!log.lines.some(l => l.includes(base)), 'no provider URL in the log');
+});
+
+test('mid-play: a feed-less blank picture from a source with a length (an encode: no shape on the session) ends the play too', async () => {
+    const encode = playedSession('encode', { videoMode: 'encode', width: 0, height: 0, fps: '30/1', placeholderShape: true });
+    await encode.s.checkPicture();
+    assert.deepEqual(encode.seen.lost, [{ how: 'exit', providerReason: true }]);
+    const file = playedSession('file', { width: 1280, height: 720, fps: '25/1', paceInput: true });
+    await file.s.checkPicture();
+    assert.deepEqual(file.seen.lost, [{ how: 'exit', providerReason: true }]);
+});
+
+test('mid-play: a dark real channel of another shape is noted only, as before (quarantined 10 min, the play goes on)', async () => {
+    const { s, seen } = playedSession('dark', { width: 1920, fps: '30000/1001' });
+    const candidate = { providerId: A.id, providerName: 'Strong8K', channelKey: 's105' };
+    routing.watchSession(s, candidate, 's105', 'Sportsnet One');
+    await s.checkPicture();
+    assert.deepEqual(seen.blank.map(b => b.placeholder), [false]);
+    assert.equal(seen.lost.length, 0);
+    assert.equal(seen.placeholder, 0);
+    assert.equal(s.ended(), false);
+    assert.equal(routing.isPlaceholder(A.id, 's105'), false);
+    assert.equal(routing.isQuarantined(A.id, 's105'), true, 'the next play tries another provider first');
+});
+
+test('mid-play: PIGTV_INGEST_PLACEHOLDER_CHECK=0 leaves a feed-less blank as a note', async () => {
+    ingest.tuning.placeholderCheck = false;
+    try {
+        const { s, seen } = playedSession('off', { width: 1920, fps: '30/1' });
+        await s.checkPicture();
+        assert.deepEqual(seen.blank.map(b => b.placeholder), [false]);
+        assert.equal(seen.lost.length, 0);
+    } finally { ingest.tuning.placeholderCheck = true; }
+});

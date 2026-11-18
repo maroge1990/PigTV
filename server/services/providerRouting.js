@@ -297,7 +297,9 @@ function watchSession(session, candidate, primaryKey, label = null) {
         const repeating = !!session.feedLost && session.feedLost.reason === 'repeating';
         // #332: the provider's placeholder: the channel's alone, held back for the shorter PLACEHOLDER_MS.
         const placeholder = !!session.feedLost && session.feedLost.reason === 'placeholder';
-        if (placeholder) quarantine(candidate.providerId, candidate.channelKey, Date.now(), PLACEHOLDER_MS);
+        // #348: noted as the placeholder (not only quarantined), so the player's re-resolve skips it even when it is the
+        // channel's only candidate, and may move on to the game's next channel.
+        if (placeholder) notePlaceholder(candidate.providerId, candidate.channelKey);
         else if (repeating) quarantine(candidate.providerId, candidate.channelKey);
         else noteFailure(candidate, primaryKey);
         console.warn(`[Playback] ${candidate.providerName} lost ${label ? `"${label}"` : 'a channel'} mid-play ` +

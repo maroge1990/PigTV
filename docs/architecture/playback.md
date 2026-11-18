@@ -259,6 +259,9 @@ rebased the step first (a reconnect showed up only as repeated content, and ever
   it as one) of the placeholder's shape (1920x1080 at 30 fps) or at most 15 min long is the provider's placeholder: no
   session starts, its probe, profile and measurement are dropped, it is held back 3 min, and the walk tries the next
   candidate (`playbackStrategy.isPlaceholderFile`). A long real-rate file plays as before.
+- **Mid-play, without a shared feed** (#348): the 20 s blank verdict on a play that reads the provider itself (a file, or
+  the shared connection off) is the placeholder when the source has its shape or a length; the play ends as lost with
+  reason `placeholder` (held back 3 min) and the player's re-resolve moves on. A dark channel of another shape is noted only.
 - Known limits: the feeds aren't in step (a jump or repeat at a switch); a cold switch still waits for the 20 s stall
   watchdog; the provider in Stream info is the one the play started on. A switch applies to plays started after it changes.
 
