@@ -690,3 +690,55 @@ test('Codex medium: each game channel found to be the placeholder on the way get
         health.reset();
     }
 });
+
+test('Codex medium: a successful start\'s health row (and the play-start / play-end after it) is the planned stream\'s, whatever a sync did to its position', async () => {
+    const dbh = sqlite.getDb();
+    const health = load('services/channelHealth');
+    const owner = 'device:device:tv';
+    const realSubscribe = ingest.subscribe;
+    const reuse = (pos, key, url) => {
+        // A sync moves the channel to pos_2x and gives its position to an unrelated station.
+        dbh.prepare(`INSERT INTO playlist_items (id, source_id, item_id, type, name, category_id, is_hidden, sort_order, stable_id, stream_url)
+                     SELECT ?, source_id, ?, type, name, category_id, is_hidden, 30, stable_id, stream_url FROM playlist_items WHERE id = ?`).run(`${A.id}:${pos}x`, `${pos}x`, `${A.id}:${pos}`);
+        dbh.prepare(`UPDATE playlist_items SET name = 'Shopping Channel', stable_id = ?, stream_url = ? WHERE id = ?`).run(key, url, `${A.id}:${pos}`);
+    };
+    const restore = (pos, name, stableId, url) => {
+        dbh.prepare('DELETE FROM playlist_items WHERE id = ?').run(`${A.id}:${pos}x`);
+        dbh.prepare('UPDATE playlist_items SET name = ?, stable_id = ?, stream_url = ? WHERE id = ?').run(name, stableId, url, `${A.id}:${pos}`);
+    };
+    const rows = () => dbh.prepare('SELECT channel_key, ok, first_picture_sec, watched_sec FROM channel_health ORDER BY id').all().map(x => ({ ...x }));
+    dbh.prepare('DELETE FROM channel_health').run();
+    health.reset();
+    try {
+        // An ordinary start: Sportsnet Ontario (s107) moves while its probe runs.
+        let once = false;
+        ingest.subscribe = (opts) => { if (!once) { once = true; reuse('pos_7', 's997', `${base}/real97.ts`); } return realSubscribe(opts); };
+        const r = await play('pos_7');
+        assert.equal(r.status, 200, JSON.stringify(r.body));
+        assert.equal(health.clientStarted(owner, 2.5), true);
+        assert.equal(health.clientEnded(owner, 120, 0), true);
+        assert.deepEqual(rows(), [{ channel_key: 's107', ok: 1, first_picture_sec: 2.5, watched_sec: 120 }], 'the planned stream\'s row, telemetry on it');
+        restore('pos_7', 'Sportsnet Ontario', 's107', `${base}/real7.ts`);
+        dbh.prepare('DELETE FROM channel_health').run();
+        health.reset();
+        routing.reset();
+        // A game alternative: Sportsnet One (s105) moves while it starts.
+        liveGames({ id: 'g', title: 'NHL: Nashville vs Tampa', channels: [ch('pos_2', 's1803789', 'Sportsnet Event'), ch('pos_5', 's105', 'Sportsnet One')] });
+        ingest.subscribe = (opts) => { if (/real5\.ts/.test(opts.url) && !once) { once = true; reuse('pos_5', 's995', `${base}/real95.ts`); } return realSubscribe(opts); };
+        once = false;
+        const moved = await play('pos_2');
+        assert.equal(moved.status, 200, JSON.stringify(moved.body));
+        assert.ok(once, 'the sync ran during the alternative\'s start');
+        assert.equal(health.clientStarted(owner, 3), true);
+        assert.equal(health.clientEnded(owner, 60, 1), true);
+        const got = rows();
+        assert.deepEqual(got.filter(x => x.ok === 1), [{ channel_key: 's105', ok: 1, first_picture_sec: 3, watched_sec: 60 }]);
+        assert.ok(!got.some(x => x.channel_key === 's995'), 'nothing written for the station now at pos_5');
+    } finally {
+        ingest.subscribe = realSubscribe;
+        restore('pos_7', 'Sportsnet Ontario', 's107', `${base}/real7.ts`);
+        restore('pos_5', 'Sportsnet One', 's105', `${base}/real5.ts`);
+        dbh.prepare('DELETE FROM channel_health').run();
+        health.reset();
+    }
+});

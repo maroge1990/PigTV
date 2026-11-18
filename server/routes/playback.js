@@ -435,12 +435,19 @@ router.post('/resolve', requireToken, async (req, res) => {
             channelHealth.recordResolve({ sourceId, channelId, identity: requestedIdentity, ok: false, reason: clientSafe(lastError.message), category: 'placeholder', owner,
                 providerId: fallback.failedOn ? fallback.failedOn.providerId : null });
         }
-        recordHistory(req, playedRef ? playedRef.sourceId : sourceId, playedRef ? playedRef.channelId : channelId);
+        // Codex (#348): the channel played as its route planned it (source, stable identity, name), never re-read from its
+        // position, which a sync may have given another station while it started.
+        const playedIdentity = fallback
+            ? { sourceId: Number(fallback.channel.sourceId), key: fallback.walk.routing.primaryKey, stableId: fallback.walk.routing.primaryStableId || null,
+                name: fallback.channel.name || fallback.walk.routing.channelName || null }
+            : requestedIdentity;
+        recordHistory(req, playedRef ? playedRef.sourceId : sourceId, playedRef ? playedRef.channelId : channelId, playedIdentity);
         // 0133 (C-G): a start the server answered; the client's events may
         // still turn it into a failed start (channelHealth.clientFailed).
-        // 0174: the primary identity's health, whichever provider served it.
+        // 0174: the primary identity's health, whichever provider served it. The client's play-start / play-end that
+        // follow land on this row (the owner's pending attempt).
         channelHealth.recordResolve({ sourceId: playedRef ? playedRef.sourceId : sourceId, channelId: playedRef ? playedRef.channelId : channelId,
-            ok: true, owner, providerId: chosen.providerId });
+            identity: playedIdentity, ok: true, owner, providerId: chosen.providerId });
 
         console.log(`[Playback] ${decision.strategy} — ${decision.reason}${decision.warm ? ' (warm: adopted a session started ahead)' : ''}`);
         playbackEvents.noteResolve(owner, { channel: playedLabel || eventChannel, strategy: decision.strategy, videoMode: decision.videoMode || null,
@@ -606,7 +613,7 @@ function everyProviderMessage(conflict) {
  * know who is asking. Best effort: history is a convenience and must
  * never be the reason playback fails.
  */
-function recordHistory(req, sourceId, channelId) {
+function recordHistory(req, sourceId, channelId, identity = null) {
     if (sourceId !== undefined && channelId !== undefined && req.user) {
         try {
             const stripped = bareChannelId(channelId);
@@ -616,7 +623,9 @@ function recordHistory(req, sourceId, channelId) {
                 SELECT name, stable_id FROM playlist_items
                 WHERE source_id = ? AND type = 'live' AND item_id = ? LIMIT 1
             `).get(parseInt(sourceId), stripped);
-            const name = row?.name || null;
+            // #348 (Codex): the planned identity wins over the row now at that position (a sync may have reused it).
+            const name = (identity && identity.name) || row?.name || null;
+            const stableId = identity ? (identity.stableId || null) : (row?.stable_id || null);
 
             getDb().prepare(`
                 INSERT INTO channel_history (user_id, source_id, channel_item_id, channel_name, watched_at, play_count, stable_id)
@@ -628,7 +637,7 @@ function recordHistory(req, sourceId, channelId) {
                     -- Refreshed on every play: a row written before the channel
                     -- moved must not keep pointing at where it used to be.
                     stable_id = COALESCE(excluded.stable_id, stable_id)
-            `).run(String(req.user.id), parseInt(sourceId), stripped, name, Date.now(), row?.stable_id || null);
+            `).run(String(req.user.id), parseInt(sourceId), stripped, name, Date.now(), stableId);
         } catch (e) {
             console.warn('[Playback] Could not record history:', e.message);
         }
