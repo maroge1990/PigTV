@@ -77,3 +77,13 @@ test('#345: opening an existing database backfills its recordings\' game from th
     __resetInitForTests(); initSchema();
     assert.equal(val(9101), 'own', 'idempotent: a value already there is kept');
 });
+
+test('#345: a game linked to the schedule after its recording started survives the schedule being dismissed', async () => {
+    const { getDb } = load('db/sqlite');
+    const s = await schedule();
+    const r = recordings.create({ scheduled_id: s.id, title: 'x', channel_name: 'ABC', channel_logo: null, source_id: 1, channel_item_id: 'x', file_path: '/late.ts', started_at: 1 });
+    getDb().prepare("UPDATE scheduled_recordings SET sport_game_id = 'espn:soccer/eng.1:99' WHERE id = ?").run(s.id); // linked late: only on the schedule
+    scheduled.setStatus(s.id, 'failed');
+    scheduled.delete(s.id);
+    assert.equal(engine.listRecordings().find(x => x.id === r.id).gameId, 'espn:soccer/eng.1:99');
+});

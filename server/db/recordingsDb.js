@@ -392,7 +392,13 @@ const scheduled = {
     delete(id) {
         const db = getDb();
         initSchema();
-        db.prepare('DELETE FROM scheduled_recordings WHERE id = ?').run(id);
+        // #345: a game linked to the schedule after its recording started is only on the schedule: copy it to the recordings
+        // that have none before the schedule goes, in the same transaction
+        db.transaction(() => {
+            db.prepare(`UPDATE recordings SET sport_game_id = (SELECT s.sport_game_id FROM scheduled_recordings s WHERE s.id = ?)
+                WHERE scheduled_id = ? AND sport_game_id IS NULL`).run(id, id);
+            db.prepare('DELETE FROM scheduled_recordings WHERE id = ?').run(id);
+        })();
     },
 
     // Recordings still marked in-flight from a previous process lifetime
