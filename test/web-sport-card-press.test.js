@@ -136,3 +136,15 @@ test('#345: a recording lookup is invalidated by a newer press or leaving Sport:
     pending[2]([{ id: 1, gameId: 'avl', status: 'completed' }]); await c;
     assert.deepEqual(h.recPlayed, [2], 'left Sport meanwhile: nothing');
 });
+
+test('#345: choosing a channel to watch ends an older finished-card lookup still on its way', async () => {
+    const h = await harness();
+    let answer;
+    const real = h.b.context.API.request;
+    h.b.context.API.request = (m, url) => (url === '/recordings' ? new Promise(res => { answer = res; }) : real(m, url));
+    const lookup = h.p.select('avl', h.card());
+    const watching = h.p.watch('ars', '1:s1'); // "Watch another channel": watch() directly, before the lookup answers
+    answer([{ id: 5, gameId: 'avl', status: 'completed' }]);
+    await lookup; await watching;
+    assert.deepEqual(h.recPlayed, [], 'no recording opens over the channel the person chose');
+});

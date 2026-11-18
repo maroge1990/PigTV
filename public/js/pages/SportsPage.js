@@ -624,6 +624,7 @@ class SportsPage {
 
     /** Play the game's best channel, found again in the channel list by its identity (never a stored position). */
     async watch(id, channelKey = null) {
+        this.lookup++; // #345: a finished card's recording lookup still on its way never opens over a live watch
         this.closeMenu();
         const g = this.game(id), ev = g && SportView.event(g);
         // a chosen channel is judged on its own airing (#327: a details row), the best channel on the game's action; a
