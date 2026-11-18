@@ -522,7 +522,11 @@ async function gameFallback({ sourceId, channelId, eventId = null, userId = null
         return null;
     }
     if (!event) return null;
-    for (const channel of event.channels || []) {
+    for (const listed of event.channels || []) {
+        // Codex (high): the built list's ids are positions a sync may since have given another station. A channel with a
+        // stable id is the current row with that identity (skipped when it is gone); its item id is what is played.
+        const channel = currentRow(listed);
+        if (!channel) continue;
         const now = Date.now();
         if (Number(channel.sourceId) === Number(sourceId) && String(channel.stableId || channel.id) === failedKey) continue; // the same stream
         if (Number.isFinite(channel.start) && Number.isFinite(channel.end) && !(channel.start <= now && now < channel.end)) continue; // not airing it now
@@ -547,6 +551,18 @@ async function gameFallback({ sourceId, channelId, eventId = null, userId = null
         if (walked.decision) return { walked, walk, channel, event };
     }
     return null;
+}
+
+/** #348: a built C-I channel as the playlist has it now: by source + stable id when it has one (null if gone), else as listed. */
+function currentRow(listed) {
+    if (!listed || !listed.stableId) return listed || null;
+    try {
+        const row = getDb().prepare(`
+            SELECT item_id, name FROM playlist_items WHERE source_id = ? AND type = 'live' AND stable_id = ?
+            ORDER BY CASE WHEN sort_order IS NULL THEN 1 ELSE 0 END, sort_order ASC LIMIT 1
+        `).get(Number(listed.sourceId), String(listed.stableId));
+        return row ? { ...listed, id: row.item_id, name: row.name || listed.name } : null;
+    } catch (e) { return null; }
 }
 
 /** The 409 a client repeats with force. */

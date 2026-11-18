@@ -481,3 +481,27 @@ test('Codex high: a feed-less play ended as the placeholder still counts its con
     assert.equal(counted(), false, 'gone from the count once ffmpeg has exited');
     assert.equal(transcodeSession.getSession(s.id), undefined);
 });
+
+test('Codex high: the game\'s channels are found by stable id after a sync moved them; a reused position is never played', async () => {
+    const dbh = sqlite.getDb();
+    // The built list says Sportsnet One is pos_5 and TSN 5 is pos_10 (s_gone). A sync since: Sportsnet One (s105) moved to
+    // pos_12 and pos_5 now holds an unrelated station; TSN 5's old identity s_gone no longer exists.
+    liveGames({ id: 'g', title: 'NHL: Winnipeg vs Vancouver', channels: [ch('pos_2', 's1803789', 'Sportsnet Event'),
+        ch('pos_10', 's_gone', 'TSN 5 old'), ch('pos_5', 's105', 'Sportsnet One')] });
+    dbh.prepare(`UPDATE playlist_items SET name = 'Shopping Channel', stable_id = 's999', stream_url = ? WHERE id = ?`).run(`${base}/real99.ts`, `${A.id}:pos_5`);
+    dbh.prepare(`INSERT INTO playlist_items (id, source_id, item_id, type, name, category_id, is_hidden, sort_order, stable_id, stream_url)
+                 VALUES (?, ?, 'pos_12', 'live', 'Sportsnet One', 'Sport', 0, 12, 's105', ?)`).run(`${A.id}:pos_12`, A.id, `${base}/real12.ts`);
+    try {
+        const r = await play('pos_2');
+        assert.equal(r.status, 200, JSON.stringify(r.body));
+        assert.deepEqual(r.body.fallback.to, { sourceId: A.id, id: 'pos_12', stableId: 's105', name: 'Sportsnet One' });
+        assert.equal(connections['/real99.ts'], undefined, 'the station now at pos_5 is never played');
+        assert.equal(connections['/real10.ts'], undefined, 'a channel whose identity is gone is skipped, not played by its old position');
+        assert.ok(connections['/real12.ts'] > 0);
+        const history = dbh.prepare('SELECT channel_item_id, stable_id FROM channel_history ORDER BY watched_at DESC, rowid DESC LIMIT 1').get();
+        assert.deepEqual({ ...history }, { channel_item_id: 'pos_12', stable_id: 's105' });
+    } finally {
+        dbh.prepare('DELETE FROM playlist_items WHERE id = ?').run(`${A.id}:pos_12`);
+        dbh.prepare(`UPDATE playlist_items SET name = 'Sportsnet One', stable_id = 's105', stream_url = ? WHERE id = ?`).run(`${base}/real5.ts`, `${A.id}:pos_5`);
+    }
+});
