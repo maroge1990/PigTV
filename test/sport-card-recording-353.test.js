@@ -193,3 +193,26 @@ test('#353 r1: a cancelling schedule of the game is `recordingCancelling`; the w
     await h.save();
     assert.deepEqual(h.calls.filter(c => c[0] === 'schedule').map(c => c[1].programStart), [NOW + 25 * H]);
 });
+
+// Codex sign-off 2 (medium): at the press, a cancelling schedule naming no game counts only on its own channel during the
+// game's airing there: an unrelated programme being cancelled on B (which shows the game later) never holds Record on A.
+test('#353 sign-off 2: an unrelated programme being cancelled on the later channel does not hold Record on the earlier one', async () => {
+    const f = answer();
+    const nxt = f.games.find(g => g.id === 'nxt');
+    delete nxt.recording;
+    Object.assign(nxt, cardOf(), { start: START });
+    const news = { ...unrelated, id: 41, status: 'cancelling', program_start: START + H, program_end: START + 2 * H, program_end_original: null };
+    const h = await harness(f, [news]);
+    await h.p.record('nxt');
+    h.p.act('record-options', { getAttribute: (k) => ({ 'data-id': 'nxt' })[k] ?? null });
+    await h.save();
+    assert.deepEqual(h.calls.filter(c => c[0] === 'schedule').map(c => [c[1].channelItemId, c[1].programStart]), [['102', A.start], ['102', A.start]],
+        'Record this game and More options both record on A');
+    // the game's own airing on B being cancelled still holds B
+    const own = { ...news, id: 42, program_start: B.start, program_end: B.end };
+    const h2 = await harness(f, [own]);
+    h2.p.act('record-options', { getAttribute: (k) => ({ 'data-id': 'nxt' })[k] ?? null });
+    h2.el('r-on', { 'data-index': '1' }).click();
+    await h2.save();
+    assert.equal(h2.calls.filter(c => c[0] === 'schedule').length, 0);
+});

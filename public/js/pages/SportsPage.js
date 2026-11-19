@@ -1258,8 +1258,11 @@ class SportsPage {
     cancellingRow(g, a, rows) {
         const id = SportsPage.gameIdOf(g), end = SportsPage.guideEndOf(a.c, a.end);
         const slotEnd = (r) => (Number.isFinite(r.program_end_original) ? r.program_end_original : r.program_end);
+        // naming none (Codex sign-off 2): on its own channel, during the game's guide airing THERE (an unrelated programme
+        // on a channel that shows the game at another time is not this game's)
+        const during = (r, c) => { const w = this.airing(g, c); return r.program_start < SportsPage.guideEndOf(c, w.end) && slotEnd(r) > w.start; };
         return (rows || []).find(r => r && r.status === 'cancelling' && r.program_start < end && slotEnd(r) > a.start
-            && (r.gameId ? Boolean(id) && r.gameId === id : SportsPage.slotsOf(g).some(c => SportsPage.rowOnChannel(r, c)))) || null;
+            && (r.gameId ? Boolean(id) && r.gameId === id : SportsPage.slotsOf(g).some(c => SportsPage.rowOnChannel(r, c) && during(r, c)))) || null;
     }
     /** What Save changes sends (RecordPlan.change): only what changed, Start early not once it records; null when nothing has. */
     static change(st) {
