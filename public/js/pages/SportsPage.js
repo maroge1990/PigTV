@@ -156,7 +156,7 @@ class SportsPage {
         this.render();
         // #353 (Codex sign-off): an open record window follows the new answer (a cancellation begun or finished elsewhere)
         const w = this.window;
-        if (answered && w && w.kind === 'record' && w.st && !w.st.busy) { w.st.cancellingAt = null; w.redraw(); }
+        if (answered && w && w.kind === 'record' && w.st && !w.st.busy) { w.redraw(); if (w.st.refused) this.recheckRefusal(w); }
         this.schedule();
         if (this.shownLeague()) this.loadLeague();
     }
@@ -1357,8 +1357,9 @@ class SportsPage {
         const what = st.whats[st.what];
         // #353 (D-72): this airing's recording is being cancelled: a disabled "Cancelling…" in place of Record game
         // (Codex sign-off) from the card as the last refresh has it, never the one the window opened with
-        // #347: or the server has just refused it as still being cancelled (409 `cancelling`), until the next answer
-        const going = !changing && chosen && (!what || what.kind === 'this') && (st.cancellingAt === st.index || P.cancellingFor(this.game(g.id) || g, chosen));
+        // #347: or the server has refused it as still being cancelled (409 `cancelling`), until the schedule list says that
+        // schedule's cancel has ended (recheckRefusal)
+        const going = !changing && chosen && (!what || what.kind === 'this') && ((st.refused && st.refused.index === st.index) || P.cancellingFor(this.game(g.id) || g, chosen));
         const primary = changing ? 'Save changes' : what && what.kind !== 'this' ? 'Record every game' : going ? 'Cancelling…' : 'Record game';
         const off = st.busy || !!going || (changing && (!st.loaded || st.gone || !P.change(st))) || (!changing && !chosen && (!what || what.kind === 'this'));
         const footer = [button(changing ? 'Close' : 'Cancel', 'btn btn-secondary', 'r-close', st.busy)];
@@ -1377,6 +1378,22 @@ class SportsPage {
             case 'r-save': return this.saveRecord(st, w);
             default: return undefined;
         }
+    }
+    /**
+     * #347 (Codex, 409 sign-off): a record window's `cancelling` refusal lasts until a fresh schedule list no longer lists
+     * that schedule as cancelling (its cancel has ended), whatever the front page says (a schedule of another game at
+     * that channel and start never reaches this card). A list that cannot be read changes nothing.
+     */
+    async recheckRefusal(w) {
+        const st = w && w.st, refused = st && st.refused;
+        if (!refused) return;
+        let rows;
+        try { rows = await API.request('GET', '/recordings/scheduled'); } catch { return; }
+        if (st.refused !== refused || !Array.isArray(rows)) return;
+        if (rows.some(r => r && r.id === refused.scheduleId && r.status === 'cancelling')) return;
+        st.refused = null;
+        if (st.error === SportsPage.CANCELLING) st.error = null;
+        if (this.window === w) w.redraw();
     }
     /** Cancel recording (Stop recording): at once, with the 10 s Undo; the window closes first. */
     cancelRecording(st) {
@@ -1450,7 +1467,7 @@ class SportsPage {
         try { toast = await this.recordNow(st); }
         catch (err) {
             // #347 (C-M): refused as still being cancelled (begun after the press-time check): Cancelling… for that airing
-            if (err && err.status === 409 && err.code === 'cancelling') { st.cancellingAt = st.index; st.error = SportsPage.CANCELLING; }
+            if (err && err.status === 409 && err.code === 'cancelling') { st.refused = { index: st.index, scheduleId: err.scheduleId ?? null }; st.error = SportsPage.CANCELLING; }
             else st.error = err && err.plain ? err.message : UI.errorText(err, (err && err.failText) || 'The recording could not be scheduled.');
         }
         st.busy = false;

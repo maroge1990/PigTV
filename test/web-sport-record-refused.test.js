@@ -13,13 +13,13 @@ const refusal = (code, error) => Object.assign(new Error(error), { status: 409, 
 const CANCELLING = refusal('cancelling', 'That recording is still being cancelled. Try again in a moment.');
 
 async function harness(fail) {
-    const calls = [];
+    const calls = [], state = { rows: [] };
     const f = answer();
     const nxt = f.games.find(g => g.id === 'nxt');
     delete nxt.recording;
     const b = browser({ request: async (m, url, body) => {
         calls.push([m, url, body]);
-        if (url === '/recordings/scheduled') return []; // nothing being cancelled when the page checks
+        if (url === '/recordings/scheduled') return state.rows; // nothing being cancelled when the page checks
         return url === '/sports/front' ? f : url === '/sports/pages/preferences' ? { spoilerFree: false } : {};
     }, recordings: { schedule: async (d) => { calls.push(['schedule', d]); throw fail; } } });
     const p = page(b, { setLocation() {}, navigateTo() {} });
@@ -27,10 +27,10 @@ async function harness(fail) {
     const settle = async () => { for (let i = 0; i < 4; i++) await new Promise(setImmediate); };
     const save = () => b.document.body.querySelector('dialog [data-act="r-save"]');
     const body = () => b.document.body.querySelector('dialog .ui-dialog-body')?.innerHTML || '';
-    return { b, p, f, calls, settle, save, body };
+    return { b, p, f, calls, settle, save, body, state };
 }
 
-test('#347: the cancel begins between the page\'s check and the POST: More options shows Cancelling… and why; a new answer clears it', async () => {
+test('#347: the cancel begins between the page\'s check and the POST: More options shows Cancelling… and why, until the schedule list says that cancel has ended', async () => {
     const h = await harness(CANCELLING);
     h.p.act('record-options', { getAttribute: (k) => ({ 'data-id': 'nxt' })[k] ?? null });
     h.save().click();
@@ -38,7 +38,14 @@ test('#347: the cancel begins between the page\'s check and the POST: More optio
     assert.equal(h.calls.filter(c => c[0] === 'schedule').length, 1, 'the POST was sent and refused');
     assert.deepEqual([h.save().textContent, !!h.save().disabled], ['Cancelling…', true]);
     assert.match(h.body(), /class="rerr" role="alert">A recording of this is being cancelled\./);
-    await h.p.refresh(); await h.settle(); // the next answer: no cancel any more
+    // Codex (409 sign-off, medium): a front answer alone never clears it: the schedule list still has #9 cancelling (a
+    // schedule of another game at that channel and start, which no card names)
+    h.state.rows = [{ id: 9, status: 'cancelling', gameId: 'espn:soccer/eng.1:99', source_id: 1, channel_item_id: '102', program_start: 0, program_end: 1 }];
+    await h.p.refresh(); await h.settle();
+    assert.deepEqual([h.save().textContent, !!h.save().disabled], ['Cancelling…', true], 'still being cancelled');
+    // its cancel has ended: the next refresh's list says so
+    h.state.rows = [];
+    await h.p.refresh(); await h.settle();
     assert.deepEqual([h.save().textContent, !!h.save().disabled], ['Record game', false]);
 });
 
