@@ -104,7 +104,10 @@ function capturing(id) {
 const listed = async () => (await call('GET', '/api/recordings/scheduled')).body;
 const status = (id) => sqlite.getDb().prepare('SELECT status FROM scheduled_recordings WHERE id = ?').get(id)?.status;
 
-test('a cancel in flight: the same game and airing again makes a NEW schedule; listed cancelling meanwhile; then only the old one ends', async () => {
+// #347 (Codex, Apple batch sign-off; Mark, 19 Nov): while the cancel is under way, a request for the same game's airing
+// or the same channel and start is refused (409 `cancelling`, nothing made: a replacement would race the stop); once
+// the cancel has finished it makes a new schedule.
+test('a cancel in flight: the same game and airing, or the same programme, is refused 409 cancelling; once it has ended, a new schedule', async () => {
     const old = await call('POST', '/api/recordings/schedule', on('pos_1', 'Fox Footy', START, { gameId: GAME }));
     assert.equal(old.status, 201);
     const cap = capturing(old.body.id);
@@ -113,17 +116,23 @@ test('a cancel in flight: the same game and airing again makes a NEW schedule; l
     const during = (await listed()).find(r => r.id === old.body.id);
     assert.equal(during.status, 'cancelling', 'listed as cancelling while its capture stops');
     assert.ok(!('cancelling' in during), 'the mark itself stays internal');
-    const sameGame = await call('POST', '/api/recordings/schedule', on('pos_2', 'Fox Footy 2', START, { gameId: GAME }));
-    assert.equal(sameGame.status, 201, 'the same game: a new schedule');
-    assert.notEqual(sameGame.body.id, old.body.id);
-    assert.equal(sameGame.body.alreadyScheduled, undefined);
-    const sameProgramme = await call('POST', '/api/recordings/schedule', on('pos_1', 'Fox Footy', START));
-    assert.notEqual(sameProgramme.body.id, old.body.id, 'the same programme: never the one being cancelled');
+    const count = () => sqlite.getDb().prepare('SELECT COUNT(*) AS n FROM scheduled_recordings').get().n, before = count();
+    const refused = { error: 'That recording is still being cancelled. Try again in a moment.', code: 'cancelling', scheduleId: old.body.id };
+    const sameGameNow = await call('POST', '/api/recordings/schedule', on('pos_2', 'Fox Footy 2', START, { gameId: GAME }));
+    assert.deepEqual([sameGameNow.status, sameGameNow.body], [409, refused], 'the same game on another channel');
+    const sameProgrammeNow = await call('POST', '/api/recordings/schedule', on('pos_1', 'Fox Footy', START));
+    assert.deepEqual([sameProgrammeNow.status, sameProgrammeNow.body], [409, refused], 'the same channel and start, no game');
+    assert.equal(count(), before, 'nothing made');
     assert.equal((await call('PUT', `/api/recordings/scheduled/${old.body.id}`, { postBufferMin: 30 })).status, 404, 'nothing to change on it');
     cap.release();
     const done = await cancel;
     assert.equal(done.status, 'cancelled');
     assert.equal(status(old.body.id), 'cancelled');
+    const sameGame = await call('POST', '/api/recordings/schedule', on('pos_2', 'Fox Footy 2', START, { gameId: GAME }));
+    assert.equal(sameGame.status, 201, 'once cancelled: a new schedule');
+    assert.notEqual(sameGame.body.id, old.body.id);
+    const sameProgramme = await call('POST', '/api/recordings/schedule', on('pos_1', 'Fox Footy', START));
+    assert.equal(sameProgramme.status, 201);
     assert.equal(status(sameGame.body.id), 'scheduled', 'the new one stands');
     assert.equal(status(sameProgramme.body.id), 'scheduled');
     const after = await listed();
@@ -187,11 +196,12 @@ test('a restart finishes a cancel it interrupted (what it recorded kept, no resu
     recordings.setSegmentFields(rec.id, { work_dir: workDir, segment_state: 'capturing' });
     sqlite.getDb().prepare(`UPDATE scheduled_recordings SET status = 'recording', recording_id = ? WHERE id = ?`).run(rec.id, old.body.id);
     const pending = await call('POST', '/api/recordings/schedule', on('pos_3', 'Kayo 3', Date.now() + 5 * H, { gameId: `${game}:2` }));
+    // a replacement committed before the server stopped (by a build before the #347 refusal, or written directly)
+    const replacement = await call('POST', '/api/recordings/schedule', on('pos_2', 'Fox Footy 2', Date.now() - 10 * 60000, { gameId: `${game}:r`, programEnd: Date.now() + 2 * H }));
+    assert.equal(replacement.status, 201);
+    sqlite.getDb().prepare('UPDATE scheduled_recordings SET sport_game_id = ? WHERE id = ?').run(game, replacement.body.id);
     scheduled.setCancelling(old.body.id, true);
     scheduled.setCancelling(pending.body.id, true);
-    // the replacement, committed before the server stopped
-    const replacement = await call('POST', '/api/recordings/schedule', on('pos_2', 'Fox Footy 2', Date.now() - 10 * 60000, { gameId: game, programEnd: Date.now() + 2 * H }));
-    assert.equal(replacement.status, 201);
     // the restart
     load('db/recordingsDb').__resetInitForTests(); initSchema();
     await engine._reconcileOnStartup();

@@ -421,7 +421,18 @@ async function scheduleFromProgram({
         // One schedule per programme - unless the caller says that one is not this programme's
         // (`exclude`: recordingRules, another episode's schedule in the same slot; 0269).
         const existing = scheduledDb.findByProgram(sourceId, String(channelItemId), programStart);
-        if (existing && !(exclude && exclude.has(existing.id))) return linkGame(existing, gameId);
+        if (existing && !(exclude && exclude.has(existing.id))) {
+            // #347 (Codex, Apple batch sign-off): the slot records another game: never answered as this one's
+            if (validGameId(gameId) && existing.sport_game_id && existing.sport_game_id !== gameId) {
+                throw refusal('slotTaken', existing, `Another game is already set to record on ${existing.channel_name || 'that channel'} at that time.`);
+            }
+            return linkGame(existing, gameId);
+        }
+        // #347 (Codex, Apple batch sign-off; D-72): this airing's recording is still being cancelled: nothing new until it
+        // has stopped (a replacement made now would race the stop)
+        const going = scheduledDb.findCancellingFor({ gameId: validGameId(gameId) ? gameId : null, start: programStart, end: programEnd,
+            sourceId, channelItemId: String(channelItemId), stableId: channelIdentity(sourceId, channelItemId) });
+        if (going) throw refusal('cancelling', going, 'That recording is still being cancelled. Try again in a moment.');
 
         const created = scheduledDb.create({
             title: title || 'Untitled Program',
@@ -448,6 +459,11 @@ async function scheduleFromProgram({
         }
         return linkGame(created, gameId);
     })();
+}
+
+/** #347: POST /recordings/schedule's 409 (C-M): `code` and the schedule it is about, with words for people. */
+function refusal(code, schedule, message) {
+    return Object.assign(new Error(message), { status: 409, code, scheduleId: schedule.id });
 }
 
 /** #217: a schedule made for a fixture game (`gameId`) records until that game ends (recordingGuideEnd.eventStop). */

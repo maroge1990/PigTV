@@ -305,6 +305,8 @@ router.post('/schedule', async (req, res) => {
         // #329: a game already set to record answers 200 with that schedule and `alreadyScheduled: true` (nothing made).
         res.status(schedule.alreadyScheduled ? 200 : 201).json(listed && listed.conflictsWith ? { ...answer, conflictsWith: listed.conflictsWith } : answer);
     } catch (err) {
+        // #347 (C-M): refused, nothing made: `cancelling` (this airing's recording is still stopping) or `slotTaken`
+        if (err.status === 409 && err.code) return res.status(409).json({ error: err.message, code: err.code, scheduleId: err.scheduleId });
         console.error('[Recordings] Schedule error:', err);
         res.status(500).json({ error: err.message });
     }

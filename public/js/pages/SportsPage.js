@@ -156,7 +156,7 @@ class SportsPage {
         this.render();
         // #353 (Codex sign-off): an open record window follows the new answer (a cancellation begun or finished elsewhere)
         const w = this.window;
-        if (answered && w && w.kind === 'record' && w.st && !w.st.busy) w.redraw();
+        if (answered && w && w.kind === 'record' && w.st && !w.st.busy) { w.st.cancellingAt = null; w.redraw(); }
         this.schedule();
         if (this.shownLeague()) this.loadLeague();
     }
@@ -725,6 +725,8 @@ class SportsPage {
             UI.toast(SportsPage.already(made) || (clash ? `Set to record. It clashes with ${made.conflictsWith.map(x => x.title || x).join(', ')}.` : `Set to record: ${g.title}.`));
             this.refresh();
         } catch (err) {
+            // #347 (C-M): refused as still being cancelled: said so, and the card's next answer shows Cancelling…
+            if (err && err.status === 409 && err.code === 'cancelling') { UI.toast(SportsPage.CANCELLING); this.refresh(); return; }
             UI.toast(UI.errorText(err, 'The recording could not be scheduled.'), { kind: 'error' });
         }
     }
@@ -1355,7 +1357,8 @@ class SportsPage {
         const what = st.whats[st.what];
         // #353 (D-72): this airing's recording is being cancelled: a disabled "Cancelling…" in place of Record game
         // (Codex sign-off) from the card as the last refresh has it, never the one the window opened with
-        const going = !changing && chosen && (!what || what.kind === 'this') && P.cancellingFor(this.game(g.id) || g, chosen);
+        // #347: or the server has just refused it as still being cancelled (409 `cancelling`), until the next answer
+        const going = !changing && chosen && (!what || what.kind === 'this') && (st.cancellingAt === st.index || P.cancellingFor(this.game(g.id) || g, chosen));
         const primary = changing ? 'Save changes' : what && what.kind !== 'this' ? 'Record every game' : going ? 'Cancelling…' : 'Record game';
         const off = st.busy || !!going || (changing && (!st.loaded || st.gone || !P.change(st))) || (!changing && !chosen && (!what || what.kind === 'this'));
         const footer = [button(changing ? 'Close' : 'Cancel', 'btn btn-secondary', 'r-close', st.busy)];
@@ -1445,7 +1448,11 @@ class SportsPage {
         st.busy = true; st.error = null; w?.redraw();
         let toast = null;
         try { toast = await this.recordNow(st); }
-        catch (err) { st.error = err && err.plain ? err.message : UI.errorText(err, (err && err.failText) || 'The recording could not be scheduled.'); }
+        catch (err) {
+            // #347 (C-M): refused as still being cancelled (begun after the press-time check): Cancelling… for that airing
+            if (err && err.status === 409 && err.code === 'cancelling') { st.cancellingAt = st.index; st.error = SportsPage.CANCELLING; }
+            else st.error = err && err.plain ? err.message : UI.errorText(err, (err && err.failText) || 'The recording could not be scheduled.');
+        }
         st.busy = false;
         if (toast) {
             if (this.window === w) this.closeWindow();

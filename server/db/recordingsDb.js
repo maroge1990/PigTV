@@ -386,6 +386,23 @@ const scheduled = {
         `).get(...params));
     },
 
+    /**
+     * #347 (Codex, Apple batch sign-off): a schedule of this airing whose cancel is under way (still scheduled, waiting or
+     * recording, `cancelling` set), or null: the game's (`gameId`, its guide slot overlapping start..end), or the same
+     * channel (its identity when known, else its item) and start.
+     */
+    findCancellingFor({ gameId = null, start, end, sourceId, channelItemId, stableId = null }) {
+        initSchema();
+        const base = `SELECT * FROM scheduled_recordings WHERE status IN ('scheduled', 'recording', 'waiting') AND COALESCE(cancelling, 0) = 1`;
+        const game = gameId && Number.isFinite(start) && Number.isFinite(end) && end > start
+            ? getDb().prepare(`${base} AND sport_game_id = ? AND program_start < ? AND COALESCE(program_end_original, program_end) > ? ORDER BY id LIMIT 1`).get(gameId, end, start)
+            : null;
+        if (game) return row(game);
+        return row(getDb().prepare(`${base} AND source_id = ? AND program_start = ?
+              AND ${stableId ? '(channel_stable_id = ? OR (channel_stable_id IS NULL AND channel_item_id = ?))' : 'channel_item_id = ?'} ORDER BY id LIMIT 1`)
+            .get(sourceId, start, ...(stableId ? [stableId, channelItemId] : [channelItemId])));
+    },
+
     /** #347: mark (or clear) a schedule's cancel as under way; true when the row was there to mark. */
     setCancelling(id, on) {
         initSchema();

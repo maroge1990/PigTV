@@ -39,7 +39,9 @@ const API = {
                 window.location.href = '/login.html';
                 throw new Error('Authentication required');
             }
-            throw Object.assign(new Error(result.error || `Server responded with ${response.status}`), { status: response.status });
+            // #347 (C-M): a refusal's `code` and `scheduleId` (e.g. 409 `cancelling`, `slotTaken`) ride on the error
+            throw Object.assign(new Error(result.error || `Server responded with ${response.status}`), { status: response.status,
+                ...(typeof result.code === 'string' ? { code: result.code } : {}), ...(Number.isFinite(result.scheduleId) ? { scheduleId: result.scheduleId } : {}) });
         }
 
         return result;
