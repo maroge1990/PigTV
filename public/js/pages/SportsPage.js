@@ -1172,7 +1172,11 @@ class SportsPage {
             else {
                 st.schedule = row;
                 // the page shows the channel the schedule records, never another one (RecordPlan.bind)
-                const at = st.airings.findIndex(x => x.key && SportsPage.rowOnChannel(row, x.c));
+                // #353 (Codex round 1, medium): on its channel AND its own guide slot (a Test's two days on one channel are
+                // two airings); none of them: the schedule's own times
+                const slotEnd = Number.isFinite(row.program_end_original) ? row.program_end_original : row.program_end;
+                const timed = Number.isFinite(row.program_start) && Number.isFinite(slotEnd);
+                const at = st.airings.findIndex(x => x.key && SportsPage.rowOnChannel(row, x.c) && (!timed || (row.program_start < x.end && slotEnd > x.start)));
                 if (at >= 0) st.index = at;
                 else if (row.channel_name && Number.isFinite(row.program_start) && Number.isFinite(row.program_end)) {
                     st.airings = [...st.airings, { c: { name: row.channel_name }, key: null, start: row.program_start, end: row.program_end }];

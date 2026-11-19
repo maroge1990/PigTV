@@ -144,3 +144,23 @@ test('#353: in More options a channel row on two airings shows each chip\'s day 
     assert.notEqual(notes[0], notes[1]);
     assert.match(notes[1], /^\S+ \S/, 'a weekday, then the time');
 });
+
+// Codex round 1 (medium): Change recording of a day-two schedule binds to day two, not the first airing on its channel.
+test('#353 r1: Change recording of a Test\'s day two on day one\'s channel shows day two, and Cancel recording cancels it', async () => {
+    const f = answer();
+    const card = testMatchCard(NOW);
+    const row = { id: 5, title: 'Australia v India', status: 'scheduled', rule_id: null, gameId: card.id, source_id: 1, channel_item_id: 'pos_7',
+        channel_stable_id: 's7', channel_name: 'Fox Cricket', program_start: NOW + 25 * H, program_end: NOW + 33 * H, program_end_original: NOW + 32 * H,
+        pre_buffer_min: 2, post_buffer_min: 15 };
+    annotateRecordings([card], [row]);
+    assert.equal(card.recording?.scheduleId, 5);
+    f.games.push({ ...card, sport: 'Cricket' });
+    f.rails[0].gameIds.push(card.id);
+    const h = await harness(f, [row]);
+    h.p.act('change-recording', { getAttribute: (k) => ({ 'data-id': card.id })[k] ?? null });
+    await new Promise(setImmediate); await new Promise(setImmediate);
+    assert.equal(h.p.window.st.index, 1, 'day two');
+    assert.match(h.body(), /class="rmeta pig-amount">Tomorrow · /, 'day two\'s date');
+    h.b.document.body.querySelector('dialog [data-act="r-cancel"]').click();
+    assert.equal(h.p.cancels.has(5), true, 'Cancel recording is of schedule 5');
+});
