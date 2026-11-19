@@ -1039,7 +1039,10 @@ class SportsPage {
      */
     static cancellingFor(g, a) {
         const list = g && Array.isArray(g.recordingCancelling) ? g.recordingCancelling : [];
-        return (a && list.find(x => x && Number.isFinite(x.start) && Number.isFinite(x.end) && x.start < a.end && x.end > a.start)) || null;
+        if (!a) return null;
+        // by guide bounds (Codex sign-off): the airing's guide end (C-R `guideEnd`), never its end rolled on for Watch
+        const end = SportsPage.guideEndOf(a.c || a.channel, a.end);
+        return list.find(x => x && Number.isFinite(x.start) && Number.isFinite(x.end) && x.start < end && x.end > a.start) || null;
     }
     /**
      * #353: which schedule is an airing's goes by its guide airing; `end` (rolled on for Watch while it overruns) is only

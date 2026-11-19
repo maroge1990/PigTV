@@ -154,3 +154,20 @@ test('#353 sign-off: Change recording of the next airing binds to it, not to the
     h.b.document.body.querySelector('dialog [data-act="r-cancel"]').click();
     assert.equal(h.p.cancels.has(31), true, 'Cancel recording is of schedule 31');
 });
+
+test('#353 sign-off: the next airing being cancelled does not hold Record of the overrunning one (its start is only inside the Watch end)', async () => {
+    const going = schedRow({ id: 32, status: 'cancelling', program_start: shift(NOW + 5 * MIN), program_end: shift(NOW + 3 * H) });
+    const h = await adjacent({ annotate: [going] });
+    assert.deepEqual(h.c.recordingCancelling, [{ scheduleId: 32, start: shift(NOW + 5 * MIN), end: shift(NOW + 3 * H) }]);
+    h.p.openMenu(h.p.game(ID), (() => { const n = h.b.document.createElement('button'); h.b.document.body.appendChild(n); return n; })());
+    assert.match(h.b.document.body.querySelector('.sp-menu').innerHTML, /<b>Record this game<\/b>/, 'the overrunning airing records');
+    h.p.closeMenu();
+    h.p.act('record-options', { getAttribute: (k) => ({ 'data-id': ID })[k] ?? null });
+    assert.deepEqual([h.save().textContent, !!h.save().disabled], ['Record game', false], 'the overrunning airing chosen');
+    h.pick(1);
+    assert.deepEqual([h.save().textContent, !!h.save().disabled], ['Cancelling…', true], 'the airing being cancelled waits');
+    h.pick(0);
+    h.save().click();
+    await h.settle();
+    assert.deepEqual(h.calls.filter(x => x[0] === 'schedule').map(x => x[1].programStart), [shift(NOW - 3.5 * H)]);
+});
