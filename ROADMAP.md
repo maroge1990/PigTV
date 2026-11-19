@@ -5,18 +5,20 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 19 Nov 2026, the TestFlight-319 feedback session.*
+*Overwritten at the end of every session. 19 Nov 2026, the TestFlight-324 splash session.*
 
-- **Running:** production runs **0819**. main is at **0861** (CI green), Apple main at **324**; TestFlight 324 uploaded
-  from the Mac on 19 Nov (Xcode Cloud's tests fail until #351). Server 0835–0861 reaches production at Mark's next
-  Force Update (D-58). `:release` stays **v0579**. Next builds: server **0862**, Apple **325**.
-- **Pushed 18–19 Nov:** #348 play fallback (server 0838–0858, Apple 322), #350 (0854), #347 server (0859–0861: sport
-  cards record by card id, `cancelling`, D-72), #342 splash reset on every return (Apple 320, D-71), #349 one tuning
-  card (321), #346 strip width (323), #352 iPhone strip jump (324).
+- **Running:** production runs **0819**. main is at **0861** (CI green), Apple main at **335** (CI green). Server
+  0835–0861 reaches production at Mark's next Force Update (D-58). `:release` stays **v0579**. Next builds: server
+  **0862**, Apple **336**.
+- **Pushed 19 Nov:** #342 splash rework (Apple 325–335, D-73 replaces D-71): splash on a cold launch only, a return
+  keeps its place; first frame matches the launch screen (position and pink); the pig flies onto the iPhone header; the
+  splash waits for the opening page (≤4 s) and Home glides in without moving its layout; held links wait for the
+  scene. Full Mac test run passed on 335; **TestFlight 335 not uploaded yet** (needs Mark's go-ahead for
+  `Tools/testflight.sh`; the build folder `~/pigtv-build/tf-335` on the Mac holds the passed marker).
 - **Held, not pushed:** #347's Apple client (record by card id, Cancelling…), on PigTV-Swift's local branches
-  `hold/batch-320-full` and `hold/347-client`; one Codex high and two mediums left, listed on #347.
-- **Not done:** #351 (Xcode Cloud tests need the source tree); #353 (older recording findings); #352's tap-through
-  medium; Mark's answer on D-71's minimum time away; the 50 dead channels wait on Mark. Game run 18 Nov: #331.
+  `hold/batch-320-full` and `hold/347-client`; one Codex high and two mediums left, listed on #347. Rebase onto 335.
+- **Not done:** #354 and #355 (Codex leftovers from 325–335); #351 (Xcode Cloud tests need the source tree); #353
+  (older recording findings); #352's tap-through medium; the 50 dead channels wait on Mark. Game run 18 Nov: #331.
 
 ## Now
 

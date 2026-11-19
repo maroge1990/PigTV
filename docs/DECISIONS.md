@@ -776,7 +776,7 @@ reviews.
 - **Consequence:** Mark does the one-time Create Workflow and GitHub access in Xcode on the Mac; the workflow fetches
   the server's `test/golden` for the contract checks. Until then TestFlight uploads stay on `Tools/testflight.sh`.
 
-### D-71. Every return from the background starts from scratch: the opening tab, at its top, with the splash (18 Nov 2026; Mark)
+### D-71. Every return from the background starts from scratch: the opening tab, at its top, with the splash (18 Nov 2026; Mark; replaced by D-73)
 
 - **Context:** the splash's pig flies into the header (D-69). That works only when the header is on screen at a known
   place, and a return to a scrolled page or another tab left it nowhere to land.
@@ -792,3 +792,12 @@ reviews.
   disabled "Cancelling…" in place of Record until the cancellation has finished.
 - **Consequence:** the Apple client's part is held from build 320 (see #347); until it ships, the client lists the
   row as "Cancelling".
+
+### D-73. The splash plays on a cold launch only, and lands on a page that is already still (19 Nov 2026; Mark; replaces D-71)
+
+- **Context:** on TestFlight 324 the splash replayed on every return from the background (D-71), and on iPad and TV the
+  Sport page shifted just after the pig had landed.
+- **Choice:** the splash plays only when the app starts fresh (it was not in memory). A return from the background
+  shows exactly where Mark left it: same tab, page and scroll position, with no splash and no reset. On a cold launch the
+  splash waits until the opening page has loaded and laid out, up to a few seconds, before the pig flies into its header.
+- **Consequence:** a slow server makes the splash a little longer; past the cap it hands over anyway.
