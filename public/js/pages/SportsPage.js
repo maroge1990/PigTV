@@ -154,6 +154,9 @@ class SportsPage {
         if (answered) this.mayShow = this.prefs.known && !this.prefs.spoilerFree;
         this.loadMap();
         this.render();
+        // #353 (Codex sign-off): an open record window follows the new answer (a cancellation begun or finished elsewhere)
+        const w = this.window;
+        if (answered && w && w.kind === 'record' && w.st && !w.st.busy) w.redraw();
         this.schedule();
         if (this.shownLeague()) this.loadLeague();
     }
@@ -1243,6 +1246,16 @@ class SportsPage {
         };
         return rows.find(r => active(r) && overlaps(r, a) && ours(r)) || null;
     }
+    /**
+     * #353 (D-72): a listed schedule of airing `a` whose cancel is under way (C-M `cancelling`), by guide bounds: one
+     * naming this game, or naming none on one of the game's channels; null when there is none.
+     */
+    cancellingRow(g, a, rows) {
+        const id = SportsPage.gameIdOf(g), end = SportsPage.guideEndOf(a.c, a.end);
+        const slotEnd = (r) => (Number.isFinite(r.program_end_original) ? r.program_end_original : r.program_end);
+        return (rows || []).find(r => r && r.status === 'cancelling' && r.program_start < end && slotEnd(r) > a.start
+            && (r.gameId ? Boolean(id) && r.gameId === id : SportsPage.slotsOf(g).some(c => SportsPage.rowOnChannel(r, c)))) || null;
+    }
     /** What Save changes sends (RecordPlan.change): only what changed, Start early not once it records; null when nothing has. */
     static change(st) {
         const row = st.schedule;
@@ -1321,7 +1334,8 @@ class SportsPage {
         };
         const what = st.whats[st.what];
         // #353 (D-72): this airing's recording is being cancelled: a disabled "Cancelling…" in place of Record game
-        const going = !changing && chosen && (!what || what.kind === 'this') && P.cancellingFor(g, chosen);
+        // (Codex sign-off) from the card as the last refresh has it, never the one the window opened with
+        const going = !changing && chosen && (!what || what.kind === 'this') && P.cancellingFor(this.game(g.id) || g, chosen);
         const primary = changing ? 'Save changes' : what && what.kind !== 'this' ? 'Record every game' : going ? 'Cancelling…' : 'Record game';
         const off = st.busy || !!going || (changing && (!st.loaded || st.gone || !P.change(st))) || (!changing && !chosen && (!what || what.kind === 'this'));
         const footer = [button(changing ? 'Close' : 'Cancel', 'btn btn-secondary', 'r-close', st.busy)];
@@ -1461,10 +1475,13 @@ class SportsPage {
         // #347 (Codex sign-off, high): the chosen airing first; only a schedule of THAT airing is this recording
         const a = st.airings[st.index];
         if (!a) throw plain('Choose a channel to record on.');
-        if (SportsPage.cancellingFor(g, a)) throw plain(SportsPage.CANCELLING);
+        if (SportsPage.cancellingFor(this.game(g.id) || g, a)) throw plain(SportsPage.CANCELLING);
         // Codex #327 (high): set to record meanwhile (another tab, person or rule)? Then the person's padding goes to that
         // recording (0662: never a second schedule); a list that cannot be read records nothing.
-        const row = this.scheduleForAiring(g, a, await rows(SportsPage.UNCHECKED));
+        const listed = await rows(SportsPage.UNCHECKED);
+        // #353 (Codex sign-off; D-72): a cancel of this airing begun since the card was read waits too
+        if (this.cancellingRow(g, a, listed)) throw plain(SportsPage.CANCELLING);
+        const row = this.scheduleForAiring(g, a, listed);
         if (row) {
             const body = SportsPage.change({ schedule: row, pre: st.pre, post: st.post });
             if (body) await failing('The recording could not be changed.', () => API.request('PUT', `/recordings/scheduled/${row.id}`, body));

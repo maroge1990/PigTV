@@ -171,3 +171,26 @@ test('#353 sign-off: the next airing being cancelled does not hold Record of the
     await h.settle();
     assert.deepEqual(h.calls.filter(x => x[0] === 'schedule').map(x => x[1].programStart), [shift(NOW - 3.5 * H)]);
 });
+
+test('#353 sign-off: More options left open follows a cancellation begun and finished elsewhere, and checks the list at the press', async () => {
+    const h = await adjacent();
+    h.p.act('record-options', { getAttribute: (k) => ({ 'data-id': ID })[k] ?? null });
+    h.pick(1);
+    assert.equal(h.save().textContent, 'Record game');
+    // another client starts cancelling the next airing's schedule: the refresh's card says so
+    const going = schedRow({ id: 33, status: 'cancelling', program_start: shift(NOW + 5 * MIN), program_end: shift(NOW + 3 * H) });
+    const card = h.f.games.find(g => g.id === ID);
+    h.state.front = { ...h.f, games: h.f.games.map(g => (g.id === ID ? { ...card, recordingCancelling: [{ scheduleId: 33, start: going.program_start, end: going.program_end }] } : g)) };
+    await h.p.refresh(); await h.settle();
+    assert.deepEqual([h.save().textContent, !!h.save().disabled], ['Cancelling…', true]);
+    // it finishes: Record again
+    h.state.front = h.f;
+    await h.p.refresh(); await h.settle();
+    assert.deepEqual([h.save().textContent, !!h.save().disabled], ['Record game', false]);
+    // begun again with no refresh since: the list read at the press says so, and nothing is made
+    h.state.rows = [going];
+    h.save().click();
+    await h.settle();
+    assert.equal(h.calls.filter(x => x[0] === 'schedule').length, 0);
+    assert.match(h.body(), /class="rerr" role="alert">A recording of this is being cancelled/);
+});
