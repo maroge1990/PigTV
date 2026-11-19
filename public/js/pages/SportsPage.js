@@ -1057,6 +1057,18 @@ class SportsPage {
      * how long to capture. A channel's guide end: C-R `guideEnd` when sent, else `end`.
      */
     static guideEndOf(c, end) { return c && Number.isFinite(c.guideEnd) ? c.guideEnd : end; }
+    /**
+     * #353 (Codex split review, high): the guide end of schedule row `r`'s airing, as the server's card does
+     * (sportFront.rowGuideEnd): bound to its own slot first (one of the card's channels or slots on its channel starting at
+     * its `program_start`: that airing's guide end, C-R `guideEnd` while it overruns), whatever end the row stored (a
+     * schedule made while the game overran stores the rolled end). Bound to none: `program_end_original`, else `program_end`.
+     */
+    static rowGuideEnd(g, r) {
+        const own = SportsPage.slotsOf(g).find(c => SportsPage.rowOnChannel(r, c) && Number.isFinite(c.start) && c.start === r.program_start);
+        const end = own ? SportsPage.guideEndOf(own, own.end) : null;
+        if (Number.isFinite(end) && end > r.program_start) return end;
+        return Number.isFinite(r.program_end_original) ? r.program_end_original : r.program_end;
+    }
     /** #353: a card's channel-and-airing choices: C-R `slots` when sent, else its `channels`. */
     static slotsOf(g) { return (g && Array.isArray(g.slots) && g.slots.length ? g.slots : g && g.channels) || []; }
     /** The game's recording as C-R tells it: its schedule id and status, or null. */
@@ -1201,7 +1213,7 @@ class SportsPage {
                 // the page shows the channel the schedule records, never another one (RecordPlan.bind)
                 // #353 (Codex round 1, medium): on its channel AND its own guide slot (a Test's two days on one channel are
                 // two airings); none of them: the schedule's own times
-                const slotEnd = Number.isFinite(row.program_end_original) ? row.program_end_original : row.program_end;
+                const slotEnd = SportsPage.rowGuideEnd(st.g, row);
                 // #353 (Codex sign-off): by guide bounds only: its channel and guide start first, then its guide slot
                 // against each airing's guide interval (C-R `guideEnd`), never an end rolled on for Watch
                 const timed = Number.isFinite(row.program_start) && Number.isFinite(slotEnd);
@@ -1239,7 +1251,7 @@ class SportsPage {
         if (!a) return null;
         const active = (r) => r && ['scheduled', 'waiting', 'recording'].includes(r.status);
         const named = SportsPage.recordingOf(this.game(g.id) || g), id = SportsPage.gameIdOf(g);
-        const slotEnd = (r) => (Number.isFinite(r.program_end_original) ? r.program_end_original : r.program_end);
+        const slotEnd = (r) => SportsPage.rowGuideEnd(g, r);
         const overlaps = (r, w) => r.program_start < w.end && slotEnd(r) > w.start;
         // #353 (Codex): an overrunning channel's own guide end (C-R `guideEnd`), never the end rolled on for Watch
         const guide = (w, c) => (c && Number.isFinite(c.guideEnd) ? { start: w.start, end: c.guideEnd } : w);
@@ -1257,7 +1269,7 @@ class SportsPage {
      */
     cancellingRow(g, a, rows) {
         const id = SportsPage.gameIdOf(g), end = SportsPage.guideEndOf(a.c, a.end);
-        const slotEnd = (r) => (Number.isFinite(r.program_end_original) ? r.program_end_original : r.program_end);
+        const slotEnd = (r) => SportsPage.rowGuideEnd(g, r);
         // naming none (Codex sign-off 2): on its own channel, during the game's guide airing THERE (an unrelated programme
         // on a channel that shows the game at another time is not this game's)
         const during = (r, c) => { const w = this.airing(g, c); return r.program_start < SportsPage.guideEndOf(c, w.end) && slotEnd(r) > w.start; };

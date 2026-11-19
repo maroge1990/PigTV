@@ -206,3 +206,32 @@ test('#353 sign-off: the menu\'s Record this game checks the list at the press: 
     await h.p.record(ID);
     assert.deepEqual(h.calls.filter(x => x[0] === 'schedule').map(x => x[1].programStart), [shift(NOW - 3.5 * H)]);
 });
+
+// Codex split review (high): a schedule made while the game overran stores the rolled end as `program_end` (no original).
+// Bound to its own slot (channel and start), it is the overrunning airing's: the next airing on that channel is another.
+test('#353 split: a rolled-end schedule of the overrunning airing never takes the next airing\'s Record, active or cancelling', async () => {
+    const rolled = (o) => schedRow({ program_start: shift(NOW - 3.5 * H), program_end: WEB_NOW2 + 10 * MIN, ...o });
+    // active: More options on the next airing records it; the earlier recording is not padded
+    const active = rolled({ id: 51 });
+    const h = await adjacent({ rows: [active] });
+    assert.equal(h.c.recording?.scheduleId, 51);
+    h.p.act('record-options', { getAttribute: (k) => ({ 'data-id': ID })[k] ?? null });
+    h.pick(1);
+    h.b.document.getElementById('sp-rec-post').value = '30';
+    h.b.document.getElementById('sp-rec-post').dispatchEvent(new (require('./helpers/fakeDom').FakeEvent)('change'));
+    h.save().click();
+    await h.settle();
+    assert.equal(h.calls.filter(x => x[0] === 'PUT').length, 0, 'the earlier recording untouched');
+    assert.deepEqual(h.calls.filter(x => x[0] === 'schedule').map(x => [x[1].programStart, x[1].postBufferMin]), [[shift(NOW + 5 * MIN), 30]]);
+    // cancelling: the card's bounds are its guide slot, and neither the card nor the press holds the next airing
+    const going = rolled({ id: 52, status: 'cancelling' });
+    const g2 = await adjacent({ rows: [going] });
+    assert.deepEqual(g2.c.recordingCancelling, [{ scheduleId: 52, start: shift(NOW - 3.5 * H), end: shift(NOW - 30 * MIN) }]);
+    g2.p.act('record-options', { getAttribute: (k) => ({ 'data-id': ID })[k] ?? null });
+    assert.equal(g2.save().textContent, 'Cancelling…', 'the overrunning airing waits');
+    g2.pick(1);
+    assert.deepEqual([g2.save().textContent, !!g2.save().disabled], ['Record game', false]);
+    g2.save().click();
+    await g2.settle();
+    assert.deepEqual(g2.calls.filter(x => x[0] === 'schedule').map(x => x[1].programStart), [shift(NOW + 5 * MIN)]);
+});
