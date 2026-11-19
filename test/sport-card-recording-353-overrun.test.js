@@ -235,3 +235,16 @@ test('#353 split: a rolled-end schedule of the overrunning airing never takes th
     await g2.settle();
     assert.deepEqual(g2.calls.filter(x => x[0] === 'schedule').map(x => x[1].programStart), [shift(NOW + 5 * MIN)]);
 });
+
+// Codex split review (medium): a card on overrun only (its one airing ended, so no `events`) still names its schedules.
+test('#353 split: a card built only from its ended airing still carries its cancelling schedule and its recording', () => {
+    const going = news({ id: 61, title: 'Australia v India', gameId: ID, status: 'cancelling', program_start: NOW - 3.5 * H, program_end: NOW - 30 * MIN });
+    const c = card();
+    assert.deepEqual(c.events, []);
+    assert.equal(c.channels[0].overrun, true);
+    annotateRecordings([c], [going]);
+    assert.deepEqual(c.recordingCancelling, [{ scheduleId: 61, start: NOW - 3.5 * H, end: NOW - 30 * MIN }]);
+    const own = card();
+    annotateRecordings([own], [{ ...going, id: 62, status: 'recording' }]);
+    assert.equal(own.recording?.scheduleId, 62);
+});

@@ -151,10 +151,13 @@ function annotateRecordings(games, schedules) {
     for (const g of games) {
         const times = (g.events || []).filter(e => Number.isFinite(e.start) && Number.isFinite(e.end));
         const channels = Array.isArray(g.slots) && g.slots.length ? g.slots : g.channels || [];
-        if (!times.length || !channels.length) continue;
+        // Codex split review (medium): a card on overrun only (its channels from ended airings) has no `events`; channels with
+        // their own guide bounds still say which schedules are its; the events' span is only the fallback for one without
+        const bounded = (c) => Number.isFinite(c.start) && Number.isFinite(c.guideEnd ?? c.end);
+        if (!channels.length || (!times.length && !channels.some(bounded))) continue;
         // 0416 (0415 Codex round 1, medium): each channel's own airing (C-R's channel `start`/`end`), never the span of
         // all of them: a recording between two staggered broadcasts is not the game's.
-        const from = Math.min(...times.map(e => e.start)), to = Math.max(...times.map(e => e.end));
+        const from = times.length ? Math.min(...times.map(e => e.start)) : Infinity, to = times.length ? Math.max(...times.map(e => e.end)) : -Infinity;
         // #353: identity is the guide airing on both sides: the channel's guide end (`guideEnd` while it overruns, never the
         // end rolled on for Watch) and the schedule's guide slot (rowEnd: never an end the guide or an overrun moved)
         const rowEnd = (r) => rowGuideEnd(r, channels);
