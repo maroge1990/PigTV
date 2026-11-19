@@ -21,13 +21,17 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Now
 
-Order within a section is the order to take them.
+Order within a section is the order to take them. Rewritten 20 Nov from the open P1s and P2s that are not waiting on
+Mark; the audit window, the pickers (#265/#266) and the placeholder work (#332) are built and wait for device checks.
 
-1. **After the audit window (17 Nov):** its summary (`node channel-audit.js summary window-1116`): the hide list of dead
-   channels, copy rescue rate for #332, then a Force Update and Mark's device checks of 0758-0787.
-2. **Sport 3, pickers:** #265 step 2 · #266, now on the audit's measurements (copies share a stable id or a normalised
-   name; names that state a quality can be wrong). Design mock-ups for Mark first.
-3. **Relay and playback leftovers:** #291 items 1, 3, 4, 5 (capture first, full Codex rule).
+1. **Record:** #357 (Apple half; the web half shipped in 0879–0880) · #358 (the Record sheet remade on every platform:
+   Mark picks from the Apple TV mocks, then iPad, iPhone and web) · #356 (overrun recording: design reviewed by Codex,
+   then shown to Mark, then code).
+2. **Xcode Cloud:** #351's release run (a `tf/` tag on Apple 359) confirms both builds reach TestFlight.
+3. **Sport data (server):** #234 (a future game can't be recorded) · #261 (live scores take two minutes) · #259 (F1
+   marked a replay) · #235 (cricket score text refused) · #231 (a listing in another language).
+4. **Apple Sport:** #263 (the page header scrolls with the page).
+5. **Channel audit:** #331's follow-ups (the 20 dead channels with no copy). #291's dead-code leftovers (P3) moved to Later.
 
 ## Later (each needs a capture, a real provider, a device or a design choice first)
 
@@ -36,10 +40,11 @@ Order within a section is the order to take them.
 - **Operations:** #43 · #44 · #45 · #28. **Tests:** #26, and the stored replay for #22 to #24 re-run after 0551.
 - **Apple launch and tests:** #54 · #55 · #53 · #313 (Apple 1's review lows). **Apple structure:** #50 · #51.
 - **Apple player:** #25 · #35 · #58 · #308 (Start over from live) · #101. 
-  **Brand kit:** #294.
+  **Brand kit:** #294. **Cleanup:** #291.
 
 ## Waiting on Mark (no code is waiting; steps are on each issue)
 
+- **Built, waiting on a device pass:** the audit window's results with #332 (placeholder) and the pickers #265 · #266.
 - **Device passes, on production 0632 (includes 0577) and a TestFlight build from 218 (Apple 1's items need one from 239):**
   - Web, after a Force Update to 0757: #320 · #62 · #326 · #327 · #63; the feed loop (#324) on a real looping channel;
     #282 on the Apple apps with scores off (rig).
