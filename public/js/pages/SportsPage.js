@@ -1023,6 +1023,8 @@ class SportsPage {
     static range(a) { return `${UI.clock(a.start)} – ${UI.clock(a.end)}`; }
     /** The status word of a schedule's status (ScheduledRecording.statusWord). */
     static statusWord(status) { return status === 'recording' ? 'Recording now' : status === 'waiting' ? 'Waiting to record' : 'Recording scheduled'; }
+    /** #353: a card's channel-and-airing choices: C-R `slots` when sent, else its `channels`. */
+    static slotsOf(g) { return (g && Array.isArray(g.slots) && g.slots.length ? g.slots : g && g.channels) || []; }
     /** The game's recording as C-R tells it: its schedule id and status, or null. */
     static recordingOf(g) {
         const r = g && g.recording;
@@ -1131,7 +1133,8 @@ class SportsPage {
         opener = opener || this.openerFor(null);
         this.closeMenu();
         const now = this.now();
-        let airings = (g.channels || []).map(c => ({ c, key: SportsPage.channelKey(c), ...this.airing(g, c) })).filter(a => a.end > now);
+        // #353: the card's `slots` when it has them (a Test's day two on day one's channel is a choice of its own)
+        let airings = SportsPage.slotsOf(g).map(c => ({ c, key: SportsPage.channelKey(c), ...this.airing(g, c) })).filter(a => a.end > now);
         if (!airings.length) airings = [{ c: ev.channel, key: SportsPage.channelKey(ev.channel), start: ev.start, end: ev.end }];
         const rec = pick ? null : SportsPage.recordingOf(g);
         // Opus review of #327: the chosen channel is never switched silently: one whose airing has ended by now leaves
@@ -1199,7 +1202,7 @@ class SportsPage {
         const ours = (r) => {
             if (r.gameId) return Boolean(id) && r.gameId === id;
             if (named && r.id === named.id) return true;
-            return (g.channels || []).some(c => SportsPage.rowOnChannel(r, c) && overlaps(r, this.airing(g, c)));
+            return SportsPage.slotsOf(g).some(c => SportsPage.rowOnChannel(r, c) && overlaps(r, this.airing(g, c)));
         };
         return rows.find(r => active(r) && overlaps(r, a) && ours(r)) || null;
     }

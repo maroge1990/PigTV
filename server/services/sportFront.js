@@ -123,6 +123,7 @@ function arrange(response, prefs, { logoFor = () => null } = {}) {
  * #353: a schedule naming a game (`gameId`) is only that game's; one naming none overlaps the airing on its channel with
  * the guide slot it was made for (`program_end_original`), never an end the guide has moved since (another programme
  * overrunning into the game's time is not the game). A schedule naming this game comes before one naming none.
+ * The channels are the card's `slots` when it has them (a Test's day two on day one's channel).
  */
 function annotateRecordings(games, schedules) {
     const byId = new Map(schedules.map(s => [s.id, s]));
@@ -130,7 +131,7 @@ function annotateRecordings(games, schedules) {
     const active = schedules.filter(r => ['scheduled', 'waiting', 'recording'].includes(r.status));
     for (const g of games) {
         const times = (g.events || []).filter(e => Number.isFinite(e.start) && Number.isFinite(e.end));
-        const channels = g.channels || [];
+        const channels = Array.isArray(g.slots) && g.slots.length ? g.slots : g.channels || [];
         if (!times.length || !channels.length) continue;
         // 0416 (0415 Codex round 1, medium): each channel's own airing (C-R's channel `start`/`end`), never the span of
         // all of them: a recording between two staggered broadcasts is not the game's.

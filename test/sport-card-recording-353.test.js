@@ -3,13 +3,20 @@
 // 1. [high] annotateRecordings matched a schedule by channel and by its guide-moved `program_end`, whatever game it named:
 //    an unrelated programme overrunning into the game's later airing became the card's recording, so More options padded
 //    it in place of scheduling the airing chosen, and Change recording edited or cancelled it.
-const { test } = require('node:test');
+// 2. [medium] a game's `channels` hold each channel once: a Test's day two on day one's channel never reached the picker.
+//    The card's `slots` (C-R, additive) list every airing; More options records the one chosen.
+const { test, after } = require('node:test');
 const assert = require('node:assert/strict');
+const Database = require('better-sqlite3');
+const { createStore } = require('../server/services/sportsDashboardStore');
+const dashboard = require('../server/services/sportsDashboard');
 const { annotateRecordings } = require('../server/services/sportFront');
 const { FakeEvent } = require('./helpers/fakeDom');
 const { browser, answer, NOW, page } = require('./helpers/sportWeb');
 
 const H = 3600000;
+const databases = [];
+after(() => databases.forEach(db => db.close()));
 
 /** The web page on a front answer `f`, with the schedules `rows` listed; every request recorded. */
 async function harness(f, rows = []) {
@@ -80,3 +87,46 @@ test('#353: the annotated card through the web: Record, not Change recording; Mo
     assert.deepEqual([made[0].channelItemId, made[0].programStart, made[0].programEnd, made[0].postBufferMin], ['102', A.start, A.end, 30]);
 });
 
+// 2: a Test on Fox Cricket both days, the real dashboard projection.
+function testMatchCard(now, at = now) {
+    const db = new Database(':memory:'); databases.push(db);
+    const s = createStore(db);
+    const id = 'espn:cricket/1:9';
+    s.ingest([{ id, league: 'Cricket', format: 'test', start: now + H, end: null, title: 'Australia v India', session: null, circuit: null,
+        competitors: [{ id: '1', name: 'Australia', aliases: ['Australia', 'AUS'], logo: null }, { id: '2', name: 'India', aliases: ['India', 'IND'], logo: null }],
+        snapshot: { state: 'scheduled', progress: {}, scores: null, situation: null } }], now - 100000);
+    const day = (i, start, end) => ({ id: `ev${i}`, league: 'Cricket', title: 'Australia v India - 1st Test', kind: 'event', start, end, live: false,
+        channels: [{ sourceId: 1, id: 'pos_7', stableId: 's7', name: 'Fox Cricket', quality: 'HD', start, end }] });
+    const events = [day(1, now + H, now + 8 * H), day(2, now + 25 * H, now + 32 * H)];
+    return dashboard.buildDashboard(s, { now: at, userId: '1', timezone: 'Etc/GMT', events, channelTimes: true, upcomingHours: 72 })
+        .games.find(g => g.id === id);
+}
+
+test('#353: a Test on one channel both days: `channels` as before (once), `slots` both days', () => {
+    const card = testMatchCard(NOW);
+    assert.deepEqual(card.channels.map(c => [c.stableId, c.start, c.end]), [['s7', NOW + H, NOW + 8 * H]], '`channels` unchanged');
+    assert.deepEqual(card.slots.map(c => [c.stableId, c.start, c.end]), [['s7', NOW + H, NOW + 8 * H], ['s7', NOW + 25 * H, NOW + 32 * H]]);
+    assert.deepEqual(Object.keys(card.slots[1]).sort(), Object.keys(card.channels[0]).sort(), 'a slot is C-I\'s channel shape');
+    // a day-two recording (naming no game) is the card's
+    annotateRecordings([card], [{ id: 5, title: 'Australia v India', status: 'scheduled', rule_id: null, gameId: null, source_id: 1,
+        channel_item_id: 'pos_7', channel_stable_id: 's7', program_start: NOW + 25 * H, program_end: NOW + 32 * H }]);
+    assert.equal(card.recording?.scheduleId, 5);
+    // day one over: one airing left, no `slots`
+    const one = testMatchCard(NOW, NOW + 9 * H);
+    assert.equal(one.slots, undefined);
+});
+
+test('#353: More options offers the Test\'s day two on the same channel, and choosing it records day two', async () => {
+    const f = answer();
+    const card = testMatchCard(NOW);
+    f.games.push({ ...card, sport: 'Cricket' });
+    f.rails[0].gameIds.push(card.id);
+    const h = await harness(f);
+    h.p.act('record-options', { getAttribute: (k) => ({ 'data-id': card.id })[k] ?? null });
+    assert.match(h.body(), /data-act="r-on" data-index="1"/, 'day two is a choice');
+    h.el('r-on', { 'data-index': '1' }).click();
+    await h.save();
+    const made = h.calls.filter(c => c[0] === 'schedule').map(c => c[1]);
+    assert.equal(made.length, 1);
+    assert.deepEqual([made[0].channelItemId, made[0].programStart, made[0].programEnd, made[0].gameId], ['pos_7', NOW + 25 * H, NOW + 32 * H, card.id]);
+});

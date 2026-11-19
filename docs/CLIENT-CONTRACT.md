@@ -1056,6 +1056,12 @@ account follows nothing; only the server's owner (its first admin account) takes
   Since #353: a schedule naming another game (C-M `gameId`) is never the card's, and one naming none counts only when the
   guide slot it was made for (not an end the guide has moved since) overlaps the game's airing on its channel; one naming
   this game comes first. Change recording may trust `scheduleId` as this game's.
+- C-R since #353 (additive, no flag): a card whose `channels` would leave out an airing carries `slots`: `channels` (as
+  sent), then each later airing, not yet ended, of one of those channels that overlaps none of its airings listed (C-I's
+  channel shape with that airing's own `start`/`end`), by start. A Test on one channel both days lists day one in
+  `channels` and both days in `slots`. Absent when it would equal `channels`. A recording picker offers `slots` when
+  present, else `channels`, and records the chosen entry's `start`/`end`; Watch keeps using `channels`. The card's
+  `recording` also matches a schedule on a slot.
   Since #345: a finished card has no `recording`; its recording is the `recordings[]` row whose `gameId` equals the card's
   `id`, chosen in this order: a whole `completed` row (`is_partial` false; the longest `duration_sec`, then the earliest
   `started_at`); else a `recording` row with `watch_live` (played from its start, never at the live edge); else a partial

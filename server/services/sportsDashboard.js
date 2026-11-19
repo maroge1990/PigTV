@@ -257,16 +257,38 @@ function channelsFor(events, now, includeUpcoming=false, times=false, ongoing=fa
             const extended=overrunEnd(Number.isFinite(c.end) ? c.end : event.end,ongoing,now);
             if(gone && extended===null) continue; // an ended airing counts only while the overrun rule extends it
             seen.add(key);
-            // Explicit projection: no upstream URL, alias prose, internal fields or credentials reach the client.
-            out.push({sourceId:c.sourceId,id:c.id,stableId:c.stableId || null,name:c.name,number:c.number || null,logo:c.logo || null,quality:c.quality || null,
-                ...(c.nameKey ? {nameKey:c.nameKey} : {}),
-                ...(c.measured ? {measured:{label:c.measured.label,fps:c.measured.fps ?? null}} : {}), // #265 step 2 (D-65)
-                // 0381: the channel's own airing bounds (C-I), only when asked for (the front page).
-                ...(times ? {start:Number.isFinite(c.start) ? c.start : null,end:extended ?? (Number.isFinite(c.end) ? c.end : null)} : {}),
-                ...(extended!==null ? {overrun:true} : {})});
+            out.push(projectChannel(c,times,extended));
         }
     }
     return out;
+}
+// Explicit projection: no upstream URL, alias prose, internal fields or credentials reach the client.
+function projectChannel(c,times,extended=null) {
+    return {sourceId:c.sourceId,id:c.id,stableId:c.stableId || null,name:c.name,number:c.number || null,logo:c.logo || null,quality:c.quality || null,
+        ...(c.nameKey ? {nameKey:c.nameKey} : {}),
+        ...(c.measured ? {measured:{label:c.measured.label,fps:c.measured.fps ?? null}} : {}), // #265 step 2 (D-65)
+        // 0381: the channel's own airing bounds (C-I), only when asked for (the front page).
+        ...(times ? {start:Number.isFinite(c.start) ? c.start : null,end:extended ?? (Number.isFinite(c.end) ? c.end : null)} : {}),
+        ...(extended!==null ? {overrun:true} : {})};
+}
+// #353 (C-R additive): `channels` holds each channel once (its first airing), so a Test's day two on day one's channel is
+// not among them. A card's `slots` are `channels` and then every later airing, not yet ended, of one of those channels
+// that overlaps none of its airings already listed (each channel's own C-I start/end; one without them adds nothing);
+// present only when there is such an airing. Recording pickers choose among them.
+function slotsFor(channels, events, now) {
+    const keyOf=c=>`${c.sourceId}:${c.stableId || c.id}`;
+    const listed=new Map();
+    for(const c of channels) listed.set(keyOf(c),Number.isFinite(c.start) && Number.isFinite(c.end) ? [c] : null);
+    const extra=[];
+    for(const event of events) for(const c of event.channels || []) {
+        const own=listed.get(keyOf(c));
+        if(!own || !Number.isFinite(c.start) || !Number.isFinite(c.end) || c.end<=now || c.end<=c.start) continue;
+        if(own.some(o=>c.start<o.end && c.end>o.start)) continue;
+        const slot=projectChannel(c,true);
+        own.push(slot);
+        extra.push(slot);
+    }
+    return extra.length ? [...channels,...extra.sort((a,b)=>a.start-b.start)] : null;
 }
 // Football period 5 is the shoot-out: with spoilers hidden it reveals a draw, so penalties are never projected.
 function progressFor(game,progress,hidden) {
@@ -422,6 +444,7 @@ function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagu
         const extend=!terminal && ['live','break','suspended'].includes(projectedState);
         const liveChannels=terminal ? [] : channelsFor(airings,now,false,channelTimes,extend,endedMatches.get(g.id));
         const channels=liveChannels.length ? liveChannels : terminal ? [] : channelsFor(airings,now,true,channelTimes);
+        const slots=channelTimes && channels.length ? slotsFor(channels,airings,now) : null;
         const card={id:g.id,league:g.league,title:g.title,start:g.start,end:g.end,session:g.session,circuit:g.circuit,format:g.format || null,
             // #334 (C-O additive): `abbreviation`, ESPN's team code, only when the catalogue has a plausible one.
             competitors:g.competitors.map(({id,name,logo,abbreviation})=>({id,name,logo,...(teamCode(abbreviation) ? {abbreviation:teamCode(abbreviation)} : {})})),
@@ -430,7 +453,7 @@ function buildDashboard(store,{now=Date.now(),userId,league=null,events=[],leagu
             freshness:!selected ? 'buffering' : shown ? 'fresh' : 'stale',observedAt:at,
             progress:shown ? progressFor(g,selected.data.progress,hidden) : {},
             availability:liveChannels.length || (g.start>now && channels.length) ? 'matched' : airings.length ? 'unavailable' : 'unmatched',
-            broadcastStatus:liveChannels.length ? 'on-tv' : channels.length ? 'scheduled' : 'unavailable',channels,
+            broadcastStatus:liveChannels.length ? 'on-tv' : channels.length ? 'scheduled' : 'unavailable',channels,...(slots ? {slots} : {}),
             // Upcoming event references retain the existing details/record workflow without inventing channels.
             events:airings.map(e=>({id:e.id,start:e.start,end:e.end})),
             canWatch:liveChannels.length>0 && !['finished','cancelled','postponed'].includes(state),...(nextRound ? {nextRound:true} : {})};
