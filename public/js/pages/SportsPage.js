@@ -1191,8 +1191,12 @@ class SportsPage {
                 // #353 (Codex round 1, medium): on its channel AND its own guide slot (a Test's two days on one channel are
                 // two airings); none of them: the schedule's own times
                 const slotEnd = Number.isFinite(row.program_end_original) ? row.program_end_original : row.program_end;
+                // #353 (Codex sign-off): by guide bounds only: its channel and guide start first, then its guide slot
+                // against each airing's guide interval (C-R `guideEnd`), never an end rolled on for Watch
                 const timed = Number.isFinite(row.program_start) && Number.isFinite(slotEnd);
-                const at = st.airings.findIndex(x => x.key && SportsPage.rowOnChannel(row, x.c) && (!timed || (row.program_start < x.end && slotEnd > x.start)));
+                const onIt = (x) => x.key && SportsPage.rowOnChannel(row, x.c);
+                let at = timed ? st.airings.findIndex(x => onIt(x) && x.start === row.program_start) : -1;
+                if (at < 0) at = st.airings.findIndex(x => onIt(x) && (!timed || (row.program_start < SportsPage.guideEndOf(x.c, x.end) && slotEnd > x.start)));
                 if (at >= 0) st.index = at;
                 else if (row.channel_name && Number.isFinite(row.program_start) && Number.isFinite(row.program_end)) {
                     st.airings = [...st.airings, { c: { name: row.channel_name }, key: null, start: row.program_start, end: row.program_end }];

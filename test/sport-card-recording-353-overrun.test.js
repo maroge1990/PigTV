@@ -105,3 +105,52 @@ test('#353 r1: More options on an overrunning game never pads the programme that
     const made = calls.filter(x => x[0] === 'schedule').map(x => x[1]);
     assert.deepEqual(made.map(d => [d.channelItemId, d.postBufferMin, d.gameId]), [['pos_1', 30, ID]]);
 });
+
+// ---- Codex sign-off: the web by guide bounds, an overrunning airing and the next one on its channel (adjacent slots) ----
+const { browser: webBrowser, answer: webAnswer, NOW: WEB_NOW2, page: webPage } = require('./helpers/sportWeb');
+const shift = (ms) => ms - NOW + WEB_NOW2;
+/** The overrunning Test (Fox Cricket, guide end 30 min ago) with its next airing on Fox Cricket in 5 min, on the web page. */
+async function adjacent({ rows = [], annotate = rows } = {}) {
+    const db = new Database(':memory:'); databases.push(db);
+    const s = createStore(db);
+    s.ingest([{ id: ID, league: 'Cricket', format: 'test', start: shift(NOW - 3.5 * H), end: null, title: 'Australia v India', session: null, circuit: null,
+        competitors: [{ id: '1', name: 'Australia', aliases: ['Australia', 'AUS'], logo: null }, { id: '2', name: 'India', aliases: ['India', 'IND'], logo: null }],
+        snapshot: { state: 'live', progress: { day: 'Day 1' }, scores: ['120/2', ''], situation: null } }], WEB_NOW2 - 100000);
+    const c = dashboard.buildDashboard(s, { now: WEB_NOW2, userId: '1', timezone: 'Etc/GMT', events: [airing('ev-2', shift(NOW + 5 * MIN), shift(NOW + 3 * H))],
+        channelTimes: true, upcomingHours: 72, endedEvents: [airing('ev-1', shift(NOW - 3.5 * H), shift(NOW - 30 * MIN))] }).games.find(g => g.id === ID);
+    assert.deepEqual(c.slots.map(x => [x.start, x.end, x.guideEnd]), [[shift(NOW - 3.5 * H), WEB_NOW2 + 10 * MIN, shift(NOW - 30 * MIN)],
+        [shift(NOW + 5 * MIN), shift(NOW + 3 * H), undefined]]);
+    annotateRecordings([c], annotate);
+    const f = webAnswer();
+    f.games.push({ ...c, sport: 'Cricket' });
+    f.rails[0].gameIds.push(ID);
+    const calls = [], state = { rows, front: f };
+    const b = webBrowser({ request: async (m, url, body) => {
+        calls.push([m, url, body]);
+        if (url === '/recordings/scheduled') return state.rows;
+        return url === '/sports/front' ? state.front : url === '/sports/pages/preferences' ? { spoilerFree: false } : {};
+    }, recordings: { schedule: async (d) => { calls.push(['schedule', d]); return {}; } } });
+    const p = webPage(b, { setLocation() {}, navigateTo() {} });
+    await p.show('');
+    const settle = async () => { for (let i = 0; i < 4; i++) await new Promise(setImmediate); };
+    const body = () => b.document.body.querySelector('dialog .ui-dialog-body')?.innerHTML || '';
+    const save = () => b.document.body.querySelector('dialog [data-act="r-save"]');
+    const pick = (i) => { const el = b.document.createElement('button'); el.setAttribute('data-act', 'r-on'); el.setAttribute('data-index', String(i));
+        b.document.body.querySelector('dialog .ui-dialog-body').appendChild(el); el.click(); };
+    return { b, p, c, f, calls, state, settle, body, save, pick };
+}
+const schedRow = (o) => ({ title: 'Australia v India', status: 'scheduled', rule_id: null, gameId: ID, source_id: 1, channel_item_id: 'pos_1',
+    channel_stable_id: '301', channel_name: 'Fox Cricket', program_end_original: null, pre_buffer_min: 2, post_buffer_min: 15, ...o });
+
+test('#353 sign-off: Change recording of the next airing binds to it, not to the overrunning one whose Watch end covers its start', async () => {
+    const row = schedRow({ id: 31, program_start: shift(NOW + 5 * MIN), program_end: shift(NOW + 3 * H) });
+    const h = await adjacent({ rows: [row] });
+    assert.equal(h.c.recording?.scheduleId, 31);
+    h.p.act('change-recording', { getAttribute: (k) => ({ 'data-id': ID })[k] ?? null });
+    await h.settle();
+    assert.equal(h.p.window.st.index, 1, 'the next airing');
+    const UI = h.b.context.window.UI;
+    assert.ok(h.body().includes(h.b.context.window.SportView.e(`${UI.clock(row.program_start)} – ${UI.clock(row.program_end)}`)), 'its own times');
+    h.b.document.body.querySelector('dialog [data-act="r-cancel"]').click();
+    assert.equal(h.p.cancels.has(31), true, 'Cancel recording is of schedule 31');
+});
