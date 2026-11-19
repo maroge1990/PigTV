@@ -429,7 +429,7 @@ A rule makes ordinary schedules; one-off recordings are unchanged. Any signed-in
   `{ "error": "That recording is still being cancelled. Try again in a moment.", "code": "cancelling", "scheduleId": n }`
   (`n` the schedule being cancelled); show "Cancelling…" for that airing until `GET /recordings/scheduled` no longer
   lists `n` as `cancelling`, then Record works again (a new schedule, 201). Before #347 it made a new schedule at once.
-  A rule's schedule is not moved onto such an airing either (it stays until the cancel has ended). Older Apple builds
+  Older Apple builds
   (before the #347 client) treat this 409 as a generic HTTP failure: they say it failed, not the server's `error` text.
 - **One game, one active schedule (#329, additive, no flag).** `POST /recordings/schedule` with a `gameId` that an active
   schedule (`scheduled`, `waiting` or `recording`; household-wide, whoever made it, by hand or by a rule) already has
