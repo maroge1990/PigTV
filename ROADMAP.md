@@ -13,8 +13,7 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 - **Pushed 19 Nov:** #342 splash rework (Apple 325–335, D-73 replaces D-71): splash on a cold launch only, a return
   keeps its place; first frame matches the launch screen (position and pink); the pig flies onto the iPhone header; the
   splash waits for the opening page (≤4 s) and Home glides in without moving its layout; held links wait for the
-  scene. Full Mac test run passed on 335; **TestFlight 335 not uploaded yet** (needs Mark's go-ahead for
-  `Tools/testflight.sh`; the build folder `~/pigtv-build/tf-335` on the Mac holds the passed marker).
+  scene. Full Mac test run passed on 335; **TestFlight 335 uploaded** (tvOS and iOS) from the Mac on 19 Nov.
 - **Held, not pushed:** #347's Apple client (record by card id, Cancelling…), on PigTV-Swift's local branches
   `hold/batch-320-full` and `hold/347-client`; one Codex high and two mediums left, listed on #347. Rebase onto 335.
 - **Not done:** #354 and #355 (Codex leftovers from 325–335); #351 (Xcode Cloud tests need the source tree); #353
