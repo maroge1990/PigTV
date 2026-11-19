@@ -140,17 +140,17 @@ function annotateRecordings(games, schedules) {
         // 0416 (0415 Codex round 1, medium): each channel's own airing (C-R's channel `start`/`end`), never the span of
         // all of them: a recording between two staggered broadcasts is not the game's.
         const from = Math.min(...times.map(e => e.start)), to = Math.max(...times.map(e => e.end));
-        // #353 (Codex round 1, high): a channel's guide end (`guideEnd` while it overruns), never the end rolled on for Watch
-        const during = (c, r, end, rolled = false) => {
-            const cEnd = rolled ? c.end : c.guideEnd ?? c.end;
-            return Number.isFinite(c.start) && Number.isFinite(cEnd) ? r.program_start < cEnd && end > c.start : r.program_start < to && end > from;
+        // #353: identity is the guide airing on both sides: the channel's guide end (`guideEnd` while it overruns, never the
+        // end rolled on for Watch) and the schedule's guide slot (its original end, never one the guide or an overrun moved)
+        const during = (c, r) => {
+            const cEnd = c.guideEnd ?? c.end;
+            return Number.isFinite(c.start) && Number.isFinite(cEnd) ? r.program_start < cEnd && slotEnd(r) > c.start
+                : r.program_start < to && slotEnd(r) > from;
         };
         const on = (c, r) => c.sourceId === r.source_id &&
             (r.channel_stable_id && c.stableId ? c.stableId === r.channel_stable_id : bare(c.id) === bare(r.channel_item_id));
-        // a schedule naming this game may have been made for its guide slot and kept to the game's end since: either end
-        const named = r => r.gameId === g.id && channels.some(c => on(c, r) &&
-            (during(c, r, r.program_end, true) || (Number.isFinite(r.program_end_original) && during(c, r, r.program_end_original, true))));
-        const unnamed = r => !r.gameId && channels.some(c => on(c, r) && during(c, r, slotEnd(r)));
+        const named = r => r.gameId === g.id && channels.some(c => on(c, r) && during(c, r));
+        const unnamed = r => !r.gameId && channels.some(c => on(c, r) && during(c, r));
         // #353 (Codex round 1, medium; D-72): the game's schedules whose cancel is under way, each with its guide slot
         const going = cancelling.filter(r => named(r) || unnamed(r));
         if (going.length) g.recordingCancelling = going.map(r => ({ scheduleId: r.id, start: r.program_start, end: slotEnd(r) }));
@@ -196,13 +196,6 @@ async function front({ userId, events, ended = null, now = Date.now() }) {
 
 /** Badges through the logo cache, and each card's recording (annotateRecordings) and waiting 'game' rule (#234). */
 async function withRecordings(games) {
-    try { await recordingsOn(games); } finally { stripGuideEnds(games); }
-}
-/** #353: an overrun channel's `guideEnd` is the server's own (annotateRecordings): never in the answer. */
-function stripGuideEnds(games) {
-    for (const g of games) for (const c of [...(g.channels || []), ...(g.slots || [])]) if (c && 'guideEnd' in c) delete c.guideEnd;
-}
-async function recordingsOn(games) {
     require('./logoCache').applyLogoCache(games.flatMap(g => g.competitors));
     try {
         const settings = await require('../db').settings.get();

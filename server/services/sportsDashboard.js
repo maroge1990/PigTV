@@ -269,8 +269,8 @@ function projectChannel(c,times,extended=null) {
         ...(c.measured ? {measured:{label:c.measured.label,fps:c.measured.fps ?? null}} : {}), // #265 step 2 (D-65)
         // 0381: the channel's own airing bounds (C-I), only when asked for (the front page).
         ...(times ? {start:Number.isFinite(c.start) ? c.start : null,end:extended ?? (Number.isFinite(c.end) ? c.end : null)} : {}),
-        // #353 (Codex round 1, high): an overrun channel's own guide end, for which recording is the game's and for
-        // `slots`; internal: sportFront strips it before the answer leaves (the rolled `end` is for Watch only)
+        // #353 (Codex round 1, high; C-R additive): an overrun channel's own guide end, for which recording is the game's
+        // and for `slots` (the rolled `end` is for Watch only)
         ...(times && extended!==null && Number.isFinite(c.end) ? {guideEnd:c.end} : {}),
         ...(extended!==null ? {overrun:true} : {})};
 }

@@ -1041,6 +1041,11 @@ class SportsPage {
         const list = g && Array.isArray(g.recordingCancelling) ? g.recordingCancelling : [];
         return (a && list.find(x => x && Number.isFinite(x.start) && Number.isFinite(x.end) && x.start < a.end && x.end > a.start)) || null;
     }
+    /**
+     * #353: which schedule is an airing's goes by its guide airing; `end` (rolled on for Watch while it overruns) is only
+     * how long to capture. A channel's guide end: C-R `guideEnd` when sent, else `end`.
+     */
+    static guideEndOf(c, end) { return c && Number.isFinite(c.guideEnd) ? c.guideEnd : end; }
     /** #353: a card's channel-and-airing choices: C-R `slots` when sent, else its `channels`. */
     static slotsOf(g) { return (g && Array.isArray(g.slots) && g.slots.length ? g.slots : g && g.channels) || []; }
     /** The game's recording as C-R tells it: its schedule id and status, or null. */
@@ -1221,10 +1226,13 @@ class SportsPage {
         const named = SportsPage.recordingOf(this.game(g.id) || g), id = SportsPage.gameIdOf(g);
         const slotEnd = (r) => (Number.isFinite(r.program_end_original) ? r.program_end_original : r.program_end);
         const overlaps = (r, w) => r.program_start < w.end && slotEnd(r) > w.start;
+        // #353 (Codex): an overrunning channel's own guide end (C-R `guideEnd`), never the end rolled on for Watch
+        const guide = (w, c) => (c && Number.isFinite(c.guideEnd) ? { start: w.start, end: c.guideEnd } : w);
+        a = guide(a, a.c);
         const ours = (r) => {
             if (r.gameId) return Boolean(id) && r.gameId === id;
             if (named && r.id === named.id) return true;
-            return SportsPage.slotsOf(g).some(c => SportsPage.rowOnChannel(r, c) && overlaps(r, this.airing(g, c)));
+            return SportsPage.slotsOf(g).some(c => SportsPage.rowOnChannel(r, c) && overlaps(r, guide(this.airing(g, c), c)));
         };
         return rows.find(r => active(r) && overlaps(r, a) && ours(r)) || null;
     }

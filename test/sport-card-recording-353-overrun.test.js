@@ -52,11 +52,10 @@ test('#353 r1: an airing starting inside the rolled window is a slot of its own'
     assert.deepEqual((c.slots || []).map(x => [x.start, x.end]), [[NOW - 3.5 * H, NOW + 10 * MIN], [NOW + 5 * MIN, NOW + 3 * H]]);
 });
 
-test('#353 r1: the guide end stays on the server: the front answer has no `guideEnd`', async () => {
+test('#353 r1: the front answer keeps `guideEnd` on an overrunning channel and its slot (C-R), and only there', async () => {
     const c = card([airing('ev-2', NOW + 5 * MIN, NOW + 3 * H)]);
     const sportFront = require('../server/services/sportFront');
-    assert.ok('guideEnd' in c.channels[0], 'the projection keeps it for the server');
-    // withRecordings annotates, then strips; here the settings read fails (no database is opened): that path strips too
+    // withRecordings (the settings read fails here, so no database is opened) leaves the field in the answer
     const fakes = { '../server/db': { settings: { get: async () => { throw new Error('no database'); } } },
         '../server/services/logoCache': { applyLogoCache() {} } };
     const saved = Object.keys(fakes).map(m => { const p = require.resolve(m), was = require.cache[p];
@@ -66,5 +65,43 @@ test('#353 r1: the guide end stays on the server: the front answer has no `guide
         console.warn = warn;
         for (const [p, was] of saved) if (was) require.cache[p] = was; else delete require.cache[p];
     }
-    assert.ok(!JSON.stringify(c).includes('guideEnd'));
+    assert.deepEqual(c.slots.map(x => x.guideEnd), [NOW - 30 * MIN, undefined]);
+    assert.equal(c.channels[0].guideEnd, NOW - 30 * MIN);
+});
+
+// The web: More options on the overrunning game, with the News after it on its channel set to record. The padding goes to
+// a new recording of the game, never to the News.
+test('#353 r1: More options on an overrunning game never pads the programme that follows it on its channel', async () => {
+    const { browser, answer, NOW: WEB_NOW, page } = require('./helpers/sportWeb');
+    const at = (ms) => ms - NOW + WEB_NOW;
+    const db = new Database(':memory:'); databases.push(db);
+    const s = createStore(db);
+    s.ingest([{ id: ID, league: 'Cricket', format: 'test', start: at(NOW - 3.5 * H), end: null, title: 'Australia v India', session: null, circuit: null,
+        competitors: [{ id: '1', name: 'Australia', aliases: ['Australia', 'AUS'], logo: null }, { id: '2', name: 'India', aliases: ['India', 'IND'], logo: null }],
+        snapshot: { state: 'live', progress: { day: 'Day 1' }, scores: ['120/2', ''], situation: null } }], WEB_NOW - 100000);
+    const c = dashboard.buildDashboard(s, { now: WEB_NOW, userId: '1', timezone: 'Etc/GMT', events: [airing('ev-k', at(NOW + 20 * H), at(NOW + 27 * H), KAYO)],
+        channelTimes: true, upcomingHours: 72, endedEvents: [airing('ev-1', at(NOW - 3.5 * H), at(NOW - 30 * MIN))] }).games.find(g => g.id === ID);
+    assert.equal(c.channels[0].overrun, true);
+    const newsRow = news({ program_start: at(NOW - 30 * MIN), program_end: at(NOW + 30 * MIN), channel_name: 'Fox Cricket', pre_buffer_min: 2, post_buffer_min: 15 });
+    annotateRecordings([c], [newsRow]);
+    assert.equal(c.recording, undefined);
+    const f = answer();
+    f.games.push({ ...c, sport: 'Cricket' });
+    f.rails[0].gameIds.push(ID);
+    const calls = [];
+    const b = browser({ request: async (m, url, body) => {
+        calls.push([m, url, body]);
+        if (url === '/recordings/scheduled') return [newsRow];
+        return url === '/sports/front' ? f : url === '/sports/pages/preferences' ? { spoilerFree: false } : {};
+    }, recordings: { schedule: async (d) => { calls.push(['schedule', d]); return {}; } } });
+    const p = page(b, { setLocation() {}, navigateTo() {} });
+    await p.show('');
+    p.act('record-options', { getAttribute: (k) => ({ 'data-id': ID })[k] ?? null });
+    const post = b.document.getElementById('sp-rec-post');
+    post.value = '30'; post.dispatchEvent(new (require('./helpers/fakeDom').FakeEvent)('change'));
+    b.document.body.querySelector('dialog [data-act="r-save"]').click();
+    for (let i = 0; i < 4; i++) await new Promise(setImmediate);
+    assert.equal(calls.filter(x => x[0] === 'PUT').length, 0, 'the News is untouched');
+    const made = calls.filter(x => x[0] === 'schedule').map(x => x[1]);
+    assert.deepEqual(made.map(d => [d.channelItemId, d.postBufferMin, d.gameId]), [['pos_1', 30, ID]]);
 });

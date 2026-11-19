@@ -1067,6 +1067,15 @@ account follows nothing; only the server's owner (its first admin account) takes
   `channels` and both days in `slots`. Absent when it would equal `channels`. A recording picker offers `slots` when
   present, else `channels`, and records the chosen entry's `start`/`end`; Watch keeps using `channels`. The card's
   `recording` also matches a schedule on a slot.
+- C-R since #353 (additive, no flag): a `channels` or `slots` entry that overruns (`overrun: true`, its `end` rolled on
+  for Watch) carries `guideEnd` (ms), the end of its own guide airing; absent otherwise (`end` is then the guide's).
+  **Guide bounds vs capture window.** An airing's guide bounds are its `start` and its guide end (`guideEnd` when
+  present, else `end`); the rolled `end` is only the capture window (Watch, and how long a new recording runs). The card
+  and a client match schedules to airings by guide bounds on both sides (a schedule's are `program_start` to
+  `program_end_original`, else `program_end`): its `recording` and `recordingCancelling`, `slots` dedup, and a client's
+  already-set-to-record check, Change recording's binding and Cancelling…. The programme after the game on its channel
+  is not the game's. Record and Move still send the rolled `end` as `programEnd` (C-M unchanged; the server's own
+  handling of an overrunning airing is a separate issue).
   Since #345: a finished card has no `recording`; its recording is the `recordings[]` row whose `gameId` equals the card's
   `id`, chosen in this order: a whole `completed` row (`is_partial` false; the longest `duration_sec`, then the earliest
   `started_at`); else a `recording` row with `watch_live` (played from its start, never at the live edge); else a partial
