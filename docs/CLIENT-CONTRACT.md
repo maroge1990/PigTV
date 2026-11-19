@@ -1056,6 +1056,11 @@ account follows nothing; only the server's owner (its first admin account) takes
   Since #353: a schedule naming another game (C-M `gameId`) is never the card's, and one naming none counts only when the
   guide slot it was made for (not an end the guide has moved since) overlaps the game's airing on its channel; one naming
   this game comes first. Change recording may trust `scheduleId` as this game's.
+  Since #353 (additive, no flag; D-72): a card with schedules of the game whose cancel is under way (C-M `cancelling`,
+  matched as `recording` is, by whichever client cancelled) carries `recordingCancelling: [ { scheduleId, start, end } ]`
+  (ms; `start`/`end` the schedule's guide slot: `program_start`, `program_end_original` else `program_end`), absent when
+  none. `recording` never names a cancelling schedule. A client shows a disabled "Cancelling…" in place of Record for an
+  airing that overlaps an entry, until a refresh no longer lists it; other airings record as usual.
 - C-R since #353 (additive, no flag): a card whose `channels` would leave out an airing carries `slots`: `channels` (as
   sent), then each later airing, not yet ended, of one of those channels that overlaps none of its airings listed (C-I's
   channel shape with that airing's own `start`/`end`), by start. A Test on one channel both days lists day one in

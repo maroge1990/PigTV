@@ -124,11 +124,15 @@ function arrange(response, prefs, { logoFor = () => null } = {}) {
  * the guide slot it was made for (`program_end_original`), never an end the guide has moved since (another programme
  * overrunning into the game's time is not the game). A schedule naming this game comes before one naming none.
  * The channels are the card's `slots` when it has them (a Test's day two on day one's channel).
+ * #353 (D-72): the game's schedules being cancelled (status `cancelling`, never in `recording`), matched the same way, are
+ * `recordingCancelling: [{ scheduleId, start, end }]` (each its guide slot), absent when there are none.
  */
 function annotateRecordings(games, schedules) {
     const byId = new Map(schedules.map(s => [s.id, s]));
     const bare = (id) => bareChannelId(id ?? '');
+    const slotEnd = (r) => (Number.isFinite(r.program_end_original) ? r.program_end_original : r.program_end);
     const active = schedules.filter(r => ['scheduled', 'waiting', 'recording'].includes(r.status));
+    const cancelling = schedules.filter(r => r.status === 'cancelling');
     for (const g of games) {
         const times = (g.events || []).filter(e => Number.isFinite(e.start) && Number.isFinite(e.end));
         const channels = Array.isArray(g.slots) && g.slots.length ? g.slots : g.channels || [];
@@ -144,10 +148,13 @@ function annotateRecordings(games, schedules) {
         const on = (c, r) => c.sourceId === r.source_id &&
             (r.channel_stable_id && c.stableId ? c.stableId === r.channel_stable_id : bare(c.id) === bare(r.channel_item_id));
         // a schedule naming this game may have been made for its guide slot and kept to the game's end since: either end
-        const tagged = active.find(r => r.gameId === g.id && channels.some(c => on(c, r) &&
-            (during(c, r, r.program_end, true) || (Number.isFinite(r.program_end_original) && during(c, r, r.program_end_original, true)))));
-        const s = tagged || active.find(r => !r.gameId && channels.some(c => on(c, r) &&
-            during(c, r, Number.isFinite(r.program_end_original) ? r.program_end_original : r.program_end)));
+        const named = r => r.gameId === g.id && channels.some(c => on(c, r) &&
+            (during(c, r, r.program_end, true) || (Number.isFinite(r.program_end_original) && during(c, r, r.program_end_original, true))));
+        const unnamed = r => !r.gameId && channels.some(c => on(c, r) && during(c, r, slotEnd(r)));
+        // #353 (Codex round 1, medium; D-72): the game's schedules whose cancel is under way, each with its guide slot
+        const going = cancelling.filter(r => named(r) || unnamed(r));
+        if (going.length) g.recordingCancelling = going.map(r => ({ scheduleId: r.id, start: r.program_start, end: slotEnd(r) }));
+        const s = active.find(named) || active.find(unnamed);
         if (!s) continue;
         g.recording = { scheduleId: s.id, status: s.status, ruleId: s.rule_id ?? null,
             ...(Array.isArray(s.beatenBy) && s.beatenBy.length ? { clashesWith: s.beatenBy.map(id => byId.get(id)?.title).filter(Boolean) } : {}) };

@@ -707,6 +707,7 @@ class SportsPage {
         this.closeMenu();
         const g = this.game(id), ev = g && SportView.event(g);
         if (!ev || SportView.terminal(g)) return;
+        if (SportsPage.cancellingFor(g, ev)) { UI.toast(SportsPage.CANCELLING); return; } // #353 (D-72)
         await this.settleCancels(g);
         try {
             const c = ev.channel;
@@ -760,6 +761,8 @@ class SportsPage {
         if (ev && !V.terminal(g) && ev.end > now) {
             const r = g.recording;
             if (r && r.scheduleId != null && r.status) items.push({ act: 'change-recording', icon: red, title: 'Change recording', detail: '', section: 'Record' });
+            // #353 (D-72): a recording of this airing being cancelled (here or elsewhere): Record waits until it has finished
+            else if (SportsPage.cancellingFor(g, ev)) items.push({ act: 'record', icon: red, title: 'Cancelling…', detail: '', section: 'Record', disabled: true });
             else items.push({ act: 'record', icon: red, title: 'Record this game', detail: '', section: 'Record' });
             const team = this.teamFor(g);
             if (team) items.push({ act: 'record-every', icon: V.ICON.repeat, title: `Record every ${team.name} game`, detail: '', section: 'Record' });
@@ -784,7 +787,7 @@ class SportsPage {
                 section = it.section;
                 html += `<div class="mdiv" role="separator"></div>${section ? `<div class="ms" aria-hidden="true">${e(section)}</div>` : ''}`;
             }
-            html += `<button type="button" class="mi" role="menuitem" tabindex="-1" data-act="${e(it.act)}" data-id="${e(g.id)}"${it.expands ? ' aria-expanded="false"' : ''}>${it.icon}<span><b>${e(it.title)}</b>${it.detail ? `<span>${e(it.detail)}</span>` : ''}</span></button>`;
+            html += `<button type="button" class="mi" role="menuitem" tabindex="-1" data-act="${e(it.act)}" data-id="${e(g.id)}"${it.expands ? ' aria-expanded="false"' : ''}${it.disabled ? ' disabled aria-disabled="true"' : ''}>${it.icon}<span><b>${e(it.title)}</b>${it.detail ? `<span>${e(it.detail)}</span>` : ''}</span></button>`;
             if (it.expands) html += `<div class="msub" hidden>${V.channelGroups(this.channelsOnAir(g)).map(row => {
                 const copies = row.chips.flatMap(x => x.channels), c = copies[0], single = copies.length === 1;
                 // a row whose chips show has no best badge of its own (its first chip is it): only a closed row (phone) has it
@@ -1030,6 +1033,14 @@ class SportsPage {
     static range(a) { return `${UI.clock(a.start)} – ${UI.clock(a.end)}`; }
     /** The status word of a schedule's status (ScheduledRecording.statusWord). */
     static statusWord(status) { return status === 'recording' ? 'Recording now' : status === 'waiting' ? 'Waiting to record' : 'Recording scheduled'; }
+    /**
+     * #353 (D-72): the card's schedule of airing `a` ({ start, end }) whose cancel is under way (C-R `recordingCancelling`,
+     * here or from another tab or client), or null: Record of that airing waits until it has finished.
+     */
+    static cancellingFor(g, a) {
+        const list = g && Array.isArray(g.recordingCancelling) ? g.recordingCancelling : [];
+        return (a && list.find(x => x && Number.isFinite(x.start) && Number.isFinite(x.end) && x.start < a.end && x.end > a.start)) || null;
+    }
     /** #353: a card's channel-and-airing choices: C-R `slots` when sent, else its `channels`. */
     static slotsOf(g) { return (g && Array.isArray(g.slots) && g.slots.length ? g.slots : g && g.channels) || []; }
     /** The game's recording as C-R tells it: its schedule id and status, or null. */
@@ -1294,8 +1305,10 @@ class SportsPage {
             return b;
         };
         const what = st.whats[st.what];
-        const primary = changing ? 'Save changes' : what && what.kind !== 'this' ? 'Record every game' : 'Record game';
-        const off = st.busy || (changing && (!st.loaded || st.gone || !P.change(st))) || (!changing && !chosen && (!what || what.kind === 'this'));
+        // #353 (D-72): this airing's recording is being cancelled: a disabled "Cancelling…" in place of Record game
+        const going = !changing && chosen && (!what || what.kind === 'this') && P.cancellingFor(g, chosen);
+        const primary = changing ? 'Save changes' : what && what.kind !== 'this' ? 'Record every game' : going ? 'Cancelling…' : 'Record game';
+        const off = st.busy || !!going || (changing && (!st.loaded || st.gone || !P.change(st))) || (!changing && !chosen && (!what || what.kind === 'this'));
         const footer = [button(changing ? 'Close' : 'Cancel', 'btn btn-secondary', 'r-close', st.busy)];
         if (changing) footer.push(button((st.schedule ? st.schedule.status : st.rec.status) === 'recording' ? 'Stop recording' : 'Cancel recording', 'btn btn-danger', 'r-cancel', st.busy || st.gone));
         footer.push(button(primary, 'btn btn-primary', 'r-save', off));
@@ -1433,6 +1446,7 @@ class SportsPage {
         // #347 (Codex sign-off, high): the chosen airing first; only a schedule of THAT airing is this recording
         const a = st.airings[st.index];
         if (!a) throw plain('Choose a channel to record on.');
+        if (SportsPage.cancellingFor(g, a)) throw plain(SportsPage.CANCELLING);
         // Codex #327 (high): set to record meanwhile (another tab, person or rule)? Then the person's padding goes to that
         // recording (0662: never a second schedule); a list that cannot be read records nothing.
         const row = this.scheduleForAiring(g, a, await rows(SportsPage.UNCHECKED));
@@ -1460,6 +1474,7 @@ SportsPage.HOLD_MS = 500; // D-65: touch and hold, as iOS's long press
 SportsPage.START_EARLY = [null, 0, 1, 2, 5, 10];
 SportsPage.FINISH_LATE = [null, 0, 2, 5, 10, 15, 30];
 SportsPage.UNCHECKED = 'PigTV couldn’t check whether this game is already set to record, so nothing was recorded. Try again.';
+SportsPage.CANCELLING = 'A recording of this is being cancelled. You can record it again once that has finished.';
 SportsPage.GONE = 'This recording has finished or no longer exists, so it cannot be changed.';
 
 /** The league pages built so far (#323 steps 3-5); a league whose page is not here shows no "Rounds and standings ›". */

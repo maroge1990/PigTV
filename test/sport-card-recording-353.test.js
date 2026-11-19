@@ -164,3 +164,32 @@ test('#353 r1: Change recording of a Test\'s day two on day one\'s channel shows
     h.b.document.body.querySelector('dialog [data-act="r-cancel"]').click();
     assert.equal(h.p.cancels.has(5), true, 'Cancel recording is of schedule 5');
 });
+
+// Codex round 1 (medium; D-72): a schedule being cancelled elsewhere (another tab or client) is not `recording`, so the
+// card said nothing and Record raced the cancellation. C-R `recordingCancelling` names it with its airing.
+test('#353 r1: a cancelling schedule of the game is `recordingCancelling`; the web waits ("Cancelling…") on that airing only', async () => {
+    const f = answer();
+    const card = testMatchCard(NOW);
+    const going = { id: 6, title: 'Australia v India', status: 'cancelling', rule_id: null, gameId: card.id, source_id: 1, channel_item_id: 'pos_7',
+        channel_stable_id: 's7', channel_name: 'Fox Cricket', program_start: NOW + H, program_end: NOW + 9 * H, program_end_original: NOW + 8 * H };
+    const elsewhere = { ...going, id: 7, gameId: 'espn:cricket/1:10' };
+    annotateRecordings([card], [going, elsewhere]);
+    assert.equal(card.recording, undefined, '`recording` keeps its contract: never a cancelling schedule');
+    assert.deepEqual(card.recordingCancelling, [{ scheduleId: 6, start: NOW + H, end: NOW + 8 * H }]);
+    f.games.push({ ...card, sport: 'Cricket' });
+    f.rails[0].gameIds.push(card.id);
+    const h = await harness(f);
+    h.p.openMenu(h.p.game(card.id), (() => { const n = h.b.document.createElement('button'); h.b.document.body.appendChild(n); return n; })());
+    assert.match(h.b.document.body.querySelector('.sp-menu').innerHTML, /data-act="record" data-id="[^"]+" disabled aria-disabled="true">[\s\S]*?<b>Cancelling…<\/b>/);
+    await h.p.record(card.id);
+    assert.equal(h.calls.filter(c => c[0] === 'schedule').length, 0, 'Record of day one waits');
+    h.p.closeMenu();
+    h.p.act('record-options', { getAttribute: (k) => ({ 'data-id': card.id })[k] ?? null });
+    const save = () => h.b.document.body.querySelector('dialog [data-act="r-save"]');
+    assert.equal(save().textContent, 'Cancelling…');
+    assert.equal(save().disabled, true);
+    h.el('r-on', { 'data-index': '1' }).click();
+    assert.equal(save().textContent, 'Record game', 'day two is not being cancelled');
+    await h.save();
+    assert.deepEqual(h.calls.filter(c => c[0] === 'schedule').map(c => c[1].programStart), [NOW + 25 * H]);
+});
