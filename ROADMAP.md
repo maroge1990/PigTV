@@ -5,19 +5,19 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 19 Nov 2026, the TestFlight-324 splash session.*
+*Overwritten at the end of every session. 19 Nov 2026, the TestFlight-324 splash session (continued).*
 
-- **Running:** production runs **0819**. main is at **0861** (CI green), Apple main at **335** (CI green). Server
-  0835–0861 reaches production at Mark's next Force Update (D-58). `:release` stays **v0579**. Next builds: server
-  **0862**, Apple **336**.
-- **Pushed 19 Nov:** #342 splash rework (Apple 325–335, D-73 replaces D-71): splash on a cold launch only, a return
-  keeps its place; first frame matches the launch screen (position and pink); the pig flies onto the iPhone header; the
-  splash waits for the opening page (≤4 s) and Home glides in without moving its layout; held links wait for the
-  scene. Full Mac test run passed on 335; **TestFlight 335 uploaded** (tvOS and iOS) from the Mac on 19 Nov.
-- **Held, not pushed:** #347's Apple client (record by card id, Cancelling…), on PigTV-Swift's local branches
-  `hold/batch-320-full` and `hold/347-client`; one Codex high and two mediums left, listed on #347. Rebase onto 335.
-- **Not done:** #354 and #355 (Codex leftovers from 325–335); #351 (Xcode Cloud tests need the source tree); #353
-  (older recording findings); #352's tap-through medium; the 50 dead channels wait on Mark. Game run 18 Nov: #331.
+- **Running:** production runs **0861**. main is at **0878** (CI green), Apple main at **358** (CI green); TestFlight
+  **358** uploaded from the Mac on 19 Nov (tvOS and iOS). Server 0862–0878 reaches production at Mark's next Force Update
+  (D-58). `:release` stays **v0579**. Next builds: server **0879**, Apple **359**.
+- **Pushed 19 Nov:** #342 splash rework (Apple 325–335, D-73); #351 Xcode Cloud tests (bundled fixtures, `XcodeCloud`
+  test plan; Mark sets the plan in the workflow, steps on #351); #353 sport cards name only their own recording, C-R
+  `slots`/`guideEnd`/`recordingCancelling` (0862–0875); #347 Apple client (336–358) and the server's 409 `cancelling`
+  refusal (0876–0878, D-74); #355, #354, #352's tap-through (Apple 336–358). 27 dead duplicate channels hidden on
+  production (#331).
+- **Not done:** #356 (recording while a game overruns: design first, needs a migration OK); #357 (four Record edge
+  cases from the last sign-offs); #351's Xcode Cloud confirmation run after Mark sets the test plan; the 20 dead channels
+  with no copy stay shown.
 
 ## Now
 
