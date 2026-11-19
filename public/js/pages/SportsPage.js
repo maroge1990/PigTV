@@ -155,8 +155,9 @@ class SportsPage {
         this.loadMap();
         this.render();
         // #353 (Codex sign-off): an open record window follows the new answer (a cancellation begun or finished elsewhere)
+        // #357: a refusal is rechecked against the schedule list even when the front could not be read
         const w = this.window;
-        if (answered && w && w.kind === 'record' && w.st && !w.st.busy) { w.redraw(); if (w.st.refused) this.recheckRefusal(w); }
+        if (w && w.kind === 'record' && w.st && !w.st.busy) { if (answered) w.redraw(); if (w.st.refused) this.recheckRefusal(w); }
         this.schedule();
         if (this.shownLeague()) this.loadLeague();
     }

@@ -13,12 +13,13 @@ const refusal = (code, error) => Object.assign(new Error(error), { status: 409, 
 const CANCELLING = refusal('cancelling', 'That recording is still being cancelled. Try again in a moment.');
 
 async function harness(fail) {
-    const calls = [], state = { rows: [] };
+    const calls = [], state = { rows: [], down: [] };
     const f = answer();
     const nxt = f.games.find(g => g.id === 'nxt');
     delete nxt.recording;
     const b = browser({ request: async (m, url, body) => {
         calls.push([m, url, body]);
+        if (state.down.includes(url)) throw Object.assign(new Error('Service unavailable'), { status: 503 });
         if (url === '/recordings/scheduled') return state.rows; // nothing being cancelled when the page checks
         return url === '/sports/front' ? f : url === '/sports/pages/preferences' ? { spoilerFree: false } : {};
     }, recordings: { schedule: async (d) => { calls.push(['schedule', d]); throw fail; } } });
@@ -102,3 +103,30 @@ test('#357: a delayed cancelling refusal marks the airing that was submitted, no
     assert.deepEqual([save().textContent, !!save().disabled], ['Cancelling…', true], 'A, the airing refused, waits');
 });
 
+// #357 finding 4: the refusal is rechecked against the schedule list even when the front page cannot be read.
+async function refused() {
+    const h = await harness(CANCELLING);
+    h.p.act('record-options', { getAttribute: (k) => ({ 'data-id': 'nxt' })[k] ?? null });
+    h.save().click();
+    await h.settle();
+    assert.deepEqual([h.save().textContent, !!h.save().disabled], ['Cancelling…', true]);
+    return h;
+}
+
+test('#357: Sport cannot refresh, but the schedule list says the cancel has ended: Cancelling… clears', async () => {
+    const h = await refused();
+    h.state.down = ['/sports/front'];
+    h.state.rows = [];
+    await h.p.refresh(); await h.settle();
+    assert.ok(h.calls.some(c => c[1] === '/sports/front'), 'the front was asked');
+    assert.deepEqual([h.save().textContent, !!h.save().disabled], ['Record game', false]);
+});
+
+test('#357: Sport cannot refresh and the schedule list cannot be read either: Cancelling… stays', async () => {
+    const h = await refused();
+    h.state.down = ['/sports/front', '/recordings/scheduled'];
+    await h.p.refresh(); await h.settle();
+    assert.ok(h.calls.some(c => c[1] === '/recordings/scheduled' && c[0] === 'GET'), 'the list was asked');
+    assert.deepEqual([h.save().textContent, !!h.save().disabled], ['Cancelling…', true]);
+    assert.match(h.body(), /class="rerr" role="alert">A recording of this is being cancelled\./);
+});
