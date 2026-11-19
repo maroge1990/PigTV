@@ -1359,7 +1359,7 @@ class SportsPage {
         // (Codex sign-off) from the card as the last refresh has it, never the one the window opened with
         // #347: or the server has refused it as still being cancelled (409 `cancelling`), until the schedule list says that
         // schedule's cancel has ended (recheckRefusal)
-        const going = !changing && chosen && (!what || what.kind === 'this') && ((st.refused && st.refused.index === st.index) || P.cancellingFor(this.game(g.id) || g, chosen));
+        const going = !changing && chosen && (!what || what.kind === 'this') && (P.refusedHere(st) || P.cancellingFor(this.game(g.id) || g, chosen));
         const primary = changing ? 'Save changes' : what && what.kind !== 'this' ? 'Record every game' : going ? 'Cancelling…' : 'Record game';
         const off = st.busy || !!going || (changing && (!st.loaded || st.gone || !P.change(st))) || (!changing && !chosen && (!what || what.kind === 'this'));
         const footer = [button(changing ? 'Close' : 'Cancel', 'btn btn-secondary', 'r-close', st.busy)];
@@ -1467,7 +1467,8 @@ class SportsPage {
         try { toast = await this.recordNow(st); }
         catch (err) {
             // #347 (C-M): refused as still being cancelled (begun after the press-time check): Cancelling… for that airing
-            if (err && err.status === 409 && err.code === 'cancelling') { st.refused = { index: st.index, scheduleId: err.scheduleId ?? null }; st.error = SportsPage.CANCELLING; }
+            // #357: the airing the POST was sent for (the person may have chosen another while it was pending)
+            if (err && err.status === 409 && err.code === 'cancelling') { st.refused = { ...(err.airing || SportsPage.airingId(st, st.index)), scheduleId: err.scheduleId ?? null }; st.error = SportsPage.CANCELLING; }
             else st.error = err && err.plain ? err.message : UI.errorText(err, (err && err.failText) || 'The recording could not be scheduled.');
         }
         st.busy = false;
@@ -1531,15 +1532,24 @@ class SportsPage {
             if (body) await failing('The recording could not be changed.', () => API.request('PUT', `/recordings/scheduled/${row.id}`, body));
             return body ? 'This game was already set to record, so your changes went to that recording.' : 'This game is already set to record.';
         }
-        const c = a.c;
+        const c = a.c, sent = SportsPage.airingId(st, st.airings.indexOf(a));
         const made = await failing('The recording could not be scheduled.', () => API.recordings.schedule({ sourceId: Number(c.sourceId), channelItemId: c.id,
-            channelName: c.name, title: g.title, programStart: a.start, programEnd: a.end, ...pad, ...(SportsPage.gameIdOf(g) ? { gameId: SportsPage.gameIdOf(g) } : {}) }));
+            channelName: c.name, title: g.title, programStart: a.start, programEnd: a.end, ...pad, ...(SportsPage.gameIdOf(g) ? { gameId: SportsPage.gameIdOf(g) } : {}) })
+            .catch((err) => { if (err && typeof err === 'object') err.airing = sent; throw err; }));
         const already = SportsPage.already(made);
         if (already) return already;
         const clash = Array.isArray(made?.conflictsWith) && made.conflictsWith.length;
         return clash ? `Set to record on ${c.name}. It clashes with ${made.conflictsWith.map(x => x.title || x).join(', ')}.` : `Set to record on ${c.name}: ${g.title}.`;
     }
 }
+
+/** #357: an airing of a record window by its place and its channel and start, as a `cancelling` refusal names it. */
+SportsPage.airingId = (st, index) => { const a = st.airings[index]; return { index, key: a ? a.key : null, start: a ? a.start : null }; };
+/** #347/#357: the airing chosen is the one the server refused as still being cancelled. */
+SportsPage.refusedHere = (st) => {
+    const r = st.refused, a = st.airings[st.index];
+    return !!(r && a && r.index === st.index && r.key === a.key && r.start === a.start);
+};
 
 /** #329: the words for a schedule answer that found the game already set to record (`alreadyScheduled`), else null. */
 SportsPage.already = (made) => (made && made.alreadyScheduled

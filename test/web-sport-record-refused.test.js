@@ -68,3 +68,37 @@ test('#347: API.request carries a refusal\'s code and schedule id', async () => 
     const err = await ctx.API.request('POST', '/recordings/schedule', {}).then(() => null, (e) => e);
     assert.deepEqual([err.status, err.code, err.scheduleId, err.message], [409, 'cancelling', 9, 'That recording is still being cancelled. Try again in a moment.']);
 });
+
+// #357 finding 3: the 409 answers after the person has chosen another airing: Cancelling… stays on the airing submitted.
+test('#357: a delayed cancelling refusal marks the airing that was submitted, not the one chosen meanwhile', async () => {
+    let answerPost;
+    const calls = [], f = answer();
+    const nxt = f.games.find(g => g.id === 'nxt');
+    delete nxt.recording;
+    const H = 3600000, A = nxt.channels[0];
+    nxt.channels = [{ ...A }, { sourceId: 2, stableId: 'k5', id: '505', name: 'Kayo 5', start: A.start + 3 * H, end: A.end + 3 * H }];
+    const b = browser({ request: async (m, url, body) => {
+        calls.push([m, url, body]);
+        if (url === '/recordings/scheduled') return [];
+        return url === '/sports/front' ? f : url === '/sports/pages/preferences' ? { spoilerFree: false } : {};
+    }, recordings: { schedule: (d) => { calls.push(['schedule', d]); return new Promise((resolve, reject) => { answerPost = () => reject(CANCELLING); }); } } });
+    const p = page(b, { setLocation() {}, navigateTo() {} });
+    await p.show('');
+    const settle = async () => { for (let i = 0; i < 4; i++) await new Promise(setImmediate); };
+    const save = () => b.document.body.querySelector('dialog [data-act="r-save"]');
+    const choose = (i) => { const n = b.document.createElement('button'); n.setAttribute('data-act', 'r-on'); n.setAttribute('data-index', String(i));
+        b.document.body.querySelector('dialog .ui-dialog-body').appendChild(n); n.click(); };
+    p.act('record-options', { getAttribute: (k) => ({ 'data-id': 'nxt' })[k] ?? null });
+    assert.equal(p.window.st.index, 0);
+    save().click();
+    await settle();
+    assert.deepEqual(calls.filter(c => c[0] === 'schedule').map(c => c[1].channelItemId), ['102'], 'airing A submitted');
+    choose(1); // the person picks B while the POST is pending
+    answerPost();
+    await settle();
+    assert.equal(p.window.st.index, 1);
+    assert.deepEqual([save().textContent, !!save().disabled], ['Record game', false], 'B is not being cancelled');
+    choose(0);
+    assert.deepEqual([save().textContent, !!save().disabled], ['Cancelling…', true], 'A, the airing refused, waits');
+});
+
