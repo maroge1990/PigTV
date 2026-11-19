@@ -194,3 +194,15 @@ test('#353 sign-off: More options left open follows a cancellation begun and fin
     assert.equal(h.calls.filter(x => x[0] === 'schedule').length, 0);
     assert.match(h.body(), /class="rerr" role="alert">A recording of this is being cancelled/);
 });
+
+test('#353 sign-off: the menu\'s Record this game checks the list at the press: a cancel of that airing begun elsewhere waits', async () => {
+    const h = await adjacent();
+    h.state.rows = [schedRow({ id: 34, status: 'cancelling', program_start: shift(NOW - 3.5 * H), program_end: shift(NOW - 30 * MIN) })];
+    await h.p.record(ID);
+    assert.equal(h.calls.filter(x => x[0] === 'schedule').length, 0, 'nothing made');
+    assert.match(h.b.context.toasts.at(-1)[0], /being cancelled/);
+    // the next airing's cancel does not hold the overrunning one (guide bounds)
+    h.state.rows = [schedRow({ id: 35, status: 'cancelling', program_start: shift(NOW + 5 * MIN), program_end: shift(NOW + 3 * H) })];
+    await h.p.record(ID);
+    assert.deepEqual(h.calls.filter(x => x[0] === 'schedule').map(x => x[1].programStart), [shift(NOW - 3.5 * H)]);
+});

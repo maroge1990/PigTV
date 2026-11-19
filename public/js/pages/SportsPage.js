@@ -712,6 +712,11 @@ class SportsPage {
         if (!ev || SportView.terminal(g)) return;
         if (SportsPage.cancellingFor(g, ev)) { UI.toast(SportsPage.CANCELLING); return; } // #353 (D-72)
         await this.settleCancels(g);
+        // #353 (D-72): a cancel of this airing begun since the card was read waits too (the list read at the press, as
+        // More options does); a list that cannot be read records nothing
+        let listed;
+        try { listed = await API.request('GET', '/recordings/scheduled'); } catch { UI.toast(SportsPage.UNCHECKED, { kind: 'error' }); return; }
+        if (this.cancellingRow(g, { c: ev.channel, start: ev.start, end: ev.end }, Array.isArray(listed) ? listed : [])) { UI.toast(SportsPage.CANCELLING); return; }
         try {
             const c = ev.channel;
             const made = await API.recordings.schedule({ sourceId: Number(c.sourceId), channelItemId: c.id, channelName: c.name,
