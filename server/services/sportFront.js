@@ -120,21 +120,30 @@ function arrange(response, prefs, { logoFor = () => null } = {}) {
  * #198 (D-42 point 4): a game's recording on its card: the upcoming schedule on one of the card's channels whose window
  * overlaps the game's airings, as `recording: { scheduleId, status, ruleId, clashesWith }`; `clashesWith` (titles) only
  * when this recording loses its clash and waits (recordingEngine `beatenBy`). Pure; `schedules` as listScheduled gives.
+ * #353: a schedule naming a game (`gameId`) is only that game's; one naming none overlaps the airing on its channel with
+ * the guide slot it was made for (`program_end_original`), never an end the guide has moved since (another programme
+ * overrunning into the game's time is not the game). A schedule naming this game comes before one naming none.
  */
 function annotateRecordings(games, schedules) {
     const byId = new Map(schedules.map(s => [s.id, s]));
     const bare = (id) => bareChannelId(id ?? '');
+    const active = schedules.filter(r => ['scheduled', 'waiting', 'recording'].includes(r.status));
     for (const g of games) {
         const times = (g.events || []).filter(e => Number.isFinite(e.start) && Number.isFinite(e.end));
-        if (!times.length || !(g.channels || []).length) continue;
+        const channels = g.channels || [];
+        if (!times.length || !channels.length) continue;
         // 0416 (0415 Codex round 1, medium): each channel's own airing (C-R's channel `start`/`end`), never the span of
         // all of them: a recording between two staggered broadcasts is not the game's.
         const from = Math.min(...times.map(e => e.start)), to = Math.max(...times.map(e => e.end));
-        const during = (c, r) => (Number.isFinite(c.start) && Number.isFinite(c.end) ? r.program_start < c.end && r.program_end > c.start
-            : r.program_start < to && r.program_end > from);
-        const s = schedules.find(r => ['scheduled', 'waiting', 'recording'].includes(r.status) &&
-            g.channels.some(c => c.sourceId === r.source_id && during(c, r) &&
-                (r.channel_stable_id && c.stableId ? c.stableId === r.channel_stable_id : bare(c.id) === bare(r.channel_item_id))));
+        const during = (c, r, end) => (Number.isFinite(c.start) && Number.isFinite(c.end) ? r.program_start < c.end && end > c.start
+            : r.program_start < to && end > from);
+        const on = (c, r) => c.sourceId === r.source_id &&
+            (r.channel_stable_id && c.stableId ? c.stableId === r.channel_stable_id : bare(c.id) === bare(r.channel_item_id));
+        // a schedule naming this game may have been made for its guide slot and kept to the game's end since: either end
+        const tagged = active.find(r => r.gameId === g.id && channels.some(c => on(c, r) &&
+            (during(c, r, r.program_end) || (Number.isFinite(r.program_end_original) && during(c, r, r.program_end_original)))));
+        const s = tagged || active.find(r => !r.gameId && channels.some(c => on(c, r) &&
+            during(c, r, Number.isFinite(r.program_end_original) ? r.program_end_original : r.program_end)));
         if (!s) continue;
         g.recording = { scheduleId: s.id, status: s.status, ruleId: s.rule_id ?? null,
             ...(Array.isArray(s.beatenBy) && s.beatenBy.length ? { clashesWith: s.beatenBy.map(id => byId.get(id)?.title).filter(Boolean) } : {}) };

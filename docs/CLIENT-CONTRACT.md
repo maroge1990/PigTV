@@ -1053,6 +1053,9 @@ account follows nothing; only the server's owner (its first admin account) takes
 - C-R since 0415 (#198, D-42): a card with an upcoming recording on one of its channels during its airing carries
   `recording: { scheduleId, status, ruleId, clashesWith? }` (`ruleId` set when "Record every game" made it);
   `clashesWith` (titles) only when that recording loses its clash and waits: show "Clashes with …" on the card.
+  Since #353: a schedule naming another game (C-M `gameId`) is never the card's, and one naming none counts only when the
+  guide slot it was made for (not an end the guide has moved since) overlaps the game's airing on its channel; one naming
+  this game comes first. Change recording may trust `scheduleId` as this game's.
   Since #345: a finished card has no `recording`; its recording is the `recordings[]` row whose `gameId` equals the card's
   `id`, chosen in this order: a whole `completed` row (`is_partial` false; the longest `duration_sec`, then the earliest
   `started_at`); else a `recording` row with `watch_live` (played from its start, never at the live edge); else a partial
