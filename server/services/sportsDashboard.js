@@ -269,6 +269,9 @@ function projectChannel(c,times,extended=null) {
         ...(c.measured ? {measured:{label:c.measured.label,fps:c.measured.fps ?? null}} : {}), // #265 step 2 (D-65)
         // 0381: the channel's own airing bounds (C-I), only when asked for (the front page).
         ...(times ? {start:Number.isFinite(c.start) ? c.start : null,end:extended ?? (Number.isFinite(c.end) ? c.end : null)} : {}),
+        // #353 (Codex round 1, high): an overrun channel's own guide end, for which recording is the game's and for
+        // `slots`; internal: sportFront strips it before the answer leaves (the rolled `end` is for Watch only)
+        ...(times && extended!==null && Number.isFinite(c.end) ? {guideEnd:c.end} : {}),
         ...(extended!==null ? {overrun:true} : {})};
 }
 // #353 (C-R additive): `channels` holds each channel once (its first airing), so a Test's day two on day one's channel is
@@ -278,14 +281,15 @@ function projectChannel(c,times,extended=null) {
 function slotsFor(channels, events, now) {
     const keyOf=c=>`${c.sourceId}:${c.stableId || c.id}`;
     const listed=new Map();
-    for(const c of channels) listed.set(keyOf(c),Number.isFinite(c.start) && Number.isFinite(c.end) ? [c] : null);
+    // each listed airing by its guide bounds, never an overrun's rolled end (#353, Codex round 1)
+    for(const c of channels) listed.set(keyOf(c),Number.isFinite(c.start) && Number.isFinite(c.end) ? [{start:c.start,end:c.guideEnd ?? c.end}] : null);
     const extra=[];
     for(const event of events) for(const c of event.channels || []) {
         const own=listed.get(keyOf(c));
         if(!own || !Number.isFinite(c.start) || !Number.isFinite(c.end) || c.end<=now || c.end<=c.start) continue;
         if(own.some(o=>c.start<o.end && c.end>o.start)) continue;
         const slot=projectChannel(c,true);
-        own.push(slot);
+        own.push({start:slot.start,end:slot.end});
         extra.push(slot);
     }
     return extra.length ? [...channels,...extra.sort((a,b)=>a.start-b.start)] : null;
