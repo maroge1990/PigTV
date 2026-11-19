@@ -801,3 +801,11 @@ reviews.
   shows exactly where Mark left it: same tab, page and scroll position, with no splash and no reset. On a cold launch the
   splash waits until the opening page has loaded and laid out, up to a few seconds, before the pig flies into its header.
 - **Consequence:** a slow server makes the splash a little longer; past the cap it hands over anyway.
+
+### D-74. The server refuses Record while that airing's recording is still being cancelled (19 Nov 2026; follows D-72)
+
+- **Context:** D-72 had clients wait while a cancellation runs, but the server still accepted a new request, so two
+  devices acting within seconds could start a replacement while the original was stopping (#347, Codex sign-off).
+- **Choice:** `POST /recordings/schedule` answers 409 `cancelling` while the same airing's recording is being
+  cancelled, and 409 `slotTaken` when the slot records another game; both are checked in the insert's transaction.
+- **Consequence:** Record succeeds only once the cancellation has finished; older clients show the server's text.
