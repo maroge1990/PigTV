@@ -807,5 +807,8 @@ reviews.
 - **Context:** D-72 had clients wait while a cancellation runs, but the server still accepted a new request, so two
   devices acting within seconds could start a replacement while the original was stopping (#347, Codex sign-off).
 - **Choice:** `POST /recordings/schedule` answers 409 `cancelling` while the same airing's recording is being
-  cancelled, and 409 `slotTaken` when the slot records another game; both are checked in the insert's transaction.
-- **Consequence:** Record succeeds only once the cancellation has finished; older clients show the server's text.
+  cancelled, checked in the insert's transaction; a rule moving its schedule after a guide correction makes the same
+  check. A slot held by another game is not refused by the server (Mark, 19 Nov: simpler); the Apple client refuses
+  an answer that names another game.
+- **Consequence:** Record succeeds only once the cancellation has finished. Older Apple builds show a generic failure
+  for the 409; the web and current Apple builds show the reason.
