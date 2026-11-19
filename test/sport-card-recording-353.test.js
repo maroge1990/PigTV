@@ -130,3 +130,17 @@ test('#353: More options offers the Test\'s day two on the same channel, and cho
     assert.equal(made.length, 1);
     assert.deepEqual([made[0].channelItemId, made[0].programStart, made[0].programEnd, made[0].gameId], ['pos_7', NOW + 25 * H, NOW + 32 * H, card.id]);
 });
+
+test('#353: in More options a channel row on two airings shows each chip\'s day and time, so the two days differ', async () => {
+    const f = answer();
+    const card = testMatchCard(NOW);
+    f.games.push({ ...card, sport: 'Cricket' });
+    f.rails[0].gameIds.push(card.id);
+    const h = await harness(f);
+    h.p.act('record-options', { getAttribute: (k) => ({ 'data-id': card.id })[k] ?? null });
+    const notes = [...h.body().matchAll(/class="qb[^"]*qchip[^"]*"[^>]*data-act="r-on"[^>]*>[\s\S]*?<small class="pig-amount">([^<]+)<\/small>/g)].map(m => m[1]);
+    const UI = h.b.context.window.UI, at = (ms) => `${UI.date(ms).split(' ')[0]} ${UI.clock(ms)}`;
+    assert.deepEqual(notes, [at(NOW + H), at(NOW + 25 * H)].map(t => h.b.context.window.SportView.e(t)));
+    assert.notEqual(notes[0], notes[1]);
+    assert.match(notes[1], /^\S+ \S/, 'a weekday, then the time');
+});

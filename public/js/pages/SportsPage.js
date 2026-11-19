@@ -911,22 +911,29 @@ class SportsPage {
     static rowName(row) { const copies = row.chips.flatMap(x => x.channels); return copies.length === 1 ? copies[0].name : row.name; }
     /** "4K at 50 fps", "1080", "HD (not measured)": a chip's quality for a screen reader. */
     static qualityWords(q) { return `${q.label || 'unknown quality'}${q.fps ? ` at ${q.fps} fps` : ''}${q.measured ? '' : ' (not measured)'}`; }
-    /** A chip's quality for a screen reader, with its start when its airing is not the row's. */
-    static chipWords(row, chip) {
+    /** A chip's quality for a screen reader, with its start when its airing is not the row's (`days`: every chip's day and time). */
+    static chipWords(row, chip, days = false) {
         const lead = row.chips[0];
+        if (days && chip.start !== null) return `${SportsPage.qualityWords(chip.q)}, starting ${SportsPage.dayTime(chip.start)}`;
         return `${SportsPage.qualityWords(chip.q)}${chip !== lead && chip.start !== null && chip.start !== lead.start ? `, starting ${UI.clock(chip.start)}` : ''}`;
     }
+    /** #353: "Sat 7:30 pm": the app's short weekday (UI.date's) and the clock. */
+    static dayTime(ms) { return `${UI.date(ms).split(' ')[0]} ${UI.clock(ms)}`; }
+    /** #353: a row whose chips are on more than one airing (a Test's two days on one channel). */
+    static severalAirings(row) { return new Set(row.chips.map(c => c.start).filter(x => x !== null)).size > 1; }
     /**
      * D-65: a picker row's quality chips, best first: a button with `attrs(chip)` (its action), or a plain badge when
      * that quality has nothing to do. Wide: shown; narrow (iPhone layout): hidden until the row is touched and held.
      */
-    chipsHtml(row, attrs, chosen = null) {
+    chipsHtml(row, attrs, chosen = null, days = false) {
         const V = SportView;
-        // a chip on another airing than the row's (its best copy's) says when it starts
+        // a chip on another airing than the row's (its best copy's) says when it starts; `days` (#353, the record
+        // picker's row on several airings): every chip says its day and time
         const lead = row.chips[0];
         const chips = row.chips.map(chip => {
             const a = attrs(chip), on = !!chosen && chip.channels.includes(chosen);
-            const note = chip !== lead && chip.start !== null && chip.start !== lead.start ? UI.clock(chip.start) : '';
+            const note = days && chip.start !== null ? SportsPage.dayTime(chip.start)
+                : chip !== lead && chip.start !== null && chip.start !== lead.start ? UI.clock(chip.start) : '';
             return a ? V.qualityBadge(chip.q, { tag: 'button', cls: `qchip${on ? ' on' : ''}`, note, attrs: `${a}${chosen ? ` aria-pressed="${on}"` : ''}` }) : V.qualityBadge(chip.q, { note });
         }).join('');
         const shown = !this.phone || this.held === row.key;
@@ -1259,8 +1266,9 @@ class SportsPage {
                 const picked = copies.find(c => indexOf(c) === st.index) || null;
                 const i = indexOf(picked || row.chips[0].channels[0]), x = st.airings[i], on = !!picked, times = `${P.day(x.start, now)} ${P.range(x)}`;
                 const detail = n === 0 ? `Best channel · ${times}` : x.start === first.start && x.end === first.end ? 'Same times' : times;
+                const days = P.severalAirings(row);
                 const chips = row.chips.length > 1 ? this.chipsHtml(row, (chip) => { const k = indexOf(chip.channels[0]);
-                    return ` type="button" data-act="r-on" data-index="${k}" data-key="r:q:${k}" aria-label="${e(`Record ${row.name} in ${P.chipWords(row, chip)}`)}"`; }, picked) : '';
+                    return ` type="button" data-act="r-on" data-index="${k}" data-key="r:q:${k}" aria-label="${e(`Record ${row.name} in ${P.chipWords(row, chip, days)}`)}"`; }, picked, days) : '';
                 const shownChip = picked ? row.chips.find(ch => ch.channels.includes(picked)) : row.chips[0];
                 const badge = row.chips.length > 1 ? this.bestBadge(row, shownChip.q) : single ? V.copyBadge(x.c) : V.qualityBadge(row.chips[0].q);
                 const button = `<button type="button" class="rchoice rch${on ? ' on' : ''}" role="radio" aria-checked="${on}" data-act="r-on" data-index="${i}" data-key="r:on:${i}"><span class="rradio${on ? ' on' : ''}" aria-hidden="true"></span><span class="rcht"><b>${e(single ? x.c.name : row.name)}</b><span class="pig-amount">${e(detail)}</span></span>${badge}</button>`;
