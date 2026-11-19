@@ -429,10 +429,6 @@ A rule makes ordinary schedules; one-off recordings are unchanged. Any signed-in
   `{ "error": "That recording is still being cancelled. Try again in a moment.", "code": "cancelling", "scheduleId": n }`
   (`n` the schedule being cancelled); show "Cancelling…" for that airing until a refresh no longer lists it, then Record
   works again (a new schedule, 201). Before #347 it made a new schedule at once.
-- **Slot taken by another game (#347, no flag).** `POST /recordings/schedule` with a `gameId` at a channel and start whose
-  active schedule names a different game makes nothing and answers **409** `{ "error": "Another game is already set to
-  record on <channel_name> at that time.", "code": "slotTaken", "scheduleId": n }` (before, 201 with that schedule). The
-  same game (200 `alreadyScheduled`), or no `gameId` on either side, as before. Older clients show `error` as a failure.
 - **One game, one active schedule (#329, additive, no flag).** `POST /recordings/schedule` with a `gameId` that an active
   schedule (`scheduled`, `waiting` or `recording`; household-wide, whoever made it, by hand or by a rule) already has
   makes nothing and answers **200** with that schedule (as a 201 would list it, its own `channel_name`) plus

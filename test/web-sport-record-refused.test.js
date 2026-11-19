@@ -1,7 +1,6 @@
 'use strict';
-// #347 (Codex, Apple batch sign-off): POST /recordings/schedule refuses, 409 with `code` (C-M): `cancelling` (this
-// airing's recording is still being cancelled; begun after the page's own check at the press) and `slotTaken` (the slot
-// records another game). The web says the server's words; for `cancelling` it shows "Cancelling…" on that airing.
+// #347 (Codex, Apple batch sign-off): POST /recordings/schedule refuses, 409 `cancelling` (C-M), an airing whose
+// recording is still being cancelled (begun after the page's own check at the press): "Cancelling…" on that airing.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -12,7 +11,6 @@ const { browser, answer, page } = require('./helpers/sportWeb');
 
 const refusal = (code, error) => Object.assign(new Error(error), { status: 409, code, scheduleId: 9 });
 const CANCELLING = refusal('cancelling', 'That recording is still being cancelled. Try again in a moment.');
-const TAKEN = refusal('slotTaken', 'Another game is already set to record on Stan Sport 2 at that time.');
 
 async function harness(fail) {
     const calls = [];
@@ -51,17 +49,6 @@ test('#347: Record this game refused as cancelling says so (not a failure) and r
     await h.settle();
     assert.equal(h.b.context.toasts.at(-1)[0], 'A recording of this is being cancelled. You can record it again once that has finished.');
     assert.ok(fronts() > before, 'refreshed');
-});
-
-test('#347: slotTaken: both paths show the server\'s words', async () => {
-    const h = await harness(TAKEN);
-    await h.p.record('nxt');
-    assert.equal(h.b.context.toasts.at(-1)[0], 'The recording could not be scheduled. Another game is already set to record on Stan Sport 2 at that time.');
-    h.p.act('record-options', { getAttribute: (k) => ({ 'data-id': 'nxt' })[k] ?? null });
-    h.save().click();
-    await h.settle();
-    assert.match(h.body(), /class="rerr" role="alert">The recording could not be scheduled\. Another game is already set to record on Stan Sport 2 at that time\./);
-    assert.equal(h.save().textContent, 'Record game');
 });
 
 test('#347: API.request carries a refusal\'s code and schedule id', async () => {

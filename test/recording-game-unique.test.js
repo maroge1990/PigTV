@@ -115,7 +115,7 @@ test('#329: two schedules of one game sent back to back, neither awaited: one ro
 
 test('#329: a completed, cancelled or failed schedule of the game does not block a new one', async () => {
     for (const [n, status] of ['completed', 'cancelled', 'failed', 'missed'].entries()) {
-        const id = `g:${status}`, at = NOW + 16 * H + n * 60000; // #347: each its own slot (another game's is 409 slotTaken)
+        const id = `g:${status}`, at = NOW + 16 * H + n * 60000; // each its own slot (another game's would answer with that one)
         const old = await call('POST', '/api/recordings/schedule', on('pos_1', 'Fox Footy', at, { gameId: id }));
         scheduled.setStatus(old.body.id, status);
         const again = await call('POST', '/api/recordings/schedule', on('pos_2', 'Fox Footy 2', at, { gameId: id }));
@@ -273,23 +273,12 @@ test('#347 move: never onto an airing another active schedule of the same game o
         'the old programme\'s guide end does not go with it (the game\'s airing is the new slot)');
 });
 
-// #347 (Codex, Apple batch sign-off): a request for game B at a channel and start that already records game A is refused
-// (409 `slotTaken`), never answered with A's schedule as if B were set to record; same game, or no game on either side,
-// as before.
-test('#347: the slot records another game: 409 slotTaken, nothing made; the same game, or none on either side, as before', async () => {
+// #347 (Mark, 19 Nov): no slotTaken refusal: a request for game B at a channel and start whose schedule is game A's
+// answers with that schedule (201), as before (0875); the Apple client refuses an answer naming another game.
+test('#347: a slot recording another game answers with its schedule (201, its own gameId), as 0875 did', async () => {
     const at = NOW + 50 * H;
     const a = await call('POST', '/api/recordings/schedule', on('pos_1', 'Fox Footy', at, { gameId: 'g:slot-a' }));
-    assert.equal(a.status, 201);
-    const count = () => sqlite.getDb().prepare('SELECT COUNT(*) AS n FROM scheduled_recordings').get().n, before = count();
     const b = await call('POST', '/api/recordings/schedule', on('pos_1', 'Fox Footy', at, { gameId: 'g:slot-b' }));
-    assert.deepEqual([b.status, b.body], [409, { error: 'Another game is already set to record on Fox Footy at that time.', code: 'slotTaken', scheduleId: a.body.id }]);
-    assert.equal(count(), before);
+    assert.deepEqual([b.status, b.body.id, b.body.gameId], [201, a.body.id, 'g:slot-a']);
     assert.deepEqual(ofGame('g:slot-b'), []);
-    const same = await call('POST', '/api/recordings/schedule', on('pos_1', 'Fox Footy', at, { gameId: 'g:slot-a' }));
-    assert.deepEqual([same.status, same.body.id, same.body.alreadyScheduled], [200, a.body.id, true]);
-    const none = await call('POST', '/api/recordings/schedule', on('pos_1', 'Fox Footy', at));
-    assert.deepEqual([none.status, none.body.id], [201, a.body.id], 'no game asked: the programme\'s schedule, as before');
-    const plain = await call('POST', '/api/recordings/schedule', on('pos_2', 'Fox Footy 2', at + H));
-    const claimed = await call('POST', '/api/recordings/schedule', on('pos_2', 'Fox Footy 2', at + H, { gameId: 'g:slot-c' }));
-    assert.deepEqual([claimed.status, claimed.body.id], [201, plain.body.id], 'a schedule naming no game is linked to it, as before');
 });
