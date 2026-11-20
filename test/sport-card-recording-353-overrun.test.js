@@ -97,8 +97,7 @@ test('#353 r1: More options on an overrunning game never pads the programme that
     const p = page(b, { setLocation() {}, navigateTo() {} });
     await p.show('');
     p.act('record-options', { getAttribute: (k) => ({ 'data-id': ID })[k] ?? null });
-    const post = b.document.getElementById('sp-rec-post');
-    post.value = '30'; post.dispatchEvent(new (require('./helpers/fakeDom').FakeEvent)('change'));
+    require('./helpers/sportWeb').stepTo(b, p, 'sp-rec-post', 30);
     b.document.body.querySelector('dialog [data-act="r-save"]').click();
     for (let i = 0; i < 4; i++) await new Promise(setImmediate);
     assert.equal(calls.filter(x => x[0] === 'PUT').length, 0, 'the News is untouched');
@@ -217,8 +216,8 @@ test('#353 split: a rolled-end schedule of the overrunning airing never takes th
     assert.equal(h.c.recording?.scheduleId, 51);
     h.p.act('record-options', { getAttribute: (k) => ({ 'data-id': ID })[k] ?? null });
     h.pick(1);
-    h.b.document.getElementById('sp-rec-post').value = '30';
-    h.b.document.getElementById('sp-rec-post').dispatchEvent(new (require('./helpers/fakeDom').FakeEvent)('change'));
+    require('./helpers/sportWeb').stepTo(h.b, h.p, 'sp-rec-post', 30);
+
     h.save().click();
     await h.settle();
     assert.equal(h.calls.filter(x => x[0] === 'PUT').length, 0, 'the earlier recording untouched');

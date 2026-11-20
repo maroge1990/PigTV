@@ -5,8 +5,7 @@
 // recording that is there (0662). A list that cannot be read records nothing.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { FakeEvent } = require('./helpers/fakeDom');
-const { browser, answer, page } = require('./helpers/sportWeb');
+const { browser, answer, page, stepTo, pressIn } = require('./helpers/sportWeb');
 
 const H = 3600000;
 async function harness() {
@@ -25,10 +24,12 @@ async function harness() {
     await p.show('');
     p.openRecord('nxt');
     const body = () => b.document.body.querySelector('dialog .ui-dialog-body')?.innerHTML || '';
-    const choose = (id, v) => { const el = b.document.getElementById(id); el.value = v; el.dispatchEvent(new FakeEvent('change')); };
+    const choose = (id, v) => stepTo(b, p, id, v);
+    // #358: the Channel page's rows (opened, read, then Back)
+    const channels = () => { pressIn(b, { 'data-act': 'r-screen', 'data-to': 'channel' }); const html = body(); pressIn(b, { 'data-act': 'r-screen', 'data-to': 'main' }); return html; };
     const pick = (index) => { const el = b.document.createElement('button'); el.setAttribute('data-act', 'r-on'); el.setAttribute('data-index', String(index)); b.document.body.querySelector('dialog .ui-dialog-body').appendChild(el); el.click(); };
     const save = async () => { b.document.body.querySelector('dialog [data-act="r-save"]').click(); await new Promise(setImmediate); await new Promise(setImmediate); };
-    return { b, p, f, nxt, calls, state, body, choose, pick, save };
+    return { b, p, f, nxt, calls, state, body, channels, choose, pick, save };
 }
 const row = (o) => ({ id: 4, status: 'scheduled', pre_buffer_min: 2, post_buffer_min: 15, endsWith: 'event', source_id: 1, channel_item_id: '102', channel_stable_id: 's2',
     channel_name: 'Stan Sport 2', ...o });
@@ -36,7 +37,7 @@ const row = (o) => ({ id: 4, status: 'scheduled', pre_buffer_min: 2, post_buffer
 test('set to record on its best channel while the page is open, another channel chosen: no second recording, the padding goes to it', async () => {
     const h = await harness();
     h.pick(1);
-    assert.match(h.body(), /aria-checked="true" data-act="r-on" data-index="1"/, 'Kayo 5 chosen');
+    assert.match(h.channels(), /aria-checked="true" data-act="r-on" data-index="1"/, 'Kayo 5 chosen');
     h.choose('sp-rec-post', '30');
     h.state.scheduled = [row({ program_start: h.nxt.start, program_end: h.nxt.start + 2 * H })];
     await h.save();
@@ -91,7 +92,7 @@ test('a later airing chosen while an earlier one of the game is set to record (i
     h.nxt.channels.push({ sourceId: 2, stableId: 'k6', id: '506', name: 'Kayo 6', start: later, end: later + 2 * H });
     h.p.closeWindow(); h.p.openRecord('nxt');
     h.nxt.recording = { scheduleId: 4, status: 'scheduled' }; // a refresh while the page is open: C-R names the earlier one
-    const body = h.body();
+    const body = h.channels();
     const index = [...body.matchAll(/data-act="r-on" data-index="(\d+)"[^>]*>[\s\S]*?<\/button>/g)].find(m => m[0].includes('Kayo 6'));
     assert.ok(index, 'Kayo 6 is offered');
     h.pick(Number(index[1]));
@@ -116,7 +117,7 @@ test('staggered channels: a schedule of another programme on a channel that carr
         const k5 = h.nxt.channels.find(c => c.id === '505');
         k5.start = h.nxt.start + 3 * H; k5.end = h.nxt.start + 5 * H;
         h.p.closeWindow(); h.p.openRecord('nxt');
-        assert.match(h.body(), /aria-checked="true" data-act="r-on" data-index="0"/, 'Stan Sport 2 chosen');
+        assert.match(h.channels(), /aria-checked="true" data-act="r-on" data-index="0"/, 'Stan Sport 2 chosen');
         h.choose('sp-rec-post', '30');
         h.state.scheduled = [row({ id: 8, program_start: h.nxt.start, program_end: h.nxt.start + 2 * H, ...other })];
         h.state.made = { id: 9 };
@@ -150,8 +151,8 @@ test('More options with the card already set to record: the airings to choose; a
     el.setAttribute('data-act', 'record-options'); el.setAttribute('data-id', 'nxt');
     h.p.root.appendChild(el); el.click();
     await new Promise(setImmediate);
-    const body = h.body();
-    assert.doesNotMatch(body, /CHANGE RECORDING/, 'not the Change recording window');
+    assert.doesNotMatch(h.body(), /class="rset"/, 'not the Change recording window');
+    const body = h.channels();
     const k6 = [...body.matchAll(/data-act="r-on" data-index="(\d+)"[^>]*>[\s\S]*?<\/button>/g)].find(m => m[0].includes('Kayo 6'));
     assert.ok(k6, 'the airings to choose, Kayo 6 among them');
     h.pick(Number(k6[1]));
@@ -166,5 +167,6 @@ test('More options with the card already set to record: the airings to choose; a
     ch.setAttribute('data-act', 'change-recording'); ch.setAttribute('data-id', 'nxt');
     h.p.root.appendChild(ch); ch.click();
     await new Promise(setImmediate);
-    assert.match(h.body(), /CHANGE RECORDING · RECORDING SCHEDULED/, 'Change recording: the named schedule\'s own window');
+    assert.match(h.body(), /<p class="rset"><span class="rdot" aria-hidden="true"><\/span>Set to record<\/p>/, 'Change recording: the named schedule\'s own window');
+
 });

@@ -77,18 +77,21 @@ test('grouping: one row per name (quality words aside), chips best first, same q
     assert.match(V.qualityBadge({ label: 'HD', fps: null, measured: false }), /^<span class="qb guess" title="HD from the channel’s name \(not measured yet\)">HD<\/span>$/);
 });
 
-test('the record page (wide): one Record on row per name, its chips choose the copy, the chosen chip pressed', async () => {
+test('the record page (wide): one Channel row per name, its chips choose the copy, the chosen chip pressed', async () => {
     const h = await harness();
     h.p.openRecord('ars');
+    const channelPage = () => h.press({ 'data-act': 'r-screen', 'data-to': 'channel' });
+    channelPage();
     let html = h.body();
     assert.match(html, /<div class="rchg"><button type="button" class="rchoice rch on" role="radio" aria-checked="true" data-act="r-on" data-index="0"[^>]*>[\s\S]*?<b>UK\| SKY SPORTS F1<\/b>/);
     const chips = () => chipsOf(h.body().slice(h.body().indexOf('class="rchg"'), h.body().indexOf('</div>', h.body().indexOf('class="qchips"'))));
     assert.deepEqual(chips(), ['4K 50 accent → #1', '1080 50 → #0', '1080 25 → #3', 'SD dashed → #4']);
     assert.match(html, /class="qb qchip on" type="button" data-act="r-on" data-index="0" data-key="r:q:0"[^>]*aria-pressed="true"/, 'the server\'s first copy is chosen: its chip (1080 50)');
     h.press({ 'data-act': 'r-on', 'data-index': '1' });
+    assert.match(h.body(), /<span class="rrn">Channel<\/span><span class="rrv"><b>UK\| SKY SPORTS F1 FHD<\/b>/, '#358: back on the main page, the copy it records on');
+    channelPage();
     html = h.body();
     assert.match(html, /class="qb top qchip on" type="button" data-act="r-on" data-index="1"[^>]*aria-pressed="true"/, '4K chosen');
-    assert.match(html, /<span class="rmeta pig-amount">[^<]* · UK\| SKY SPORTS F1 FHD<\/span>/, 'the copy it records on');
     assert.match(html, /role="radio" aria-checked="false" data-act="r-on" data-index="5"[^>]*>[\s\S]*?<b>Stan Sport 1<\/b>/);
 });
 
@@ -121,13 +124,14 @@ test('same name and quality on different airings: two chips, both can be recorde
     ] });
     const ars = h.p.game('ars');
     h.p.openRecord('ars');
+    h.press({ 'data-act': 'r-screen', 'data-to': 'channel' });
     const html = h.body();
     const chips = chipsOf(html.slice(html.indexOf('class="qchips"')));
     assert.equal(chips.length, 2, 'not folded');
     assert.deepEqual(chips.map(c => c.split(' → ')[1]), ['#0', '#1'], 'each airing schedulable');
     assert.match(html, /data-index="1"[^>]*aria-label="Record Sky Sports F1 in 1080 at 50 fps, starting [^"]+"[^>]*>1080<i class="pig-amount">50<\/i><small class="pig-amount">[^<]+<\/small>/, 'the later airing says when it starts');
     h.press({ 'data-act': 'r-on', 'data-index': '1' });
-    assert.match(h.body(), /<span class="rmeta pig-amount">[^<]* · Sky Sports F1<\/span>/, 'the second airing chosen');
+    assert.match(h.body(), /<span class="rrn">Channel<\/span><span class="rrv"><b>Sky Sports F1<\/b>/, 'the second airing chosen');
     // the watch pickers keep them apart too
     h.dialog().close();
     assert.deepEqual(chipsOf(h.p.menuMarkup(ars).slice(h.p.menuMarkup(ars).indexOf('class="qchips"'))).map(c => c.split(' → ')[1]), ['1:u1', '1:u2']);
@@ -149,7 +153,9 @@ test('a row showing its chips has no best badge of its own (the first chip is it
     const mainBtn = menu.slice(menu.indexOf('<div class="mgrp">'), menu.indexOf('class="qchips"', menu.indexOf('<div class="mgrp">')));
     assert.doesNotMatch(mainBtn, /class="qb/, 'the menu row with chips shown: no row badge');
     wide.p.openRecord('ars');
-    const rec = wide.body(), button = rec.slice(rec.indexOf('class="rchg"'), rec.indexOf('class="qchips"', rec.indexOf('class="rchg"')));
+    wide.press({ 'data-act': 'r-screen', 'data-to': 'channel' });
+    const rec = wide.body(), button
+ = rec.slice(rec.indexOf('class="rchg"'), rec.indexOf('class="qchips"', rec.indexOf('class="rchg"')));
     assert.doesNotMatch(button, /class="qb/, 'the Record on row with chips shown: no row badge');
 
     const phone = await harness({ phone: true });

@@ -1,14 +1,13 @@
 'use strict';
 // #327 (Mark, 15 Nov 2026): iOS's game details (SportEventDetails, `presenter.open(event, .details)`) and record page
 // (RecordPage, behind "More options…") on the web, so a person can choose the channel to watch or record. Details: every
-// channel airing the game, each with Watch (only while it airs, checked at the press) and Record on it. Record page: What
-// (this game, every <team> game, every <league> game), When it stops, Start early / Finish late, Record on; a game already
-// set to record is changed with PUT (0662), never scheduled twice. Hard rule: with scores hidden no score, result or winner
+// channel airing the game, each with Watch (only while it airs, checked at the press) and Record on it. Record page (#358,
+// Mark's final design): What (this game, every <team> game, every <league> game), then Channel and Extra time rows that
+// open a page of the window (Back); a game already set to record is changed with PUT (0662), never scheduled twice. Hard rule: with scores hidden no score, result or winner
 // in either window.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { FakeEvent } = require('./helpers/fakeDom');
-const { browser, answer, NOW, page, assertNoScores } = require('./helpers/sportWeb');
+const { browser, answer, NOW, page, assertNoScores, stepTo } = require('./helpers/sportWeb');
 const { rulesFor } = require('./helpers/sportCss');
 
 const H = 3600000;
@@ -53,7 +52,7 @@ async function harness({ phone = false, scheduled = [], hide = false } = {}) {
         return el;
     };
     const footer = (act) => dialog().querySelector(`[data-act="${act}"]`);
-    const choose = (id, value) => { const el = b.document.getElementById(id); el.value = value; el.dispatchEvent(new FakeEvent('change')); };
+    const choose = (id, value) => stepTo(b, p, id, value);
     const settle = () => new Promise(setImmediate);
     return { b, p, f, calls, played, dialog, body, press, footer, choose, settle };
 }
@@ -87,10 +86,14 @@ test('Record on the second channel opens the record page on it and records it th
     h.p.openRecord('nxt', { channel: '2:k5' });
     const rec = h.body();
     assert.equal(h.b.document.body.querySelectorAll('dialog').length, 1, 'one window at a time');
-    assert.match(rec, /<span class="rk">RECORD · PREMIER LEAGUE<\/span><span class="rmeta pig-amount">[^<]+ · [^<]+ · Kayo 5<\/span>/);
-    assert.match(rec, /<h3 class="rsec" id="sp-rec-on">Record on<\/h3><\/div>/);
-    assert.match(rec, /role="radio" aria-checked="true" data-act="r-on" data-index="1"[\s\S]*?<b>Kayo 5<\/b>/);
-    assert.match(rec, /data-index="0"[^>]*>[\s\S]*?<b>Stan Sport 2<\/b><span class="pig-amount">Best channel · /);
+    assert.match(rec, /<span class="rk">RECORD · PREMIER LEAGUE<\/span><span class="rmeta pig-amount">[^<]+ · [^<]+<\/span>/);
+    assert.match(rec, /<button type="button" class="rrow" data-act="r-screen" data-to="channel" data-key="r:row:channel"><span class="rrn">Channel<\/span><span class="rrv"><b>Kayo 5<\/b>/, 'the Channel row names it');
+    h.press({ 'data-act': 'r-screen', 'data-to': 'channel' });
+    const list = h.body();
+    assert.match(list, /role="radio" aria-checked="true" data-act="r-on" data-index="1"[\s\S]*?<b>Kayo 5<\/b>/);
+    assert.match(list, /data-index="0"[^>]*><span class="rtick" aria-hidden="true"><\/span><span class="rcht"><b>Stan Sport 2<\/b><span class="pig-amount">[^<]+<\/span><\/span><span class="rbest">BEST<\/span>/,
+        'BEST on the first; the airings differ in time, so each row says when');
+    h.press({ 'data-act': 'r-screen', 'data-to': 'main' });
     assert.equal(h.footer('r-save').textContent, 'Record game');
     h.footer('r-save').click();
     await h.settle();
@@ -106,17 +109,18 @@ test('More options…: What (this game, every Tottenham game, every Premier Leag
     const h = await harness();
     h.p.act('record-options', Object.assign(h.b.document.createElement('button'), { getAttribute: (k) => ({ 'data-id': 'nxt' })[k] ?? null }));
     const html = h.body();
-    const whats = [...html.matchAll(/data-act="r-what" data-index="\d" data-key="[^"]+"><b>([^<]+)<\/b>(?:<span class="pig-amount">([^<]*)<\/span>)?/g)].map(m => [m[1], (m[2] || '').replace(/^(Today|Tomorrow) .*/, 'when')]);
-    assert.deepEqual(whats, [['This game', 'when'], ['Every Tottenham game', ''], ['Every Premier League game', '']]);
-    assert.match(html, /<h3 class="rsec">When it stops<\/h3><div class="rstop">[\s\S]*?<b>When the game ends \(ESPN\)<\/b><\/span>/);
-    assert.match(html, /<select id="sp-rec-pre" data-key="r:sp-rec-pre"><option value="" selected>Usual<\/option><option value="0">On time<\/option><option value="1">1 min<\/option><option value="2">2 min<\/option><option value="5">5 min<\/option><option value="10">10 min<\/option><\/select>/);
-    assert.match(html, /<select id="sp-rec-post"[^>]*><option value="" selected>Usual<\/option><option value="0">On time<\/option>(<option value="\d+">\d+ min<\/option>){5}<\/select>/);
+    const whats = [...html.matchAll(/class="rsegb(?: on)?" role="radio" aria-checked="(true|false)" data-act="r-what" data-index="\d" data-key="[^"]+">([^<]+)<\/button>/g)].map(m => [m[2], m[1]]);
+    assert.deepEqual(whats, [['This game', 'true'], ['Every Tottenham game', 'false'], ['Every Premier League game', 'false']]);
+    assert.doesNotMatch(html, /When it stops|<select/, '#358: no When it stops, no selects');
+    assert.match(html, /<span class="rrn">Extra time<\/span><span class="rrv"><b>Usual<\/b><\/span>/);
     assert.ok(!html.includes('provider connection'));
     h.press({ 'data-act': 'r-what', 'data-index': '1' });
     assert.equal(h.footer('r-save').textContent, 'Record every game');
+    assert.doesNotMatch(h.body(), /data-to="channel"/, 'a rule records each game on its own channel: no Channel row');
     h.choose('sp-rec-pre', '5');
     assert.ok(!h.body().includes('the recording waits'), 'no provider-connection note');
     h.choose('sp-rec-post', '30');
+    assert.match(h.body(), /<b>5 min early, 30 min late<\/b>/, 'the Extra time row says what was chosen');
     h.footer('r-save').click();
     await h.settle();
     assert.deepEqual(plain(h.calls.find(c => c[0] === 'rule')), ['rule', { kind: 'team', match: 'Tottenham', sport: 'Football', preBufferMin: 5, postBufferMin: 30 }]);
@@ -134,12 +138,14 @@ test('every Premier League game is a `sport` rule on the league; a failure stays
     assert.match(h.body(), /<p class="rerr" role="alert">[^<]+<\/p>/);
 });
 
-test('a page game without a card (no game id): the guide\'s end, and no game id sent', async () => {
+test('a page game without a card (no game id): Settings\' Finish late, and no game id sent', async () => {
     const h = await harness();
     const g = { ...h.f.games.find(x => x.id === 'nxt'), id: 'fx:EPL:9', synthetic: true, followed: false };
     h.p.game = (id) => (id === g.id ? g : null);
     h.p.openRecord(g.id);
-    assert.match(h.body(), /<b>When the guide says it ends<\/b><\/span>/);
+    h.press({ 'data-act': 'r-screen', 'data-to': 'extra' });
+    assert.match(h.body(), /<span class="rval pig-amount" id="sp-rec-post" aria-live="polite">5 min<\/span>/, 'no game: Finish late starts at Settings\' usual');
+    h.press({ 'data-act': 'r-screen', 'data-to': 'main' });
     h.footer('r-save').click();
     await h.settle();
     assert.equal(h.calls.find(c => c[0] === 'schedule')[1].gameId, undefined);
@@ -148,25 +154,25 @@ test('a page game without a card (no game id): the guide\'s end, and no game id 
 // 0662 (#323 Codex review of step 5): a game already set to record is changed, never scheduled a second time.
 const row = (o) => ({ id: 4, status: 'scheduled', pre_buffer_min: 2, post_buffer_min: 15, endsWith: 'event', source_id: 1, channel_item_id: '102', channel_stable_id: 's2', channel_name: 'Stan Sport 2', ...o });
 for (const [entry, how] of [['the record page on another channel', (h) => { h.p.openRecord('nxt', { channel: '2:k5' }); }]]) {
-    test(`Change recording from ${entry}: its own padding, Save changes sends only what changed with PUT`, async () => {
+    test(`Change recording from ${entry}: Set to record, its own padding, Done sends only what changed with PUT`, async () => {
         const h = await harness({ scheduled: [row()] });
         h.f.games.find(x => x.id === 'nxt').recording = { scheduleId: 4, status: 'scheduled' };
         how(h);
         await h.settle();
         const html = h.body();
-        assert.match(html, /<span class="rk">CHANGE RECORDING · RECORDING SCHEDULED · PREMIER LEAGUE<\/span><span class="rmeta pig-amount">[^<]+ · Stan Sport 2<\/span>/, 'the channel it records on');
-        assert.doesNotMatch(html, /r-what|Record on</, 'one schedule: no What, no Record on');
-        assert.match(html, /<b>When the game ends \(ESPN\)<\/b>/, 'the schedule follows the game');
-        assert.match(html, /<select id="sp-rec-pre" data-key="r:sp-rec-pre"><option value="0">On time<\/option><option value="1">1 min<\/option><option value="2" selected>2 min<\/option>/);
-        assert.match(html, /<select id="sp-rec-post"[^>]*><option value="0">On time<\/option>[\s\S]*<option value="15" selected>15 min<\/option>/);
-        assert.doesNotMatch(html, /Usual/);
-        assert.match(html, /Changes apply to this recording only\./);
-        assert.equal(h.footer('r-save').textContent, 'Save changes');
-        assert.equal(h.footer('r-save').disabled, true, 'nothing changed yet');
+        assert.match(html, /<span class="rk">RECORD · PREMIER LEAGUE<\/span><span class="rmeta pig-amount">[^<]+<\/span>/);
+        assert.match(html, /<p class="rset"><span class="rdot" aria-hidden="true"><\/span>Set to record<\/p>/);
+        assert.match(html, /<div class="rrow"><span class="rrn">Channel<\/span><span class="rrv"><b>Stan Sport 2<\/b>/, 'the channel it records on, not a choice');
+        assert.doesNotMatch(html, /r-what|data-to="channel"/, 'one schedule: no What, no channel to choose');
+        assert.match(html, /<b>2 min early, 15 min late<\/b>/, 'its own padding');
+        h.press({ 'data-act': 'r-screen', 'data-to': 'extra' });
+        assert.match(h.body(), /id="sp-rec-pre" aria-live="polite">2 min</);
+        assert.match(h.body(), /id="sp-rec-post" aria-live="polite">15 min</);
+        h.press({ 'data-act': 'r-screen', 'data-to': 'main' });
+        assert.equal(h.footer('r-save').textContent, 'Done');
         assert.equal(h.footer('r-cancel').textContent, 'Cancel recording');
-        assert.equal(h.footer('r-close').textContent, 'Close');
+        assert.equal(h.footer('r-close'), null, 'two buttons: Cancel recording and Done');
         h.choose('sp-rec-post', '30');
-        assert.ok(!h.footer('r-save').disabled, 'a change: Save changes is on');
         h.footer('r-save').click();
         await h.settle();
         assert.equal(h.calls.filter(c => c[0] === 'schedule').length, 0, 'no second schedule');
@@ -183,9 +189,10 @@ test('More options… on a game set to record: the airings to choose; the same a
     nxt.recording = { scheduleId: 4, status: 'scheduled' };
     h.p.act('record-options', { getAttribute: (k) => ({ 'data-id': 'nxt' })[k] ?? null });
     await h.settle();
-    const html = h.body();
-    assert.doesNotMatch(html, /CHANGE RECORDING/);
-    assert.match(html, /aria-checked="true" data-act="r-on" data-index="0"/, 'the best airing chosen, the others offered');
+    assert.doesNotMatch(h.body(), /class="rset"/, 'not the set-to-record window');
+    h.press({ 'data-act': 'r-screen', 'data-to': 'channel' });
+    assert.match(h.body(), /aria-checked="true" data-act="r-on" data-index="0"/, 'the best airing chosen, the others offered');
+    h.press({ 'data-act': 'r-screen', 'data-to': 'main' });
     h.choose('sp-rec-post', '30');
     listed.push(row({ program_start: nxt.channels[0].start, program_end: nxt.channels[0].end, gameId: 'nxt' }));
     h.footer('r-save').click();
@@ -199,8 +206,12 @@ test('Change recording while it records: Start early is locked, only Finish late
     h.f.games.find(x => x.id === 'ars').recording = { scheduleId: 4, status: 'recording' };
     h.p.openRecord('ars');
     await h.settle();
-    assert.match(h.body(), /<select id="sp-rec-pre" data-key="r:sp-rec-pre" disabled>/);
-    assert.match(h.body(), /It is recording: only Finish late can change\./);
+    assert.match(h.body(), /Recording now<\/p>/);
+    h.press({ 'data-act': 'r-screen', 'data-to': 'extra' });
+    assert.match(h.body(), /<div class="rstepper off"><span class="rrn">Start early<\/span><span class="rval pig-amount" id="sp-rec-pre" aria-live="polite">Started<\/span><\/div>/, 'Start early: Started, no − or +');
+    assert.match(h.body(), /data-field="post" data-delta="-1"/, 'Finish late still changes');
+    assert.doesNotMatch(h.body(), /data-field="pre"/);
+    h.press({ 'data-act': 'r-screen', 'data-to': 'main' });
     assert.equal(h.footer('r-cancel').textContent, 'Stop recording');
     h.choose('sp-rec-post', '30');
     h.footer('r-save').click();
@@ -211,10 +222,15 @@ test('Change recording while it records: Start early is locked, only Finish late
     gone.f.games.find(x => x.id === 'nxt').recording = { scheduleId: 4, status: 'scheduled' };
     gone.p.openRecord('nxt');
     await gone.settle();
-    assert.match(gone.body(), /CHANGE RECORDING · ENDED/);
+    assert.match(gone.body(), /<p class="rset off"><span class="rdot" aria-hidden="true"><\/span>Ended<\/p>/);
     assert.match(gone.body(), /This recording has finished or no longer exists, so it cannot be changed\./);
-    assert.equal(gone.footer('r-save').disabled, true);
+    assert.doesNotMatch(gone.body(), /data-to="extra"/, 'nothing to change');
     assert.equal(gone.footer('r-cancel').disabled, true);
+    gone.footer('r-save').click();
+    await gone.settle();
+    assert.equal(gone.dialog(), null, 'Done only closes');
+    assert.equal(gone.calls.filter(c => c[0] === 'PUT').length, 0);
+
 });
 
 test('Cancel recording closes the window and cancels with Undo', async () => {

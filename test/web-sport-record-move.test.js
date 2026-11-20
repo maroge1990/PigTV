@@ -36,7 +36,8 @@ const writes = (h) => h.calls.filter(c => c[0] === 'schedule' || c[0] === 'DELET
 
 test('Record on Kayo 5 for a game set on Stan Sport 2: Change recording of it; Record on Kayo 5 instead moves it in one request', async () => {
     const h = await harness();
-    assert.match(h.body(), /CHANGE RECORDING · RECORDING SCHEDULED/);
+    assert.match(h.body(), /<p class="rset"><span class="rdot" aria-hidden="true"><\/span>Set to record<\/p>/);
+
     assert.match(h.body(), /<div class="rmove"><p>Set to record on Stan Sport 2\.<\/p><button type="button" class="pill" data-act="r-move" data-key="r:move"><svg[\s\S]*?<\/svg>Record on Kayo 5 instead<\/button><\/div>/);
     await h.move();
     assert.deepEqual(JSON.parse(JSON.stringify(writes(h))), [['POST', '/recordings/scheduled/4/move',

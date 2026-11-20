@@ -4,8 +4,7 @@
 // page closed while it saves still tells a failure.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { FakeEvent } = require('./helpers/fakeDom');
-const { browser, answer, page } = require('./helpers/sportWeb');
+const { browser, answer, page, stepTo, pressIn } = require('./helpers/sportWeb');
 
 const row = (o) => ({ id: 4, status: 'scheduled', pre_buffer_min: 2, post_buffer_min: 15, endsWith: 'event', source_id: 1, channel_item_id: '102', channel_stable_id: 's2', channel_name: 'Stan Sport 2', ...o });
 async function harness({ schedule } = {}) {
@@ -21,9 +20,9 @@ async function harness({ schedule } = {}) {
     await p.show('');
     const settle = async () => { for (let i = 0; i < 4; i++) await new Promise(setImmediate); };
     const body = () => b.document.body.querySelector('dialog .ui-dialog-body')?.innerHTML || '';
-    const choose = (id, v) => { const el = b.document.getElementById(id); el.value = v; el.dispatchEvent(new FakeEvent('change')); };
+    const choose = (id, v) => stepTo(b, p, id, v);
     const save = async () => { b.document.body.querySelector('dialog [data-act="r-save"]').click(); await settle(); };
-    return { b, p, f, calls, state, settle, body, choose, save };
+    return { b, p, f, calls, state, settle, body, choose, save, press: (attrs) => pressIn(b, attrs) };
 }
 
 test('started recording while the page was open: no 409, Start early locked with its value, then Finish late alone is saved', async () => {
@@ -36,9 +35,13 @@ test('started recording while the page was open: no 409, Start early locked with
     await h.save();
     assert.equal(h.calls.filter(c => c[0] === 'PUT').length, 0, 'nothing the server would refuse');
     assert.match(h.body(), /<p class="rerr" role="alert">It has started recording, so only Finish late can change now\. Nothing was changed\.<\/p>/);
-    assert.match(h.body(), /<select id="sp-rec-pre" data-key="r:sp-rec-pre" disabled>[\s\S]*?<option value="2" selected>/);
-    assert.match(h.body(), /CHANGE RECORDING · RECORDING NOW/);
+    assert.match(h.body(), /Recording now<\/p>/);
+    assert.match(h.body(), /<b>2 min early, 30 min late<\/b>/, 'Start early back to its own value');
+    h.press({ 'data-act': 'r-screen', 'data-to': 'extra' });
+    assert.match(h.body(), /id="sp-rec-pre" aria-live="polite">Started</, 'locked: Started');
+    h.press({ 'data-act': 'r-screen', 'data-to': 'main' });
     await h.save();
+
     assert.deepEqual(JSON.parse(JSON.stringify(h.calls.find(c => c[0] === 'PUT'))), ['PUT', '/recordings/scheduled/4', { postBufferMin: 30 }]);
 });
 

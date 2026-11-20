@@ -1099,8 +1099,9 @@ class SportsPage {
             onClose: () => { if (this.window && this.window.d === d) { clearTimeout(this.window.timer); this.window = null; } } });
         if (label) { d.el.removeAttribute('aria-labelledby'); d.el.setAttribute('aria-label', label); }
         const w = { kind, id, d, timer: null };
-        w.redraw = () => {
-            const key = typeof document !== 'undefined' && d.el.contains?.(document.activeElement) ? document.activeElement?.getAttribute?.('data-key') : null;
+        // `focus`: the control to focus after (#358: a page of the record window opened or left), else the one focused now
+        w.redraw = (focus = null) => {
+            const key = focus || (typeof document !== 'undefined' && d.el.contains?.(document.activeElement) ? document.activeElement?.getAttribute?.('data-key') : null);
             const { body, footer } = draw();
             d.body.innerHTML = `<div class="sp sp-win">${body}</div>`;
             d.footer.replaceChildren(...(footer || []));
@@ -1124,13 +1125,47 @@ class SportsPage {
 
     // ----- the record page (iOS RecordPage: More options…, Record in the details, Change recording) -----
 
-    static chipTitle(m) { return m == null ? 'Usual' : m === 0 ? 'On time' : `${m} min`; }
-    /** Change recording's choices: the schedule's own value added when it is not one of them, and never Usual. */
-    static chips(base, current, changing) {
-        if (!changing) return base;
-        const minutes = base.filter(m => m != null);
-        if (Number.isFinite(current) && !minutes.includes(current)) { minutes.push(current); minutes.sort((a, b) => a - b); }
-        return minutes;
+    /**
+     * #358: the usual Start early and Finish late (what the server applies when none is sent): Settings' padding, and for
+     * a game ESPN follows (a card's game, a team rule's games, a schedule naming its game) Finish late 0, ESPN's end.
+     */
+    recordUsual(st) {
+        const d = this.recDefaults || {};
+        const pre = Number.isInteger(d.defaultPreBufferMin) ? d.defaultPreBufferMin : 1;
+        const settingsPost = Number.isInteger(d.defaultPostBufferMin) ? d.defaultPostBufferMin : 5;
+        let game;
+        if (st.rec) game = Boolean(st.schedule && st.schedule.gameId);
+        else {
+            const what = st.whats[st.what] || { kind: 'this' };
+            game = what.kind === 'team' || (what.kind === 'this' && Boolean(SportsPage.gameIdOf(st.g)));
+        }
+        return { pre, post: game ? 0 : settingsPost };
+    }
+    /** #358: the Start early and Finish late shown: the person's (or the schedule's) value, else the usual. */
+    recordPad(st) {
+        const u = this.recordUsual(st);
+        return { pre: st.pre != null ? st.pre : u.pre, post: st.post != null ? st.post : u.post, usual: u };
+    }
+    /** #358: the Extra time row's value: "Usual" while both are the usual, else "2 min early, 8 min late". */
+    extraWords(st) {
+        const p = this.recordPad(st);
+        if (p.pre === p.usual.pre && p.post === p.usual.post) return 'Usual';
+        return `${p.pre} min early, ${p.post} min late`;
+    }
+    /** #358: what may change: Start early not once it records (C-M since 0444), neither for a schedule gone or not read. */
+    static padLocks(st) {
+        if (!st.rec) return { pre: false, post: false };
+        const off = !st.schedule || st.gone;
+        return { pre: off || st.schedule.status === 'recording', post: off };
+    }
+    /** #358: one minute more or less (`field` pre or post), within the server's ranges (0-60, 0-180); false when it can't. */
+    stepPad(st, field, delta) {
+        if (SportsPage.padLocks(st)[field]) return false;
+        const p = this.recordPad(st), max = field === 'pre' ? SportsPage.MAX_PRE : SportsPage.MAX_POST;
+        const next = Math.min(max, Math.max(0, p[field] + delta));
+        if (next === p[field]) return false;
+        st[field] = next;
+        return true;
     }
 
     /** The What choices (RecordPlan.whats): this game; every game of the followed team, else of each side; every game of its league. */
@@ -1159,12 +1194,12 @@ class SportsPage {
     }
     /** A team choice's sport: the follow's, else its league's; null when it cannot be told (the choice is then off). */
     teamSport(w, g) { return w.sport || this.sportOfLeague(g.league); }
+    /** #358: a What choice's words (the date is the header's alone). */
     whatLabel(w, st) {
-        const a = st.airings[0];
-        if (w.kind === 'this') return { title: 'This game', detail: a ? `${SportsPage.day(a.start, this.now())} ${UI.clock(a.start)}` : '' };
-        if (w.kind === 'team') return { title: `Every ${w.name} game`, detail: this.teamSport(w, st.g) ? '' : 'Not available: PigTV doesn’t know this league’s sport' };
+        if (w.kind === 'this') return 'This game';
+        if (w.kind === 'team') return `Every ${w.name} game`;
         const name = SportView.label(w.league, this.labels);
-        return { title: (st.g.competitors || []).length === 2 ? `Every ${name} game` : `Everything in ${name}`, detail: '' };
+        return (st.g.competitors || []).length === 2 ? `Every ${name} game` : `Everything in ${name}`;
     }
 
     /**
@@ -1190,20 +1225,60 @@ class SportsPage {
         // the choice to the person
         const index = channel ? airings.findIndex(a => a.key === channel) : 0;
         const lost = index < 0 ? (g.channels || []).find(c => SportsPage.channelKey(c) === channel) : null;
-        const st = { g, airings, index, what: 0, whats: rec ? [] : this.recordWhats(g),
+        // #358: `screen` the window's page: main (the two rows), channel or extra (Extra time)
+        const st = { g, airings, index, what: 0, whats: rec ? [] : this.recordWhats(g), screen: 'main',
             pre: null, post: null, schedule: null, rec, loaded: !rec, gone: false, busy: false, want: channel, move: null,
             error: lost && !rec ? `${lost.name} isn’t showing the game any more. Choose a channel to record on.` : null };
         const w = this.makeWindow({ kind: 'record', id, title: g.title, opener, label: `${rec ? 'Change recording of' : 'Record'} ${g.title}`,
             draw: () => this.recordMarkup(st), act: (name, el) => this.recordAct(name, el, st) });
         w.st = st;
-        w.d.el.addEventListener('change', (e) => {
-            const t = e.target, v = t ? String(t.value) : '';
-            const n = v === '' ? null : Number(v);
-            if (t?.id === 'sp-rec-pre') st.pre = n; else if (t?.id === 'sp-rec-post') st.post = n; else return;
-            w.redraw();
-        });
+        this.holdSteppers(w, st);
         if (rec) this.loadSchedule(st, w);
+        this.loadRecordDefaults(w);
         return w;
+    }
+    /** #358: Settings' usual padding (any signed-in user may read it), for Extra time's starting values; kept for the page. */
+    async loadRecordDefaults(w) {
+        let s;
+        try { s = await API.request('GET', '/settings'); } catch { return; }
+        if (!s || typeof s !== 'object') return;
+        this.recDefaults = { defaultPreBufferMin: s.defaultPreBufferMin, defaultPostBufferMin: s.defaultPostBufferMin };
+        if (this.window === w) w.redraw();
+    }
+    /**
+     * #358: a − or + held down repeats (one minute each time) until it is let go; the click that ends a hold adds nothing
+     * more. A single press is the click (recordAct), so a keyboard works the same.
+     */
+    holdSteppers(w, st) {
+        const el = w.d.el;
+        let timer = null;
+        w.heldStep = false;
+        // let go anywhere (the pressed button is redrawn as it repeats, so the release may land elsewhere); the click
+        // that follows a hold, if any, comes in the same turn: after it, a press (or a key) steps again
+        const stop = () => {
+            const was = timer !== null || w.heldStep;
+            clearTimeout(timer); timer = null;
+            document.removeEventListener('pointerup', stop); document.removeEventListener('pointercancel', stop);
+            if (was) setTimeout(() => { w.heldStep = false; }, 0);
+        };
+        el.addEventListener('pointerdown', (e) => {
+            stop();
+            w.heldStep = false;
+            const b = e.target?.closest?.('[data-act="r-step"]');
+            if (!b || b.disabled) return;
+            document.addEventListener('pointerup', stop); document.addEventListener('pointercancel', stop);
+            const field = b.getAttribute('data-field'), delta = Number(b.getAttribute('data-delta')) || 0;
+            const tick = (ms) => {
+                timer = setTimeout(() => {
+                    w.heldStep = true;
+                    if (this.window !== w || !this.stepPad(st, field, delta)) return stop();
+                    w.redraw();
+                    tick(SportsPage.STEP_REPEAT_MS);
+                }, ms);
+            };
+            tick(SportsPage.HOLD_MS);
+        });
+        el.addEventListener('pointerleave', stop);
     }
     /** Change recording's schedule as `GET /recordings/scheduled` lists it: its padding and status (C-M since 0444). */
     async loadSchedule(st, w) {
@@ -1288,95 +1363,148 @@ class SportsPage {
         if (st.post != null && st.post !== row.post_buffer_min) body.postBufferMin = st.post;
         return Object.keys(body).length ? body : null;
     }
-    /** The record page's content (no score: title, league, times and channels only) and its buttons. */
+    /**
+     * The record window's content (no score: title, league, the date and time once, channels) and its buttons (#358, Mark's
+     * final design): the main page (What, then two rows: Channel and Extra time), or one of the pages they open (Channel:
+     * a row per channel; Extra time: Start early and Finish late, − and +), each with Back.
+     */
     recordMarkup(st) {
+        if (st.screen === 'channel') return this.recordChannelMarkup(st);
+        if (st.screen === 'extra') return this.recordExtraMarkup(st);
         const V = SportView, e = V.e, P = SportsPage, now = this.now(), g = st.g, changing = !!st.rec;
         const chosen = st.airings[st.index] || null, a = chosen || st.airings[0], leagueName = V.label(g.league, this.labels);
-        const status = changing ? (st.gone ? 'ENDED' : P.statusWord(st.schedule ? st.schedule.status : st.rec.status).toUpperCase()) : null;
-        const kicker = [changing ? 'CHANGE RECORDING' : 'RECORD', status, leagueName ? String(leagueName).toUpperCase() : null].filter(Boolean).join(' · ');
+        const kicker = ['RECORD', leagueName ? String(leagueName).toUpperCase() : null].filter(Boolean).join(' · ');
         const two = Array.isArray(g.competitors) && g.competitors.length === 2;
         let html = `<div class="rhead">${two ? `<span class="rbadges" aria-hidden="true">${g.competitors.map(c => V.badge(c.name, c.logo, 40, g.league)).join('')}</span>` : ''}`
-            + `<span class="rht"><span class="rk">${e(kicker)}</span><span class="rmeta pig-amount">${e(`${P.day(a.start, now)} · ${P.range(a)}${chosen ? ` · ${chosen.c.name}` : ''}`)}</span></span></div>`;
+            + `<span class="rht"><span class="rk">${e(kicker)}</span><span class="rmeta pig-amount">${e(`${P.day(a.start, now)} · ${P.range(a)}`)}</span></span></div>`;
+        const status = changing ? (st.schedule ? st.schedule.status : st.rec.status) : null;
+        if (changing) {
+            const words = st.gone ? 'Ended' : status === 'recording' ? 'Recording now' : status === 'waiting' ? 'Waiting to record' : 'Set to record';
+            html += `<p class="rset${st.gone ? ' off' : ''}"><span class="rdot" aria-hidden="true"></span>${e(words)}</p>`;
+        }
         if (changing && st.move && !st.gone) {
             const on = (st.airings[st.index] && st.airings[st.index].c.name) || st.schedule.channel_name || '';
             html += `<div class="rmove"><p>${e(on ? `Set to record on ${on}.` : 'Set to record on another channel.')}</p>`
                 + `<button type="button" class="pill" data-act="r-move" data-key="r:move"${st.busy ? ' disabled' : ''}>${V.ICON.rec}${e(`Record on ${st.move.c.name} instead`)}</button></div>`;
         }
-        // What: this game, or a rule (not on Change recording: it is one schedule)
-        if (st.whats.length) {
-            html += '<h3 class="rsec" id="sp-rec-what">What</h3><div class="rwhat" role="radiogroup" aria-labelledby="sp-rec-what">';
-            st.whats.forEach((w, i) => {
-                const l = this.whatLabel(w, st), on = i === st.what, off = w.kind === 'team' && !this.teamSport(w, g);
-                html += `<button type="button" class="rchoice${on ? ' on' : ''}" role="radio" aria-checked="${on}" data-act="r-what" data-index="${i}" data-key="r:what:${i}"${off ? ' disabled' : ''}><b>${e(l.title)}</b>${l.detail ? `<span class="pig-amount">${e(l.detail)}</span>` : ''}</button>`;
-            });
-            html += '</div>';
-        }
-        // When it stops: with the game (ESPN) for a card's game or a schedule linked to one, else the guide's end
-        const withGame = changing && st.schedule ? st.schedule.endsWith === 'event' : Boolean(SportsPage.gameIdOf(g));
-        const stop = withGame ? 'When the game ends (ESPN)' : 'When the guide says it ends';
-        html += `<h3 class="rsec">When it stops</h3><div class="rstop"><span class="rradio on" aria-hidden="true"></span><span class="rcht"><b>${e(stop)}</b></span></div>`;
-        const startLocked = changing && (!st.schedule || st.schedule.status === 'recording' || st.gone);
-        const endLocked = changing && (!st.schedule || st.gone);
-        const select = (id, title, options, value, locked) => `<label class="rrow" for="${id}"><span>${e(title)}</span><select id="${id}" data-key="r:${id}"${locked ? ' disabled' : ''}>`
-            + options.map(m => `<option value="${m == null ? '' : m}"${m === value ? ' selected' : ''}>${e(P.chipTitle(m))}</option>`).join('') + '</select></label>';
-        html += select('sp-rec-pre', 'Start early', P.chips(P.START_EARLY, st.schedule && st.schedule.pre_buffer_min, changing), st.pre, startLocked);
-        html += select('sp-rec-post', 'Finish late', P.chips(P.FINISH_LATE, st.schedule && st.schedule.post_buffer_min, changing), st.post, endLocked);
-        // Record on: when several channels carry it, each on its own airing
-        if (!changing && (st.airings.length > 1 || !chosen)) {
-            html += `<div class="rsech"><h3 class="rsec" id="sp-rec-on">Record on</h3></div><div class="ron" role="radiogroup" aria-labelledby="sp-rec-on">`;
-            const first = st.airings[0];
-            // D-65: one row per channel name; a row with several qualities has its chips (the chosen one pressed)
-            const indexOf = (c) => st.airings.findIndex(x => x.c === c);
-            V.channelGroups(st.airings.map(x => x.c)).forEach((row, n) => {
-                const copies = row.chips.flatMap(x => x.channels), single = copies.length === 1;
-                const picked = copies.find(c => indexOf(c) === st.index) || null;
-                const i = indexOf(picked || row.chips[0].channels[0]), x = st.airings[i], on = !!picked, times = `${P.day(x.start, now)} ${P.range(x)}`;
-                const detail = n === 0 ? `Best channel · ${times}` : x.start === first.start && x.end === first.end ? 'Same times' : times;
-                const days = P.severalAirings(row);
-                const chips = row.chips.length > 1 ? this.chipsHtml(row, (chip) => { const k = indexOf(chip.channels[0]);
-                    return ` type="button" data-act="r-on" data-index="${k}" data-key="r:q:${k}" aria-label="${e(`Record ${row.name} in ${P.chipWords(row, chip, days)}`)}"`; }, picked, days) : '';
-                const shownChip = picked ? row.chips.find(ch => ch.channels.includes(picked)) : row.chips[0];
-                const badge = row.chips.length > 1 ? this.bestBadge(row, shownChip.q) : single ? V.copyBadge(x.c) : V.qualityBadge(row.chips[0].q);
-                const button = `<button type="button" class="rchoice rch${on ? ' on' : ''}" role="radio" aria-checked="${on}" data-act="r-on" data-index="${i}" data-key="r:on:${i}"><span class="rradio${on ? ' on' : ''}" aria-hidden="true"></span><span class="rcht"><b>${e(single ? x.c.name : row.name)}</b><span class="pig-amount">${e(detail)}</span></span>${badge}</button>`;
-                html += chips ? `<div class="rchg"${this.phone ? ` data-hold="${e(row.key)}"` : ''}>${button}${chips}</div>` : button;
-            });
-            html += '</div>';
-        }
-        // the note, then any error
-        let note;
-        if (changing) note = st.gone ? P.GONE : !st.schedule ? '' : st.schedule.status === 'recording' ? 'It is recording: only Finish late can change.' : 'Changes apply to this recording only.';
-        else if (a.start <= now) note = 'It has started: only the rest of it is recorded.';
-        if (note) html += `<p class="rnote">${e(note)}</p>`;
-        if (st.error) html += `<p class="rerr" role="alert">${e(st.error)}</p>`;
-        // the buttons: Cancel (Close); Cancel recording (Stop recording); Record game / Record every game / Save changes
-        const button = (text, cls, name, disabled = false) => {
-            const b = document.createElement('button');
-            b.type = 'button'; b.className = cls; b.textContent = text; b.setAttribute('data-act', name); b.setAttribute('data-key', `r:${name}`);
-            if (disabled) b.disabled = true;
-            return b;
-        };
+        // What: this game, or a rule (not when it is set to record: it is one schedule)
         const what = st.whats[st.what];
+        if (st.whats.length) {
+            html += `<div class="rseg" role="radiogroup" aria-label="What to record" style="--n:${st.whats.length}">`;
+            const offs = [];
+            st.whats.forEach((w, i) => {
+                const on = i === st.what, off = w.kind === 'team' && !this.teamSport(w, g);
+                if (off) offs.push(this.whatLabel(w, st));
+                html += `<button type="button" class="rsegb${on ? ' on' : ''}" role="radio" aria-checked="${on}" data-act="r-what" data-index="${i}" data-key="r:what:${i}"${off ? ' disabled' : ''}>${e(this.whatLabel(w, st))}</button>`;
+            });
+            html += '</div>';
+            // a choice that is off says why (no room in the switch)
+            if (offs.length) html += `<p class="rnote">${e(`${offs.join(', ')}: not available, PigTV doesn’t know this league’s sport.`)}</p>`;
+        }
+        // the two rows: Channel (none for a rule: it records each game on that game's own channel) and Extra time
+        const rows = [];
+        if (!what || what.kind === 'this') {
+            const c = chosen && chosen.c;
+            const value = c ? `<b>${e(c.name)}</b>${V.copyBadge(c)}` : '<b>Choose a channel</b>';
+            // one channel to record on: nothing to choose; set to record: it records where it was set (Record on … instead)
+            rows.push(this.recordRow('channel', 'Channel', value, !changing && (st.airings.length > 1 || !chosen)));
+        }
+        rows.push(this.recordRow('extra', 'Extra time', `<b>${e(this.extraWords(st))}</b>`, !changing || (st.loaded && !st.gone)));
+        html += `<div class="rlist">${rows.join('')}</div>`;
+        if (!changing && a.start <= now) html += `<p class="rnote">${e('It has started: only the rest of it is recorded.')}</p>`;
+        if (changing && st.gone) html += `<p class="rnote">${e(P.GONE)}</p>`;
+        if (st.error) html += `<p class="rerr" role="alert">${e(st.error)}</p>`;
+        // the buttons: Cancel and Record game (Record every game, Cancelling…); set to record: Cancel recording (Stop
+        // recording) and Done.
         // #353 (D-72): this airing's recording is being cancelled: a disabled "Cancelling…" in place of Record game
         // (Codex sign-off) from the card as the last refresh has it, never the one the window opened with
         // #347: or the server has refused it as still being cancelled (409 `cancelling`), until the schedule list says that
         // schedule's cancel has ended (recheckRefusal)
         const going = !changing && chosen && (!what || what.kind === 'this') && (P.refusedHere(st) || P.cancellingFor(this.game(g.id) || g, chosen));
-        const primary = changing ? 'Save changes' : what && what.kind !== 'this' ? 'Record every game' : going ? 'Cancelling…' : 'Record game';
-        const off = st.busy || !!going || (changing && (!st.loaded || st.gone || !P.change(st))) || (!changing && !chosen && (!what || what.kind === 'this'));
-        const footer = [button(changing ? 'Close' : 'Cancel', 'btn btn-secondary', 'r-close', st.busy)];
-        if (changing) footer.push(button((st.schedule ? st.schedule.status : st.rec.status) === 'recording' ? 'Stop recording' : 'Cancel recording', 'btn btn-danger', 'r-cancel', st.busy || st.gone));
-        footer.push(button(primary, 'btn btn-primary', 'r-save', off));
-        return { body: html, footer };
+        const primary = changing ? 'Done' : what && what.kind !== 'this' ? 'Record every game' : going ? 'Cancelling…' : 'Record game';
+        const off = st.busy || (!changing && (!!going || (!chosen && (!what || what.kind === 'this'))));
+        const second = changing
+            ? P.footerButton(status === 'recording' ? 'Stop recording' : 'Cancel recording', 'btn btn-danger', 'r-cancel', st.busy || st.gone)
+            : P.footerButton('Cancel', 'btn btn-secondary', 'r-close', st.busy);
+        return { body: html, footer: [second, P.footerButton(primary, 'btn btn-primary', 'r-save', off)] };
+    }
+    /** #358: a row of the main page: its name, its value, and › when it opens a page (`opens`). */
+    recordRow(to, name, value, opens) {
+        const inner = `<span class="rrn">${SportView.e(name)}</span><span class="rrv">${value}</span>`;
+        return opens
+            ? `<button type="button" class="rrow" data-act="r-screen" data-to="${to}" data-key="r:row:${to}">${inner}<span class="rchev" aria-hidden="true">${SportView.ICON.chev}</span></button>`
+            : `<div class="rrow">${inner}</div>`;
+    }
+    /**
+     * #358: the Channel page: one row per channel name (D-65: a row with several qualities has its chips, the chosen one
+     * pressed), a tick on the chosen one, BEST on the first; the day and time only when the airings differ in time (a
+     * Test's two days, a later showing). Choosing one returns to the main page.
+     */
+    recordChannelMarkup(st) {
+        const V = SportView, e = V.e, P = SportsPage, now = this.now();
+        let html = `${P.subHead('Channel')}<div class="ron rlist" role="radiogroup" aria-label="Channel">`;
+        const first = st.airings[0];
+        const timed = st.airings.some(x => x.start !== first.start || x.end !== first.end);
+        const indexOf = (c) => st.airings.findIndex(x => x.c === c);
+        V.channelGroups(st.airings.map(x => x.c)).forEach((row, n) => {
+            const copies = row.chips.flatMap(x => x.channels), single = copies.length === 1;
+            const picked = copies.find(c => indexOf(c) === st.index) || null;
+            const i = indexOf(picked || row.chips[0].channels[0]), x = st.airings[i], on = !!picked;
+            const days = P.severalAirings(row);
+            const chips = row.chips.length > 1 ? this.chipsHtml(row, (chip) => { const k = indexOf(chip.channels[0]);
+                return ` type="button" data-act="r-on" data-index="${k}" data-key="r:q:${k}" aria-label="${e(`Record ${row.name} in ${P.chipWords(row, chip, days)}`)}"`; }, picked, days) : '';
+            const shownChip = picked ? row.chips.find(ch => ch.channels.includes(picked)) : row.chips[0];
+            const badge = row.chips.length > 1 ? this.bestBadge(row, shownChip.q) : single ? V.copyBadge(x.c) : V.qualityBadge(row.chips[0].q);
+            const when = timed ? `<span class="pig-amount">${e(`${P.day(x.start, now)} ${P.range(x)}`)}</span>` : '';
+            const best = n === 0 ? '<span class="rbest">BEST</span>' : '';
+            const button = `<button type="button" class="rchoice rch${on ? ' on' : ''}" role="radio" aria-checked="${on}" data-act="r-on" data-index="${i}" data-key="r:on:${i}"><span class="rtick" aria-hidden="true">${on ? P.TICK : ''}</span><span class="rcht"><b>${e(single ? x.c.name : row.name)}</b>${when}</span>${best}${badge}</button>`;
+            html += chips ? `<div class="rchg"${this.phone ? ` data-hold="${e(row.key)}"` : ''}>${button}${chips}</div>` : button;
+        });
+        html += '</div>';
+        return { body: html, footer: [] };
+    }
+    /**
+     * #358: the Extra time page: Start early and Finish late, one minute per press of − or + (held: repeats), within the
+     * server's ranges; no words besides. Once it records Start early is "Started", with no − or +.
+     */
+    recordExtraMarkup(st) {
+        const e = SportView.e, P = SportsPage, p = this.recordPad(st), locks = P.padLocks(st);
+        const started = !!st.rec && !!st.schedule && st.schedule.status === 'recording';
+        const stepper = (field, name, max) => {
+            const locked = locks[field], id = `sp-rec-${field}`;
+            const value = field === 'pre' && started ? 'Started' : `${p[field]} min`;
+            const btn = (delta, label, sign, off) => `<button type="button" class="rstep" data-act="r-step" data-field="${field}" data-delta="${delta}" data-key="r:${field}:${delta}" aria-label="${label}" aria-controls="${id}"${off ? ' disabled' : ''}>${sign}</button>`;
+            return `<div class="rstepper${locked ? ' off' : ''}"><span class="rrn">${e(name)}</span>`
+                + (locked ? '' : btn(-1, `${name}: one minute less`, '−', p[field] <= 0))
+                + `<span class="rval pig-amount" id="${id}" aria-live="polite">${e(value)}</span>`
+                + (locked ? '' : btn(1, `${name}: one minute more`, '+', p[field] >= max)) + '</div>';
+        };
+        const html = `${P.subHead('Extra time')}${stepper('pre', 'Start early', P.MAX_PRE)}${stepper('post', 'Finish late', P.MAX_POST)}`
+            + (st.error ? `<p class="rerr" role="alert">${e(st.error)}</p>` : '');
+        return { body: html, footer: [] };
     }
     recordAct(name, el, st) {
         const w = this.window;
         switch (name) {
             case 'r-what': st.what = Number(el.getAttribute('data-index')) || 0; return w?.redraw();
-            case 'r-on': st.index = Number(el.getAttribute('data-index')) || 0; st.error = null; return w?.redraw();
+            case 'r-on': st.index = Number(el.getAttribute('data-index')) || 0; st.error = null; st.screen = 'main'; return w?.redraw('r:row:channel');
+            case 'r-screen': {
+                const to = el.getAttribute('data-to'), from = st.screen;
+                st.screen = to === 'channel' || to === 'extra' ? to : 'main';
+                return w?.redraw(st.screen === 'main' ? `r:row:${from}` : 'r:back');
+            }
+            case 'r-step':
+                // the click that ends a hold has stepped already
+                if (w && w.heldStep) { w.heldStep = false; return undefined; }
+                if (this.stepPad(st, el.getAttribute('data-field'), Number(el.getAttribute('data-delta')) || 0)) w?.redraw();
+                return undefined;
             case 'r-close': return this.closeWindow();
             case 'r-cancel': return this.cancelRecording(st);
             case 'r-move': return this.moveRecording(st, w);
-            case 'r-save': return this.saveRecord(st, w);
+            // set to record: Done saves what changed (PUT), else only closes
+            case 'r-save':
+                if (st.rec && !st.busy && (!st.loaded || st.gone || !st.schedule || !SportsPage.change(st))) return this.closeWindow();
+                return this.saveRecord(st, w);
             default: return undefined;
         }
     }
@@ -1556,10 +1684,21 @@ SportsPage.refusedHere = (st) => {
 SportsPage.already = (made) => (made && made.alreadyScheduled
     ? (made.channel_name ? `Already set to record on ${made.channel_name}.` : 'Already set to record.') : null);
 
-/** RecordPlan's Start early and Finish late, in minutes; null is the server's usual padding. */
 SportsPage.HOLD_MS = 500; // D-65: touch and hold, as iOS's long press
-SportsPage.START_EARLY = [null, 0, 1, 2, 5, 10];
-SportsPage.FINISH_LATE = [null, 0, 2, 5, 10, 15, 30];
+/** #358: Extra time's steppers: the server's ranges (C-M: 0-60 and 0-180 whole minutes), and a held press's pace. */
+SportsPage.MAX_PRE = 60;
+SportsPage.MAX_POST = 180;
+SportsPage.STEP_REPEAT_MS = 90;
+SportsPage.TICK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+/** A record window button (its footer). */
+SportsPage.footerButton = (text, cls, name, disabled = false) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = cls; b.textContent = text; b.setAttribute('data-act', name); b.setAttribute('data-key', `r:${name}`);
+    if (disabled) b.disabled = true;
+    return b;
+};
+/** #358: a record window page's Back and its heading. */
+SportsPage.subHead = (title) => `<button type="button" class="rback" data-act="r-screen" data-to="main" data-key="r:back">${SportView.ICON.back}Back</button><h3 class="rsub">${SportView.e(title)}</h3>`;
 SportsPage.UNCHECKED = 'PigTV couldn’t check whether this game is already set to record, so nothing was recorded. Try again.';
 SportsPage.CANCELLING = 'A recording of this is being cancelled. You can record it again once that has finished.';
 SportsPage.GONE = 'This recording has finished or no longer exists, so it cannot be changed.';

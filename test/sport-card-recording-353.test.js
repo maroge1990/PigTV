@@ -11,8 +11,7 @@ const Database = require('better-sqlite3');
 const { createStore } = require('../server/services/sportsDashboardStore');
 const dashboard = require('../server/services/sportsDashboard');
 const { annotateRecordings } = require('../server/services/sportFront');
-const { FakeEvent } = require('./helpers/fakeDom');
-const { browser, answer, NOW, page } = require('./helpers/sportWeb');
+const { browser, answer, NOW, page, stepTo, pressIn } = require('./helpers/sportWeb');
 
 const H = 3600000;
 const databases = [];
@@ -32,8 +31,11 @@ async function harness(f, rows = []) {
         for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
         b.document.body.querySelector('dialog .ui-dialog-body').appendChild(n); return n; };
     const save = async () => { b.document.body.querySelector('dialog [data-act="r-save"]').click(); await new Promise(setImmediate); await new Promise(setImmediate); };
-    const choose = (id, v) => { const n = b.document.getElementById(id); n.value = v; n.dispatchEvent(new FakeEvent('change')); };
-    return { b, p, calls, el, save, choose, body: () => b.document.body.querySelector('dialog .ui-dialog-body')?.innerHTML || '' };
+    const choose = (id, v) => stepTo(b, p, id, v);
+    const body = () => b.document.body.querySelector('dialog .ui-dialog-body')?.innerHTML || '';
+    // #358: the record window's Channel page (opened, read, then Back)
+    const channels = () => { pressIn(b, { 'data-act': 'r-screen', 'data-to': 'channel' }); const html = body(); pressIn(b, { 'data-act': 'r-screen', 'data-to': 'main' }); return html; };
+    return { b, p, calls, el, save, choose, body, channels };
 }
 
 // The game airs first on Stan Sport 2 (A), then again later on Kayo 5 (B).
@@ -78,7 +80,7 @@ test('#353: the annotated card through the web: Record, not Change recording; Mo
     h.p.closeMenu();
     // More options on A, Finish late 30: a new schedule of A, never a PUT (or DELETE) of the unrelated programme
     h.p.act('record-options', { getAttribute: (k) => ({ 'data-id': 'nxt' })[k] ?? null });
-    assert.match(h.body(), /aria-checked="true" data-act="r-on" data-index="0"/, 'A chosen');
+    assert.match(h.channels(), /aria-checked="true" data-act="r-on" data-index="0"/, 'A chosen');
     h.choose('sp-rec-post', '30');
     await h.save();
     assert.equal(h.calls.filter(c => c[0] === 'PUT' || c[0] === 'DELETE').length, 0);
@@ -123,7 +125,7 @@ test('#353: More options offers the Test\'s day two on the same channel, and cho
     f.rails[0].gameIds.push(card.id);
     const h = await harness(f);
     h.p.act('record-options', { getAttribute: (k) => ({ 'data-id': card.id })[k] ?? null });
-    assert.match(h.body(), /data-act="r-on" data-index="1"/, 'day two is a choice');
+    assert.match(h.channels(), /data-act="r-on" data-index="1"/, 'day two is a choice');
     h.el('r-on', { 'data-index': '1' }).click();
     await h.save();
     const made = h.calls.filter(c => c[0] === 'schedule').map(c => c[1]);
@@ -138,7 +140,8 @@ test('#353: in More options a channel row on two airings shows each chip\'s day 
     f.rails[0].gameIds.push(card.id);
     const h = await harness(f);
     h.p.act('record-options', { getAttribute: (k) => ({ 'data-id': card.id })[k] ?? null });
-    const notes = [...h.body().matchAll(/class="qb[^"]*qchip[^"]*"[^>]*data-act="r-on"[^>]*>[\s\S]*?<small class="pig-amount">([^<]+)<\/small>/g)].map(m => m[1]);
+    const notes = [...h.channels().matchAll(
+/class="qb[^"]*qchip[^"]*"[^>]*data-act="r-on"[^>]*>[\s\S]*?<small class="pig-amount">([^<]+)<\/small>/g)].map(m => m[1]);
     const UI = h.b.context.window.UI, at = (ms) => `${UI.date(ms).split(' ')[0]} ${UI.clock(ms)}`;
     assert.deepEqual(notes, [at(NOW + H), at(NOW + 25 * H)].map(t => h.b.context.window.SportView.e(t)));
     assert.notEqual(notes[0], notes[1]);

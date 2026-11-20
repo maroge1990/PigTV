@@ -5,7 +5,7 @@
 // the floor and fallback); Change recording keeps the link (it sends only padding). A page game without a card sends none.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { browser, answer, page } = require('./helpers/sportWeb');
+const { browser, answer, page, stepTo } = require('./helpers/sportWeb');
 
 const H = 3600000;
 async function harness({ phone = false, scheduled = [] } = {}) {
@@ -64,24 +64,30 @@ test('the phone carousel\'s Record (its menu on the card), then Record this game
     assert.equal(h.scheduledBodies()[0].gameId, 'ars');
 });
 
-test('Change recording keeps the link: it sends only padding, with PUT, and says it stops when the game ends', async () => {
+test('Change recording keeps the link: it sends only padding, with PUT', async () => {
     const h = await harness({ scheduled: [{ id: 4, status: 'scheduled', pre_buffer_min: 2, post_buffer_min: 15, endsWith: 'event', source_id: 1, channel_stable_id: 's2', channel_item_id: '102', channel_name: 'Stan Sport 2' }] });
     h.f.games.find(g => g.id === 'nxt').recording = { scheduleId: 4, status: 'scheduled' };
     h.p.act('change-recording', h.el({ 'data-id': 'nxt' }));
     await h.settle();
-    assert.match(h.b.document.body.querySelector('dialog .ui-dialog-body').innerHTML, /<b>When the game ends \(ESPN\)<\/b><\/span>/);
-    const post = h.b.document.getElementById('sp-rec-post');
-    post.value = '30'; post.dispatchEvent(new (require('./helpers/fakeDom').FakeEvent)('change'));
+    stepTo(h.b, h.p, 'sp-rec-post', 30);
     h.save();
     await h.settle();
     assert.deepEqual(JSON.parse(JSON.stringify(h.calls.find(c => c[0] === 'PUT'))), ['PUT', '/recordings/scheduled/4', { postBufferMin: 30 }]);
     assert.equal(h.scheduledBodies().length, 0);
 });
 
-test('a schedule the server does not link to a game says it stops at the guide\'s end', async () => {
-    const h = await harness({ scheduled: [{ id: 4, status: 'scheduled', pre_buffer_min: 2, post_buffer_min: 15, endsWith: 'guide' }] });
-    h.f.games.find(g => g.id === 'nxt').recording = { scheduleId: 4, status: 'scheduled' };
-    h.p.openRecord('nxt');
-    await h.settle();
-    assert.match(h.b.document.body.querySelector('dialog .ui-dialog-body').innerHTML, /<b>When the guide says it ends<\/b><\/span>/);
+// #358: no "When it stops" (it had one option); a schedule's usual Finish late is 0 when it is linked to its game (ESPN's
+// end, the server's default since #358), else Settings': either way untouched padding reads "Usual".
+test('#358: Usual is the schedule\'s own usual: Finish late 0 for one linked to its game, Settings\' for one that is not', async () => {
+    for (const [o, words] of [[{ gameId: 'nxt', pre_buffer_min: 1, post_buffer_min: 0 }, 'Usual'], [{ gameId: null, pre_buffer_min: 1, post_buffer_min: 5 }, 'Usual'],
+        [{ gameId: 'nxt', pre_buffer_min: 1, post_buffer_min: 5 }, '1 min early, 5 min late']]) {
+        const h = await harness({ scheduled: [{ id: 4, status: 'scheduled', endsWith: 'event', ...o }] });
+        h.f.games.find(g => g.id === 'nxt').recording = { scheduleId: 4, status: 'scheduled' };
+        h.p.openRecord('nxt');
+        await h.settle();
+        const html = h.b.document.body.querySelector('dialog .ui-dialog-body').innerHTML;
+        assert.match(html, new RegExp(`<span class="rrn">Extra time</span><span class="rrv"><b>${words}</b>`), JSON.stringify(o));
+        assert.doesNotMatch(html, /When it stops|When the game ends|When the guide says/);
+    }
 });
+

@@ -82,4 +82,29 @@ function page(b, app = {}) {
     return p;
 }
 
-module.exports = { browser, answer, NOW, team, SCORE_TEXT, REVEALING, assertNoScores, ctx, page, js, root };
+/**
+ * #358: the record window's controls are markup (the fake DOM parses only ids): press one by making a button with the same
+ * attributes in the open dialog's body.
+ */
+function pressIn(b, attrs) {
+    const el = b.document.createElement('button');
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+    b.document.body.querySelector('dialog .ui-dialog-body').appendChild(el);
+    el.click();
+    return el;
+}
+/**
+ * #358: set Start early (`sp-rec-pre`) or Finish late (`sp-rec-post`) as a person does: Extra time, then − or + one minute
+ * a press until the stepper shows `minutes`, then Back. Answers how many presses it took.
+ */
+function stepTo(b, p, id, minutes) {
+    const field = id === 'sp-rec-pre' ? 'pre' : 'post', want = Number(minutes);
+    pressIn(b, { 'data-act': 'r-screen', 'data-to': 'extra' });
+    const shown = () => Number(/^(\d+) min$/.exec(b.document.getElementById(id)?.textContent || '')?.[1] ?? p.recordPad(p.window.st)[field]);
+    let n = 0;
+    for (; n < 400 && shown() !== want; n++) pressIn(b, { 'data-act': 'r-step', 'data-field': field, 'data-delta': shown() < want ? '1' : '-1' });
+    pressIn(b, { 'data-act': 'r-screen', 'data-to': 'main' });
+    return n;
+}
+
+module.exports = { browser, answer, NOW, team, SCORE_TEXT, REVEALING, assertNoScores, ctx, page, js, root, pressIn, stepTo };
