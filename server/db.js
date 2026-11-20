@@ -308,6 +308,11 @@ function storedSettings(db) {
 const settings = {
   /** The defaults with the stored values over them: one frozen object, rebuilt only after a write. */
   async get() {
+    return settings.getSync();
+  },
+
+  /** #358: the same, for a caller that must have the saved settings before it can await (the recording engine's start-up). */
+  getSync() {
     if (!settingsCache) {
       const merged = { ...getDefaultSettings(), ...storedSettings(store()) };
       // 0494 Codex round 1 (high): always on; a stored or restored "off" never counts.

@@ -1369,6 +1369,58 @@ test('#217: server restart after a stored extension has expired, its game still 
     await until(() => recordings.getById(rec.id).status === 'completed', 'finished', 10000);
 });
 
+// #358 (Codex sign-off, high): start-up decided a resume before the engine had read the saved settings, so a game's
+// safety net past the guide end (Settings' Finish late, post 0 being its usual) was the built-in 5 min: with Finish late
+// 15 and a restart 7 min after the guide end, scores stale or the game unknown, it was finished with 8 min left.
+for (const why of ['its game unknown to the catalogue', 'its scores stale']) {
+    test(`#358: a restart 7 min after the guide end, post 0, ${why}, Settings' Finish late 15: it resumes (the saved settings, through init)`, async () => {
+        tuning.endGraceMs = 0;
+        const { s, rec } = leftByACrash({ windowMs: -7 * 60000 });
+        const now = Date.now();
+        const id = why.includes('stale') ? 'espn:afl:stale358' : 'espn:afl:gone358';
+        sqlite.getDb().prepare('UPDATE scheduled_recordings SET sport_game_id = ? WHERE id = ?').run(id, s.id);
+        if (why.includes('stale')) {
+            load('services/sportsDashboard').store().ingest([{ id, league: 'AFL', title: 'Sydney v Brisbane', start: now - 3 * 60 * 60000,
+                end: null, session: null, circuit: null, format: null, competitors: [],
+                snapshot: { state: 'live', progress: {}, scores: null, situation: null } }], now - 30 * 60000);
+        }
+        await db.settings.update({ defaultPostBufferMin: 15 }); // saved; the engine has not read it since
+        try {
+            engine.init({ ffmpegPath: FFMPEG, ffprobePath: path.join(sandbox, 'no-ffprobe') });
+            engine.shutdown();
+            assert.equal(scheduled.getById(s.id).status, 'recording', 'resumed, not finished');
+            assert.notEqual(recordings.getById(rec.id).segment_state, 'finishing');
+            assert.equal(scheduled.getById(s.id).event_stop, s.program_end + 15 * 60000, 'the safety net: Settings\' Finish late');
+            await engine.cancelScheduled(s.id);
+            await until(() => recordings.getById(rec.id).status === 'completed', 'finished', 10000);
+        } finally {
+            await db.settings.update({ defaultPostBufferMin: 5 });
+        }
+    });
+}
+
+test('#358 control: a restart after a confirmed final (before the guide end), Settings\' Finish late 15: finished as before', async () => {
+    const { s, rec } = leftByACrash({ windowMs: -7 * 60000 });
+    const now = Date.now();
+    sqlite.getDb().prepare('UPDATE scheduled_recordings SET sport_game_id = ? WHERE id = ?').run('espn:afl:final358', s.id);
+    const store = load('services/sportsDashboard').store();
+    const g = { id: 'espn:afl:final358', league: 'AFL', title: 'Geelong v Hawthorn', start: now - 3 * 60 * 60000, end: null, session: null,
+        circuit: null, format: null, competitors: [] };
+    store.ingest([{ ...g, snapshot: { state: 'live', progress: {}, scores: null, situation: null } }], now - 40 * 60000);
+    store.ingest([{ ...g, snapshot: { state: 'finished', progress: {}, scores: null, situation: null } }], now - 10 * 60000);
+    await db.settings.update({ defaultPostBufferMin: 15 });
+    try {
+        engine.init({ ffmpegPath: FFMPEG, ffprobePath: path.join(sandbox, 'no-ffprobe') });
+        engine.shutdown();
+        assert.equal(scheduled.getById(s.id).status, 'completed', 'ESPN\'s final decides: no safety net');
+        assert.equal(recordings.getById(rec.id).segment_state, 'finishing');
+        await until(() => recordings.getById(rec.id).status === 'completed', 'finished');
+        assert.equal(captures().length, 0, 'not resumed');
+    } finally {
+        await db.settings.update({ defaultPostBufferMin: 5 });
+    }
+});
+
 test('deleting a segmented recording stops it and deletes its appdata folder', async () => {
     const s = due();
     await until(() => rowsOf(s.id).length === 1 && captures().length === 1, 'recording');

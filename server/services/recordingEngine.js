@@ -2295,6 +2295,9 @@ function init({ ffmpegPath, ffprobePath } = {}) {
         minFreeGB: async () => { const s = await getSettings(); return Number.isFinite(s.minFreeSpaceGB) ? s.minFreeSpaceGB : 10; }
     });
 
+    // #358 (Codex sign-off, high): the saved settings before start-up decides anything (a resumed capture's safety net
+    // past the guide end is Settings' Finish late, not the built-in default)
+    try { knownSettings = require('../db').settings.getSync(); } catch (e) { /* the tick reads them */ }
     const reconciled = Promise.all([reconcileOnStartup(), reconcileJobsOnStartup()])
         .catch(err => console.warn('[Recordings] Start-up clean-up failed:', err.message)); // never an unhandled rejection
 
