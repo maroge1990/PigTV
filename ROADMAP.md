@@ -7,14 +7,16 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 *Overwritten at the end of every session. 20 Nov 2026, the Record-sheet session.*
 
-- **Running:** production runs **0861**; server main **0884** (CI green), so 0862–0884 reach production at Mark's next
-  Force Update (D-58). `:release` stays **v0579**. Apple main **370** (CI green). TestFlight **322** = Apple 365 (the
-  first Xcode Cloud release, D-75); Apple 366–370 are not in TestFlight yet. Next builds: server **0885**, Apple **371**.
-- **Pushed 20 Nov:** #358 Record sheet on every platform (web 0882; Apple 366–370; D-76) with "Usual = ESPN's end" for
-  games and its safety net (0881, 0883, 0884); #357 Record safety fixes (web 0879–0880, Apple 359–365); #351 Xcode Cloud
-  release works (XcodeCloud is the scheme's default plan; closed). Cleanup: 66 old worktrees and 162 merged branches removed.
+- **Running:** production runs **0861**; server main **0886** (CI green), so 0862–0886 reach production at Mark's next
+  Force Update (D-58). `:release` stays **v0579**. Apple main **372** (CI green). TestFlight **323 = Apple 372**
+  (`tf/372`, all of Apple 359–372); 322 = Apple 365 was the first Xcode Cloud release (D-75). Next builds: server
+  **0887**, Apple **373**.
+- **Pushed 20 Nov:** #358 Record sheet on every platform (web 0882, 0885–0886; Apple 366–370; D-76) with "Usual = ESPN's
+  end" for games and its safety net (0881, 0883, 0884); #357 Record safety fixes (web 0879–0880, Apple 359–365, 371–372);
+  #351 Xcode Cloud release works (XcodeCloud is the scheme's default plan; closed). Cleanup: 66 old worktrees and 162
+  merged branches removed.
 - **Not done:** #356 parked after two Codex design rounds each found highs (designs in `/home/markr/wt/design-356*.md`,
-  reviews `codex-356-design*.txt`); #357 and #358 each keep two mediums (Now › A).
+  reviews `codex-356-design*.txt`); one web medium on #358 (stepping Start early can drop a carried Finish late).
 
 ## Now
 
@@ -22,10 +24,7 @@ Checked 20 Nov against every issue's comments and commits: almost all P1/P2 work
 checks (`needs-device-test`, see Waiting on Mark). What still needs code, in this order (Mark's write-up:
 https://claude.ai/artifact/UC3WMGdoRtEnGbJ8a3MmgA):
 
-1. **A · Record leftovers, then the release.** #357: a schedule with both a refusal and a later unanswered cancel can
-   strand one marker; a second refusal for the same schedule replaces the first airing's hold (Apple). #358: steppers
-   pressable before Settings load; stepping back to Usual stores 0 (web). Then, once Mark says the Apple set is
-   complete, one Xcode Cloud run (`tf/` tag, D-75) for Apple 359 onwards.
+1. **A · done 20 Nov** (web 0885–0886, Apple 371–372, TestFlight 323). One web medium left on #358.
 2. **B · Operations (server; needs Mark's choices) and C · Apple launch and sign-in, side by side** (different repos).
    B: #44 crash alerts (untouched) · #43 backups' remainder (retention, a second disk, Back up now) · #45 diagnose
    without SSH (untouched); ask Mark how to be alerted and where backups go. C: #55's remainder (show the saved guide
