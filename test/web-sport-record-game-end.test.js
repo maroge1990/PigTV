@@ -16,7 +16,9 @@ async function harness({ phone = false, scheduled = [] } = {}) {
     nxt.channels.push({ sourceId: 2, stableId: 'k5', id: '505', name: 'Kayo 5', start: nxt.start, end: nxt.start + 2 * H });
     const b = browser({ request: async (m, url, body) => {
         calls.push([m, url, body]);
-        return url === '/sports/front' ? f : url === '/sports/pages/preferences' ? { spoilerFree: false } : url === '/recordings/scheduled' ? scheduled : {};
+        return url === '/sports/front' ? f : url === '/sports/pages/preferences' ? { spoilerFree: false } : url === '/recordings/scheduled' ? scheduled
+            // Settings' usual padding (the server's defaults): the Record window waits for it (Codex #358)
+            : url === '/settings' ? { defaultPreBufferMin: 1, defaultPostBufferMin: 5 } : {};
     }, recordings: { schedule: async (d) => { calls.push(['schedule', d]); return {}; }, addRule: async (r) => { calls.push(['rule', r]); return {}; } } });
     b.context.matchMedia = (q) => ({ matches: phone && /max-width/.test(q), addEventListener() {} });
     b.context.window.matchMedia = b.context.matchMedia;

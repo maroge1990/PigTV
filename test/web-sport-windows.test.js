@@ -29,6 +29,8 @@ async function harness({ phone = false, scheduled = [], hide = false } = {}) {
         if (url === '/sports/front') return f;
         if (url === '/sports/pages/preferences') return { spoilerFree: hide };
         if (url === '/recordings/scheduled') return scheduled;
+        // Settings' usual padding (the server's defaults): the Record window waits for it (Codex #358)
+        if (url === '/settings') return { defaultPreBufferMin: 1, defaultPostBufferMin: 5 };
         return {};
     },
     recordings: { schedule: async (d) => { calls.push(['schedule', d]); return {}; }, addRule: async (r) => { calls.push(['rule', r]); return { id: 7 }; } } });
@@ -114,6 +116,7 @@ test('More options…: What (this game, every Tottenham game, every Premier Leag
     assert.doesNotMatch(html, /When it stops|<select/, '#358: no When it stops, no selects');
     assert.match(html, /<span class="rrn">Extra time<\/span><span class="rrv"><b>Usual<\/b><\/span>/);
     assert.ok(!html.includes('provider connection'));
+    await h.settle();
     h.press({ 'data-act': 'r-what', 'data-index': '1' });
     assert.equal(h.footer('r-save').textContent, 'Record every game');
     assert.doesNotMatch(h.body(), /data-to="channel"/, 'a rule records each game on its own channel: no Channel row');
@@ -143,6 +146,7 @@ test('a page game without a card (no game id): Settings\' Finish late, and no ga
     const g = { ...h.f.games.find(x => x.id === 'nxt'), id: 'fx:EPL:9', synthetic: true, followed: false };
     h.p.game = (id) => (id === g.id ? g : null);
     h.p.openRecord(g.id);
+    await h.settle();
     h.press({ 'data-act': 'r-screen', 'data-to': 'extra' });
     assert.match(h.body(), /<span class="rval pig-amount" id="sp-rec-post" aria-live="polite">5 min<\/span>/, 'no game: Finish late starts at Settings\' usual');
     h.press({ 'data-act': 'r-screen', 'data-to': 'main' });

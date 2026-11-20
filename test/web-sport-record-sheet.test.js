@@ -25,7 +25,7 @@ async function harness({ scheduled = [], settings = SETTINGS, oneChannel = false
         if (url === '/sports/front') return f;
         if (url === '/sports/pages/preferences') return { spoilerFree: false };
         if (url === '/recordings/scheduled') return scheduled;
-        if (url === '/settings') return settings;
+        if (url === '/settings') return typeof settings === 'function' ? settings() : settings;
         return {};
     }, recordings: { schedule: async (d) => { calls.push(['schedule', d]); return {}; }, addRule: async (r) => { calls.push(['rule', r]); return { id: 7 }; } } });
     const p = page(b, { setLocation() {}, navigateTo() {} });
@@ -207,4 +207,56 @@ test('#358 while it records: Start early greyed "Started" with no − or +; Fini
     h.footer('r-save').click();
     await h.settle();
     assert.deepEqual(plain(h.calls.find(c => c[0] === 'PUT')), ['PUT', '/recordings/scheduled/4', { postBufferMin: 16 }]);
+});
+
+test('Codex #358: Settings not read yet: the steppers that count from it are off ("—") until this window\'s answer; a failed read leaves them off and sends no padding', async () => {
+    let answerIt;
+    const h = await harness({ settings: () => new Promise(r => { answerIt = r; }) });
+    h.p.openRecord('nxt');
+    await h.settle();
+    h.press({ 'data-act': 'r-what', 'data-index': '2' });
+    h.press({ 'data-act': 'r-screen', 'data-to': 'extra' });
+    let html = h.body();
+    assert.match(html, /data-field="pre" data-delta="-1"[^>]*disabled>−<\/button><span class="rval pig-amount" id="sp-rec-pre" aria-live="polite">—<\/span><button[^>]*data-delta="1"[^>]*disabled>\+/);
+    assert.match(html, /id="sp-rec-post" aria-live="polite">—<\/span><button[^>]*disabled>\+/);
+    h.press({ 'data-act': 'r-step', 'data-field': 'pre', 'data-delta': '1' });
+    h.press({ 'data-act': 'r-step', 'data-field': 'post', 'data-delta': '1' });
+    assert.deepEqual([h.p.window.st.pre, h.p.window.st.post], [null, null], 'a press before the answer changes nothing');
+    answerIt({ defaultPreBufferMin: 15, defaultPostBufferMin: 15 });
+    await h.settle();
+    assert.match(h.body(), /id="sp-rec-pre" aria-live="polite">15 min</);
+    h.press({ 'data-act': 'r-step', 'data-field': 'pre', 'data-delta': '1' });
+    assert.match(h.body(), /id="sp-rec-pre" aria-live="polite">16 min</, 'counts from Settings\' 15');
+
+    // a game's Finish late (0, ESPN's end) needs no Settings
+    const g = await harness({ settings: () => new Promise(() => {}) });
+    g.p.openRecord('nxt');
+    await g.settle();
+    assert.equal(g.value('sp-rec-post'), '0 min');
+
+    // a failed read: off, and Record sends no padding
+    const f = await harness({ settings: async () => { throw new Error('nope'); } });
+    f.p.openRecord('nxt');
+    await f.settle();
+    f.press({ 'data-act': 'r-what', 'data-index': '2' });
+    f.press({ 'data-act': 'r-screen', 'data-to': 'extra' });
+    assert.match(f.body(), /id="sp-rec-pre" aria-live="polite">—</);
+    f.press({ 'data-act': 'r-step', 'data-field': 'pre', 'data-delta': '1' });
+    f.press({ 'data-act': 'r-step', 'data-field': 'post', 'data-delta': '1' });
+    f.press({ 'data-act': 'r-screen', 'data-to': 'main' });
+    f.footer('r-save').click();
+    await f.settle();
+    const rule = plain(f.calls.find(c => c[0] === 'rule')[1]);
+    assert.ok(!('preBufferMin' in rule) && !('postBufferMin' in rule), JSON.stringify(rule));
+
+    // read afresh each time the window opens: a later window shows Settings' new value
+    let n = 0;
+    const r = await harness({ settings: async () => (++n === 1 ? { defaultPreBufferMin: 3, defaultPostBufferMin: 7 } : { defaultPreBufferMin: 9, defaultPostBufferMin: 7 }) });
+    r.p.openRecord('nxt');
+    await r.settle();
+    assert.equal(r.value('sp-rec-pre'), '3 min');
+    r.press({ 'data-act': 'r-close' });
+    r.p.openRecord('nxt');
+    await r.settle();
+    assert.equal(r.value('sp-rec-pre'), '9 min');
 });

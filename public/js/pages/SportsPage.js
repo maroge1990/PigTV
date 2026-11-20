@@ -1128,11 +1128,13 @@ class SportsPage {
     /**
      * #358: the usual Start early and Finish late (what the server applies when none is sent): Settings' padding, and for
      * a game ESPN follows (a card's game, a team rule's games, a schedule naming its game) Finish late 0, ESPN's end.
+     * Codex #358 (medium): a usual that is Settings' is null until this window's read of Settings has answered (never a
+     * guess a press could count from); a failed read leaves it null.
      */
     recordUsual(st) {
-        const d = this.recDefaults || {};
-        const pre = Number.isInteger(d.defaultPreBufferMin) ? d.defaultPreBufferMin : 1;
-        const settingsPost = Number.isInteger(d.defaultPostBufferMin) ? d.defaultPostBufferMin : 5;
+        const d = st.defaults || {};
+        const pre = Number.isInteger(d.defaultPreBufferMin) ? d.defaultPreBufferMin : null;
+        const settingsPost = Number.isInteger(d.defaultPostBufferMin) ? d.defaultPostBufferMin : null;
         let game;
         if (st.rec) game = Boolean(st.schedule && st.schedule.gameId);
         else {
@@ -1141,7 +1143,7 @@ class SportsPage {
         }
         return { pre, post: game ? 0 : settingsPost };
     }
-    /** #358: the Start early and Finish late shown: the person's (or the schedule's) value, else the usual. */
+    /** #358: the Start early and Finish late shown: the person's (or the schedule's) value, else the usual (null: not known yet). */
     recordPad(st) {
         const u = this.recordUsual(st);
         return { pre: st.pre != null ? st.pre : u.pre, post: st.post != null ? st.post : u.post, usual: u };
@@ -1150,6 +1152,9 @@ class SportsPage {
     extraWords(st) {
         const p = this.recordPad(st);
         if (p.pre === p.usual.pre && p.post === p.usual.post) return 'Usual';
+        // a usual not known yet (Settings unread) is left untouched: only the other is named
+        if (p.pre == null) return `${p.post} min late`;
+        if (p.post == null) return `${p.pre} min early`;
         return `${p.pre} min early, ${p.post} min late`;
     }
     /** #358: what may change: Start early not once it records (C-M since 0444), neither for a schedule gone or not read. */
@@ -1162,6 +1167,8 @@ class SportsPage {
     stepPad(st, field, delta) {
         if (SportsPage.padLocks(st)[field]) return false;
         const p = this.recordPad(st), max = field === 'pre' ? SportsPage.MAX_PRE : SportsPage.MAX_POST;
+        // Codex #358 (medium): nothing to count from until Settings has answered
+        if (p[field] == null) return false;
         const next = Math.min(max, Math.max(0, p[field] + delta));
         if (next === p[field]) return false;
         st[field] = next;
@@ -1227,22 +1234,26 @@ class SportsPage {
         const lost = index < 0 ? (g.channels || []).find(c => SportsPage.channelKey(c) === channel) : null;
         // #358: `screen` the window's page: main (the two rows), channel or extra (Extra time)
         const st = { g, airings, index, what: 0, whats: rec ? [] : this.recordWhats(g), screen: 'main',
-            pre: null, post: null, schedule: null, rec, loaded: !rec, gone: false, busy: false, want: channel, move: null,
+            pre: null, post: null, defaults: null, schedule: null, rec, loaded: !rec, gone: false, busy: false, want: channel, move: null,
             error: lost && !rec ? `${lost.name} isn’t showing the game any more. Choose a channel to record on.` : null };
         const w = this.makeWindow({ kind: 'record', id, title: g.title, opener, label: `${rec ? 'Change recording of' : 'Record'} ${g.title}`,
             draw: () => this.recordMarkup(st), act: (name, el) => this.recordAct(name, el, st) });
         w.st = st;
         this.holdSteppers(w, st);
         if (rec) this.loadSchedule(st, w);
-        this.loadRecordDefaults(w);
+        this.loadRecordDefaults(w, st);
         return w;
     }
-    /** #358: Settings' usual padding (any signed-in user may read it), for Extra time's starting values; kept for the page. */
-    async loadRecordDefaults(w) {
+    /**
+     * #358: Settings' usual padding (any signed-in user may read it), for Extra time's starting values: read afresh each
+     * time the window opens and kept on this window alone (Codex #358, medium; the Apple app since 370). Until it answers,
+     * and after a failed read, the steppers that count from it are off and nothing of theirs is sent.
+     */
+    async loadRecordDefaults(w, st) {
         let s;
         try { s = await API.request('GET', '/settings'); } catch { return; }
         if (!s || typeof s !== 'object') return;
-        this.recDefaults = { defaultPreBufferMin: s.defaultPreBufferMin, defaultPostBufferMin: s.defaultPostBufferMin };
+        st.defaults = { defaultPreBufferMin: s.defaultPreBufferMin, defaultPostBufferMin: s.defaultPostBufferMin };
         if (this.window === w) w.redraw();
     }
     /**
@@ -1472,12 +1483,14 @@ class SportsPage {
         const started = !!st.rec && !!st.schedule && st.schedule.status === 'recording';
         const stepper = (field, name, max) => {
             const locked = locks[field], id = `sp-rec-${field}`;
-            const value = field === 'pre' && started ? 'Started' : `${p[field]} min`;
+            // Codex #358 (medium): a usual not known yet (Settings unread) shows "—", with − and + off
+            const unknown = p[field] == null;
+            const value = field === 'pre' && started ? 'Started' : unknown ? '—' : `${p[field]} min`;
             const btn = (delta, label, sign, off) => `<button type="button" class="rstep" data-act="r-step" data-field="${field}" data-delta="${delta}" data-key="r:${field}:${delta}" aria-label="${label}" aria-controls="${id}"${off ? ' disabled' : ''}>${sign}</button>`;
             return `<div class="rstepper${locked ? ' off' : ''}"><span class="rrn">${e(name)}</span>`
-                + (locked ? '' : btn(-1, `${name}: one minute less`, '−', p[field] <= 0))
+                + (locked ? '' : btn(-1, `${name}: one minute less`, '−', unknown || p[field] <= 0))
                 + `<span class="rval pig-amount" id="${id}" aria-live="polite">${e(value)}</span>`
-                + (locked ? '' : btn(1, `${name}: one minute more`, '+', p[field] >= max)) + '</div>';
+                + (locked ? '' : btn(1, `${name}: one minute more`, '+', unknown || p[field] >= max)) + '</div>';
         };
         const html = `${P.subHead('Extra time')}${stepper('pre', 'Start early', P.MAX_PRE)}${stepper('post', 'Finish late', P.MAX_POST)}`
             + (st.error ? `<p class="rerr" role="alert">${e(st.error)}</p>` : '');
