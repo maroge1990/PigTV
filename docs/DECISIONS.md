@@ -811,3 +811,27 @@ reviews.
   an answer that names another game.
 - **Consequence:** Record succeeds only once the cancellation has finished. Older Apple builds show a generic failure
   for the 409; the web and current Apple builds show the reason.
+
+### D-75. TestFlight builds come only from Xcode Cloud, one run per finished set (20 Nov 2026; Mark; extends D-70)
+
+- **Context:** Xcode 27's workflow editor offers only "Use scheme settings" for a Test action, and two release runs on
+  20 Nov used about 1 h 52 min of the 25 free hours a month for one set of fixes. Xcode Cloud also numbers builds with
+  its own counter (Apple 365 went to TestFlight as build 322), which would collide with Mac uploads near 358.
+- **Choice:** `XcodeCloud.xctestplan` is the PigTV scheme's default (the Mac and GitHub CI name `-testPlan PigTV`); a
+  release is an annotated `tf/<build>` tag on a CI-green Apple commit, started only once Mark says the current set of
+  Apple builds is complete, never per push. TestFlight uploads no longer go through `Tools/testflight.sh`; every
+  release note gives both numbers ("Apple 365 = TestFlight 322"). A test that fails only on the cloud runners for
+  timing joins the cloud plan's skipped list (pinned by `TestPlanTests`) instead of a second run.
+- **Consequence:** about one hour of Xcode Cloud per release; day-to-day testing stays on GitHub and the Mac.
+
+### D-76. The Record sheet: the date once, two rows, and "Usual" Finish late is ESPN's end for a game (20 Nov 2026; Mark)
+
+- **Context:** the record page repeated the date up to five times and asked four sections before Record (#358).
+- **Choice:** one sheet on every platform: a header with the date once, a What switch (this game / every team / every
+  league), a Channel row and an Extra time row that each open their own page (Channel: tick, BEST, quality; Extra
+  time: Start early and Finish late as − value + with no other text), Record and Cancel; iPhone uses a half-height
+  sheet. For a game ESPN follows, the usual Finish late is 0: a confirmed final stops at ESPN's end (never before the
+  guide end); with no score decision, or the game gone from the catalogue, the stop is the guide end + Settings' Finish
+  late (a safety net, also at start-up). Clients read the usual padding from `GET /api/settings` each time the sheet
+  opens and send only what the person changed.
+- **Consequence:** server 0881–0884, web 0882, Apple 366–370. #356 (recording a game that overruns) must keep this rule.

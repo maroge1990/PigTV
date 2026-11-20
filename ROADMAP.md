@@ -5,46 +5,46 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 19 Nov 2026, the TestFlight-324 splash session (continued).*
+*Overwritten at the end of every session. 20 Nov 2026, the Record-sheet session.*
 
-- **Running:** production runs **0861**. main is at **0878** (CI green), Apple main at **358** (CI green); TestFlight
-  **358** uploaded from the Mac on 19 Nov (tvOS and iOS). Server 0862–0878 reaches production at Mark's next Force Update
-  (D-58). `:release` stays **v0579**. Next builds: server **0879**, Apple **359**.
-- **Pushed 19 Nov:** #342 splash rework (Apple 325–335, D-73); #351 Xcode Cloud tests (bundled fixtures, `XcodeCloud`
-  test plan; Mark sets the plan in the workflow, steps on #351); #353 sport cards name only their own recording, C-R
-  `slots`/`guideEnd`/`recordingCancelling` (0862–0875); #347 Apple client (336–358) and the server's 409 `cancelling`
-  refusal (0876–0878, D-74); #355, #354, #352's tap-through (Apple 336–358). 27 dead duplicate channels hidden on
-  production (#331).
-- **Not done:** #356 (recording while a game overruns: design first, needs a migration OK); #357 (four Record edge
-  cases from the last sign-offs); #351's Xcode Cloud confirmation run after Mark sets the test plan; the 20 dead channels
-  with no copy stay shown.
+- **Running:** production runs **0861**; server main **0884** (CI green), so 0862–0884 reach production at Mark's next
+  Force Update (D-58). `:release` stays **v0579**. Apple main **370** (CI green). TestFlight **322** = Apple 365 (the
+  first Xcode Cloud release, D-75); Apple 366–370 are not in TestFlight yet. Next builds: server **0885**, Apple **371**.
+- **Pushed 20 Nov:** #358 Record sheet on every platform (web 0882; Apple 366–370; D-76) with "Usual = ESPN's end" for
+  games and its safety net (0881, 0883, 0884); #357 Record safety fixes (web 0879–0880, Apple 359–365); #351 Xcode Cloud
+  release works (XcodeCloud is the scheme's default plan; closed). Cleanup: 66 old worktrees and 162 merged branches removed.
+- **Not done:** #356 parked after two Codex design rounds each found highs (designs in `/home/markr/wt/design-356*.md`,
+  reviews `codex-356-design*.txt`); #357 and #358 each keep two mediums (Now › A).
 
 ## Now
 
-Order within a section is the order to take them. Rewritten 20 Nov from the open P1s and P2s that are not waiting on
-Mark; the audit window, the pickers (#265/#266) and the placeholder work (#332) are built and wait for device checks.
+Checked 20 Nov against every issue's comments and commits: almost all P1/P2 work is built and waits for Mark's device
+checks (`needs-device-test`, see Waiting on Mark). What still needs code, in this order (Mark's write-up:
+https://claude.ai/artifact/UC3WMGdoRtEnGbJ8a3MmgA):
 
-1. **Record:** #357 (Apple half; the web half shipped in 0879–0880) · #358 (the Record sheet remade on every platform:
-   Mark picks from the Apple TV mocks, then iPad, iPhone and web) · #356 (overrun recording: design reviewed by Codex,
-   then shown to Mark, then code).
-2. **Xcode Cloud:** #351's release run (a `tf/` tag on Apple 359) confirms both builds reach TestFlight.
-3. **Sport data (server):** #234 (a future game can't be recorded) · #261 (live scores take two minutes) · #259 (F1
-   marked a replay) · #235 (cricket score text refused) · #231 (a listing in another language).
-4. **Apple Sport:** #263 (the page header scrolls with the page).
-5. **Channel audit:** #331's follow-ups (the 20 dead channels with no copy). #291's dead-code leftovers (P3) moved to Later.
+1. **A · Record leftovers, then the release.** #357: a schedule with both a refusal and a later unanswered cancel can
+   strand one marker; a second refusal for the same schedule replaces the first airing's hold (Apple). #358: steppers
+   pressable before Settings load; stepping back to Usual stores 0 (web). Then, once Mark says the Apple set is
+   complete, one Xcode Cloud run (`tf/` tag, D-75) for Apple 359 onwards.
+2. **B · Operations (server; needs Mark's choices) and C · Apple launch and sign-in, side by side** (different repos).
+   B: #44 crash alerts (untouched) · #43 backups' remainder (retention, a second disk, Back up now) · #45 diagnose
+   without SSH (untouched); ask Mark how to be alerted and where backups go. C: #55's remainder (show the saved guide
+   before the server answers, a Restore signpost) · #54's remainder (a mid-session 401, pairing tests) · #53 iPhone/iPad
+   unit tests on CI (D-49 keeps interface tests off CI; ask Mark before changing that).
+3. **D · Apple structure** (after C's tests): #50 · #51 (untouched).
+4. **E · Apple player** (Mark's devices; playback path, capture first): #25 · #35 (untouched) · #58's remainder (Now
+   Playing info, VoiceOver label, stall watchdog, polling) · #308 Start over (design first).
+5. **F · Playback reliability** (capture windows Mark approves; released alone, D-25): #74 · #30 · #27 (untouched) ·
+   #38's byte budget · #36's zap chain · #41's transition table and randomized test.
 
-## Later (each needs a capture, a real provider, a device or a design choice first)
-
-- **A/V sync:** #267 meter · #268 marker, then #3 and #27. **Relay and recovery (released alone, D-25):** #4 · #41's
-  transition table and invariant test · #74 · #30. **Start speed:** #240 · #36 · #38.
-- **Operations:** #43 · #44 · #45 · #28. **Tests:** #26, and the stored replay for #22 to #24 re-run after 0551.
-- **Apple launch and tests:** #54 · #55 · #53 · #313 (Apple 1's review lows). **Apple structure:** #50 · #51.
-- **Apple player:** #25 · #35 · #58 · #308 (Start over from live) · #101. 
-  **Brand kit:** #294. **Cleanup:** #291.
+**Folded into whichever batch touches the same files:** #292 items 5–12 · #295's remainder · #290 items 3–4 · #291's
+remainder · #313 item 4. **Decisions for Mark:** #294 (brand kit icons). **A check Claude runs:** #273 (busy-period
+sample on production). **Parked:** #356.
 
 ## Waiting on Mark (no code is waiting; steps are on each issue)
 
-- **Built, waiting on a device pass:** the audit window's results with #332 (placeholder) and the pickers #265 · #266.
+- **Newest, after a Force Update to 0884 and the next TestFlight (from Apple 366):** Record #358 and #357 (web 0879–0884,
+  Apple 359–370) · #347 · #342 splash · #349 · #348 · #352 · #354 · #332 placeholder and the audit window · pickers #265 · #266 · #330.
 - **Device passes, on production 0632 (includes 0577) and a TestFlight build from 218 (Apple 1's items need one from 239):**
   - Web, after a Force Update to 0757: #320 · #62 · #326 · #327 · #63; the feed loop (#324) on a real looping channel;
     #282 on the Apple apps with scores off (rig).
