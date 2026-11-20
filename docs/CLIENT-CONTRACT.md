@@ -417,7 +417,9 @@ A rule makes ordinary schedules; one-off recordings are unchanged. Any signed-in
   before. Wording: "When it stops: when ESPN says it's over (or the guide end + Finish late)".
 - **Since #358: a game's usual Finish late is 0.** A schedule made for a game (`POST /recordings/schedule` with a valid
   `gameId`, or a `team`/`game` rule's schedule) with no `postBufferMin` (a rule's null) gets `post_buffer_min` 0: it
-  stops when ESPN says the game is over (still never before the guide end). Without a game (a keyword `sport` rule, a
+  stops when ESPN says the game is over (still never before the guide end). When the score feed can't say at the
+  guide end (no fresh answer, or the game gone from the fixture), it stops at the guide end + Settings' Finish late
+  instead (a safety net; a final seen later still stops it then; `stopsAt` shows it). Without a game (a keyword `sport` rule, a
   guide programme) the Settings default applies as before; a sent `postBufferMin` always wins. Clients show 0 as "Usual" for a game.
 - **Recordings name their game (#345, additive, no flag).** `GET /api/recordings` rows and `recordings/scheduled` rows carry
   `gameId`: the sport game (a C-R card's `id`) it was made for, else `null`. A recording keeps its own copy (every part of it,

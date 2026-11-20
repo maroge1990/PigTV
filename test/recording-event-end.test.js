@@ -199,7 +199,10 @@ test('#217 engine: a schedule made for a game (gameId) is linked by it, whatever
     await engine.cancelScheduled(made.id);
 });
 
-test('#217 engine: with ESPN stale, or a schedule that is not a game, it stops at the guide end as before', async () => {
+test('#217 engine: with ESPN stale and no Settings padding, or a schedule that is not a game, it stops at the guide end as before', async () => {
+    // #358: a game's safety net past the guide end is Settings' Finish late; none here (its own tests below)
+    await db.settings.update({ defaultPostBufferMin: 0 });
+    await engine.tick();
     const now = Date.now();
     scoreGame('espn:afl:stale', now - 30 * MIN, 'live', now - 20 * MIN, 'Geelong', 'Hawthorn');
     const stale = schedule({ start: now - 1000, end: now + 2000, title: 'AFL: Geelong v Hawthorn' });
@@ -213,4 +216,66 @@ test('#217 engine: with ESPN stale, or a schedule that is not a game, it stops a
     await finishedSegmented(stale.id);
     await finishedSegmented(plain.id);
     assert.equal(scheduled.getById(stale.id).event_stop, null);
+    await db.settings.update({ defaultPostBufferMin: 5 });
 });
+
+// #358 (Codex high on 0881): a game's usual Finish late is 0 (it stops at ESPN's end). When the scores can't say (stale,
+// no answer) or its linked game has left the catalogue, it would stop at the bare guide end, cutting a game running a few
+// minutes over: Settings' Finish late (5 here) is then the safety net. A final, or a fresh live roll, decides as before.
+test('#358 engine: post 0 and the scores stale or the game unknown: Settings\' Finish late past the guide end; a final decides', async () => {
+    await db.settings.update({ defaultPostBufferMin: 5 });
+    await engine.tick(); // the engine reads Settings each tick
+    const E = Date.UTC(2026, 10, 21, 20); // the guide end, 20:00
+    const g = game('espn:afl:358', E - 2 * H, 'Sydney', 'Brisbane');
+    const store = (answer) => fakeStore([g], { 'espn:afl:358': answer });
+    const make = (gameId) => {
+        const s = scheduled.create({ title: 'Saturday Footy', description: null, source_id: A.id, channel_item_id: 'pos_1', channel_stable_id: 's504',
+            channel_name: 'Fox Footy 504', channel_logo: null, program_start: E - 2.5 * H, program_end: E, pre_buffer_min: 0, post_buffer_min: 0,
+            created_by: 1, created_at: Date.now() + n++ });
+        sqlite.getDb().prepare('UPDATE scheduled_recordings SET sport_game_id = ?, status = ? WHERE id = ?').run(gameId, 'recording', s.id);
+        return s.id;
+    };
+    const follow = (id, now, answer) => { engine.followEvent(id, now, { store: store(answer), catalog: [g] }); return guideEnd.stopOf(scheduled.getById(id)); };
+
+    // (a) the scores stale at the floor: 20:05, not 20:00
+    const a = make('espn:afl:358');
+    assert.equal(follow(a, E, live(E - 20 * MIN)), E + 5 * MIN, 'stale: the safety net');
+    assert.equal(follow(a, E + 2 * MIN, null), E + 5 * MIN, 'still unknown: kept, not moved on');
+    // (b) a game id the catalogue doesn't have: 20:05
+    const b = make('espn:afl:gone');
+    assert.equal(follow(b, E, live(E)), E + 5 * MIN, 'its game gone from the catalogue: the safety net');
+    // (c) a confirmed final: before the guide end, the floor (20:00); after it, ESPN's end (20:03), no extra
+    const c1 = make('espn:afl:358');
+    assert.equal(follow(c1, E, final(E, E - 2 * MIN)), E, 'a final at 19:58: the guide end');
+    const c2 = make('espn:afl:358');
+    assert.equal(follow(c2, E + 3 * MIN, final(E + 3 * MIN, E + 3 * MIN)), E + 3 * MIN, 'a final at 20:03: then');
+    // (d) the safety net, then a fresh final at 20:02: 20:02
+    const d = make('espn:afl:358');
+    assert.equal(follow(d, E, live(E - 20 * MIN)), E + 5 * MIN);
+    assert.equal(follow(d, E + 2 * MIN, final(E + 2 * MIN, E + 2 * MIN)), E + 2 * MIN, 'the final replaces the safety net');
+    // a fresh live roll still rolls on, as before
+    const r = make('espn:afl:358');
+    assert.equal(follow(r, E, live(E)), E + overrun.OVERRUN_STEP);
+    // a schedule with its own Finish late at least Settings': the net adds nothing
+    const own = make('espn:afl:358');
+    sqlite.getDb().prepare('UPDATE scheduled_recordings SET post_buffer_min = 10 WHERE id = ?').run(own);
+    assert.equal(follow(own, E + 10 * MIN, live(E - 20 * MIN)), E + 10 * MIN);
+    assert.equal(scheduled.getById(own).event_stop, null);
+    for (const id of [a, b, c1, c2, d, r, own]) scheduled.setStatus(id, 'cancelled');
+});
+
+test('#358 engine: a real capture of a game with post 0 and the scores stale keeps recording past its guide end', async () => {
+    await db.settings.update({ defaultPostBufferMin: 5 });
+    await engine.tick();
+    const now = Date.now();
+    scoreGame('espn:afl:net', now - 2 * H, 'live', now - 20 * MIN, 'Fremantle', 'Adelaide');
+    const made = await engine.scheduleFromProgram({ sourceId: A.id, channelItemId: 'pos_1', channelName: 'Fox Footy 504', title: 'Footy Night',
+        programStart: now - 1000, programEnd: now + 2000, preBufferMin: 0, createdBy: 1, gameId: 'espn:afl:net' });
+    assert.equal(made.post_buffer_min, 0, '0881: a game\'s usual Finish late');
+    await untilRecording(made.id);
+    await sleep(3200);
+    assert.equal(scheduled.getById(made.id).status, 'recording', 'the hard stop at the guide end found the safety net');
+    assert.equal(guideEnd.stopOf(scheduled.getById(made.id)), made.program_end + 5 * MIN);
+    await engine.cancelScheduled(made.id);
+});
+

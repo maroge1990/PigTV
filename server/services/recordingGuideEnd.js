@@ -185,17 +185,26 @@ function scheduleLeague(schedule, classify) {
  * a number, or null for none (it stops at the floor). Never throws; a failure is no change.
  * `store` is the score collector's store (sportsDashboard.store()); `catalog` its catalog, when already read.
  */
-function eventStop(schedule, { now = Date.now(), store = null, catalog = null } = {}) {
+function eventStop(schedule, { now = Date.now(), store = null, catalog = null, safetyPostMin = null } = {}) {
     const current = Number.isFinite(schedule?.event_stop) ? schedule.event_stop : null;
     try {
         const floor = floorOf(schedule);
         if (current === null && now < floor - EARLY_MS) return null;
         const scores = store || require('./sportsDashboard').store();
         const game = gameFor(schedule, catalog || scores.catalog());
-        if (!game) return current;
+        // #358 (Codex high): a game's usual Finish late is 0 (ESPN's end). With no decision from the scores (stale or no
+        // answer), or its linked game gone from the catalogue, Settings' Finish late is the safety net past the guide end;
+        // a final or a fresh live roll (below) replaces it. Unlinked schedules: unchanged.
+        const safety = () => {
+            if (!Number.isInteger(safetyPostMin) || safetyPostMin <= 0) return current;
+            const net = schedule.program_end + safetyPostMin * 60000;
+            if (net <= floor) return current;
+            return current === null ? net : Math.max(current, net);
+        };
+        if (!game) return schedule.sport_game_id ? safety() : current;
         const next = overrun.recordingEnd({ floor, postMs: (schedule.post_buffer_min || 0) * 60000, now,
             latest: scores.latest(game.id), gameStart: game.start, individual: require('./sportIndividual').has(game.league) });
-        return next === undefined ? current : next;
+        return next === undefined ? safety() : next;
     } catch (e) {
         return current;
     }

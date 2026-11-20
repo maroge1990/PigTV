@@ -2048,10 +2048,14 @@ function followEvent(scheduleId, now = Date.now(), { store = null, catalog = nul
         const s = scheduledDb.getById(scheduleId);
         if (!s || s.status !== 'recording') return false;
         const current = Number.isFinite(s.event_stop) ? s.event_stop : null;
-        const next = require('./recordingGuideEnd').eventStop(s, { now, store, catalog });
+        // #358 (Codex high): Settings' Finish late, the safety net for a game whose end the scores can't tell (the last
+        // tick's settings; the defaults before the first)
+        const known = knownSettings && Number.isInteger(knownSettings.defaultPostBufferMin) ? knownSettings
+            : require('../db').getDefaultSettings();
+        const next = require('./recordingGuideEnd').eventStop(s, { now, store, catalog, safetyPostMin: known.defaultPostBufferMin });
         if (next === current) return false;
         getDb().prepare('UPDATE scheduled_recordings SET event_stop = ? WHERE id = ?').run(next, s.id);
-        if (current === null) console.log(`[Recordings] Schedule #${s.id} "${s.title}": its event is still on; recording past the guide end, until ${new Date(next).toISOString()}`);
+        if (current === null) console.log(`[Recordings] Schedule #${s.id} "${s.title}": its event is still on (or its end is not known yet); recording past the guide end, until ${new Date(next).toISOString()}`);
         else if (next === null || next < current) console.log(`[Recordings] Schedule #${s.id} "${s.title}": its event has ended; stopping at ${new Date(stopTimeOf({ ...s, event_stop: next })).toISOString()}`);
         return true;
     } catch (err) {

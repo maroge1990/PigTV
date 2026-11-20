@@ -893,6 +893,10 @@ test('F3: cancel while the move reads its settings - it starts nothing', async (
 test('#217: a recording waiting for a provider past the guide end keeps waiting while its game is live, then continues', async () => {
     tuning.endGraceMs = 0;
     setBehaviour(url.A(101), 'dies');
+    // #358: no Settings padding, so no safety net past the guide end while its game is unknown: only the live game keeps it
+    const settingsDb = load('db').settings;
+    await settingsDb.update({ defaultPostBufferMin: 0 });
+    await engine.tick();
     const now = Date.now();
     const s = due({ windowMs: 2000 });
     sqlite.getDb().prepare('UPDATE scheduled_recordings SET sport_game_id = ? WHERE id = ?').run('espn:afl:wait', s.id);
@@ -914,6 +918,7 @@ test('#217: a recording waiting for a provider past the guide end keeps waiting 
     assert.equal(lastOut(captures()[1]), epochOut(rec, 2), 'in the same recording');
     assert.equal(rowsOf(s.id).length, 1);
     void onB;
+    await settingsDb.update({ defaultPostBufferMin: 5 });
 });
 
 test('nothing this feature logged or stored carries a URL', () => {
