@@ -1172,7 +1172,16 @@ class SportsPage {
         const next = Math.min(max, Math.max(0, p[field] + delta));
         if (next === p[field]) return false;
         st[field] = next;
+        SportsPage.dropUsual(st, p.usual);
         return true;
+    }
+    /**
+     * Codex #358 (medium): a new recording or rule keeps no change that equals the usual (back to it with + then −): it is
+     * left unsent, so the server applies its own usual, never a copy pinned under a What with a different one.
+     */
+    static dropUsual(st, usual) {
+        if (st.rec) return;
+        for (const field of ['pre', 'post']) if (st[field] != null && st[field] === usual[field]) st[field] = null;
     }
 
     /** The What choices (RecordPlan.whats): this game; every game of the followed team, else of each side; every game of its league. */
@@ -1499,7 +1508,11 @@ class SportsPage {
     recordAct(name, el, st) {
         const w = this.window;
         switch (name) {
-            case 'r-what': st.what = Number(el.getAttribute('data-index')) || 0; return w?.redraw();
+            case 'r-what':
+                // Codex #358 (medium): a change equal to the old What's usual is not carried over to the new one
+                SportsPage.dropUsual(st, this.recordUsual(st));
+                st.what = Number(el.getAttribute('data-index')) || 0;
+                return w?.redraw();
             case 'r-on': st.index = Number(el.getAttribute('data-index')) || 0; st.error = null; st.screen = 'main'; return w?.redraw('r:row:channel');
             case 'r-screen': {
                 const to = el.getAttribute('data-to'), from = st.screen;

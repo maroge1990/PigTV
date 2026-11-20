@@ -260,3 +260,23 @@ test('Codex #358: Settings not read yet: the steppers that count from it are off
     await r.settle();
     assert.equal(r.value('sp-rec-pre'), '9 min');
 });
+
+test('Codex #358: + then − back to the usual clears the change, so a later switch of What sends no padding for it', async () => {
+    const h = await harness({ settings: { defaultPreBufferMin: 3, defaultPostBufferMin: 15 } });
+    h.p.openRecord('nxt');
+    await h.settle();
+    h.press({ 'data-act': 'r-screen', 'data-to': 'extra' });
+    h.press({ 'data-act': 'r-step', 'data-field': 'post', 'data-delta': '1' });
+    h.press({ 'data-act': 'r-step', 'data-field': 'post', 'data-delta': '-1' });
+    h.press({ 'data-act': 'r-step', 'data-field': 'pre', 'data-delta': '1' });
+    h.press({ 'data-act': 'r-step', 'data-field': 'pre', 'data-delta': '-1' });
+    assert.deepEqual([h.p.window.st.pre, h.p.window.st.post], [null, null], 'back on the usual: no change kept');
+    h.press({ 'data-act': 'r-screen', 'data-to': 'main' });
+    h.press({ 'data-act': 'r-what', 'data-index': '2' });
+    assert.match(h.body(), /<span class="rrn">Extra time<\/span><span class="rrv"><b>Usual<\/b>/);
+    assert.equal(h.value('sp-rec-post'), '15 min', 'the rule\'s usual: Settings\'');
+    h.footer('r-save').click();
+    await h.settle();
+    const rule = plain(h.calls.find(c => c[0] === 'rule')[1]);
+    assert.ok(!('postBufferMin' in rule) && !('preBufferMin' in rule), JSON.stringify(rule));
+});
