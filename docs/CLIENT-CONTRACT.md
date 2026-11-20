@@ -415,6 +415,10 @@ A rule makes ordinary schedules; one-off recordings are unchanged. Any signed-in
   last 15 min it stops at the guide end + `post_buffer_min` as before. While it records past that point because the game
   is still on, the row adds `overrun: true` (re-read the list: the stop rolls on 10 min at a time). `"guide"`: as
   before. Wording: "When it stops: when ESPN says it's over (or the guide end + Finish late)".
+- **Since #358: a game's usual Finish late is 0.** A schedule made for a game (`POST /recordings/schedule` with a valid
+  `gameId`, or a `team`/`game` rule's schedule) with no `postBufferMin` (a rule's null) gets `post_buffer_min` 0: it
+  stops when ESPN says the game is over (still never before the guide end). Without a game (a keyword `sport` rule, a
+  guide programme) the Settings default applies as before; a sent `postBufferMin` always wins. Clients show 0 as "Usual" for a game.
 - **Recordings name their game (#345, additive, no flag).** `GET /api/recordings` rows and `recordings/scheduled` rows carry
   `gameId`: the sport game (a C-R card's `id`) it was made for, else `null`. A recording keeps its own copy (every part of it,
   and recordings from before are filled from their schedule once), so it stays after its schedule is dismissed. Decode it as optional.

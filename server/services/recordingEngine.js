@@ -407,7 +407,8 @@ async function scheduleFromProgram({
 
     const settings = await getSettings();
     const pre = Number.isFinite(preBufferMin) ? preBufferMin : settings.defaultPreBufferMin;
-    const post = Number.isFinite(postBufferMin) ? postBufferMin : settings.defaultPostBufferMin;
+    // #358 (Mark, 20 Nov; C-M): a game ESPN follows stops at ESPN's end, so its usual Finish late is 0, not Settings'
+    const post = Number.isFinite(postBufferMin) ? postBufferMin : validGameId(gameId) ? 0 : settings.defaultPostBufferMin;
 
     // #329: the check and the insert are one synchronous transaction (no await in it), so two requests for one game
     // never both insert, whichever path (the route, a rule) makes them.
