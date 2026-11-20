@@ -116,6 +116,8 @@ const APPLE_CLIENT_ROUTES = [
     ['POST', '/api/playback/client-event'],
     ['GET', '/api/playback/some-session-id/terminal-status'],
     ['GET', '/api/recordings'], ['GET', '/api/recordings/scheduled'], ['POST', '/api/recordings/schedule'],
+    // #358 (Apple 366): Record's Extra time reads the usual padding.
+    ['GET', '/api/settings'],
     ['GET', '/api/recordings/1/playback'], ['GET', '/api/recordings/1/media.mp4'], ['GET', '/api/recordings/1/markers'],
     // #48: what Apple 149 calls that the list had missed (resume position, ad detection, removals, warming, recents).
     ['GET', '/api/library/recent'], ['GET', '/api/recordings/1/position'], ['PUT', '/api/recordings/1/position'],

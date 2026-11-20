@@ -421,6 +421,9 @@ A rule makes ordinary schedules; one-off recordings are unchanged. Any signed-in
   guide end (no fresh answer, or the game gone from the fixture), it stops at the guide end + Settings' Finish late
   instead (a safety net; a final seen later still stops it then; `stopsAt` shows it). Without a game (a keyword `sport` rule, a
   guide programme) the Settings default applies as before; a sent `postBufferMin` always wins. Clients show 0 as "Usual" for a game.
+- **The usual padding comes from `GET /api/settings` (#358, Apple 366+).** Any signed-in user may read it (the webhook URL
+  is withheld from non-admins). Clients read `defaultPreBufferMin` and `defaultPostBufferMin` to seed Record's Extra time
+  steppers and hold the steppers until they are known; an untouched field is never sent, so the server applies its usual.
 - **Recordings name their game (#345, additive, no flag).** `GET /api/recordings` rows and `recordings/scheduled` rows carry
   `gameId`: the sport game (a C-R card's `id`) it was made for, else `null`. A recording keeps its own copy (every part of it,
   and recordings from before are filled from their schedule once), so it stays after its schedule is dismissed. Decode it as optional.
