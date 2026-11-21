@@ -73,6 +73,9 @@ internals stay out of Git (local disk or the Unraid test share), referenced by p
 - **Fake provider** (`scripts/fake-provider.js`): an Xtream look-alike with test-pattern streams, failure channels and a
   backup profile; **fake scores** (`scripts/fake-scores.js`, the rig's `PIGTV_RIG_SCORES=fake`) script one ESPN game
   for sport T3s such as a recording overrun. See [`FAKE-PROVIDER.md`](FAKE-PROVIDER.md).
+- **Guide perf test** (`test/guide-perf.test.js`, a speed budget): pages the guide as the Apple client does on a production-shaped
+  database (19,000 rows, 1,250 visible, 600,000 guide rows) and prints one `GUIDE-PERF {json}` line (ms and bytes per page, raw
+  and gzip); the before/after instrument for #361.
 - **Playback report** (`scripts/playback-report.js <saved log>`): first-picture time, client wait, stalls per hour and
   failures from a server log.
 - **Fixtures:** `test/fixtures/` (the HE-AAC fixture's note is

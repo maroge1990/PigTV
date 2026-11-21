@@ -26,6 +26,8 @@ app.set('query parser', 'extended');
 // Tokens ride in media URLs (?token=), so never let a browser pass the page URL
 // on as a Referer to anything a page embeds or links to.
 app.use((req, res, next) => { res.set('Referrer-Policy', 'no-referrer'); next(); });
+// #362: one `slow request: <METHOD> <route pattern> ...` line per request over PIGTV_SLOW_REQUEST_MS (default 1000; 0 = off).
+app.use(require('./services/slowRequestLog').slowRequestLog());
 // Gzip JSON and the small set of text asset types (0108). `filter` is an
 // allow-list (server/services/compressionFilter.js): HLS playlists/segments,
 // recording media and anything requested with a Range header are never

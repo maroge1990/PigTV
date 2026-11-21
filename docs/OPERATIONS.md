@@ -87,6 +87,12 @@ never touches the share. A bad recordings folder does not fail the check (restar
 share); only an unusable database returns 503. The image `HEALTHCHECK` calls it every 30 s; Unraid shows
 the container as healthy/unhealthy.
 
+## Slow requests
+
+The log carries one `slow request: <METHOD> <route pattern> <status> <ms> ms <bytes> bytes` line for each request that took
+at least `PIGTV_SLOW_REQUEST_MS` (default 1000; `0` turns it off). It names the route pattern, never the URL, query or ids;
+streams, HLS and recording media (`EXCLUDED_ROUTES` in `server/services/slowRequestLog.js`) are slow by design and never logged.
+
 ## Backup
 
 ```
