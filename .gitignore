@@ -11,3 +11,5 @@ release/
 .vscode
 transcode-cache/
 CLAUDE.local.md
+.gate-log
+.gate-logs/
