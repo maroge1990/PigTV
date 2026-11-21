@@ -5,68 +5,71 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 20 Nov 2026, the Record-sheet session.*
+*Overwritten at the end of every session. 22 Nov 2026, batch 0 of the speed and efficiency programme (tracker reset).*
 
-- **Running:** production runs **0861**; server main **0886** (CI green), so 0862–0886 reach production at Mark's next
-  Force Update (D-58). `:release` stays **v0579**. Apple main **372** (CI green). TestFlight **323 = Apple 372**
-  (`tf/372`, all of Apple 359–372); 322 = Apple 365 was the first Xcode Cloud release (D-75). Next builds: server
-  **0887**, Apple **373**.
-- **Pushed 20 Nov:** #358 Record sheet on every platform (web 0882, 0885–0886; Apple 366–370; D-76) with "Usual = ESPN's
-  end" for games and its safety net (0881, 0883, 0884); #357 Record safety fixes (web 0879–0880, Apple 359–365, 371–372);
-  #351 Xcode Cloud release works (XcodeCloud is the scheme's default plan; closed). Cleanup: 66 old worktrees and 162
-  merged branches removed.
-- **Not done:** #356 parked after two Codex design rounds each found highs (designs in `/home/markr/wt/design-356*.md`,
-  reviews `codex-356-design*.txt`); one web medium on #358 (stepping Start early can drop a carried Finish late).
+- **Running:** production runs **0886** (read from `/api/version` on 22 Nov; the 20 Nov notes said 0861), which is
+  server main. `:release` stays **v0579**. Apple main **372**; TestFlight **323 = Apple 372** (`tf/372`). Next builds:
+  server **0887**, Apple **373**.
+- **Done 22 Nov (no code):** the speed and efficiency review (https://claude.ai/artifact/6K7yotbLASsn4RMd3Fz5eS) is the
+  plan, recorded as D-79 and #359. 83 built issues closed on trust (D-78), each with a comment naming its builds; #74
+  closed as not reproducible on 0886 (relay rig, timestamps). New issues: #359 the programme, #360 the slow TV Guide on
+  Apple TV, #361 the server's guide data, #362 the MacBook test bench. The MacBook is the test gate for both repos
+  (D-77). 66 issues are open.
+- **Not done:** #29, #259 and #273 could not be settled by a read-only look (Status needs an admin sign-in; see Waiting
+  on Mark). #36's production figures cover only 2 plays so far.
 
-## Now
+## Now: the speed and efficiency programme (#359, D-79)
 
-Checked 20 Nov against every issue's comments and commits: almost all P1/P2 work is built and waits for Mark's device
-checks (`needs-device-test`, see Waiting on Mark). What still needs code, in this order (Mark's write-up:
-https://claude.ai/artifact/UC3WMGdoRtEnGbJ8a3MmgA):
+One batch per session, in this order; each ends with a handover comment on its issue. Measure, change, measure: no
+speed fix ships without before and after figures from the same test on the same machine.
 
-1. **A · done 20 Nov** (web 0885–0886, Apple 371–372, TestFlight 323). One web medium left on #358.
-2. **B · Operations (server; needs Mark's choices) and C · Apple launch and sign-in, side by side** (different repos).
-   B: #44 crash alerts (untouched) · #43 backups' remainder (retention, a second disk, Back up now) · #45 diagnose
-   without SSH (untouched); ask Mark how to be alerted and where backups go. C: #55's remainder (show the saved guide
-   before the server answers, a Restore signpost) · #54's remainder (a mid-session 401, pairing tests) · #53 iPhone/iPad
-   unit tests on CI (D-49 keeps interface tests off CI; ask Mark before changing that).
-3. **D · Apple structure** (after C's tests): #50 · #51 (untouched).
-4. **E · Apple player** (Mark's devices; playback path, capture first): #25 · #35 (untouched) · #58's remainder (Now
-   Playing info, VoiceOver label, stall watchdog, polling) · #308 Start over (design first).
-5. **F · Playback reliability** (capture windows Mark approves; released alone, D-25): #74 · #30 · #27 (untouched) ·
-   #38's byte budget · #36's zap chain · #41's transition table and randomized test.
+1. **Test bench on the MacBook** (#362, with #53 · #346 · #26): one command per repo; an iPad and iPhone unit tier; a
+   Guide scroll test on a production-sized fixture with signposts inside the grid; a server guide perf test and a
+   slow-request log line; all six perf files; Apple GitHub CI made non-blocking; the repeat flakers fixed or
+   quarantined. Ends with the Guide baseline as evidence and the targets fixed as numbers.
+2. **Guide quick wins, Apple** (#360: G1, G4, G5, G8, hold grid applies while focus moves, the play-list build). Then
+   Mark's look on his Apple TV and one `tf/` tag.
+3. **Guide data** (#361 server S1 to S8, an additive client-contract change with a Codex round; then #360's G2 proper,
+   G3, G6, G7 and #55's saved guide first).
+4. **Apple structure and launch:** #50 · #51 · #55 · #54 · #58.
+5. **Operations** (may run beside 2 to 4; needs Mark's choices on alerts and where backups go): #44 · #43 · #45 · #331.
+6. **Player and channel change** (playback path: capture first, ask Mark before any real provider connection): #36 ·
+   #35 · #25 · #308 · #240's check with more plays.
+7. **Playback reliability** (released alone): #3 · #4 · #267 · #268 · #30 · #27 · #38 · #41.
 
-**Folded into whichever batch touches the same files:** #292 items 5–12 · #295's remainder · #290 items 3–4 · #291's
-remainder · #313 item 4. **Decisions for Mark:** #294 (brand kit icons). **A check Claude runs:** #273 (busy-period
-sample on production). **Parked:** #356.
+**Targets** (numbers fixed after batch 1's baseline): a single focus move with no hitch over 100 ms; the Guide's first
+screen within 1 s of opening the tab; a first guide page under 300 KB.
 
-## Waiting on Mark (no code is waiting; steps are on each issue)
+## Next: leftovers, folded into whichever batch touches the same files
 
-- **Newest, after a Force Update to 0884 and the next TestFlight (from Apple 366):** Record #358 and #357 (web 0879–0884,
-  Apple 359–370) · #347 · #342 splash · #349 · #348 · #352 · #354 · #332 placeholder and the audit window · pickers #265 · #266 · #330.
-- **Device passes, on production 0632 (includes 0577) and a TestFlight build from 218 (Apple 1's items need one from 239):**
-  - Web, after a Force Update to 0757: #320 · #62 · #326 · #327 · #63; the feed loop (#324) on a real looping channel;
-    #282 on the Apple apps with scores off (rig).
-  - Playback: #5 · #6 · #7 · #14 · #18 · #19 · #33 · #37 · #46 · #49.
-  - Recording day: #12 · #17 · #31 · #32 · #217 · #246 · #260 (P0) · #271 · #274.
-  - Sport: #20 · #191 to #199 · #200 to #202 · #204 · #205 · #210 to #216 · #218 · #223 · #230 · #233 · #234 · #261 ·
-    #263 · #264; at a real event: #22 to #24 · #206 · #222 · #231 · #235.
-  - Layout and brand: #190 · #211 · #225 to #229 · #243 · #277 to #280; from 239: #310 · #311 · #312 · #298 · #293 · #203 ·
-    #278's five · #301; from 246 (TestFlight, 14 Nov): #262 on an iPadOS 17 iPad · #317 (sport order by drag).
-- **Read-only checks after a release (Claude runs them):** #273 (busy-period rate) · #29 (Mark's Status figures); #259 at
-  the next race.
-- **#21** (the sport rebuild) closes when the sport pass is done: everything under it is built or filed.
+- **Built, with a part or a review medium still open:** #49 (covers on recording players, follow settings, alerts) ·
+  #63 (a first-run redraw medium) · #214 (reselecting Sport on tvOS) · #274 (share back-off) · #320 (iPhone clash
+  banner) · #326 (hero strip, tennis draws, racing cards) · #345 · #347 · #348 · #357 · #358 (review mediums).
+- **Built, missing a simulator or rig run Claude can do on the MacBook bench (then close, D-78):** #197 · #229 · #233
+  (never reproduced) · #234 · #262 · #277 · #282 · #301 · #330 · #332 · #354.
+- **Small review leftovers:** #290 · #291 · #292 · #295 · #313.
 
-**Parked (P3):** #188 lists everything; `gh issue list --state closed --label parked`.
+## Waiting on Mark
+
+- **Status panels only an admin can read:** #29 (Status › Sport score collector) · #273 (a busy-period reading) · #36
+  (Status › Where starts go). Paste them, or say how Claude may read Status.
+- **At a real event:** #259 (the next F1 race: is it marked live?).
+- **Decisions:** #294 (brand kit icons) · #21 (how to close the sport rebuild).
+- **Only a device can tell** (`needs-device-test`): #28 (hardware encodes on PassyFlix) · #101 (audio and subtitle
+  tracks).
+- **Closed on trust on 22 Nov:** nothing to do. Reopen an issue, or file a new one, if the fault shows in daily use.
+
+**Parked:** #356 (two design rounds each found highs) · #188 lists the P3 someday items
+(`gh issue list --state closed --label parked`).
 
 ## How to pick work
 
-1. `gh issue list --label P0`, then `--label P1`. A P0 always comes first (#260 is built and waits for its device check).
-2. Otherwise take the next batch under **Now**, then **Next**; **Later** only once its capture, device or design choice exists.
+1. `gh issue list --label P0`, then `--label P1`. A P0 always comes first.
+2. Otherwise take the next batch under **Now**; fold in **Next** items that touch the same files.
 3. Read the issue, its evidence folder and the area page in `docs/architecture/` before touching code; capture first on
-   the playback path.
-4. An issue that needs a device look is not "worked": its numbered steps go in a comment on the issue, it gets the
-   `needs-device-test` label, and it closes when he reports (D-38). Everything else closes on T1–T3 evidence once pushed.
+   the playback path. On speed work, take the before figure first.
+4. An issue closes when its build is in production or on TestFlight with T1 to T3 evidence, in a comment naming the
+   build and the numbered device steps as a guide (D-78). Not fully built, or waiting on a read-only check: it stays open.
 5. Keep a batch inside one theme so its one Codex round has one focus (AGENTS.md › Reviews).
 6. New problems become issues with the template; security matters become private advisories; someday items get the
    `parked` label and a line in #188.

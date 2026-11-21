@@ -7,7 +7,7 @@ The protocol for both repos: which tier proves what, who runs it, and the tools.
 
 | Tier | What | Who | Required for |
 |---|---|---|---|
-| T1 Automated | `npm test`, `verify-build.sh`; Apple `Tools/test.sh fast` per commit, `push` per batch, iOS build | Claude | Every functional commit |
+| T1 Automated | `npm test`, `verify-build.sh`; Apple `Tools/test.sh fast` per commit, `push` before every push, iOS build | Claude | Every functional commit |
 | T2 Real media, offline | ffmpeg fixture tests, relay rig, stream doctor and avsync harness on saved captures, AVPlayer over loopback | Claude | Any change to playback, recording or ingest |
 | T3 End to end | Server against the fake provider; web app driven in the browser pane; the real Apple app in tvOS and iOS simulators against that server; before/after screenshots of every changed screen as evidence | Claude | Any change a user can see or touch, **once the test rig is live** |
 | T4 Deployed, read-only | `/api/version`, health, logs; no provider connection | Claude | Diagnosing a live report |
@@ -16,25 +16,44 @@ The protocol for both repos: which tier proves what, who runs it, and the tools.
 - **T3 is active once the Unraid test rig is live.** It needs the fake provider (built: [`FAKE-PROVIDER.md`](FAKE-PROVIDER.md))
   and the Unraid test containers. Until both exist, UI acceptance stays with Mark, and handoffs say which T3 checks could
   not run.
-- **Machines:** Claude runs in WSL2 on Windows; the Mac is used only for Xcode builds and simulators, over ssh, one simulator at a time. Heavy work (fake provider, staging server, full
+- **Machines:** Claude runs in WSL2 on Windows; the MacBook (below) is the test gate before every push. Heavy work (fake provider, staging server, full
   test runs, real-media tests) runs in CPU-capped containers on the Unraid server (≤ 3 cores, low priority, ≤ 6 GB,
   ≤ 20 GB under `appdata/pigtv-test`). Claude may create, rebuild and remove those test containers and read production
   status; anything that changes the production container or opens a real provider connection still needs Mark's yes.
 - **Status words:** *Implemented* (code done) → *Locally verified* (T1–T3 pass, evidence linked) → *Verified* (Mark's T5
-  report). Claude never writes *Verified*. An issue closes at *Locally verified* unless its acceptance names T5 (D-38).
+  report). Claude never writes *Verified*. An issue closes when its build reaches production or TestFlight (D-78).
 - **Claude's default is to test, not to ask.** T1–T3 touch no real provider, so Claude runs them without asking,
   including driving the simulators (attach, screenshots, input).
 - **Mark's checklist** in each handoff lists only T5 items: numbered steps, each with the expected result and what to
-  report (app build, server build, device, channel, approximate time).
+  report (app build, server build, device, channel, approximate time). Since D-78 the steps are a guide to what
+  changed, not a gate: the issue is already closed, and Mark reopens it if he sees the fault in daily use.
 - Every functional change has a test that **fails on the old code**; show it. An acceptance line in an issue names the
   tier that proves the fix.
+
+## Where each job runs (D-77)
+
+| Job | Where | When |
+|---|---|---|
+| Server tests with the speed budgets on, and `verify-build.sh` | MacBook | Before each push |
+| Server image build and its tests | GitHub | Every functional push; watched, a red run is fixed or reverted at once |
+| Apple unit tests (tvOS, iPad, iPhone), interface tests and speed tests | MacBook | Before each push |
+| Apple tests on GitHub | GitHub | After the push; a backstop, not blocking, not watched |
+| TestFlight build | Xcode Cloud | One run per finished set (D-75) |
+| Screenshots and device-like checks | Unraid rig | Unchanged (T3) |
+
+The MacBook (M1 Air, 8 cores, 8 GB, Xcode 27.2, Node 24, ffmpeg 9.0.2) is reached with `ssh mac`; if that fails, try
+192.168.1.35, then 192.168.1.146, then ask Mark: never push ungated. The tree is rsynced to `mac:~/pigtv-build/`; git is
+never run in the Mac's own checkouts. One simulator job at a time (8 GB), and build folders are cleaned after each run
+(disk is tight). A one-command runner per repo and the iPad/iPhone tier come with the speed programme's batch 1 (D-79);
+until then the same gates are run by hand. The WSL machine fails 4 ffmpeg tests for tool reasons, so it is not the gate.
 
 ## T5: device checks
 
 For a device run, note the app build (Settings → Version), the server build (`/api/version`), the device and OS, and for
 a fault the channel and roughly when; keep provider URLs and tokens out of anything shared. On-device diagnostics:
 Settings → Diagnostics (tvOS, the Top Shelf), and Console on the Mac filtered to subsystem `au.markrogers.PigTV.TopShelf`.
-Checks no simulator can settle carry the `needs-device-test` label. Apple builds reach Mark's devices through TestFlight
+Checks no simulator can settle carry the `needs-device-test` label only when Mark asks to keep them open (D-78); the
+numbered steps are a guide to what changed, not a gate. Apple builds reach Mark's devices through TestFlight
 (the Apple repo's `AGENTS.md` › How changes ship).
 
 ## Evidence
@@ -152,6 +171,6 @@ media/device acceptance and reviewing the image change. Do not replace them with
 
 ## Running tests on a busy machine
 
-- The suite's timing tests and speed budgets fail when the machine is busy with other work: rerun the failures alone,
-  and use `PIGTV_SKIP_PERF=1` (CI's gate) for the full run.
+- The suite's timing tests and speed budgets fail when the machine is busy with other work: rerun the failures alone.
+  The MacBook gate runs with the budgets on; `PIGTV_SKIP_PERF=1` (GitHub's gate) is for a busy machine only.
 - CI runs every test file at once on 2 vCPUs: keep timing margins ≥ 1 s, or poll.

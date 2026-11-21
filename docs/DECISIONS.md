@@ -268,6 +268,7 @@ reviews.
   review, once its tests pass. Deploy and rollback stay Mark's. Supersedes D-15.
 - **Consequence:** [`../AGENTS.md`](../AGENTS.md) › How changes ship; Claude watches CI after each push and fixes or
   reverts a red run at once.
+- Amended by D-77 (22 Nov): for the Apple repo the push waits for the MacBook gate, not for GitHub's Apple CI.
 
 ### D-35. Work in batches by area (30 Oct 2026)
 
@@ -332,6 +333,7 @@ reviews.
      checks on the Test Round; P3 items parked under one label and one tracking issue.
 - **Consequence:** `AGENTS.md` › How changes ship, Work tracking, Reviews (both repos); `docs/TESTING.md` › Tiers;
   D-19, D-34, D-35 and D-37 read with this where they say two rounds or that Mark closes.
+- Amended by D-77 (22 Nov): the Apple push waits for the MacBook gate, not GitHub's Apple CI. Amended by D-78: an issue whose acceptance names T5 no longer waits for the device check.
 
 ### D-39. The Sport front page, the following model, and opening on Sport (31 Oct 2026)
 
@@ -556,6 +558,7 @@ reviews.
   is the milestone. The regression UI tests run once per batch on the Mac before the push, not twice. Amends D-38.
 - **Consequence:** `PigTV-Swift` `ci.yml`, `Tools/testflight.sh` (refuses to upload without the pass), its `AGENTS.md`
   and `TESTING.md`.
+- Superseded by D-77 (22 Nov): the MacBook runs the unit, interface and speed tests before every push; GitHub's Apple CI is a non-blocking backstop.
 
 ### D-50. Server CI: a sport-only or web-only push skips the ffmpeg test files (10 Nov 2026; Mark)
 
@@ -775,6 +778,7 @@ reviews.
   shutting down only its own simulators and deleting its build files afterwards.
 - **Consequence:** Mark does the one-time Create Workflow and GitHub access in Xcode on the Mac; the workflow fetches
   the server's `test/golden` for the contract checks. Until then TestFlight uploads stay on `Tools/testflight.sh`.
+- Superseded by D-77 (22 Nov): the MacBook is the test gate before every push (it is no longer shared); Xcode Cloud stays for TestFlight (D-75).
 
 ### D-71. Every return from the background starts from scratch: the opening tab, at its top, with the splash (18 Nov 2026; Mark; replaced by D-73)
 
@@ -835,3 +839,53 @@ reviews.
   late (a safety net, also at start-up). Clients read the usual padding from `GET /api/settings` each time the sheet
   opens and send only what the person changed.
 - **Consequence:** server 0881–0884, web 0882, Apple 366–370. #356 (recording a game that overruns) must keep this rule.
+
+### D-77. The MacBook is the test gate for both repos before every push (22 Nov 2026; Mark; replaces D-49 and D-70)
+
+- **Context:** the MacBook is no longer shared (D-49 and D-70 were written when it was). GitHub's Apple runs failed 16
+  of 71 before 10 Nov and 3 of 29 since, mostly interface tests that pass on a retry, and one runner started 5.5 hours
+  late; server CI failed 5 of 91, at least 2 from timing on slow runners. iPad and iPhone unit tests run nowhere (#53)
+  and one fails unseen (#346). 4 ffmpeg tests fail on the WSL machine for tool reasons. Both repos are public, so the
+  gain is time and trust in the result, not money.
+- **Choice:** before every push, the gates for that repo run on the MacBook (M1 Air, 8 cores, 8 GB, Xcode 27.2, Node 24,
+  ffmpeg 9.0.2; ssh host `mac`). Server: every test file with the speed budgets on, plus `verify-build.sh`. Apple: unit
+  tests for Apple TV, iPad and iPhone, the interface tests and the speed tests. The tree is rsynced to
+  `mac:~/pigtv-build/`; git is never run in the Mac's own checkouts; one simulator job at a time (8 GB); build folders
+  are cleaned after each run (disk is tight). GitHub still builds and tests the server image on every functional push:
+  it is the only publish route and is still watched (red: fix or revert at once). GitHub's Apple CI stays as a backstop
+  but is non-blocking and is not watched. Xcode Cloud is for TestFlight only, one run per finished set (D-75 stands). A
+  one-command runner per repo, the iPad/iPhone tier and the non-blocking Apple workflow are built in the speed
+  programme's batch 1 (D-79); until then the same gates are run by hand on the MacBook. If the MacBook cannot be reached
+  (try 192.168.1.35 then 192.168.1.146), ask Mark; do not push ungated.
+- **Consequence:** replaces D-49 and D-70; amends D-34 and D-38 for the Apple repo (the push waits for the MacBook gate,
+  not for GitHub's Apple CI).
+
+### D-78. Built issues are closed on trust (22 Nov 2026; Mark; amends D-38)
+
+- **Context:** on 22 Nov 145 issues were open, about 110 of them built and waiting only on Mark's device checks, the
+  oldest from 30 Oct; several checks were out of date. The list hid the 27 that still need code.
+- **Choice:** an issue that is built, has T1–T3 evidence and is in production or on TestFlight is closed with a comment
+  naming its build; Mark reopens it or files a new one if he sees the fault in daily use. The 22 Nov sweep closed
+  everything delivered by server 0886 or earlier (production's build that day, read from `/api/version`; the review had
+  assumed 0861), or Apple 372 (TestFlight 323) or earlier. From now on an issue closes
+  when its build reaches production (Mark's Force Update) or TestFlight; its numbered device steps still go in a
+  comment, as a guide to what changed, not a gate. Stay open: anything not fully built, and anything a read-only check
+  by Claude can settle first. The `needs-device-test` label is kept only for the few checks only a device can make that
+  Mark has asked to keep open.
+- **Consequence:** amends D-38 (an issue whose acceptance names T5 no longer waits for the device check). ROADMAP's
+  "Waiting on Mark" shrinks to what is built but not yet in production or TestFlight.
+
+### D-79. One speed and efficiency programme in batches 0 to 7 (22 Nov 2026; Mark)
+
+- **Context:** Mark finds the TV Guide on Apple TV slow (each single press up or down often hangs); the review of 22 Nov
+  (https://claude.ai/artifact/6K7yotbLASsn4RMd3Fz5eS) found eight likely causes in the app from code, a server that is
+  quick but sends 9 to 11 MB for the whole guide, and no test that measures either.
+- **Choice:** batches in order: 0 tracker reset; 1 test bench on the MacBook and the Guide baseline; 2 Guide quick wins
+  (Apple); 3 Guide data (server, then Apple; a client-contract change); 4 Apple structure and launch; 5 operations (may
+  run beside 2 to 4); 6 player and channel change; 7 playback reliability (released alone). Measure, change,
+  measure: no speed fix ships without before and after figures from the same test on the same machine, and if the
+  baseline contradicts the review's ranking the measurement wins. Targets, fixed as numbers after the batch 1 baseline:
+  a single focus move with no hitch over 100 ms; the Guide's first screen within 1 s of opening the tab; a first guide
+  page under 300 KB. One batch per session, ended with a handover note as a comment on the batch's issue. Scope may
+  grow where real gains are found; each addition gets an issue.
+- **Consequence:** ROADMAP's batches A to F are replaced by batches 1 to 7.

@@ -6,7 +6,7 @@ is `../PigTV-Swift`. Work is tracked in [GitHub Issues](https://github.com/marog
 
 ## Map of the docs
 
-Repos (public): `github.com/maroge1990/PigTV` and `…/PigTV-Swift` (its own `AGENTS.md`); checkouts in WSL `~/code/PigTV{,-Swift}`, on the Mac `/Users/markrogers/Documents/GitHub/PigTV{,-Swift}` (Apple builds only).
+Repos (public): `github.com/maroge1990/PigTV` and `…/PigTV-Swift` (its own `AGENTS.md`); checkouts in WSL `~/code/PigTV{,-Swift}`, on the Mac `/Users/markrogers/Documents/GitHub/PigTV{,-Swift}` (never run git there; D-77).
 
 | File | Holds |
 |---|---|
@@ -25,13 +25,13 @@ Repos (public): `github.com/maroge1990/PigTV` and `…/PigTV-Swift` (its own `AG
 ```bash
 export PATH="/opt/homebrew/opt/node@24/bin:$PATH"   # Node 24: the default node 26 can't build better-sqlite3 12
 npm ci
-npm test                          # every test file, in parallel (~70 s; PIGTV_SKIP_PERF=1 on a busy Mac)
+npm test                          # every test file, in parallel (~70 s); the push gate runs on the MacBook (D-77)
 node --test test/<name>.test.js   # one file
 bash scripts/verify-build.sh .    # what tests can't check: placement, things that must not come back, image, CI, doc sizes (web strings: test/web-static-strings.test.js)
 npm start                         # http://localhost:3000
 ```
 
-Tests that need ffmpeg skip without one. `PIGTV_SKIP_PERF=1` skips speed budgets (CI's gate; a separate `perf` job runs them).
+Tests that need ffmpeg skip without one. `PIGTV_SKIP_PERF=1` skips speed budgets (GitHub's gate; the MacBook gate keeps them on).
 
 ## Session checklist
 
@@ -40,24 +40,24 @@ and `--label P1` before picking work. Tools that cannot read issues (Codex, offl
 
 **End** (reported in every handover): docs touched (which); `ROADMAP.md` current state overwritten (yes/no); no new
 handover or status files (yes/no); issues updated (which, with a comment each); commits waiting (`git log
-origin/main..main`); and for every issue waiting on a device check (T5), ask Mark whether it is done. A change's story
+origin/main..main`); and any issue Mark asked to keep open for a device check (T5): ask whether it is done. A change's story
 goes in its commit message, not the docs.
 
 ## How changes ship
 
 **Claude commits to `main` and pushes it once the batch has passed its reviews** (D-34). No feature branches.
-1. Make each fix with its test and run the targeted tests; the full gates (`npm test`, `verify-build.sh`) run once
-   before the batch's review round and again before the push. If one can't run, say so in the commit and to Mark.
+1. Make each fix with its test and run the targeted tests. The full gates (`npm test`, budgets on, `verify-build.sh`)
+   run on the MacBook (`ssh mac`, rsync to `~/pigtv-build/`) before the review round and every push (D-77); if it can't
+   be reached, ask Mark, never push ungated.
 2. A functional commit bumps `build` in `server/version.js`, and its subject starts with the number
    (`0208: what changed`). Docs-only and test-only commits have no number. Next build number: one more than `build` there (`grep "const BUILD" server/version.js`).
-3. Commits write `Refs #n`, **never** `Fixes`/`Closes` (that would close the issue on push, before Mark's check).
-4. **Push** once the gates and review rounds pass with no high finding left (D-34, D-35). CI runs the tests (Node 24 only,
-   D-52; web-only pushes skip 11 ffmpeg test files, D-50) and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass**:
-   watch it; if red, fix or `git revert` at once (`gh run view <id> --log-failed`). Docs-only pushes skip CI (D-38).
-5. Tell Mark what is committed, the build number, and numbered T5 steps ([`docs/TESTING.md`](docs/TESTING.md)) for
-   anything that needs the real feed or a device. Nothing is *Verified* until he reports back. Production runs `:latest` by Mark's
-   choice (D-58), so a green push reaches it at his next Force Update; `release.yml` still tags `:release` on his go-ahead
-   (D-45, [`docs/OPERATIONS.md`](docs/OPERATIONS.md) › Deployment).
+3. Commits write `Refs #n`, **never** `Fixes`/`Closes` (that would close the issue on push, before it is in production).
+4. **Push** once the MacBook gates and review rounds pass with no high finding left (D-34, D-35, D-77). GitHub CI runs
+   the tests (Node 24 only, D-52; web-only pushes skip 11 ffmpeg test files, D-50)
+   and builds `ghcr.io/maroge1990/pigtv` **only if the tests pass**: the only publish route, so watch it; if red, fix or `git revert` at once (`gh run view <id> --log-failed`). Docs-only pushes skip CI (D-38).
+5. Tell Mark what is committed, the build number, and numbered device steps ([`docs/TESTING.md`](docs/TESTING.md)):
+   a guide to what changed, not a gate (D-78). Production runs `:latest` by Mark's choice
+   (D-58), so a green push reaches it at his next Force Update; `release.yml` still tags `:release` on his go-ahead (D-45, [`docs/OPERATIONS.md`](docs/OPERATIONS.md) › Deployment).
 
 ## Work in batches (D-35)
 
@@ -70,9 +70,9 @@ test. Never batch unrelated areas to save time; a fix whose live effect must be 
 - Issues in `maroge1990/PigTV` for both repos. Labels: `bug` · `feature` · `finding`; `P0` (broken for real use) · `P1`
   (next) · `P2` (soon) · `P3` (someday); `server` · `apple` · `web`; `needs-device-test`. Body (`.github/ISSUE_TEMPLATE/`):
   symptom · how to reproduce · evidence · cause (once known) · acceptance with its test tier; where it came from.
-- **Claude closes an issue once its fix is pushed with T1–T3 evidence**, in a comment naming the build (D-38). An issue
-  whose acceptance names T5, or labelled `needs-device-test`, stays open until Mark reports the device check (its
-  numbered steps are a comment on the issue; ROADMAP › Waiting on Mark groups them), and a closed one is reopened if his check contradicts it.
+- **Claude closes an issue once its build is in production (Mark's Force Update) or on TestFlight, with T1–T3
+  evidence**, in a comment naming the build and the numbered device steps (D-78). Mark reopens it if he sees the fault.
+  Not fully built, or settled by a read-only check of Claude's: stays open. `needs-device-test` only if Mark asks.
 - Anything that would help someone attack an exposed server (auth or redaction bypass) is a **private security
   advisory**, never a public issue, commit text or doc.
 - Docs never list open work; they may link an issue. Size budgets warn, never fail (`verify-build.sh`, D-22, D-47).
@@ -108,7 +108,7 @@ failing-before test.
 
 ## Gotchas
 
-- CI runs every test file at once on 2 vCPUs: keep timing margins ≥ 1 s, or poll.
+- GitHub CI runs every test file at once on 2 vCPUs: keep timing margins ≥ 1 s, or poll.
 - Query `epg_live`, never `epg_programs`; a row that has a `stable_id` must never fall back to its stored `pos_N`
   ([`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) › Channel identity, Guide and EPG).
 - Ingest-time changes show after a sync (Settings → ⟳, "Sync now"); a redeploy skips sources synced in the last 24 h.
