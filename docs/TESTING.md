@@ -10,7 +10,7 @@ The protocol for both repos: which tier proves what, who runs it, and the tools.
 | T1 Automated | `npm test`, `verify-build.sh`; Apple `Tools/test.sh fast` per commit, `push` before every push, iOS build | Claude | Every functional commit |
 | T2 Real media, offline | ffmpeg fixture tests, relay rig, stream doctor and avsync harness on saved captures, AVPlayer over loopback | Claude | Any change to playback, recording or ingest |
 | T3 End to end | Server against the fake provider; web app driven in the browser pane; the real Apple app in tvOS and iOS simulators against that server; before/after screenshots of every changed screen as evidence | Claude | Any change a user can see or touch, **once the test rig is live** |
-| T4 Deployed, read-only | `/api/version`, health, logs; no provider connection | Claude | Diagnosing a live report |
+| T4 Deployed, read-only | `/api/version`, health, logs, Status (sign-in from `~/.config/pigtv/status.env`, GET only); no provider connection | Claude | Diagnosing a live report |
 | T5 Device and real feed | Physical Apple TV / iPad / iPhone; real provider over time; A/V sync, picture, how the remote feels; deploy | Mark | Anything labelled `needs-device-test` |
 
 - **T3 is active once the Unraid test rig is live.** It needs the fake provider (built: [`FAKE-PROVIDER.md`](FAKE-PROVIDER.md))

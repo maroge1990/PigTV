@@ -14,9 +14,11 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
   plan, recorded as D-79 and #359. 83 built issues closed on trust (D-78), each with a comment naming its builds; #74
   closed as not reproducible on 0886 (relay rig, timestamps). New issues: #359 the programme, #360 the slow TV Guide on
   Apple TV, #361 the server's guide data, #362 the MacBook test bench. The MacBook is the test gate for both repos
-  (D-77). 66 issues are open.
-- **Not done:** #29, #259 and #273 could not be settled by a read-only look (Status needs an admin sign-in; see Waiting
-  on Mark). #36's production figures cover only 2 plays so far.
+  (D-77).
+- **Read-only checks, 22 Nov:** #29 and #273 closed on production's figures (collector parse 7.7 ms at worst; the
+  write-ahead file unchanged in 8 days). Claude can read Status itself now (an admin account whose sign-in is in
+  `~/.config/pigtv/status.env` on the WSL machine, GET requests only). #36's Status panel shows 0 plays since the
+  21 Nov restart; #259 waits for a race. 64 issues are open.
 
 ## Now: the speed and efficiency programme (#359, D-79)
 
@@ -51,8 +53,6 @@ screen within 1 s of opening the tab; a first guide page under 300 KB.
 
 ## Waiting on Mark
 
-- **Status panels only an admin can read:** #29 (Status › Sport score collector) · #273 (a busy-period reading) · #36
-  (Status › Where starts go). Paste them, or say how Claude may read Status.
 - **At a real event:** #259 (the next F1 race: is it marked live?).
 - **Decisions:** #294 (brand kit icons) · #21 (how to close the sport rebuild).
 - **Only a device can tell** (`needs-device-test`): #28 (hardware encodes on PassyFlix) · #101 (audio and subtitle
