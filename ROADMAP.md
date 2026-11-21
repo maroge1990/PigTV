@@ -18,7 +18,7 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 - **Read-only checks, 22 Nov:** #29 and #273 closed on production's figures (collector parse 7.7 ms at worst; the
   write-ahead file unchanged in 8 days). Claude can read Status itself now (an admin account whose sign-in is in
   `~/.config/pigtv/status.env` on the WSL machine, GET requests only). #36's Status panel shows 0 plays since the
-  21 Nov restart; #259 waits for a race. 64 issues are open.
+  21 Nov restart; #259 waits for a race. 63 issues are open.
 
 ## Now: the speed and efficiency programme (#359, D-79)
 
