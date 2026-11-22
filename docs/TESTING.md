@@ -101,7 +101,8 @@ Apple app (`configuredTimeOffsetFromLive` 30 s). No server, provider or device i
 a file of the fake provider's `TEST A/V SYNC` channel (a flash and a 1760 Hz beep at each second of one clock, both long
 every 10th second) and prints the sound-minus-picture offset of every flash-and-beep pair, a summary (median, min, max,
 worst, drift, the first time it leaves ±80 ms for 5 s) and one `AVSYNC {json}` line; positive is sound late. The long
-marks catch a whole-second slip. `--events` takes `<seconds into the file> [label]` lines (switch times) and marks them.
+marks catch a whole-second slip; between two long marks a missing or extra mark makes that stretch `ambiguous`
+(listed in `ambiguousIntervals`), and the `verdict` is `in step` only with none. `--events` takes `<seconds into the file> [label]` lines (switch times) and marks them.
 It reads files only: it refuses a URL and never prints one. A file without sound (a `simctl io recordVideo`) gets
 the flash times only. Measured (`test/avsync-meter.test.js`, ffmpeg 8.0 on WSL, 22 Nov): the generator's own file -1.3 ms;
 through the session's own arguments -1.0 ms (fMP4 copy) and -1.3 ms (MPEG-TS, audio encoded); a file with the sound

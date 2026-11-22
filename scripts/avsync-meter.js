@@ -37,6 +37,8 @@ const WINDOW = 240;          // audio samples per level reading at 48 kHz: 5 ms
 const OUT_OF_STEP_MS = 80;
 const OUT_OF_STEP_FOR_SEC = 5;
 
+/** Text that came from the input (an event label, a file name), with anything address-like replaced: never printed. */
+const scrub = (text) => String(text).replace(/[a-z][a-z0-9+.-]*:\/\/\S*/gi, '<address>').replace(/\bwww\.\S+/gi, '<address>');
 const isUrl = (s) => /^[a-z][a-z0-9+.-]*:/i.test(String(s)) && !/^[a-z]:[\\/]/i.test(String(s));
 
 // ---- onsets ------------------------------------------------------------------------------------------------
@@ -91,7 +93,7 @@ const round1 = (x) => (x === null || x === undefined || !Number.isFinite(x) ? nu
  * it, within half a period; one beep pairs with one flash at most.
  * -> { pairs: [{ t, offsetMs, long }], missingBeeps: [t], missingFlashes: [t], kindMismatches, ambiguous, coarseMs }
  */
-function pairOnsets(flashes, beeps, { period = PERIOD, longEvery = LONG_EVERY } = {}) {
+function pairOnsets(flashes, beeps, { period = PERIOD, longEvery = LONG_EVERY, start = null, end = null } = {}) {
     const F = [...flashes].sort((a, b) => a.t - b.t);
     const B = [...beeps].sort((a, b) => a.t - b.t);
     const nearest = (list, t, within, filter = () => true) => {
@@ -117,6 +119,7 @@ function pairOnsets(flashes, beeps, { period = PERIOD, longEvery = LONG_EVERY } 
     const pairs = [];
     const missingBeeps = [];
     let kindMismatches = 0;
+    const mismatchAt = [];
     for (const f of F) {
         // A long flash re-anchors on the long beep nearest the expected place (a slip of a whole second is caught here).
         let b = null;
@@ -126,13 +129,32 @@ function pairOnsets(flashes, beeps, { period = PERIOD, longEvery = LONG_EVERY } 
         if (!b) b = nearest(B, f.t + expect, period / 2, x => !used.has(x));
         if (!b) { missingBeeps.push(f.t); continue; }
         used.add(b);
-        if (!!b.long !== !!f.long) kindMismatches++;
+        if (!!b.long !== !!f.long) { kindMismatches++; mismatchAt.push(f.t); }
         const offset = b.t - f.t;
-        pairs.push({ t: f.t, offsetMs: round1(offset * 1000), long: !!f.long });
+        pairs.push({ t: f.t, offsetMs: round1(offset * 1000), long: !!f.long, anchor: !!f.long && !!b.long });
         expect = offset;
     }
     const missingFlashes = B.filter(b => !used.has(b)).map(b => b.t);
-    return { pairs, missingBeeps, missingFlashes, kindMismatches, ambiguous, coarseMs: round1(coarse * 1000) };
+    // 0905 (Codex medium): between two long-mark pairs every short mark looks alike, so a mark missing or extra there (or a
+    // long mark paired with a short one) means the sound may have slipped by whole seconds and been paired with the
+    // neighbouring second's flash. Such a stretch, from the long pair before it to the long pair after it, is ambiguous:
+    // its pairs are marked and the verdict cannot be "in step". A mark missing only at the very start or end of the
+    // file (cut by the recording) is not evidence of a slip.
+    const edge = (t) => (start !== null && t - start < period) || (end !== null && end - t < period);
+    const suspects = [...missingBeeps, ...missingFlashes, ...mismatchAt].filter(t => !edge(t)).sort((x, y) => x - y);
+    const anchors = pairs.filter(pr => pr.anchor).map(pr => pr.t);
+    const ambiguousIntervals = [];
+    for (const t of suspects) {
+        const from = anchors.filter(a => a <= t).pop() ?? (start ?? -Infinity);
+        const to = anchors.find(a => a > t) ?? (end ?? Infinity);
+        const last = ambiguousIntervals[ambiguousIntervals.length - 1];
+        if (last && from <= last.to) last.to = Math.max(last.to, to);
+        else ambiguousIntervals.push({ from, to });
+    }
+    for (const pr of pairs) if (ambiguousIntervals.some(iv => pr.t > iv.from && pr.t < iv.to)) pr.ambiguous = true;
+    const json = (x) => (Number.isFinite(x) ? Math.round(x * 1000) / 1000 : null);
+    return { pairs, missingBeeps, missingFlashes, kindMismatches, ambiguous, coarseMs: round1(coarse * 1000),
+        ambiguousIntervals: ambiguousIntervals.map(iv => ({ from: json(iv.from), to: json(iv.to) })) };
 }
 
 /** Least-squares slope of offset over time, in ms per minute (null with fewer than 2 pairs or no time span). */
@@ -175,6 +197,10 @@ function summarise(result, events = []) {
         missingFlashes: result.missingFlashes.length,
         kindMismatches: result.kindMismatches,
         wholeSecondAmbiguous: result.ambiguous,
+        ambiguousIntervals: result.ambiguousIntervals || [],
+        // In step only when every stretch is unambiguous and nothing left ±80 ms for 5 s.
+        verdict: !offs.length ? 'no pairs' : result.ambiguous || (result.ambiguousIntervals || []).length ? 'ambiguous'
+            : firstOutOfStep(result.pairs) !== null ? 'out of step' : 'in step',
         events: events.map(e => ({ t: e.t, label: e.label || null, beforeMs: round1(window(e.t - 5, e.t)), afterMs: round1(window(e.t, e.t + 5)) }))
     };
 }
@@ -201,8 +227,8 @@ function parseEvents(text) {
         if (!line || line.startsWith('#')) continue;
         const [time, ...label] = line.split(/\s+/);
         const t = parseTime(time);
-        if (t === null) throw new Error(`events: not a time: ${time.slice(0, 20)}`);
-        out.push({ t, label: label.join(' ') || null });
+        if (t === null) throw new Error('a line of the events file does not start with a time');
+        out.push({ t, label: scrub(label.join(' ')) || null });
     }
     return out.sort((a, b) => a.t - b.t);
 }
@@ -267,7 +293,8 @@ function measure(file, { corner = null, events = [] } = {}) {
     const flashes = onsets(luma, { minSpread: 20 });
     if (!level) return { audio: false, flashes, beeps: [], result: null, summary: null };
     const beeps = onsets(level, { minSpread: 12 }); // dB
-    const result = pairOnsets(flashes, beeps);
+    const times = [...luma, ...level].map(x => x.t);
+    const result = pairOnsets(flashes, beeps, { start: Math.min(...times), end: Math.max(...times) });
     return { audio: true, flashes, beeps, result, summary: summarise(result, events) };
 }
 
@@ -282,11 +309,12 @@ function parseArgs(argv) {
         if (a === '--help' || a === '-h') { o.help = true; continue; }
         if (a === '--quiet') { o.quiet = true; continue; }
         if (a === '--corner' || a === '--events') {
-            if (i + 1 >= argv.length) throw new Error(`${a} needs a value`);
+            if (i + 1 >= argv.length) throw new Error('--corner and --events need a value');
             if (a === '--corner') o.corner = parseCorner(argv[++i]); else o.events = argv[++i];
             continue;
         }
-        if (a.startsWith('--')) throw new Error(`Unknown option ${a.slice(0, 40)}`);
+        // Never the argument's text: it may hold an address (--events=<URL>).
+        if (a.startsWith('-')) throw new Error('Unknown option (not shown).');
         if (o.file) throw new Error('One file at a time');
         o.file = a;
     }
@@ -306,7 +334,7 @@ function main(argv = process.argv.slice(2), out = console.log) {
     try { if (o.events) events = parseEvents(fs.readFileSync(o.events, 'utf8')); } catch (e) { out(`Could not read the events file: ${e.message}`); return 2; }
     let m;
     try { m = measure(o.file, { corner: o.corner, events }); } catch (e) { out(`avsync-meter: ${e.message}`); return 1; }
-    const name = path.basename(o.file);
+    const name = scrub(path.basename(o.file));
     if (!m.audio) {
         out(`${name}: no sound in this file; picture onsets only (${m.flashes.length}):`);
         if (!o.quiet) for (const f of m.flashes) out(`flash t=${f.t.toFixed(3)}${f.long ? ' long' : ''}`);
@@ -319,7 +347,7 @@ function main(argv = process.argv.slice(2), out = console.log) {
             const marks = [];
             while (e < events.length && events[e].t <= p.t) marks.push(events[e++]);
             for (const ev of marks) out(`-- event t=${ev.t.toFixed(1)}${ev.label ? ` ${ev.label}` : ''}`);
-            out(`t=${p.t.toFixed(3)} offset_ms=${p.offsetMs}${p.long ? ' (long)' : ''}`);
+            out(`t=${p.t.toFixed(3)} offset_ms=${p.offsetMs}${p.long ? ' (long)' : ''}${p.ambiguous ? ' (ambiguous)' : ''}`);
         }
     }
     const s = m.summary;
@@ -327,11 +355,13 @@ function main(argv = process.argv.slice(2), out = console.log) {
         `min ${s.minMs}, max ${s.maxMs}, worst ${s.worstMs}, drift ${s.driftMsPerMin} ms/min; ` +
         (s.firstOutOfStepSec === null ? `never out of ±${OUT_OF_STEP_MS} ms for ${OUT_OF_STEP_FOR_SEC} s` : `out of ±${OUT_OF_STEP_MS} ms from t=${s.firstOutOfStepSec} s`) +
         (s.missingBeeps || s.missingFlashes ? `; unpaired: ${s.missingBeeps} flashes without a beep, ${s.missingFlashes} beeps without a flash` : '') +
-        (s.wholeSecondAmbiguous ? '; no long marks paired, so a whole-second slip cannot be ruled out' : ''));
+        (s.wholeSecondAmbiguous ? '; no long marks paired, so a whole-second slip cannot be ruled out' : '') +
+        (s.ambiguousIntervals.length ? `; ${s.ambiguousIntervals.length} stretch(es) where marks are missing or extra, so a whole-second slip cannot be ruled out there` : '') +
+        `; verdict: ${s.verdict}`);
     out(`AVSYNC ${JSON.stringify({ file: name, audio: true, ...s })}`);
     return 0;
 }
 
 if (require.main === module) process.exitCode = main();
 
-module.exports = { onsets, pairOnsets, summarise, driftMsPerMin, firstOutOfStep, parseEvents, parseMetadataPrint, measure, main, isUrl };
+module.exports = { scrub, onsets, pairOnsets, summarise, driftMsPerMin, firstOutOfStep, parseEvents, parseMetadataPrint, measure, main, isUrl };

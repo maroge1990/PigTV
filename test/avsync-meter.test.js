@@ -104,6 +104,24 @@ test('T1: onsets: half way between the quiet and bright levels, upward, with the
     assert.deepEqual(meter.onsets(series.map(s => ({ t: s.t, v: 30 })), { minSpread: 20 }), [], 'no marks: none found');
 });
 
+test('0905: a one-second sound slip for eight seconds between long marks is ambiguous, never "in step" at zero', () => {
+    const flashes = marks(40, { from: 1 });
+    // The sound of seconds 11-18 comes a second late (heard at 12-19; the 18th lands on the 19th's own beep), so the beep
+    // at 11 is missing; the long marks at 10 and 20 are untouched.
+    const beeps = [...marks(10, { from: 1 }), ...marks(8, { from: 12 }), ...marks(21, { from: 20 })];
+    const r = meter.pairOnsets(flashes, beeps);
+    const s = meter.summarise(r);
+    assert.notEqual(s.verdict, 'in step');
+    assert.equal(s.verdict, 'ambiguous');
+    assert.deepEqual(s.ambiguousIntervals, [{ from: 10, to: 20 }]);
+    for (const p of r.pairs.filter(x => x.t > 10 && x.t < 20)) assert.ok(p.ambiguous || p.offsetMs !== 0, `t=${p.t} reported as plain zero`);
+    // Away from it, and in a clean run, the verdict stands.
+    assert.equal(meter.summarise(meter.pairOnsets(marks(40, { from: 1 }), marks(40, { from: 1 }))).verdict, 'in step');
+    // A mark cut at the very start of the file is not a slip.
+    const cut = meter.pairOnsets(marks(30, { from: 1 }), marks(31, { from: 0 }), { start: 0, end: 31 });
+    assert.equal(meter.summarise(cut).verdict, 'in step');
+});
+
 test('T1: events files and metadata lines parse', () => {
     assert.deepEqual(meter.parseEvents('# rig\n120 close on A\n2:30 stall\n\n1:00:00\n'),
         [{ t: 120, label: 'close on A' }, { t: 150, label: 'stall' }, { t: 3600, label: null }]);
@@ -123,6 +141,17 @@ test('files only: a URL is refused and never printed', () => {
     assert.ok(!lines.join('\n').includes('x.invalid'));
     assert.equal(meter.isUrl('C:\\rec\\ipad.mov'), false, 'a Windows path is a file');
     assert.equal(meter.main([path.join(work, 'missing.mov')], () => {}), 2);
+    // 0905: an unknown or malformed argument is never echoed (--events=<URL> is one argument).
+    for (const argv of [['--events=http://user:secret@x.invalid/e', 'f.ts'], ['f.ts', 'https://x.invalid/2.ts'], ['--corner', 'http://x.invalid/c'], ['-x', 'rtmp://x.invalid/a']]) {
+        const got = [];
+        assert.equal(meter.main(argv, (l) => got.push(l)), 2);
+        assert.ok(!/invalid|secret/.test(got.join('\n')), got.join('\n'));
+    }
+    // ...and a label from the events file never carries an address out.
+    const events = meter.parseEvents('12 switch to http://user:secret@p.invalid/live/u/p/1.ts now\n13 www.p.invalid/x\n');
+    assert.ok(!/invalid|secret/.test(JSON.stringify(events)), JSON.stringify(events));
+    assert.match(events[0].label, /^switch to <address> now$/);
+    assert.throws(() => meter.parseEvents('http://x.invalid/1 a'), (e) => !/invalid/.test(e.message));
 });
 
 // ---- T2: real media ----------------------------------------------------------------------------------------------
@@ -145,6 +174,7 @@ const within = (m, ms) => {
     assert.ok(s.pairs >= 55, `pairs ${s.pairs} (${m.flashes.length} flashes, ${m.beeps.length} beeps)`);
     assert.equal(s.wholeSecondAmbiguous, false);
     assert.equal(s.kindMismatches, 0);
+    assert.equal(s.verdict, 'in step', JSON.stringify(s.ambiguousIntervals));
     // The beep at t 0 has no flash onset (the first frame is already lit); nothing else is left over.
     assert.ok(s.missingBeeps === 0 && s.missingFlashes <= 1, `unpaired: ${s.missingBeeps} flashes, ${s.missingFlashes} beeps`);
     assert.ok(Math.abs(s.minMs) <= ms && Math.abs(s.maxMs) <= ms, `offsets ${s.minMs}..${s.maxMs} ms, limit ±${ms}`);
@@ -209,6 +239,19 @@ test('T2: a real offset is read back: the sound moved 250 ms late, then 1.3 s la
         const s = meter.measure(moved).summary;
         assert.ok(s.pairs >= 50 && Math.abs(s.medianMs - expect) <= 20 && Math.abs(s.minMs - expect) <= 20 && Math.abs(s.maxMs - expect) <= 20,
             `${expect} ms: ${JSON.stringify(s)}`);
+    }
+});
+
+test('0905: a label with an address never reaches the output, in text or JSON, quiet or not', { skip: !hasFfmpeg && 'no ffmpeg' }, () => {
+    if (!source) { source = path.join(work, 'sync-source.ts'); generate(source); }
+    const ev = path.join(work, 'events.txt');
+    fs.writeFileSync(ev, '20.5 switch on http://user:secret@p.invalid/live/u/p/1.ts\n');
+    for (const quiet of [false, true]) {
+        const lines = [];
+        assert.equal(meter.main([source, '--events', ev, ...(quiet ? ['--quiet'] : [])], (l) => lines.push(l)), 0);
+        const text = lines.join('\n');
+        assert.ok(!/invalid|secret/.test(text), text.slice(-400));
+        assert.match(text, /"label":"switch on <address>"/);
     }
 });
 

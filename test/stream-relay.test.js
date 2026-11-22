@@ -946,20 +946,22 @@ test('D-7: a candidate whose leg cannot start is given up and the next one is st
 // reason no-candidate). A renewal is opportunistic and must never make a healthy play worse: the old leg stopped at the
 // reconnect, so the play recovers as from a stall of it (a ready standby, else the provider walk, else the same provider
 // without renewal), renewal is off for the rest of the play, and only that ordinary path finding nothing ends it.
-async function renewalThatNeverPlays({ settings = { ...withStandby, sharedIngestEnabled: true }, resolveAfter, ingest = { key: 'k-a', state: 'live', reconnectedAt: Date.now() - 10000 } } = {}) {
-    const s = fakeSession(); write(s, 0, 2);
+async function renewalThatNeverPlays({ settings = { ...withStandby, sharedIngestEnabled: true }, resolveAfter, ingest = { key: 'k-a', state: 'live', reconnectedAt: Date.now() - 10000 },
+    renewalError = () => new Error('FFmpeg ended before producing a playlist'), ctxExtra = {}, setup = null } = {}) {
+    const s = fakeSession({ owner: ctxExtra.owner || 'device:tv' }); write(s, 0, 2);
     // As TranscodeSession.handleIngestReconnect: the session stops its own ffmpeg at the reconnect (a planned boundary).
     s.stop = async () => { s.stopRequested = true; s.status = 'stopped'; };
-    const r = relay.adopt(s, ctx({ settings }));
+    const r = relay.adopt(s, ctx({ settings, ...ctxExtra }));
     clearInterval(r.timer);
     await r.ingest();
+    if (setup) await setup(r);
     const pin = { endReason: null, ingest, left: 0, leave() { this.left++; } };
     const resolve = strategy.resolve;
     const peek = sessions.peekSession;
     sessions.peekSession = id => registry.get(id);
     // The renewal leg connects to the same ingest but has no first segment by its deadline: the resolve gives it up.
     strategy.resolve = async (opts) => {
-        if (opts.sessionOptions?.relayTimeline) { started.push({ provider: opts.providerId, renewal: true }); throw new Error('FFmpeg ended before producing a playlist'); }
+        if (opts.sessionOptions?.relayTimeline) { started.push({ provider: opts.providerId, renewal: true }); throw renewalError(); }
         return resolveAfter(opts, resolve);
     };
     const notes = [];
@@ -1054,4 +1056,65 @@ test('#4: when the ordinary path after a failed renewal finds nothing either, th
 
 test('#4: renewal stays off by default', () => {
     assert.match(fs.readFileSync(path.join(sandbox, 'server/db.js'), 'utf8'), /ingestReconnectRenewal: false,/);
+});
+
+// ---- 0905: Codex review of 0904 ---------------------------------------------------------------------------------------
+
+test('0905: a renewal that times out for the provider\'s reason quarantines its channel only; the provider-wide breaker never hears of it', async () => {
+    routing.noteFailure = real.noteFailure; // the real accounting: quarantine plus the breaker
+    try {
+        for (const key of ['ch-1', 'ch-2']) {
+            const candidate = { ...A, channelKey: key, url: `http://a.invalid/${key}.ts` };
+            const { r } = await renewalThatNeverPlays({ renewalError: () => Object.assign(new Error('The provider did not respond in time.'), { providerReason: true }),
+                ctxExtra: { owner: `device:${key}`, candidate, primaryKey: key }, resolveAfter: (opts, resolve) => resolve(opts) });
+            assert.equal(routing.isQuarantined(1, key), true, 'the renewal\'s channel is quarantined on that provider');
+            await silently(() => r.close('test over'));
+        }
+        assert.equal(routing.providerState(1), 'up', 'two failed renewals on two channels do not mark the provider down');
+        assert.equal(routing.isQuarantined(1, 'k'), false, 'an unrelated channel still uses the provider');
+    } finally { routing.noteFailure = (candidate) => { quarantined.push(candidate.providerName); }; routing.reset(); }
+});
+
+test('0905: a newer play of the same device arriving while the fallback reads the standby: this play ends, nothing is promoted', async () => {
+    const samePool = coordinator.samePool, free = coordinator.hasFreeConnection;
+    coordinator.samePool = (a, b) => a === b;
+    coordinator.hasFreeConnection = () => true;
+    coordinator._leases.clear();
+    let backup = null, newer = null;
+    try {
+        const { r, pin } = await renewalThatNeverPlays({
+            resolveAfter: (opts, resolve) => resolve(opts),
+            setup: (r) => {
+                backup = fakeSession({ providerId: 2, standby: true, owner: `standby:${r.id}` }); write(backup, 0, 2);
+                r.standby = r.addLeg(backup, B); r.standby.tail = [{ seq: 1 }, { seq: 2 }]; r.standby.lastSegAt = Date.now();
+                const read = r.readPlaylist.bind(r);
+                r.readPlaylist = async (leg) => {
+                    // While the standby's playlist is read, the device asks for another channel: its admission holds a lease.
+                    if (leg === r.standby && !newer) newer = coordinator.takeLease(1, 'viewer', { owner: 'device:tv' });
+                    return read(leg);
+                };
+            }
+        });
+        assert.ok(newer, 'the newer request arrived during the fallback');
+        assert.equal(r.closed, true, 'this play ends');
+        assert.equal(r.failed, false, 'quietly: the viewer moved on');
+        assert.notEqual(r.active.session, backup, 'the standby was not promoted');
+        assert.equal(registry.has(backup.id), false, 'the standby is stopped');
+        assert.deepEqual([...registry.values()].filter(x => x.status === 'running'), [], 'nothing of this play is left running');
+        assert.equal(pin.left, 1, 'no orphan pin');
+        assert.deepEqual(started.filter(x => !x.renewal), [], 'nothing was started for it');
+    } finally { if (newer) coordinator.releaseUnbound(newer); coordinator.samePool = samePool; coordinator.hasFreeConnection = free; }
+});
+
+test('0905: the failed feed is tried once, last, even when the plan puts the quarantined primary back', async () => {
+    const plan = routing.plan;
+    // Production-shaped: with nothing else left, plan() returns the primary although it is quarantined.
+    routing.plan = async () => ({ candidates: [A], primaryKey: 'k', channelName: 'Fox Footy' });
+    try {
+        // The feed still cannot start (a full start deadline each time on a real provider).
+        const { r } = await renewalThatNeverPlays({ resolveAfter: (opts) => { started.push({ provider: opts.providerId }); throw new Error('no playlist'); } });
+        assert.equal(started.filter(x => x.provider === 1 && !x.renewal).length, 1, 'one start on the failed feed, not two');
+        assert.equal(r.closed, true);
+        assert.equal(r.lastReason.code, 'no-candidate');
+    } finally { routing.plan = plan; }
 });

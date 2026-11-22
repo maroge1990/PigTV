@@ -478,15 +478,26 @@ class Relay {
                     }
                 }
                 if (!planned) {
+                    // #4 (0905, Codex high): every await below may let the viewer start something else; then this play is
+                    // over, and nothing of it may be started or promoted (one play per device).
+                    const supersededNow = async (started = null) => {
+                        if (this.closed) { if (started) await this.retire(started, true); return true; }
+                        if (!this.superseded(started && started.session.id)) return false;
+                        if (started) await this.retire(started, true);
+                        await this.close('the viewer is watching something else');
+                        return true;
+                    };
                     // The clock did not tick while the renewal waited (up to 20 s): see where the standby stands now.
                     if (renewalFailed && this.standby) await this.tendStandby();
-                    if (this.closed) return;
+                    if (await supersededNow()) return;
                     if (renewalFailed && this.standbyReady()) {
                         next = this.promoteStandby();
                         this.note('promoted', `standby on ${this.providerOf(next)} took over`, { state: 'promoted', provider: this.providerOf(next) });
                     } else {
                         if (this.standby) await this.dropStandby('not ready when it was needed', 'stalled');
-                        next = await this.startCold();
+                        if (await supersededNow()) return;
+                        next = await this.startCold(null, null, null, false, code === 'renewal-failed' ? { exclude: old.candidate } : {});
+                        if (await supersededNow(next)) return;
                         // The primary is still delivering: unavailable backups must
                         // not turn a renewal limit (or a failed renewal, #4) into the end of an
                         // otherwise live play. Try it once with renewal disabled, retaining normal
@@ -495,6 +506,7 @@ class Relay {
                         const pinUsable = pin && (!pin.endReason || (pin.ingest && this.reclaimedPins.has(pin.ingest.key)));
                         if (!next && (code === 'renewal-budget' || code === 'renewal-failed') && !this.closed && pinUsable) {
                             next = await this.startCold([old.candidate]);
+                            if (await supersededNow(next)) return;
                             if (next) this.note('renewal-primary-fallback', `no backup available; continuing on ${this.providerOf(next)} with renewal disabled`);
                         }
                     }
@@ -622,7 +634,9 @@ class Relay {
                 sessionOptions: { relayTimeline: renewal && !standby && this.renewalEnabled(), channelName: ctx.channelName || null, ...(standby ? { standby: true } : {}) }
             });
         } catch (err) {
-            if (routing().isProviderFailure(err)) {
+            // #4 (0905, Codex high): a planned renewal's attempt is not a start the provider failed. The relay quarantines
+            // the channel itself if the renewal cannot land; the provider-wide breaker never hears of it.
+            if (routing().isProviderFailure(err) && !renewal) {
                 try { routing().noteStartFailure(candidate, ctx.primaryKey); } catch (e) { /* observation only */ }
             }
             this.log(`${candidate.providerName} could not start: ${String(stripUrls(err && err.message, [candidate.url])).split('. ')[0]}`);
@@ -644,7 +658,7 @@ class Relay {
     }
 
     /** Cold start: re-plan providers, or renew only the supplied candidate using the retained slot. */
-    async startCold(sameCandidate = null, adopt = null, deadlineAt = null, renewal = false) {
+    async startCold(sameCandidate = null, adopt = null, deadlineAt = null, renewal = false, { exclude = null } = {}) {
         const { ctx } = this;
         let candidates;
         try {
@@ -652,6 +666,9 @@ class Relay {
         } catch (err) {
             return null;
         }
+        // #4 (0905): the feed a failed renewal was on is tried once, last, by the caller; the plan puts a quarantined
+        // primary back when nothing else is left, so it is left out of the walk here.
+        if (exclude) candidates = candidates.filter(c => !(c.providerId === exclude.providerId && c.url === exclude.url));
         // D-7: the walk (admit without disturbing, admit, start on the lease, give back an unbound
         // lease) is services/playbackStart.js; what is the relay's own is here.
         return startOnFirstFree(candidates, {
@@ -662,8 +679,7 @@ class Relay {
                 // it again would stop what they are watching now.
                 // A newer request still probing holds only an unbound viewer lease (Codex review of 0320):
                 // it counts too, so a fallback never takes the connection reserved for it.
-                if (coordinator().activeStreams().some(s => s.owner && s.owner === ctx.owner && s.id !== adopt && !s.warm)
-                    || (ctx.owner && coordinator().listLeases().some(l => l.purpose === 'viewer' && l.owner === ctx.owner && !l.sessionId))) {
+                if (this.superseded(adopt)) {
                     this.close('the viewer is watching something else');
                     return STOP;
                 }
@@ -685,6 +701,18 @@ class Relay {
             // A leg that cannot be used (null) goes on to the next candidate.
             start: (candidate, i, lease) => this.startLeg(candidate, { owner: ctx.owner, lease, deadlineAt, renewal })
         });
+    }
+
+    /**
+     * Has the viewer started something else since (a newer session of theirs, or a newer request still probing on an
+     * unbound viewer lease)? `keep` is a session of this relay's own that does not count.
+     */
+    superseded(keep = null) {
+        const { ctx } = this;
+        const mine = new Set(this.legs.map(l => l.session.id));
+        if (keep) mine.add(keep);
+        return coordinator().activeStreams().some(s => s.owner && s.owner === ctx.owner && !mine.has(s.id) && !s.warm)
+            || (!!ctx.owner && coordinator().listLeases().some(l => l.purpose === 'viewer' && l.owner === ctx.owner && !l.sessionId));
     }
 
     // ---- the standby -----------------------------------------------------------------------

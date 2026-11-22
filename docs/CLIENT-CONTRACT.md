@@ -115,7 +115,10 @@ build 27), and `audioEncode: true` on the one fallback after a `'fmt?'` decode f
   admitted/started, the relay tries its still-pinned primary once with renewal disabled under normal admission checks.
   It ends if neither backup nor primary can start; successful primary fallback records `renewal-primary-fallback`. Ordinary cold failover opts into renewal only once its first playlist is ready. Startup epochs closed for renewal end with EOF and are not treated as provider failures or hardware-decode
   failures. The planned renewal does not promote standby, quarantine the provider or count as a lost/recovered play;
-  Status uses relay reason `reconnected`. Recordings, probes, warm/standby readers, sessions without a relay, the 0191
+  Status uses relay reason `reconnected`. From 0904 a planned renewal that cannot land (no playlist from its new leg, or its feed
+  not settled by the deadline) no longer ends the play: the relay recovers as from a stall (the client sees the usual
+  `EXT-X-DISCONTINUITY` join), renewal is blocked for the rest of that play, and the relay's reason reads
+  `renewal-failed`. The setting is still off by default. Recordings, probes, warm/standby readers, sessions without a relay, the 0191
   direct-read guard, ffmpeg flags and Apple 30 s live hold are unchanged. A promoted standby becomes a viewer. This has
   synthetic/local tests only and is **not approved as a production sync fix**; Mark's iPhone acceptance is pending.
 - **0307** prepares a container upgrade to a pinned FFmpeg/ffprobe **9.0.2** pair, matching Linux CI's release/feature

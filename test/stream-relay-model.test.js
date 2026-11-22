@@ -354,6 +354,9 @@ const TABLE = {
     quarantineLifted: () => true,
     viewerElsewhere: (b, a) => true, // checked at the next cold start: the relay ends rather than take the viewer's connection
     viewerLeaves: (b, a) => a.closed || 'the viewer leaving ends the play',
+    // 0905 (Codex high): the device asks for something else while a failed renewal's fallback is in flight (its lease is
+    // held during the switch): this play ends and nothing of it is promoted or started.
+    renewalSuperseded: (b, a) => !world.supersededTaken || (a.closed && !a.failed) || 'a newer play of the device during the fallback ends this one',
     stopped: (b, a) => a.closed || 'a leg stopped on request (a DELETE, a takeover, the idle sweep) ends the play'
 };
 
@@ -362,7 +365,7 @@ const TABLE = {
 async function runSeed(seed, steps = 30) {
     const rand = mulberry32(seed);
     const pick = (list) => list[Math.floor(rand() * list.length)];
-    world = { seed, rand, notes: [], stuck: [], sessions: [], ingests: [], ingestSeq: 0, resolves: 0, ended: false, violations: [], trace: [], timers: [], outcomes: [],
+    world = { seed, rand, notes: [], stuck: [], foreignLeases: [], supersedeOnRead: false, supersededTaken: false, sessions: [], ingests: [], ingestSeq: 0, resolves: 0, ended: false, violations: [], trace: [], timers: [], outcomes: [],
         startMode: new Map(), playlist: { ms: null, dseq: 0, last: null, seen: new Map() },
         violation(text) { this.violations.push(text); } };
     registry.clear();
@@ -383,6 +386,17 @@ async function runSeed(seed, steps = 30) {
     const r = captureRelayTimer(() => relay.adopt(front, { sourceId: 1, channelId: 'pos_1', capabilities: { fmp4: true }, settings: SETTINGS,
         ffprobePath: 'ffprobe', owner: OWNER, channelName: 'Model', primaryKey: 'a1', candidate: A }));
     world.timers = [...relayTimers];
+    // A newer request of the same device, arriving while the relay reads a playlist mid-switch (renewalSuperseded).
+    const read = r.readPlaylist.bind(r);
+    r.readPlaylist = async (leg) => {
+        if (world.supersedeOnRead && r.switching && r.renewalBlocked) {
+            world.supersedeOnRead = false;
+            world.supersededTaken = true;
+            supersededHits++;
+            world.foreignLeases.push(coordinator.takeLease(1, 'viewer', { owner: OWNER }));
+        }
+        return read(leg);
+    };
     const note = r.note.bind(r);
     r.note = (code, ...rest) => { world.notes.push(code); return note(code, ...rest); };
     routing.watchSession(front, A);
@@ -396,7 +410,8 @@ async function runSeed(seed, steps = 30) {
             // Terminal events are rare, so a sequence lives long enough to meet the others in many orders.
             const ev = rand() < 0.03 ? pick(['viewerLeaves', 'stopped', 'viewerElsewhere'])
                 : pick(['write', 'write', 'write', 'tick', 'lost', 'quiet', 'renewal', 'renewal', 'renewal', 'standbyDue', 'standbyDue', 'standbyReady',
-                    'standbyReady', 'standbyLost', 'standbyTaken', 'ingestEnded', 'pause', 'resume', 'startModes', 'quarantineLifted', 'quarantineLifted']);
+                    'standbyReady', 'standbyLost', 'standbyTaken', 'ingestEnded', 'pause', 'resume', 'startModes', 'quarantineLifted', 'quarantineLifted',
+                    'renewalSuperseded']);
             let detail = '';
             const leg = r.active.session;
             switch (ev) {
@@ -439,13 +454,20 @@ async function runSeed(seed, steps = 30) {
                     break;
                 }
                 case 'viewerLeaves': await relay.close(r.id); break;
+                case 'renewalSuperseded': {
+                    world.startMode.set(r.active.candidate.url, 'noPlaylist');
+                    world.supersedeOnRead = true;
+                    world.supersededTaken = false;
+                    if (leg.feed) leg.feed.ingest.reconnect();
+                    break;
+                }
                 case 'stopped': await sessions.removeSession(leg.id); await r.tick(); break;
             }
             // Some steps do not wait for the relay to finish: the next event arrives while a start, a switch or a standby
             // is still in flight. The table is checked only between settled steps; the invariants after every step.
             const hurried = rand() < 0.3;
             world.trace.push(`${i}: ${ev}${detail ? ` (${detail})` : ''}${hurried ? ' [next event while in flight]' : ''}`);
-            if (hurried) { await new Promise(res => setImmediate(res)); checkConnections(); await checkPlaylist(r); world.unsettled = true; continue; }
+            if (hurried && ev !== 'renewalSuperseded') { await new Promise(res => setImmediate(res)); checkConnections(); await checkPlaylist(r); world.unsettled = true; continue; }
             await settle(r);
             for (const ingest of world.stuck.splice(0)) if (!ingest.closed) ingest.state = 'live';
             const wasUnsettled = world.unsettled;
@@ -457,6 +479,10 @@ async function runSeed(seed, steps = 30) {
             world.trace.push(`   -> ${after.state}, switches ${after.switches}, on ${after.candidate.channelKey}${r.standby ? `, standby ${r.standby.candidate.channelKey}` : ''}`);
             const row = wasUnsettled ? true : TABLE[ev](before, after);
             if (row !== true) world.violation(`table: ${ev} from ${before.state}: ${row}`);
+            world.supersedeOnRead = false;
+            world.supersededTaken = false;
+            // The newer play moves on (its own start is not this play's to account for).
+            for (const l of world.foreignLeases.splice(0)) coordinator.releaseUnbound(l);
             checkConnections();
             await checkPlaylist(r);
             if (world.violations.length) break;
@@ -475,6 +501,7 @@ async function runSeed(seed, steps = 30) {
     return { violations: world.violations, trace: world.trace, logs, outcomes: world.outcomes };
 }
 
+let supersededHits = 0;
 const FIXED_SEEDS = Array.from({ length: 40 }, (_, i) => 1000 + i * 7919);
 // A few random seeds locally (PIGTV_MODEL_SEEDS=<n> for more: an exploration run); none on CI, which keeps the fixed list.
 const extra = process.env.CI ? [] : Array.from({ length: Number(process.env.PIGTV_MODEL_SEEDS) || 5 }, () => Math.floor(Math.random() * 2 ** 31));
@@ -508,6 +535,7 @@ test('#41: the relay keeps its invariants over random event sequences (renewal o
     console.log(`MODEL outcomes ${JSON.stringify(Object.fromEntries([...outcomes].sort()))}`);
     for (const ev of Object.keys(TABLE)) assert.ok(coverage.get(ev) > 0, `the event ${ev} was exercised`);
     // #4: a renewal whose new leg produces no playlist, and one whose feed is stuck to the deadline.
+    assert.ok(supersededHits > 0, 'a newer play arrived during a failed renewal\'s fallback');
     for (const ev of ['renewal-noPlaylist', 'renewal-stuck']) assert.ok(coverage.get(ev) > 0, `${ev} was exercised`);
     // The paths that matter were taken, not only the events sent: a planned renewal that landed, a renewal that never
     // got a playlist, a standby promoted, a cold switch.
