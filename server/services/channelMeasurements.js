@@ -60,6 +60,7 @@ function record(m, db = getDb()) {
             measured_at = excluded.measured_at, source = excluded.source
         WHERE excluded.measured_at >= channel_measurements.measured_at
     `).run(Number(m.sourceId), String(m.key), height, fps, kbps, Number(m.measuredAt) || Date.now(), m.source === 'audit' ? 'audit' : 'play');
+    if (info.changes > 0) changed();
     return info.changes > 0;
 }
 
@@ -81,8 +82,9 @@ function recordPlay(channel, info, measuredAt = Date.now()) {
 function forgetPlay(channel, measuredAt) {
     try {
         if (!channel) return;
-        getDb().prepare("DELETE FROM channel_measurements WHERE source_id = ? AND channel_key = ? AND source = 'play' AND measured_at = ?")
+        const info = getDb().prepare("DELETE FROM channel_measurements WHERE source_id = ? AND channel_key = ? AND source = 'play' AND measured_at = ?")
             .run(Number(channel.sourceId), String(channel.key), Number(measuredAt));
+        if (info.changes > 0) changed();
     } catch (err) {
         console.warn('[Measurements] Could not drop a play measurement:', err.message);
     }
@@ -157,15 +159,40 @@ function bestWithinName(channels, keyOf = (ch) => ch.nameKey ?? nameKey(ch.name)
     return out;
 }
 
-/** Every stored measurement: Map "sourceId:key" -> { label, fps }. Empty on any error (a read-only worker, no table). */
+/**
+ * 0888+1 (#361): the table is read into a Map once and kept, not once per guide page. It is read again when this module
+ * wrote (record, forgetPlay: `writes`), when this connection wrote anything (`total_changes()`: a write by hand or by a
+ * test) or another connection did (`data_version`: scripts/import-channel-audit.js runs as its own process), and for
+ * another database handle. The stamp is one tiny statement; the Map's values are frozen, since every page shares them.
+ */
+let writes = 0;
+let kept = null; // { db, stamp, map }
+let stampStmt = null, stampDb = null;
+function stampOf(db) {
+    if (stampDb !== db) {
+        stampDb = db;
+        stampStmt = db.prepare('SELECT total_changes() AS t, (SELECT data_version FROM pragma_data_version) AS v');
+    }
+    const r = stampStmt.get();
+    return `${writes}:${r.t}:${r.v}`;
+}
+function changed() { writes++; kept = null; }
+
+/** Every stored measurement: Map "sourceId:key" -> { label, fps } (shared: do not change it). Empty on any error (a read-only worker, no table). */
 function all(db) {
+    const handle = db || getDb();
+    let stamp = null;
+    try { stamp = stampOf(handle); } catch { /* no stamp: read the table, keep nothing */ }
+    if (stamp !== null && kept && kept.db === handle && kept.stamp === stamp) return kept.map;
     const map = new Map();
     try {
-        for (const r of (db || getDb()).prepare('SELECT source_id, channel_key, height, fps FROM channel_measurements').all()) {
+        for (const r of handle.prepare('SELECT source_id, channel_key, height, fps FROM channel_measurements').all()) {
             const m = measuredOf(r);
-            if (m) map.set(`${r.source_id}:${r.channel_key}`, m);
+            if (m) map.set(`${r.source_id}:${r.channel_key}`, Object.freeze(m));
         }
-    } catch (err) { /* no measurements */ }
+    } catch (err) { return map; /* no measurements; nothing kept */ }
+    // Read inside an open transaction, the rows may still be rolled back: use them, keep nothing.
+    kept = stamp === null || handle.inTransaction ? null : { db: handle, stamp, map };
     return map;
 }
 
@@ -181,4 +208,10 @@ function applyMeasured(rows, db) {
     return rows;
 }
 
-module.exports = { labelFor, roundFps, measuredOf, record, recordPlay, forgetPlay, auditMeasurement, importAudit, all, applyMeasured, nameKey, bestWithinName };
+/** The kept Map's stamp right now (it changes whenever a measurement may have): for answers kept on top of it. */
+function revision(db) {
+    const handle = db || getDb();
+    try { return stampOf(handle); } catch { return null; }
+}
+
+module.exports = { revision, labelFor, roundFps, measuredOf, record, recordPlay, forgetPlay, auditMeasurement, importAudit, all, applyMeasured, nameKey, bestWithinName };

@@ -141,6 +141,9 @@ The `channelNumbers` flag is always sent (its off switch went in 0204).
   channel in guide order, built on the first page of a guide version (`currentGuideVersion()`) and database handle; `total`
   and each page's ids come from it, then only the page's rows are read. A change to what is visible that does not move
   `library_rev` would not show until it does: every such write bumps it. A page whose rows are gone answers by SQL.
+- **Measured quality is kept in memory** (0889, `channelMeasurements.all()`): read again only after a write through the module
+  (`record`, `forgetPlay`), any write on the server's connection (`total_changes()`) or another process's commit
+  (`data_version`: the audit import script), or on a new database handle.
 - `/api/library/*` fill a missing logo from the EPG (by tvg-id, then by name).
 - **A guide running out** (0350, #11): a live guide whose last programme ends less than 36 h ahead is on Status's Needs
   attention and sends the `guide-stale` webhook once per episode. At start-up a source is synced when any of its feeds

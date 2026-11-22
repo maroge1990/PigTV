@@ -101,3 +101,52 @@ test('scripts/import-channel-audit.js imports a results.jsonl into the server da
         assert.deepEqual(db.prepare('SELECT channel_key, height, fps FROM channel_measurements').all(), [{ channel_key: 's1', height: 1080, fps: 50 }]);
     } finally { db.close(); }
 });
+
+// #361 (0889): a guide page used to read the whole table into a Map. Now the Map is kept and read again only when a
+// measurement may have changed: a write through this module, any write on this connection, a write by another process.
+function countTableReads(fn) {
+    const d = getDb();
+    const prepare = d.prepare;
+    let reads = 0;
+    d.prepare = function (sql) {
+        const stmt = prepare.call(this, sql);
+        if (/FROM channel_measurements/.test(sql) && /^\s*SELECT/i.test(sql)) {
+            const orig = stmt.all;
+            stmt.all = function (...a) { reads++; return orig.apply(this, a); };
+        }
+        return stmt;
+    };
+    try { fn(); } finally { delete d.prepare; }
+    return reads;
+}
+const page = () => [{ sourceId: 1, stableId: 's1', id: 'pos_1', name: 'One HD' }, { sourceId: 1, stableId: null, id: 'pos_2', name: 'Two' }];
+
+test('the measurements are read once, not on every page; every kind of write is seen on the next page', () => {
+    m.record({ sourceId: 1, key: 's1', height: 1080, fps: 50, measuredAt: 1000, source: 'audit' });
+    let rows;
+    assert.equal(countTableReads(() => { rows = m.applyMeasured(page()); }), 1, 'the first page after a write reads the table');
+    assert.deepEqual(rows[0].measured, { label: '1080', fps: 50 });
+    assert.equal(countTableReads(() => { m.applyMeasured(page()); m.applyMeasured(page()); }), 0, 'later pages read nothing');
+
+    // record (a play's probe): newer wins, seen at once
+    m.recordPlay({ sourceId: 1, key: 's1' }, { height: 720, fps: '25/1' }, 2000);
+    assert.deepEqual(m.applyMeasured(page())[0].measured, { label: '720', fps: 25 });
+    // forgetPlay: the placeholder's measurement is dropped, seen at once
+    m.forgetPlay({ sourceId: 1, key: 's1' }, 2000);
+    assert.equal(m.applyMeasured(page())[0].measured, undefined);
+    // a write by hand on this connection
+    getDb().prepare(`INSERT INTO channel_measurements (source_id, channel_key, height, fps, kbps, measured_at, source) VALUES (1, 'pos_2', 2160, 50, 1, 1, 'audit')`).run();
+    assert.deepEqual(m.applyMeasured(page())[1].measured, { label: '4K', fps: 50 });
+    assert.equal(countTableReads(() => m.applyMeasured(page())), 0);
+});
+
+test('a measurement written by another process (the audit import script) is seen on the next page', () => {
+    m.record({ sourceId: 1, key: 's1', height: 1080, fps: 50, measuredAt: 1000, source: 'audit' });
+    assert.deepEqual(m.applyMeasured(page())[0].measured, { label: '1080', fps: 50 });
+    const Database = require('better-sqlite3');
+    const other = new Database(getDb().name);
+    try {
+        other.prepare(`UPDATE channel_measurements SET height = 2160 WHERE channel_key = 's1'`).run();
+    } finally { other.close(); }
+    assert.deepEqual(m.applyMeasured(page())[0].measured, { label: '4K', fps: 50 });
+});
