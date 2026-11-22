@@ -136,14 +136,15 @@ Writes an application-consistent, compact copy (`VACUUM INTO`, safe while the se
 **Automatic (0213, R12):** the server takes the same copy itself, `pre-migration` before a new build opens the database
 (so a failed migration can be undone) and `nightly` once a day; the Status page lists them. Each copy is checked
 (`quick_check`) before it counts, and a gzipped one is read back against the copy's checksum first. The pre-migration
-copy is written as a plain `.db` (it runs before the server listens) and gzipped a few minutes later. `PIGTV_DB_BACKUPS=0`
+copy is written as a plain `.db` (it runs before the server listens) and stays so: a copy is never rewritten once written,
+only removed by the retention below. `PIGTV_DB_BACKUPS=0`
 turns both off. The copies are only `content.db`: keep `data/auth-secret` and the container settings too. A backup holds
 the providers' logins: its files are readable by their owner only.
 
 **What is kept (#43):** after each new copy: the newest 3 `pre-migration` copies (one per build change, kept apart, so
 a same-day manual or nightly copy never replaces them); among the other copies, the newest of each of the 7 most recent
 days that have one and the newest of each of the 4 most recent weeks (ISO weeks, UTC); and always the newest copy. Older
-`.db` files from before 0897 are read the same way and gzipped in place. Only regular files count: a link is ignored.
+`.db` files are read the same way; a `.db` and a `.db.gz` of the same name (left by 0897-0900) count as one copy. Only regular files count: a link is ignored.
 
 **Not during plays:** a nightly copy falls due a day after the newest backup. It does not start while a play or a
 recording is active; it runs at the first check (every 5 minutes) after they end, and 6 hours after it fell due it runs
@@ -172,13 +173,33 @@ the previous image first):
 3. Copy the live database and whichever of its side files exist into it, and list what was saved:
    `for f in content.db content.db-wal content.db-shm; do [ -e "$f" ] && cp -p "$f" "$R/"; done; ls -l "$R"`.
    `content.db` must be in the list; if it is not, stop here.
-4. Unpack the chosen backup to a new file: `gunzip -c backups/content-<timestamp>-<reason>.db.gz > restore.db`
-   (a plain `.db` from before 0897: `cp backups/content-<timestamp>-<reason>.db restore.db`).
-5. Check it: `docker run --rm -v /mnt/user/appdata/pigtv/data:/app/data --entrypoint node ghcr.io/maroge1990/pigtv:latest
-   -e "console.log(new (require('better-sqlite3'))('/app/data/restore.db',{readonly:true}).pragma('quick_check',{simple:true}))"`.
-   It must print `ok`. Anything else: stop here, delete `restore.db`, and try an older backup.
-6. Only now put it in place: `rm -f content.db-wal content.db-shm && mv restore.db content.db && chown 99:100 content.db`.
-7. Start the container and check the log and the Status page. Write down the folder name (`echo "$R"`).
+4. Check the chosen backup and only then put it in place. Paste this as one block, with the backup's file name in `B`
+   (a `.db.gz`, or a plain `.db` from before 0897 or a `pre-migration` copy). Each step must pass before the next runs:
+   an empty or missing file, a damaged one, or one without PigTV's tables (`meta`, `app_sources`, `app_users`,
+   `playlist_items`) stops it, and the live database is moved only after it prints `OK to restore`.
+   ```
+   cd /mnt/user/appdata/pigtv/data && B="backups/content-<timestamp>-<reason>.db.gz" && (
+     set -e
+     rm -f restore.db
+     test -s "$B"
+     case "$B" in *.gz) gunzip -t "$B"; gunzip -c "$B" > restore.db ;; *) cp "$B" restore.db ;; esac
+     test -s restore.db
+     docker run --rm -v "$PWD":/app/data --entrypoint node ghcr.io/maroge1990/pigtv:latest -e "
+       const db = new (require('better-sqlite3'))('/app/data/restore.db', { readonly: true, fileMustExist: true });
+       const names = new Set(db.prepare('SELECT name FROM sqlite_master WHERE type = ?').all('table').map(r => r.name));
+       const ok = db.pragma('quick_check', { simple: true }) === 'ok'
+         && ['meta', 'app_sources', 'app_users', 'playlist_items'].every(t => names.has(t));
+       process.exit(ok ? 0 : 1);"
+     echo "OK to restore"
+     rm -f content.db-wal content.db-shm
+     mv restore.db content.db
+     chown 99:100 content.db
+     echo "Restored: start the container."
+   )
+   ```
+   If `OK to restore` does not appear, do nothing more: the live database was not touched; delete `restore.db` and try
+   an older backup.
+5. Start the container and check the log and the Status page. Write down the folder name (`echo "$R"`).
 
 **Rolling back that restore** (from the same folder, `before-restore-<date-time>`):
 

@@ -21,9 +21,12 @@
  * #43 (0897):
  *   - retention (retain()): after a new copy is published, the newest copy of each of the 7 most recent UTC days that
  *     have one, plus the newest of each of the 4 most recent ISO weeks; the newest copy is never removed.
- *   - size: the online copy is gzipped (`.db.gz`, checked by reading it back against the copy's SHA-256 first); the
- *     synchronous pre-migration copy stays a plain `.db` (it delays the start) and compressPending() gzips it later,
- *     off the start path. list(), newest() and extract() read both kinds.
+ *   - size: the online copy is gzipped at creation (`.db.gz`, checked by reading it back against the copy's SHA-256
+ *     first); the synchronous pre-migration copy stays a plain `.db`. A snapshot is written once in its final form and
+ *     never rewritten: only retention removes one. list(), newest(), openNewest() and extract() read both kinds, and a
+ *     plain file with a gzip of the same name (left by 0897-0900's later compression) is one snapshot (both kept or
+ *     both removed together).
+ *   - each new file is fsynced, published, and its folder fsynced before pruning (steps).
  *   - review of 0898: pre-migration snapshots have their own retention (the newest 3), outside the daily/weekly one;
  *     only regular files count (a symbolic link is never listed, compressed, pruned or sent).
  *   - every file is created owner-only (0600): a backup holds provider logins. Nothing about its contents is logged.
@@ -75,12 +78,25 @@ function listDir(dir) {
     let names = [];
     try { names = fs.readdirSync(dir); } catch { return []; }
     const out = [];
+    const byName = new Map(); // logical snapshot (the name without .gz) -> its entry
     for (const entry of fromNames(names)) {
         const file = path.join(dir, entry.file);
         try {
             const st = fs.lstatSync(file);
             if (!st.isFile()) continue;
-            out.push({ ...entry, path: file, bytes: st.size });
+            const logical = entry.file.replace(/\.gz$/, '');
+            const other = byName.get(logical);
+            if (other) {
+                // 0901: a plain file and a gzip of it are ONE snapshot. The plain one (checked when it was written) is
+                // the one read; the gzip rides along and goes only when retention removes the snapshot.
+                const plain = entry.compressed ? other : { ...entry, path: file, bytes: st.size };
+                const gz = entry.compressed ? file : other.path;
+                Object.assign(other, plain, { pair: gz });
+                continue;
+            }
+            const row = { ...entry, path: file, bytes: st.size };
+            byName.set(logical, row);
+            out.push(row);
         } catch { /* removed meanwhile */ }
     }
     return out;
@@ -193,12 +209,6 @@ function check(partial) {
     }
 }
 
-/** The copy passes quick_check, then is published as a plain .db; else throws (and the partial is removed). */
-function verifyAndCommit(target) {
-    check(target.partial);
-    try { return publish(target, target.partial); } finally { ours.delete(target.partial); }
-}
-
 const hasher = () => {
     const hash = crypto.createHash('sha256');
     const t = new Transform({ transform(chunk, enc, cb) { hash.update(chunk); cb(null, chunk); } });
@@ -255,8 +265,32 @@ function prune(dir, { now = Date.now(), keepAlso = null } = {}) {
     for (const e of entries) {
         if (keep.has(e.file)) continue;
         try { fs.unlinkSync(e.path); removed.push(e.file); } catch { /* gone */ }
+        if (e.pair) try { fs.unlinkSync(e.pair); removed.push(path.basename(e.pair)); } catch { /* gone */ }
     }
     return removed;
+}
+
+/**
+ * 0901: how a new snapshot is made durable, in this order: the file fsynced under its temporary name, published under
+ * its final one, the folder fsynced, and only then the older ones pruned. An object so a test can watch the order.
+ */
+const steps = {
+    syncFile(file) { const fd = fs.openSync(file, 'r'); try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); } },
+    publish: (target, from, ext) => publish(target, from, ext),
+    syncDir(dir) {
+        let fd = null;
+        try { fd = fs.openSync(dir, 'r'); fs.fsyncSync(fd); } catch { /* a platform that cannot fsync a folder */ } finally { if (fd !== null) fs.closeSync(fd); }
+    },
+    prune: (dir, opts) => prune(dir, opts)
+};
+
+/** Fsync `from`, publish it, fsync the folder, prune: steps, in that order. Returns the published path. */
+function commit(target, from, ext) {
+    steps.syncFile(from);
+    const dest = steps.publish(target, from, ext);
+    steps.syncDir(target.dir);
+    steps.prune(target.dir, { keepAlso: dest });
+    return dest;
 }
 
 /** Synchronous copy (VACUUM INTO on a read-only connection), kept a plain .db: it runs before the server listens. */
@@ -270,9 +304,8 @@ function backupSync(dbPath, { reason = 'manual', now = Date.now() } = {}) {
         try { fs.unlinkSync(target.partial); } catch { /* none */ }
         throw err;
     }
-    const dest = verifyAndCommit(target);
-    prune(target.dir, { keepAlso: dest });
-    return dest;
+    check(target.partial);
+    try { return commit(target, target.partial, '.db'); } finally { ours.delete(target.partial); }
 }
 
 // 0489: VACUUM INTO on a read-only connection of its own, in a worker thread (a read transaction
@@ -309,54 +342,26 @@ async function backup(dbPath, { reason = 'manual', now = Date.now() } = {}) {
         throw err;
     }
     check(target.partial);
-    let dest;
     const gz = path.join(target.dir, `${target.base}.db.gz.${random()}.partial`);
     ours.add(gz);
+    let packed = false;
     try {
         await gzipVerified(target.partial, gz);
-        dest = publish(target, gz, '.db.gz');
-        try { fs.unlinkSync(target.partial); } catch { /* gone */ }
+        packed = true;
     } catch (err) {
         try { fs.unlinkSync(gz); } catch { /* none */ }
         console.warn('[Backup] Could not compress the copy; keeping it uncompressed:', err.code || err.message);
-        dest = publish(target, target.partial);
+    }
+    try {
+        if (packed) {
+            try { fs.unlinkSync(target.partial); } catch { /* gone */ }
+            return commit(target, gz, '.db.gz');
+        }
+        return commit(target, target.partial, '.db');
     } finally {
         ours.delete(gz);
         ours.delete(target.partial);
     }
-    prune(target.dir, { keepAlso: dest });
-    return dest;
-}
-
-/** #43: gzip the plain .db copies (the pre-migration ones), each checked before its original goes. Resolves the new paths. */
-const compressFailed = new Set(); // tried once and failed: left as they are until the next start (one log line each)
-async function compressPending(dbPath) {
-    const done = [];
-    for (const entry of list(dbPath).filter(e => !e.compressed && !compressFailed.has(e.path))) {
-        const dir = path.dirname(entry.path);
-        const gz = path.join(dir, `${entry.file}.gz.${random()}.partial`);
-        // Review of 0898: read from a descriptor opened without following links and checked to be a regular file.
-        const opened = openRegular(entry.path);
-        if (!opened) continue;
-        ours.add(gz);
-        try {
-            await gzipVerified(opened, gz);
-            const dest = path.join(dir, `${entry.file}.gz`);
-            fs.linkSync(gz, dest);
-            try { fs.chmodSync(dest, OWNER_ONLY); } catch { /* no modes */ }
-            fs.unlinkSync(gz);
-            fs.unlinkSync(entry.path);
-            done.push(dest);
-        } catch (err) {
-            try { fs.unlinkSync(gz); } catch { /* none */ }
-            compressFailed.add(entry.path);
-            if (fs.existsSync(entry.path)) console.warn('[Backup] Could not compress an older copy; it is kept as it is:', err.code || err.message);
-        } finally {
-            ours.delete(gz);
-            try { fs.closeSync(opened.fd); } catch { /* closed */ }
-        }
-    }
-    return done;
 }
 
 /**
@@ -397,7 +402,6 @@ function recordBuild(db, build) {
 let nightlyTimer = null;
 let nightlyRunning = null;
 let nightlySkipping = false;
-let compressing = null;
 // #43: the last nightly run, a copy waiting for plays (for Status) and the retry back-off after a failed one.
 // Review of 0898: the deadline is not kept here: a copy falls due a day after the newest backup (any kind), and the 6 h
 // cap counts from then, so it survives a restart with nothing stored. With no backup at all it is overdue: it runs.
@@ -411,7 +415,7 @@ const RETRY_MAX_MS = 60 * 60 * 1000;
  * checkpointing; the next check retries. One log line per skipped streak. A `busy` that throws counts as idle.
  * #43: `active()` (a play or recording) defers it too, until DEFER_CAP_MS after it fell due; then it runs anyway (in
  * its worker thread, as always). A failed run is retried after 5 min, then 10, 20... up to 1 h, the deadline kept.
- * An `active` that throws counts as idle. With nothing due, an idle check gzips any plain pre-migration copy.
+ * An `active` that throws counts as idle.
  */
 async function nightlyCheck(dbPath, { now = Date.now(), busy, active } = {}) {
     if (nightlyRunning) return nightlyRunning;
@@ -420,10 +424,6 @@ async function nightlyCheck(dbPath, { now = Date.now(), busy, active } = {}) {
     const dueAt = newest ? newest.at + DAY_MS : null;
     if (dueAt !== null && now < dueAt) {
         runState.waitingFor = null;
-        if (!compressing && list(dbPath).some(e => !e.compressed && !compressFailed.has(e.path)) && idle()) {
-            compressing = compressPending(dbPath).finally(() => { compressing = null; });
-            await compressing;
-        }
         return null;
     }
     if (runState.failedAt !== null && now - runState.failedAt < runState.retryMs) return null;
@@ -496,6 +496,6 @@ function _resetState() {
 }
 
 module.exports = {
-    RETENTION, list, newest, openNewest, retain, backup, backupSync, compressPending, extract, beforeMigrations, recordBuild,
-    nightlyCheck, startNightly, prune, status, _resetState
+    RETENTION, list, newest, openNewest, retain, backup, backupSync, extract, beforeMigrations, recordBuild,
+    nightlyCheck, startNightly, prune, status, _resetState, steps
 };

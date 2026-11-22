@@ -45,7 +45,7 @@ share.
   (startup and every 15 min), sport events rebuild (worker thread, every 5-minute bucket and after sync/follow changes),
   ESPN fixtures (every 30 min and after a sync), nightly database backup, the idle and stall sweeps of live sessions.
 - **Database backups** (`services/dbBackup.js`, #43): `data/backups/content-<stamp>-<reason>.db.gz` (pre-migration copies
-  start as `.db` and are gzipped later); the newest 3 pre-migration + 7 daily + 4 weekly kept (regular files only); the
+  stay plain `.db`; a snapshot is written once, fsynced with its folder before pruning, never rewritten); the newest 3 pre-migration + 7 daily + 4 weekly kept (regular files only); the
   nightly copy waits while a viewer's play or a recording is active, at most 6 h after it fell due (newest backup + 1 day,
   so a restart keeps the deadline). `status()` (memory only) feeds Status's `backupState`.
 

@@ -76,16 +76,64 @@ test('a gzipped copy restores to the same database as an uncompressed one, and b
     if (process.platform !== 'win32') assert.equal(fs.statSync(packed).mode & 0o077, 0, 'owner-only: it holds provider logins');
 });
 
-test('the uncompressed pre-migration copy is gzipped later (verified first), off the start path', async () => {
+test('0901: a completed snapshot is never rewritten or removed except by retention (a pre-migration copy stays plain)', async () => {
     const { dbPath } = fixture(20);
-    const plain = dbBackup.backupSync(dbPath, { reason: 'pre-migration', now: Date.UTC(2026, 10, 1) });
-    const before = dump(plain);
-    const done = await dbBackup.compressPending(dbPath);
-    assert.deepEqual(done.map(f => path.basename(f)), [`${path.basename(plain)}.gz`]);
-    assert.ok(!fs.existsSync(plain));
-    const out = path.join(tmp(), 'r.db');
-    await dbBackup.extract(done[0], out);
-    assert.deepEqual(dump(out), before);
+    assert.equal(dbBackup.compressPending, undefined, 'no background conversion');
+    const t0 = Date.UTC(2026, 10, 1, 15);
+    const plain = dbBackup.backupSync(dbPath, { reason: 'pre-migration', now: t0 });
+    const before = { ino: fs.statSync(plain).ino, mtimeMs: fs.statSync(plain).mtimeMs, sha: sha(plain) };
+    for (let i = 1; i <= 6; i++) assert.equal(await dbBackup.nightlyCheck(dbPath, { now: t0 + i * HOUR }), null, 'not due');
+    await dbBackup.backup(dbPath, { reason: 'nightly', now: t0 + DAY + HOUR });
+    await dbBackup.nightlyCheck(dbPath, { now: t0 + DAY + 2 * HOUR });
+    assert.ok(fs.existsSync(plain), 'still there');
+    const after = fs.statSync(plain);
+    assert.deepEqual({ ino: after.ino, mtimeMs: after.mtimeMs, sha: sha(plain) }, before, 'the same file, untouched');
+    assert.ok(!fs.existsSync(`${plain}.gz`), 'and never gzipped later');
+});
+
+test('0901: a plain file and a gzip of the same snapshot count as one, so leftovers cannot crowd out a real rollback point', async () => {
+    const { dbPath } = fixture();
+    const day0 = Date.UTC(2026, 10, 2);
+    const real = dbBackup.backupSync(dbPath, { reason: 'pre-migration', now: day0 + 15 * HOUR });
+    // Two later pre-migration copies, each left as a plain file AND its gzip (0897-0900's later compression, interrupted).
+    const pairs = [];
+    for (const d of [1, 2]) {
+        const p = dbBackup.backupSync(dbPath, { reason: 'pre-migration', now: day0 + d * DAY + 15 * HOUR });
+        fs.writeFileSync(`${p}.gz`, require('node:zlib').gzipSync(fs.readFileSync(p)));
+        pairs.push(p);
+    }
+    const listed = dbBackup.list(dbPath);
+    assert.deepEqual(listed.map(b => b.file), pairs.slice().reverse().map(p => path.basename(p)).concat(path.basename(real)), 'one entry per snapshot, the plain file read');
+    await dbBackup.backup(dbPath, { reason: 'nightly', now: day0 + 3 * DAY + 3 * HOUR });
+    assert.ok(fs.existsSync(real), 'the older real pre-migration copy is still one of the newest 3');
+    for (const p of pairs) assert.ok(fs.existsSync(p) && fs.existsSync(`${p}.gz`), 'a kept snapshot keeps both its files');
+    // A fourth pre-migration copy pushes the oldest pair-free one out, and an older pair goes as a whole.
+    dbBackup.backupSync(dbPath, { reason: 'pre-migration', now: day0 + 4 * DAY + 15 * HOUR });
+    dbBackup.backupSync(dbPath, { reason: 'pre-migration', now: day0 + 5 * DAY + 15 * HOUR });
+    assert.ok(!fs.existsSync(real));
+    assert.ok(!fs.existsSync(pairs[0]) && !fs.existsSync(`${pairs[0]}.gz`), 'a removed snapshot goes with both its files');
+    const opened = dbBackup.openNewest(dbPath);
+    assert.equal(opened.compressed, false);
+    fs.closeSync(opened.fd);
+});
+
+test('0901: a new backup\'s file is synced, published, and its folder synced before anything is pruned', async () => {
+    const { dbPath } = fixture();
+    const calls = [];
+    const saved = { ...dbBackup.steps };
+    for (const k of ['syncFile', 'publish', 'syncDir', 'prune']) {
+        dbBackup.steps[k] = (...a) => { calls.push(k === 'syncFile' ? `syncFile:${path.basename(a[0]).includes('.gz.') ? 'gz' : 'db'}` : k); return saved[k](...a); };
+    }
+    try {
+        const gz = await dbBackup.backup(dbPath, { reason: 'nightly', now: Date.UTC(2026, 10, 3) });
+        assert.match(gz, /\.db\.gz$/);
+        assert.deepEqual(calls, ['syncFile:gz', 'publish', 'syncDir', 'prune']);
+        calls.length = 0;
+        dbBackup.backupSync(dbPath, { reason: 'pre-migration', now: Date.UTC(2026, 10, 4) });
+        assert.deepEqual(calls, ['syncFile:db', 'publish', 'syncDir', 'prune']);
+    } finally {
+        Object.assign(dbBackup.steps, saved);
+    }
 });
 
 test('a backup due during a play or recording waits, runs when it ends, and runs anyway 6 h after it fell due; Status says so', async () => {
@@ -150,17 +198,15 @@ test('review of 0898: the newest 3 pre-migration snapshots outlast a same-day ma
     const day0 = Date.UTC(2026, 10, 2);
     const pre = [];
     for (const d of [0, 1, 2, 3]) {
-        dbBackup.backupSync(dbPath, { reason: 'pre-migration', now: day0 + d * DAY + 15 * HOUR });
-        const [gz] = await dbBackup.compressPending(dbPath);
-        pre.push(path.basename(gz));
+        pre.push(path.basename(dbBackup.backupSync(dbPath, { reason: 'pre-migration', now: day0 + d * DAY + 15 * HOUR })));
     }
     await dbBackup.backup(dbPath, { reason: 'manual', now: day0 + 3 * DAY + 16 * HOUR });
     for (let d = 4; d < 44; d++) { await dbBackup.backup(dbPath, { reason: 'nightly', now: day0 + d * DAY + 3 * HOUR });}
-    const premig = (names) => names.filter(n => /-pre-migration\.db\.gz$/.test(n)).sort();
+    const premig = (names) => names.filter(n => /-pre-migration\.db$/.test(n)).sort();
     assert.deepEqual(premig(dbBackup.list(dbPath).map(b => b.file)), pre.slice(1).sort(), 'appdata: the newest 3');
 });
 
-test('review of 0898: a symbolic link in the backups folder is ignored by the listing, compression, retention and download', async () => {
+test('review of 0898: a symbolic link in the backups folder is ignored by the listing, retention and download', async () => {
     const { dir, dbPath } = fixture();
     const real = await dbBackup.backup(dbPath, { reason: 'nightly', now: Date.UTC(2026, 10, 1) });
     const outside = path.join(dir, 'outside.txt');
@@ -170,7 +216,6 @@ test('review of 0898: a symbolic link in the backups folder is ignored by the li
     fs.symlinkSync(outside, old);
     fs.symlinkSync(outside, newer);
     assert.deepEqual(dbBackup.list(dbPath).map(b => b.file), [path.basename(real)], 'listed: only the regular file');
-    assert.deepEqual(await dbBackup.compressPending(dbPath), [], 'nothing compressed through a link');
     const opened = dbBackup.openNewest(dbPath);
     assert.equal(opened.file, path.basename(real), 'the download takes the regular file');
     fs.closeSync(opened.fd);
