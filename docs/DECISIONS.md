@@ -889,3 +889,25 @@ reviews.
   page under 300 KB. One batch per session, ended with a handover note as a comment on the batch's issue. Scope may
   grow where real gains are found; each addition gets an issue.
 - **Consequence:** ROADMAP's batches A to F are replaced by batches 1 to 7.
+
+### D-80. The Guide's speed targets, as numbers (22 Nov 2026; Claude, from the batch 1 baseline)
+
+- **Context:** D-79 left the targets to be fixed after the baseline
+  ([`docs/evidence/2026-11-22-guide-baseline`](evidence/2026-11-22-guide-baseline/README.md)). The MacBook simulator
+  does not reproduce the hang Mark sees: its focus moves take 11 to 33 ms at the median and 59 ms at worst. So its
+  milliseconds cannot prove a fix; its counts can, because they are the same on every machine.
+- **Choice:** three kinds of target.
+  1. **On Mark's Apple TV** (Settings › Guide speed readout, the real proof): the slowest press to its frame under
+     100 ms and the typical one under 50 ms over a session of at least 100 presses; the Guide's first screen within
+     1,000 ms.
+  2. **Counts in `GuidePerfUITests`** (production fixture, 1,250 channels; these become the test's budgets as each fix
+     lands): GuideView body evaluations per press 0 (baseline 1); per 30 s tick, 0 body evaluations and no more cell
+     configurations than cells whose text changed (baseline 1 and 20 to 24); cell configurations per vertical press no
+     more than 8 until batch 3's G3, then no more than 2; no rows applied while focus is moving.
+  3. **Milliseconds on the MacBook simulator** (a guard against getting worse, not proof of better): worst focus move
+     under 100 ms; first screen under 1,000 ms, paged or whole; and for the server, a first guide page under 300,000
+     bytes gzipped (baseline 817,564) and under 250 ms (`test/guide-perf.test.js`, batch 3).
+- **Consequence:** a Guide fix is reported with its count before and after from the same test on the MacBook, and
+  batch 2 closes on Mark's readout from one TestFlight build ("after" only: Mark chose not to install a measuring-only
+  build first, so "before" on the device is by feel). The frame gap just over 100 ms that the simulator shows in
+  nearly every scenario, idle included, is not a target until its cause is known.
