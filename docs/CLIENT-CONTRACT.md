@@ -142,6 +142,9 @@ build 27), and `audioEncode: true` on the one fallback after a `'fmt?'` decode f
   frames or connections). The bytes and `Content-Type` are unchanged. Since 0891 (#361, additive): a logo not yet fetched
   can answer **503** `{error}` when too many are waiting to be fetched (try it again later; nothing is remembered), and one
   whose fetch failed answers **502** for 5 minutes without the server asking its upstream again.
+  Since 0892 (#361): a logo answer carries `Content-Length` and `Cache-Control: public, max-age=2592000` (30 days; was a
+  week), with its `ETag` as before, so `If-None-Match` after that gets a 304. Not `immutable`: a path is keyed by the
+  upstream URL, so its bytes can change in rare cases (a lost file fetched again); a new `LOGO_CACHE_VERSION` gives new paths.
 - `recordings/scheduled` rows: `program_end` can **move later** after scheduling (0214, R4: it follows the guide after a
   sync, never earlier than first scheduled, at most +3 h); a client re-reads it rather than caching it. The additive
   `program_end_original` is the end it was made with (null until it moves).

@@ -23,7 +23,7 @@ const { getDb } = require('../db/sqlite');
  * every stored file once at startup, and because the version is part of the
  * key, clients get new `/api/logo/<key>` paths too. That matters because the
  * Apple client keeps artwork on disk keyed by URL, forever, and browsers keep
- * it for the week-long max-age: the same path would keep the bad copy.
+ * it for the max-age (a week, 30 days since 0892): the same path would keep the bad copy.
  */
 const LOGO_CACHE_VERSION = 2;
 

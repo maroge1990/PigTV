@@ -197,6 +197,8 @@ It starts empty for a new database handle; nothing deletes `logo_cache` rows.
 **Cold logos** (0891, `routes/logo.js`): one upstream fetch per key at a time (every request for it waits on that one), at
 most 6 at once with up to 200 queued (beyond that 503, nothing remembered), and a key whose fetch failed answers 502 for
 5 minutes without a new fetch (at most 5,000 keys remembered, oldest dropped). Keyed by the logo key; no URL is logged.
+Answers (0892) carry `Content-Length` and `public, max-age=2592000` with the ETag; not `immutable`, as the key names the URL,
+not the bytes.
 
 ## Log lines and provider addresses
 

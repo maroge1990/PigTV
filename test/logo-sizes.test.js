@@ -108,7 +108,7 @@ test('?size=full answers the original bytes; the default stays the <=320 px copy
     assert.equal(full.status, 200);
     assert.ok(full.body.equals(original), 'exactly the fetched bytes');
     assert.equal(full.type, 'image/png');
-    assert.equal(full.cache, 'public, max-age=604800');
+    assert.equal(full.cache, 'public, max-age=2592000');
     assert.equal(fetches, before, 'kept at the first fetch, not fetched again');
     assert.notEqual(full.etag, small.etag, 'each size has its own ETag');
     assert.equal((await get(`${p}?size=full`, { 'If-None-Match': full.etag })).status, 304);
@@ -230,7 +230,7 @@ test('#201: ?size=3840 draws an SVG to a transparent PNG 3840 px wide, once; it 
     const big = await get(`${p}?size=3840`);
     assert.equal(big.status, 200);
     assert.equal(big.type, 'image/png');
-    assert.equal(big.cache, 'public, max-age=604800');
+    assert.equal(big.cache, 'public, max-age=2592000');
     const info = pngInfo(big.body);
     assert.equal(info.width, 3840);
     assert.equal(info.colourType, 6, 'RGBA');

@@ -88,3 +88,21 @@ test('a raster logo, a 304 and a 404 carry the same headers', async () => {
     assertImageOnly(missing, '404');
     await missing.arrayBuffer();
 });
+
+// #361 (0892): a logo answer says how long it is and may be kept 30 days, then revalidated by its ETag. Not
+// `immutable`: the path is keyed by the upstream URL, not the bytes, so what is behind it can change.
+test('every logo answer has its Content-Length and a 30-day Cache-Control; a 304 keeps the Cache-Control', async () => {
+    const route = registerLogo(`${imageBase}/length.png`);
+    for (const suffix of ['', '?size=full', '?size=640']) {
+        const res = await fetch(`${base}${route}${suffix}`);
+        assert.equal(res.status, 200, suffix);
+        const body = Buffer.from(await res.arrayBuffer());
+        assert.equal(res.headers.get('content-length'), String(body.length), `${suffix}: Content-Length`);
+        assert.equal(res.headers.get('cache-control'), 'public, max-age=2592000', suffix);
+        assert.doesNotMatch(res.headers.get('cache-control'), /immutable/);
+        assert.deepEqual(body, PNG, suffix);
+        const again = await fetch(`${base}${route}${suffix}`, { headers: { 'If-None-Match': res.headers.get('etag') } });
+        assert.equal(again.status, 304, suffix);
+        assert.equal(again.headers.get('cache-control'), 'public, max-age=2592000', `${suffix}: 304`);
+    }
+});

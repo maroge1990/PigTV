@@ -77,7 +77,7 @@ test('a known key fetches the logo once, then serves it from disk on later reque
     const first = await fetch(`${base}${path0}`);
     assert.equal(first.status, 200);
     assert.equal(first.headers.get('content-type'), 'image/png');
-    assert.equal(first.headers.get('cache-control'), 'public, max-age=604800');
+    assert.equal(first.headers.get('cache-control'), 'public, max-age=2592000');
     assert.ok(first.headers.get('etag'));
     const body1 = Buffer.from(await first.arrayBuffer());
     assert.ok(body1.equals(PNG_BYTES));

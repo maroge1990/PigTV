@@ -96,14 +96,24 @@ function serveFromDisk(req, res, file, row) {
     serveFile(req, res, file, etagFor(row), row.content_type);
 }
 
+/**
+ * 0892 (#361): 30 days, then revalidated by ETag (a 304). Not `immutable`: a path's key is the cache version and the
+ * upstream URL, not the bytes, and the bytes behind a path can change (a lost file, or a logo stored before 0154, is
+ * fetched again from an upstream that may have changed it). A deliberate change of every stored logo bumps
+ * LOGO_CACHE_VERSION, which changes every path. With Content-Length (the file is read whole first: logos are small,
+ * at most a few MB at ?size=3840), so a client's URL cache can store the answer as it is.
+ */
+const LOGO_CACHE_CONTROL = 'public, max-age=2592000';
 function serveFile(req, res, file, etag, contentType) {
-    res.set('Cache-Control', 'public, max-age=604800');
+    res.set('Cache-Control', LOGO_CACHE_CONTROL);
     res.set('ETag', etag);
     if (req.headers['if-none-match'] === etag) return res.status(304).end();
-    res.set('Content-Type', contentType || 'image/png');
-    fs.createReadStream(file)
-        .on('error', () => { if (!res.headersSent) res.status(500).end(); })
-        .pipe(res);
+    fs.readFile(file, (err, bytes) => {
+        if (err) { if (!res.headersSent) res.status(500).end(); return; }
+        res.set('Content-Type', contentType || 'image/png');
+        res.set('Content-Length', String(bytes.length));
+        res.end(bytes);
+    });
 }
 
 const isPng = (buf) => buf.length >= 8 && buf.readUInt32BE(0) === 0x89504e47;
@@ -409,4 +419,5 @@ module.exports.storableLogo = storableLogo;
 module.exports.timeouts = timeouts;
 module.exports.imageWidth = imageWidth;
 module.exports.limits = limits; // 0891
+module.exports.LOGO_CACHE_CONTROL = LOGO_CACHE_CONTROL; // 0892
 module.exports._resetFetches = _resetFetches;
