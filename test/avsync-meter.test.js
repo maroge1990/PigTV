@@ -145,13 +145,36 @@ test('0906: only a mark the track edge could really have cut is exempt; a slip b
     assert.equal(meter.summarise(generator).verdict, 'in step');
 });
 
+test('0907: a flash already lit on the first frame at 29.97 fps reads in step; a missing interior mark is still ambiguous', () => {
+    // The recording starts 10 ms after the source's second: the first frame (t 0) is lit, the first beep's onset is seen at 0.01.
+    const fps = 30000 / 1001;
+    const lit = (t, src) => { const x = t + src; const s = ((x % 1) + 1) % 1; return s < (Math.floor(x + 1e-9) % 10 === 0 ? 0.3 : 0.1); };
+    const luma = []; for (let i = 0; i < 30 * fps; i++) { const t = i / fps; luma.push({ t, v: lit(t, 0.0) ? 230 : 30 }); }
+    const level = []; for (let i = 0; i < 30 * 200; i++) { const t = i / 200; level.push({ t, v: lit(t, -0.01) ? -10 : -60 }); }
+    const measureSeries = (lumaS, levelS) => {
+        const v = meter.seriesBounds(lumaS), a = meter.seriesBounds(levelS);
+        const r = meter.pairOnsets(meter.onsets(lumaS, { minSpread: 20 }), meter.onsets(levelS, { minSpread: 12 }),
+            { flashStart: v.start, flashEnd: v.end, beepStart: a.start, beepEnd: a.end, flashStep: v.step, beepStep: a.step });
+        return meter.summarise(r);
+    };
+    const s = measureSeries(luma, level);
+    assert.equal(s.verdict, 'in step', JSON.stringify(s));
+    assert.ok(Math.abs(s.medianMs - 10) <= 20, String(s.medianMs));
+    // The beep of second 14 missing: ambiguous, edges or not.
+    const gap = level.map(x => (x.t > 13.9 && x.t < 14.2 ? { t: x.t, v: -60 } : x));
+    const g = measureSeries(luma, gap);
+    assert.equal(g.verdict, 'ambiguous', JSON.stringify(g));
+});
+
 test('0906: a 30-minute capture\'s readings (about 470,000) are measured without overflowing the stack', () => {
     const started = Date.now();
     const luma = [], level = [];
     for (let i = 0; i < 30 * 60 * 60; i++) { const t = i / 60; luma.push({ t, v: t % 1 < 0.1 ? 230 : 30 }); }
     for (let i = 0; i < 30 * 60 * 200; i++) { const t = i / 200; level.push({ t, v: t % 1 < 0.1 ? -10 : -60 }); }
     assert.throws(() => Math.min(...level.map(x => x.t)), RangeError, 'spreading them into one call overflows (0905 did)');
-    assert.deepEqual(meter.seriesBounds(level), { start: 0, end: (level.length - 1) / 200 });
+    const bounds = meter.seriesBounds(level);
+    assert.deepEqual([bounds.start, bounds.end], [0, (level.length - 1) / 200]);
+    assert.ok(Math.abs(bounds.step - 0.005) < 1e-9, 'the observed sampling interval');
     const flashes = meter.onsets(luma, { minSpread: 20 });
     const beeps = meter.onsets(level, { minSpread: 12 });
     const r = meter.pairOnsets(flashes, beeps, { flashStart: 0, flashEnd: meter.seriesBounds(luma).end, beepStart: 0, beepEnd: meter.seriesBounds(level).end });

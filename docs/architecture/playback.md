@@ -289,7 +289,7 @@ discontinuity exactly at each leg change, every leg stopped, no timer left).
 | The playing leg writes nothing for 10 s with a standby ready (`tick`) | The standby is promoted (`stalled`); never without a ready one |
 | Standby due (20 s in, then every 60 s while there is none) | `startStandby`: a lease on a free connection in another pool (or one a warm channel holds), then a standby leg; nothing free, nothing started |
 | Standby lost, or its connection taken (`tendStandby`) | Dropped (`failed` / `reclaimed` shown), retried in 60 s; the play goes on |
-| The shared ingest reconnects on a leg with renewal on (`timeline-restart`) | The session stops itself; within the budget (3 a minute) a **planned renewal**: same feed, same candidate, never the standby, never a re-plan, no interruption counted; a new leg joins the same ingest behind a discontinuity. Over the budget: ordinary failover (`renewal-budget`, the channel quarantined), then the primary once more without renewal. **A renewal that cannot land** (#4, 0904: its new leg has no playlist, or the ingest does not settle within 20 s): `renewal-failed` is noted and counted as an interruption, the channel is quarantined on that provider (the renewal's own start never counts toward the provider-wide breaker, 0905), renewal is off for the rest of the play, and the play recovers as from a stall of the leg: a ready standby, else the provider walk (without the failed feed), else that feed once more without renewal; a newer play of the same device met at any step ends this one quietly (0905; since 0906 the check is inside the standby's promotion and every viewer leg's start, so no path promotes or starts for a superseded play). Only that ordinary path finding nothing ends the play (`no-candidate`) |
+| The shared ingest reconnects on a leg with renewal on (`timeline-restart`) | The session stops itself; within the budget (3 a minute) a **planned renewal**: same feed, same candidate, never the standby, never a re-plan, no interruption counted; a new leg joins the same ingest behind a discontinuity. Over the budget: ordinary failover (`renewal-budget`, the channel quarantined), then the primary once more without renewal. **A renewal that cannot land** (#4, 0904: its new leg has no playlist, or the ingest does not settle within 20 s): `renewal-failed` is noted and counted as an interruption, the channel is quarantined on that provider (the renewal's own start never counts toward the provider-wide breaker, 0905), renewal is off for the rest of the play, and the play recovers as from a stall of the leg: a ready standby, else the provider walk (without the failed feed), else that feed once more without renewal. Only that ordinary path finding nothing ends the play (`no-candidate`) |
 | The ingest ends under the leg (upstream lost) | As a lost leg |
 | The leg is stopped on request (DELETE, takeover, idle sweep), the viewer plays something else, a cold start finds the viewer's newer stream | The relay ends (not failed); nothing is started for it |
 
@@ -301,6 +301,12 @@ reconnect renew-stall sync long` (A's reconnected feed sends a burst, then nothi
 (`failed`, `no-candidate`) and is promoted to the standby on 0904's (A/V 0 ms across the join); without `standby`, the
 provider walk takes B. The wait for the renewal's deadline is still part of the gap (22–31 s on the rig): the player's
 30 s hold covers most of it. Renewal stays off by default (D-25).
+**Known limitation (renewal on only):** the fallback has no supersession check of its own beyond the cold start's, which
+treats any other session or pending viewer lease of the same owner key as a newer play; for a plain login that key is
+shared by every tab, so a wider use (tried in 0905–0906) ended plays wrongly and was taken out in 0907. A newer play of the
+same device that arrives while a failed renewal's fallback promotes the standby or starts a leg can therefore leave two
+plays running until the idle sweep. With renewal off (the default) the relay is as at 0903: the model test's sequences
+give byte-identical traces on 0903's relay and 0907's.
 
 The relay's reconnect renewal and its budget, and the standby reading through the shared ingest, are in
 [`ingest.md`](ingest.md) › How the shared ingest works. Decision D-25 in [`../DECISIONS.md`](../DECISIONS.md) keeps

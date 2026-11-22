@@ -1075,37 +1075,6 @@ test('0905: a renewal that times out for the provider\'s reason quarantines its 
     } finally { routing.noteFailure = (candidate) => { quarantined.push(candidate.providerName); }; routing.reset(); }
 });
 
-test('0905: a newer play of the same device arriving while the fallback reads the standby: this play ends, nothing is promoted', async () => {
-    const samePool = coordinator.samePool, free = coordinator.hasFreeConnection;
-    coordinator.samePool = (a, b) => a === b;
-    coordinator.hasFreeConnection = () => true;
-    coordinator._leases.clear();
-    let backup = null, newer = null;
-    try {
-        const { r, pin } = await renewalThatNeverPlays({
-            resolveAfter: (opts, resolve) => resolve(opts),
-            setup: (r) => {
-                backup = fakeSession({ providerId: 2, standby: true, owner: `standby:${r.id}` }); write(backup, 0, 2);
-                r.standby = r.addLeg(backup, B); r.standby.tail = [{ seq: 1 }, { seq: 2 }]; r.standby.lastSegAt = Date.now();
-                const read = r.readPlaylist.bind(r);
-                r.readPlaylist = async (leg) => {
-                    // While the standby's playlist is read, the device asks for another channel: its admission holds a lease.
-                    if (leg === r.standby && !newer) newer = coordinator.takeLease(1, 'viewer', { owner: 'device:tv' });
-                    return read(leg);
-                };
-            }
-        });
-        assert.ok(newer, 'the newer request arrived during the fallback');
-        assert.equal(r.closed, true, 'this play ends');
-        assert.equal(r.failed, false, 'quietly: the viewer moved on');
-        assert.notEqual(r.active.session, backup, 'the standby was not promoted');
-        assert.equal(registry.has(backup.id), false, 'the standby is stopped');
-        assert.deepEqual([...registry.values()].filter(x => x.status === 'running'), [], 'nothing of this play is left running');
-        assert.equal(pin.left, 1, 'no orphan pin');
-        assert.deepEqual(started.filter(x => !x.renewal), [], 'nothing was started for it');
-    } finally { if (newer) coordinator.releaseUnbound(newer); coordinator.samePool = samePool; coordinator.hasFreeConnection = free; }
-});
-
 test('0905: the failed feed is tried once, last, even when the plan puts the quarantined primary back', async () => {
     const plan = routing.plan;
     // Production-shaped: with nothing else left, plan() returns the primary although it is quarantined.
@@ -1119,56 +1088,44 @@ test('0905: the failed feed is tried once, last, even when the plan puts the qua
     } finally { routing.plan = plan; }
 });
 
-// ---- 0906: Codex sign-off of 0905 -------------------------------------------------------------------------------------
 
-test('0906: a newer request admitted while an exhausted renewal budget reads the playlist: no promotion; relay, standby and pin all released', async () => {
+
+// ---- 0907 ------------------------------------------------------------------------------------------------------------
+
+test('0907: renewal off, two tabs of one login in one pool, a stall with a ready standby: the standby is promoted (as at 0903)', async () => {
     const samePool = coordinator.samePool, free = coordinator.hasFreeConnection;
     coordinator.samePool = (a, b) => a === b;
     coordinator.hasFreeConnection = () => true;
     coordinator._leases.clear();
-    let newer = null;
     try {
-        const front = fakeSession(); write(front, 0, 2);
-        const r = relay.adopt(front, ctx({ settings: { ...withStandby, sharedIngestEnabled: true } }));
-        clearInterval(r.timer); await r.ingest();
+        const settings = { maxProviderStreams: 5, relayEnabled: true, standbyEnabled: true }; // renewal off (the default)
+        // The other tab of the same plain login, playing something on the same provider, started earlier.
+        const otherTab = fakeSession({ owner: 'user:1', providerId: 1 }); write(otherTab, 0, 1);
+        const s = fakeSession({ owner: 'user:1' }); write(s, 0, 3);
+        const r = await silently(() => relay.adopt(s, ctx({ settings, owner: 'user:1' })));
+        clearInterval(r.timer);
+        await silently(() => r.tick());
         const backup = fakeSession({ providerId: 2, standby: true, owner: `standby:${r.id}` }); write(backup, 0, 2);
         r.standby = r.addLeg(backup, B); r.standby.tail = [{ seq: 1 }, { seq: 2 }]; r.standby.lastSegAt = Date.now();
-        r.renewalTimes = [Date.now(), Date.now(), Date.now()]; // this reconnect exhausts the budget: ordinary failover
-        const read = r.readPlaylist.bind(r);
-        r.readPlaylist = async (leg) => {
-            // The device asks for another channel while the relay reads its last segments: admitted, a lease held.
-            if (r.switching && !newer) newer = coordinator.takeLease(1, 'viewer', { owner: 'device:tv' });
-            return read(leg);
-        };
-        const pin = { endReason: null, ingest: { key: 'k-a', state: 'live' }, left: 0, leave() { this.left++; } };
-        await silently(() => r.switchOver('reconnected', 'reconnected', pin));
-        assert.ok(newer, 'the newer request arrived during the switch');
-        assert.equal(r.closed, true, 'the old play ends');
-        assert.equal(r.failed, false, 'quietly');
-        assert.notEqual(r.active.session, backup, 'the standby was not promoted');
-        assert.equal(registry.has(backup.id) || registry.has(front.id), false, 'standby and old leg released');
-        assert.equal(pin.left, 1, 'the pin released');
-        assert.deepEqual(coordinator.listLeases().map(l => l.id), [newer.id], 'exactly one play remains: the newer one');
-    } finally { if (newer) coordinator.releaseUnbound(newer); coordinator.samePool = samePool; coordinator.hasFreeConnection = free; }
+        s.emit('lost', { how: 'stall', providerReason: true });
+        await silently(() => r.tick());
+        assert.equal(r.closed, false, 'the play goes on');
+        assert.equal(r.active.session, backup, 'the standby is promoted');
+        assert.equal(registry.has(otherTab.id), true, 'the other tab is untouched');
+        await silently(() => r.close('test over'));
+    } finally { coordinator.samePool = samePool; coordinator.hasFreeConnection = free; }
 });
 
-test('0906: a newer request arriving while a cold start waits for its admission: that start opens no connection', async () => {
+// The known limitation (docs/architecture/playback.md): a failed renewal's fallback has only the cold start's own
+// check (0903's predicate). A newer request that already holds its lease when the walk begins still ends the play.
+test('0907: a failed renewal whose fallback walk finds a newer request of the device already admitted ends the play, starting nothing', async () => {
     coordinator._leases.clear();
-    const front = fakeSession(); write(front, 0, 2);
-    const r = await silently(() => relay.adopt(front, ctx()));
-    clearInterval(r.timer);
-    const admit = coordinator.admitViewer;
     let newer = null;
-    coordinator.admitViewer = async (opts) => {
-        const verdict = await admit(opts);
-        newer = coordinator.takeLease(1, 'viewer', { owner: 'device:tv' }); // admitted meanwhile (the teardown wait)
-        return verdict;
-    };
     try {
-        const leg = await silently(() => r.startCold([B], front.id));
-        assert.equal(leg, null);
-        assert.deepEqual(started, [], 'no provider connection opened by the stale start');
+        const { r } = await renewalThatNeverPlays({ resolveAfter: (opts, resolve) => resolve(opts),
+            setup: () => { newer = coordinator.takeLease(1, 'viewer', { owner: 'device:tv' }); } });
         assert.equal(r.closed, true);
-        assert.deepEqual(coordinator.listLeases().map(l => l.id), [newer.id], 'the stale attempt\'s lease given back');
-    } finally { coordinator.admitViewer = admit; if (newer) coordinator.releaseUnbound(newer); }
+        assert.equal(r.failed, false, 'quietly: the viewer moved on');
+        assert.deepEqual(started.filter(x => !x.renewal), [], 'nothing started for it');
+    } finally { if (newer) coordinator.releaseUnbound(newer); }
 });

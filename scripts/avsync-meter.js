@@ -77,7 +77,10 @@ function onsets(series, { minSpread }) {
         }
         above = now;
     }
-    return out; // a mark still lit at the end has no known length: left out
+    // A mark still lit at the end has no known length: left out. Whether the first reading was already lit is kept
+    // for pairing (0907): that mark's onset was before the track began, so its partner is not "missing".
+    out.litAtStart = Number.isFinite(series[0].v) && series[0].v >= threshold;
+    return out;
 }
 
 // ---- pairing -------------------------------------------------------------------------------------------------
@@ -94,7 +97,8 @@ const round1 = (x) => (x === null || x === undefined || !Number.isFinite(x) ? nu
  * -> { pairs: [{ t, offsetMs, long }], missingBeeps: [t], missingFlashes: [t], kindMismatches, ambiguous, coarseMs }
  */
 function pairOnsets(flashes, beeps, { period = PERIOD, longEvery = LONG_EVERY, start = null, end = null,
-    flashStart = start, flashEnd = end, beepStart = start, beepEnd = end } = {}) {
+    flashStart = start, flashEnd = end, beepStart = start, beepEnd = end, flashStep = 0, beepStep = 0,
+    flashLitAtStart = !!(flashes && flashes.litAtStart), beepLitAtStart = !!(beeps && beeps.litAtStart) } = {}) {
     const F = [...flashes].sort((a, b) => a.t - b.t);
     const B = [...beeps].sort((a, b) => a.t - b.t);
     const nearest = (list, t, within, filter = () => true) => {
@@ -146,15 +150,18 @@ function pairOnsets(flashes, beeps, { period = PERIOD, longEvery = LONG_EVERY, s
     // at or before the track's first reading (lit already, no onset seen), or the mark still lit at its last (a mark still lit at the end has no length,
     // so onsets() leaves it out). A long mark paired with a short one is always evidence.
     const markSec = (long) => (long ? 0.3 : 0.1) + 0.05;
-    const cut = (onset, long, from, to) => (from !== null && from !== undefined && onset <= from) || (to !== null && to !== undefined && onset + markSec(long) > to);
+    // One observed sampling interval of tolerance at the edges (0907): at the start only when the first reading was
+    // already lit (a mark that began within the first interval is seen as lit, never as an onset).
+    const cut = (onset, long, from, to, step, litAtStart) => (from !== null && from !== undefined && onset <= from + (litAtStart ? step : 0))
+        || (to !== null && to !== undefined && onset + markSec(long) > to - step);
     const offsetNear = (t) => {
         let best = null;
         for (const pr of pairs) if (!best || Math.abs(pr.t - t) < Math.abs(best.t - t)) best = pr;
         return best ? best.offsetMs / 1000 : coarse;
     };
     const suspects = [
-        ...missingBeepAt.filter(m => !cut(m.expectAt, m.long, beepStart, beepEnd)).map(m => m.t),
-        ...B.filter(b => !used.has(b)).filter(b => !cut(b.t - offsetNear(b.t), b.long, flashStart, flashEnd)).map(b => b.t),
+        ...missingBeepAt.filter(m => !cut(m.expectAt, m.long, beepStart, beepEnd, beepStep, beepLitAtStart)).map(m => m.t),
+        ...B.filter(b => !used.has(b)).filter(b => !cut(b.t - offsetNear(b.t), b.long, flashStart, flashEnd, flashStep, flashLitAtStart)).map(b => b.t),
         ...mismatchAt
     ].sort((x, y) => x - y);
     const anchors = pairs.filter(pr => pr.anchor).map(pr => pr.t);
@@ -327,7 +334,12 @@ function seriesBounds(series) {
         if (start === null || t < start) start = t;
         if (end === null || t > end) end = t;
     }
-    return { start, end };
+    // The observed sampling interval (0907): the median step between the first readings (a frame at 29.97 fps, 5 ms of
+    // sound), the tolerance at the track's edges.
+    const steps = [];
+    for (let i = 1; i < series.length && steps.length < 31; i++) { const d = series[i].t - series[i - 1].t; if (d > 0) steps.push(d); }
+    steps.sort((a, b) => a - b);
+    return { start, end, step: steps.length ? steps[steps.length >> 1] : 0 };
 }
 
 /** The whole measurement of one file: { flashes, beeps, result, summary, audio }. */
@@ -338,7 +350,7 @@ function measure(file, { corner = null, events = [] } = {}) {
     const beeps = onsets(level, { minSpread: 12 }); // dB
     const v = seriesBounds(luma);
     const a = seriesBounds(level);
-    const result = pairOnsets(flashes, beeps, { flashStart: v.start, flashEnd: v.end, beepStart: a.start, beepEnd: a.end });
+    const result = pairOnsets(flashes, beeps, { flashStart: v.start, flashEnd: v.end, beepStart: a.start, beepEnd: a.end, flashStep: v.step, beepStep: a.step });
     return { audio: true, flashes, beeps, result, summary: summarise(result, events) };
 }
 
