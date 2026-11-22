@@ -304,10 +304,11 @@ async function settle(r) {
 // ---- the transition table (docs/architecture/playback.md › The relay's transition table) ----------------------------
 
 /** What the relay looked like before an event, for the table's checks. */
-const snapshot = (r) => ({ closed: r.closed, failed: r.failed, switches: r.switches, state: r.closed ? (r.failed ? 'failed' : 'ended') : r.state,
+const snapshot = (r) => ({ closed: r.closed, reason: r.lastReason ? r.lastReason.code : null, reasons: [...(world.notes || [])], failed: r.failed, switches: r.switches, state: r.closed ? (r.failed ? 'failed' : 'ended') : r.state,
     leg: r.active, candidate: r.active.candidate, standby: r.standby, // Ready by its files (the relay reads them at its next tick): two segments written, not lost or stopped.
     standbyReady: !r.closed && !!r.standby && !r.standby.lost && !r.standby.session.stopRequested && r.standby.session.next >= relay.STANDBY_TAIL,
     legQuiet: r.active.session.stalled === true,
+    renewalBlocked: r.renewalBlocked,
     renewalBudget: !r.renewalBlocked && r.renewalTimes.filter(t => Date.now() - t < 60000).length < 3,
     renewable: !r.closed && r.active.session.options.relayTimeline === true && !!r.active.session.timings.playlistReady && !r.active.session.stopRequested
         && !r.active.lost && !!r.active.session.feed });
@@ -324,8 +325,18 @@ const TABLE = {
         || 'a quiet leg switches to a ready standby, and only to one',
     renewal: (b, a) => {
         if (!b.renewable) return a.switches === b.switches || a.closed || 'a reconnect on a leg that has not opted in changes nothing';
-        if (a.closed) return true; // renewal timed out / nothing could take over / the ingest ended: the play ends
+        // #4: a renewal that cannot land (no playlist, or its feed stuck to the deadline) is recovered from as a stall of
+        // the leg: standby, provider walk, the same provider without renewal; renewal is then off for the play. The play
+        // ends only when that ordinary path finds nothing (no-candidate), or the ingest itself ended under the pin.
+        if (a.closed) {
+            if (a.reason === 'renewal-timeout') return 'a renewal that timed out ended the play (#4)';
+            // "nothing could take over" after a renewal is the ordinary path's verdict only once that path was tried.
+            if (a.reason === 'no-candidate' && b.renewalBudget && !a.reasons.includes('renewal-failed') && !a.reasons.includes('renewal-budget'))
+                return 'a renewal that could not land ended the play without the ordinary recovery (#4)';
+            return true;
+        }
         if (a.switches < b.switches + 1) return 'a renewal is a switch';
+        if (a.renewalBlocked && !b.renewalBlocked && a.reasons.includes('renewal-failed')) return true; // the ordinary recovery
         // Within its budget a renewal is planned: the same feed, never the standby promoted, never another provider.
         // Over budget it is ordinary failover (renewal-budget), which may promote or re-plan.
         if (!b.renewalBudget) return true;
@@ -348,10 +359,10 @@ const TABLE = {
 
 // ---- one run ---------------------------------------------------------------------------------------------------------
 
-async function runSeed(seed, steps = 40) {
+async function runSeed(seed, steps = 30) {
     const rand = mulberry32(seed);
     const pick = (list) => list[Math.floor(rand() * list.length)];
-    world = { seed, rand, sessions: [], ingests: [], ingestSeq: 0, resolves: 0, ended: false, violations: [], trace: [], timers: [], outcomes: [],
+    world = { seed, rand, notes: [], stuck: [], sessions: [], ingests: [], ingestSeq: 0, resolves: 0, ended: false, violations: [], trace: [], timers: [], outcomes: [],
         startMode: new Map(), playlist: { ms: null, dseq: 0, last: null, seen: new Map() },
         violation(text) { this.violations.push(text); } };
     registry.clear();
@@ -372,12 +383,15 @@ async function runSeed(seed, steps = 40) {
     const r = captureRelayTimer(() => relay.adopt(front, { sourceId: 1, channelId: 'pos_1', capabilities: { fmp4: true }, settings: SETTINGS,
         ffprobePath: 'ffprobe', owner: OWNER, channelName: 'Model', primaryKey: 'a1', candidate: A }));
     world.timers = [...relayTimers];
+    const note = r.note.bind(r);
+    r.note = (code, ...rest) => { world.notes.push(code); return note(code, ...rest); };
     routing.watchSession(front, A);
     try {
         await r.tick();
         await settle(r);
         await checkPlaylist(r);
         for (let i = 0; i < steps && !r.closed; i++) {
+            world.notes = [];
             const before = snapshot(r);
             // Terminal events are rare, so a sequence lives long enough to meet the others in many orders.
             const ev = rand() < 0.03 ? pick(['viewerLeaves', 'stopped', 'viewerElsewhere'])
@@ -399,10 +413,15 @@ async function runSeed(seed, steps = 40) {
                 case 'renewal': {
                     // The provider's connection drops and comes back on the playing leg's ingest; the next start on it may
                     // never yield a playlist (#4), fail, or start.
-                    const mode = pick(['ok', 'ok', 'noPlaylist', 'fail']);
+                    // ... or its feed may be stuck reconnecting until the renewal deadline (#4).
+                    const mode = rand() < 0.08 ? 'stuck' : pick(['ok', 'ok', 'noPlaylist', 'noPlaylist', 'fail']);
                     detail = mode;
-                    world.startMode.set(r.active.candidate.url, mode);
-                    if (leg.feed) leg.feed.ingest.reconnect();
+                    world.startMode.set(r.active.candidate.url, mode === 'stuck' ? 'ok' : mode);
+                    if (leg.feed) {
+                        const ingest = leg.feed.ingest;
+                        ingest.reconnect();
+                        if (mode === 'stuck') { ingest.state = 'reconnecting'; world.stuck.push(ingest); }
+                    }
                     break;
                 }
                 case 'standbyDue': r.standbyAt = 0; await r.tick(); break;
@@ -428,6 +447,7 @@ async function runSeed(seed, steps = 40) {
             world.trace.push(`${i}: ${ev}${detail ? ` (${detail})` : ''}${hurried ? ' [next event while in flight]' : ''}`);
             if (hurried) { await new Promise(res => setImmediate(res)); checkConnections(); await checkPlaylist(r); world.unsettled = true; continue; }
             await settle(r);
+            for (const ingest of world.stuck.splice(0)) if (!ingest.closed) ingest.state = 'live';
             const wasUnsettled = world.unsettled;
             world.unsettled = false;
             const after = snapshot(r);
@@ -467,7 +487,7 @@ test('#41: the relay keeps its invariants over random event sequences (renewal o
     installStubs();
     relay.tuning.reconnectSettleMs = 0;
     relay.tuning.reconnectWaitMaxMs = 20;
-    relay.tuning.reconnectTotalMaxMs = 200;
+    relay.tuning.reconnectTotalMaxMs = 60;
     assert.equal(coordinator.samePool(1, 2), false, 'A and B are separate pools');
     const started = Date.now();
     const coverage = new Map();
@@ -476,6 +496,7 @@ test('#41: the relay keeps its invariants over random event sequences (renewal o
         const run = await runSeed(seed);
         const { violations, trace } = run;
         for (const line of trace) { const m = /^\d+: (\w+)/.exec(line); if (m) coverage.set(m[1], (coverage.get(m[1]) || 0) + 1); }
+        for (const line of trace) for (const kind of ['noPlaylist', 'stuck']) if (line.includes(`renewal (${kind})`)) coverage.set(`renewal-${kind}`, (coverage.get(`renewal-${kind}`) || 0) + 1);
         for (const o of run.outcomes) outcomes.set(o, (outcomes.get(o) || 0) + 1);
         if (violations.length) {
             assert.fail(`seed ${seed} (rerun alone: PIGTV_MODEL_SEED=${seed} node --test test/stream-relay-model.test.js)\n` +
@@ -486,12 +507,15 @@ test('#41: the relay keeps its invariants over random event sequences (renewal o
     console.log(`MODEL ${seeds.length} seeds in ${ms} ms; events ${JSON.stringify(Object.fromEntries(coverage))}`);
     console.log(`MODEL outcomes ${JSON.stringify(Object.fromEntries([...outcomes].sort()))}`);
     for (const ev of Object.keys(TABLE)) assert.ok(coverage.get(ev) > 0, `the event ${ev} was exercised`);
+    // #4: a renewal whose new leg produces no playlist, and one whose feed is stuck to the deadline.
+    for (const ev of ['renewal-noPlaylist', 'renewal-stuck']) assert.ok(coverage.get(ev) > 0, `${ev} was exercised`);
     // The paths that matter were taken, not only the events sent: a planned renewal that landed, a renewal that never
     // got a playlist, a standby promoted, a cold switch.
     const seen = (re) => [...outcomes.keys()].some(k => re.test(k));
     assert.ok(seen(/^renewal->reconnected$/), 'a planned renewal landed');
     assert.ok(seen(/^renewal->(ended:|renewal-budget)/), 'a renewal that could not land was met');
     assert.ok(seen(/->promoted$/), 'a standby was promoted');
+    assert.ok(seen(/^renewal->(renewal-failed|promoted|renewal-primary-fallback)$/), '#4: a failed renewal recovered and the play went on');
     assert.ok(seen(/^lost->(stalled|lost|timestamps)$/), 'a cold switch');
     // About 3 s for the fixed seeds on a quiet machine; the bound is loose for a busy CI runner, and catches a hang.
     assert.ok(ms < 15000 * Math.max(1, seeds.length / FIXED_SEEDS.length), `bounded: ${ms} ms`);

@@ -7,6 +7,8 @@
  *   node scripts/relay-rig.js stall           ... A stops sending instead (the 20 s watchdog)
  *   node scripts/relay-rig.js standby stall   a hot standby on B; A stops sending after 40 s
  *   node scripts/relay-rig.js reconnect       shared ingest reconnects on A, renewing the timeline
+ *   node scripts/relay-rig.js reconnect renew-stall   #4: after the reconnect A sends a short burst, then nothing (the
+ *                                             connection kept): the renewal never gets a playlist (add "standby" for one ready)
  *   add "ts" for MPEG-TS segments, "long" for a 110 s run, "sync" for both providers sending the fake provider's
  *   TEST A/V SYNC channel (#267: with RIG_OUTPUT the consumer's file is kept as consumer.ts, for scripts/avsync-meter.js)
  *
@@ -33,6 +35,7 @@ const mode = { aDead: false };
 const reconnect = process.argv.includes('reconnect');
 const flapping = process.argv.includes('flap');
 const syncChannel = process.argv.includes('sync');
+const renewStall = process.argv.includes('renew-stall');
 let firstLossAt = null, firstRenewalMs = null;
 const sample = process.env.RIG_SAMPLE;
 if (process.env.RIG_OUTPUT) {
@@ -80,7 +83,17 @@ const provider = http.createServer((req, res) => {
         })())
         : spawn('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-re', '-f', 'lavfi', '-i', color, '-f', 'lavfi', '-i', `sine=frequency=${which === 'a' ? 440 : 880}`,
             ...tsOffset, '-c:v', 'libx264', '-preset', 'ultrafast', '-tune', 'zerolatency', '-g', '25', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-f', 'mpegts', 'pipe:1']);
-    ff.stdout.pipe(res);
+    if (renewStall && which === 'a' && connections > 1) {
+        // #4: the reconnected feed sends a burst (enough for the ingest to call it reconnected), then stalls for good.
+        let sent = 0;
+        console.log(`--- A reconnected: a burst, then nothing (${((Date.now() - (globalThis.rigStartedAt || Date.now())) / 1000).toFixed(1)} s)`);
+        ff.stdout.on('data', chunk => {
+            if (sent >= 150000) return;
+            res.write(chunk);
+            sent += chunk.length;
+            if (sent >= 150000) { try { ff.kill('SIGSTOP'); } catch (e) { /* gone */ } }
+        });
+    } else ff.stdout.pipe(res);
     const feed = { which, ff, res };
     feeds.add(feed);
     const end = () => { feeds.delete(feed); try { ff.kill('SIGKILL'); } catch (e) {} };
@@ -127,6 +140,7 @@ const provider = http.createServer((req, res) => {
     const out = path.join(sandbox, 'consumer.ts');
     const consumer = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'warning', '-y', '-live_start_index', '0', '-i', playlistUrl, '-t', String(flapping ? 3600 : runSeconds), '-c', 'copy', out]);
     const consumerStartedAt = Date.now();
+    globalThis.rigStartedAt = consumerStartedAt;
     let clog = ''; consumer.stderr.on('data', d => { clog += d; });
     const killAt = process.argv.includes('standby') ? 40000 : 16000;
     if (!sample && !flapping) setTimeout(() => { console.log(`--- KILLING PROVIDER A (${((Date.now() - consumerStartedAt) / 1000).toFixed(1)} s after the consumer started)`); mode.aDead = !reconnect; for (const f of feeds) if (f.which === 'a') { if (process.argv.includes('stall')) { f.ff.stdout.unpipe(f.res); f.ff.kill('SIGSTOP'); } else { f.res.destroy(); } } }, killAt);
@@ -153,7 +167,8 @@ const provider = http.createServer((req, res) => {
     }, flapping ? 200 : 4000);
     consumer.on('exit', async (code) => {
         clearInterval(poll); clearInterval(flapTimer); clearTimeout(deadline);
-        console.log('CONSUMER exit', code); console.log('CONSUMER LOG\n' + clog.split('\n').slice(-25).join('\n'));
+        console.log('CONSUMER exit', code);
+        console.log('RELAY RESULT', JSON.stringify(relay.list().map(x => ({ state: x.state, provider: x.provider, switches: x.switches, lastReason: x.lastReason && x.lastReason.code })))); console.log('CONSUMER LOG\n' + clog.split('\n').slice(-25).join('\n'));
         const text = await (await fetch(playlistUrl)).text(); console.log('FINAL PLAYLIST\n' + text);
         if (process.argv.includes('budget')) {
             const current = relay.list()[0];

@@ -289,9 +289,18 @@ discontinuity exactly at each leg change, every leg stopped, no timer left).
 | The playing leg writes nothing for 10 s with a standby ready (`tick`) | The standby is promoted (`stalled`); never without a ready one |
 | Standby due (20 s in, then every 60 s while there is none) | `startStandby`: a lease on a free connection in another pool (or one a warm channel holds), then a standby leg; nothing free, nothing started |
 | Standby lost, or its connection taken (`tendStandby`) | Dropped (`failed` / `reclaimed` shown), retried in 60 s; the play goes on |
-| The shared ingest reconnects on a leg with renewal on (`timeline-restart`) | The session stops itself; within the budget (3 a minute) a **planned renewal**: same feed, same candidate, never the standby, never a re-plan, no interruption counted; a new leg joins the same ingest behind a discontinuity. Over the budget: ordinary failover (`renewal-budget`, the channel quarantined), then the primary once more without renewal. The new leg not starting, or the ingest not settling within 20 s, ends the play today (#4) |
+| The shared ingest reconnects on a leg with renewal on (`timeline-restart`) | The session stops itself; within the budget (3 a minute) a **planned renewal**: same feed, same candidate, never the standby, never a re-plan, no interruption counted; a new leg joins the same ingest behind a discontinuity. Over the budget: ordinary failover (`renewal-budget`, the channel quarantined), then the primary once more without renewal. **A renewal that cannot land** (#4, 0904: its new leg has no playlist, or the ingest does not settle within 20 s): `renewal-failed` is noted and counted as an interruption, the channel is quarantined on that provider (never the breaker), renewal is off for the rest of the play, and the play recovers as from a stall of the leg: a ready standby, else the provider walk, else the same provider without renewal. Only that ordinary path finding nothing ends the play (`no-candidate`) |
 | The ingest ends under the leg (upstream lost) | As a lost leg |
 | The leg is stopped on request (DELETE, takeover, idle sweep), the viewer plays something else, a cold start finds the viewer's newer stream | The relay ends (not failed); nothing is started for it |
+
+**Renewal (#4, 0904).** A planned renewal is opportunistic: it may never make a healthy play worse. The old leg's ffmpeg
+stops at the reconnect (it cannot take the new connection's timestamps), so a renewal that cannot land falls back to the
+ordinary recovery above instead of ending the play (0903 ended it: the 29 Oct FOX Kansas City stop, where the client
+then spent its one recovery and the next stall was fatal). The relay rig shows it: `node scripts/relay-rig.js standby
+reconnect renew-stall sync long` (A's reconnected feed sends a burst, then nothing) ends the play on 0903's relay
+(`failed`, `no-candidate`) and is promoted to the standby on 0904's (A/V 0 ms across the join); without `standby`, the
+provider walk takes B. The wait for the renewal's deadline is still part of the gap (22–31 s on the rig): the player's
+30 s hold covers most of it. Renewal stays off by default (D-25).
 
 The relay's reconnect renewal and its budget, and the standby reading through the shared ingest, are in
 [`ingest.md`](ingest.md) › How the shared ingest works. Decision D-25 in [`../DECISIONS.md`](../DECISIONS.md) keeps

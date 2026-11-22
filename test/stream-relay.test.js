@@ -941,3 +941,117 @@ test('D-7: a candidate whose leg cannot start is given up and the next one is st
         assert.equal(coordinator.listLeases().filter(l => l.purpose === 'viewer' && l.providerId === B.providerId).length, 0, 'the failed start\'s lease was given back');
     } finally { strategy.resolve = resolve; await silently(() => r.close('test over')); }
 });
+
+// #4 (FOX Kansas City, 29 Oct): a planned renewal whose new leg never produces a playlist ended the play (0903: closed,
+// reason no-candidate). A renewal is opportunistic and must never make a healthy play worse: the old leg stopped at the
+// reconnect, so the play recovers as from a stall of it (a ready standby, else the provider walk, else the same provider
+// without renewal), renewal is off for the rest of the play, and only that ordinary path finding nothing ends it.
+async function renewalThatNeverPlays({ settings = { ...withStandby, sharedIngestEnabled: true }, resolveAfter, ingest = { key: 'k-a', state: 'live', reconnectedAt: Date.now() - 10000 } } = {}) {
+    const s = fakeSession(); write(s, 0, 2);
+    // As TranscodeSession.handleIngestReconnect: the session stops its own ffmpeg at the reconnect (a planned boundary).
+    s.stop = async () => { s.stopRequested = true; s.status = 'stopped'; };
+    const r = relay.adopt(s, ctx({ settings }));
+    clearInterval(r.timer);
+    await r.ingest();
+    const pin = { endReason: null, ingest, left: 0, leave() { this.left++; } };
+    const resolve = strategy.resolve;
+    const peek = sessions.peekSession;
+    sessions.peekSession = id => registry.get(id);
+    // The renewal leg connects to the same ingest but has no first segment by its deadline: the resolve gives it up.
+    strategy.resolve = async (opts) => {
+        if (opts.sessionOptions?.relayTimeline) { started.push({ provider: opts.providerId, renewal: true }); throw new Error('FFmpeg ended before producing a playlist'); }
+        return resolveAfter(opts, resolve);
+    };
+    const notes = [];
+    const note = r.note.bind(r); r.note = (code, ...rest) => { notes.push(code); return note(code, ...rest); };
+    try { await silently(() => r.switchOver('reconnected; renewing its timeline', 'reconnected', pin)); } finally { strategy.resolve = resolve; sessions.peekSession = peek; }
+    return { r, s, pin, notes };
+}
+
+test('#4: a renewal whose new leg never produces a playlist falls back to the ordinary recovery; the play goes on, renewal off', async () => {
+    const { r, s, pin, notes } = await renewalThatNeverPlays({ resolveAfter: (opts, resolve) => resolve(opts) });
+    try {
+        assert.equal(r.closed, false, `the play goes on (0903: ended "${r.lastReason && r.lastReason.code}")`);
+        assert.deepEqual(started.map(x => [x.provider, !!x.renewal]), [[1, true], [2, false]], 'the renewal attempt, then the provider walk: the backup, without renewal');
+        assert.equal(r.active.candidate, B);
+        assert.equal(r.active.session.options.relayTimeline, false);
+        assert.equal(r.renewalBlocked, true, 'renewal is off for the rest of this play');
+        assert.equal(r.renewalEnabled(), false);
+        assert.ok(notes.includes('renewal-failed'), notes.join());
+        assert.match(relay.list().find(x => x.id === s.id).lastReason.code, /renewal-failed|promoted/);
+        assert.equal(pin.left, 1, 'the renewal pin is given back');
+        assert.equal(registry.has(s.id), false, 'the old leg is retired');
+        assert.match(await r.getPlaylist(), /#EXT-X-DISCONTINUITY\n#EXT-X-MAP:URI="L1-init.mp4"/, 'the usual join');
+        assert.ok(!JSON.stringify(r.lastReason).includes('invalid'), 'no address');
+        const row = interruptions.summary().recent[0];
+        assert.deepEqual([row.reason, row.recoveredProvider], ['renewal-failed', 'Dream4K']);
+        // A later stall of the new leg is the ordinary path, as if no renewal had been tried.
+        r.active.session.emit('lost', { how: 'stall', providerReason: true });
+        quarantined.push('Dream4K');
+        routing.reset();
+        await silently(() => r.tick());
+        assert.equal(r.closed, false);
+        assert.equal(r.active.candidate, A, 'the primary again, renewal still off');
+        assert.equal(r.active.session.options.relayTimeline, false);
+    } finally { await silently(() => r.close('test over')); }
+});
+
+test('#4: with no backup, a failed renewal continues on the same provider without renewal', async () => {
+    const plan = routing.plan;
+    routing.plan = async () => ({ candidates: [], primaryKey: 'k', channelName: 'Fox Footy' });
+    try {
+        const { r, notes } = await renewalThatNeverPlays({ resolveAfter: (opts, resolve) => resolve(opts) });
+        assert.equal(r.closed, false);
+        assert.equal(r.active.candidate, A);
+        assert.equal(r.active.session.options.relayTimeline, false, 'the same feed, without renewal');
+        assert.ok(notes.includes('renewal-primary-fallback'), notes.join());
+        await silently(() => r.close('test over'));
+    } finally { routing.plan = plan; }
+});
+
+test('#4: a ready standby takes over from a failed renewal', async () => {
+    const samePool = coordinator.samePool, free = coordinator.hasFreeConnection;
+    coordinator.samePool = (a, b) => a === b;
+    coordinator.hasFreeConnection = () => true;
+    const s = fakeSession(); write(s, 0, 2);
+    s.stop = async () => { s.stopRequested = true; s.status = 'stopped'; };
+    const r = relay.adopt(s, ctx({ settings: { ...withStandby, sharedIngestEnabled: true } }));
+    clearInterval(r.timer);
+    await r.ingest();
+    const backup = fakeSession({ providerId: 2, standby: true, owner: 'standby:test' }); write(backup, 0, 2);
+    r.standby = r.addLeg(backup, B); r.standby.tail = [{ seq: 1 }, { seq: 2 }]; r.standby.lastSegAt = Date.now();
+    const resolve = strategy.resolve; const peek = sessions.peekSession;
+    sessions.peekSession = id => registry.get(id);
+    strategy.resolve = async () => { throw new Error('FFmpeg ended before producing a playlist'); };
+    try {
+        await silently(() => r.switchOver('reconnected', 'reconnected', { endReason: null, ingest: { key: 'k-a', state: 'live', reconnectedAt: Date.now() - 10000 }, leave() {} }));
+        assert.equal(r.closed, false);
+        assert.equal(r.active.session, backup, 'the standby is promoted');
+        assert.equal(r.renewalBlocked, true);
+    } finally { strategy.resolve = resolve; sessions.peekSession = peek; coordinator.samePool = samePool; coordinator.hasFreeConnection = free; await silently(() => r.close('test over')); }
+});
+
+test('#4: a renewal whose feed never settles (the renewal deadline) falls back too', async () => {
+    const t = { ...relay.tuning };
+    relay.tuning.reconnectTotalMaxMs = 250;
+    try {
+        const { r, notes } = await renewalThatNeverPlays({ ingest: { key: 'k-a', state: 'reconnecting', reconnectedAt: Date.now() }, resolveAfter: (opts, resolve) => resolve(opts) });
+        assert.equal(r.closed, false, 'not "timeline renewal timed out"');
+        assert.ok(notes.includes('renewal-failed'));
+        assert.equal(r.active.candidate, B);
+        await silently(() => r.close('test over'));
+    } finally { Object.assign(relay.tuning, t); }
+});
+
+test('#4: when the ordinary path after a failed renewal finds nothing either, the play ends with the ordinary reason', async () => {
+    const { r, notes } = await renewalThatNeverPlays({ resolveAfter: () => { throw new Error('nope'); } });
+    assert.equal(r.closed, true);
+    assert.equal(r.failed, true);
+    assert.equal(r.lastReason.code, 'no-candidate', 'the ordinary reason, not a renewal-specific one');
+    assert.ok(notes.includes('renewal-failed'), 'the failed renewal is recorded on the way');
+    assert.equal(registry.size, 0, 'no leg left running');
+});
+
+test('#4: renewal stays off by default', () => {
+    assert.match(fs.readFileSync(path.join(sandbox, 'server/db.js'), 'utf8'), /ingestReconnectRenewal: false,/);
+});

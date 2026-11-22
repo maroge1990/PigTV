@@ -432,6 +432,7 @@ class Relay {
                 else await this.retire(old);
                 if (planned) await this.ingest(); // include ffmpeg's flushed final pre-reconnect segment
                 if (this.closed) return;
+                let renewalFailed = null;
                 if (planned) {
                     // Never re-plan/promote a backup for an ingest that already recovered. A
                     // reconnect during resolve is absorbed: discard that attempt, settle again.
@@ -442,9 +443,8 @@ class Relay {
                         }
                         const source = pin.ingest;
                         if (Date.now() - renewalStartedAt >= tuning.reconnectTotalMaxMs) {
-                            this.note('renewal-timeout', 'no clean segment within the renewal deadline');
-                            await this.close('timeline renewal timed out', false);
-                            return;
+                            renewalFailed = 'timeout';
+                            break;
                         }
                         const forced = Date.now() - renewalStartedAt >= tuning.reconnectWaitMaxMs;
                         if (source.state !== 'live' || (!forced && Date.now() - source.reconnectedAt < tuning.reconnectSettleMs)) {
@@ -458,18 +458,45 @@ class Relay {
                         if (next) await this.retire(next, true);
                         next = null;
                     }
-                } else {
-                    if (this.standby) await this.dropStandby('not ready when it was needed', 'stalled');
-                    next = await this.startCold();
-                    // The primary is still delivering: unavailable backups must
-                    // not turn a renewal limit into the end of an otherwise live
-                    // play. Try it once with renewal disabled, retaining normal
-                    // admission/takeover and resolve-deadline checks.
-                    // A pin ended by anything else (a viewer replacement, shutdown) still ends the play.
-                    const pinUsable = pin && (!pin.endReason || (pin.ingest && this.reclaimedPins.has(pin.ingest.key)));
-                    if (!next && code === 'renewal-budget' && !this.closed && pinUsable) {
-                        next = await this.startCold([old.candidate]);
-                        if (next) this.note('renewal-primary-fallback', `no backup available; continuing on ${this.providerOf(next)} with renewal disabled`);
+                    if (!renewalFailed && !next && !this.closed && !pin.endReason) renewalFailed = 'no-playlist';
+                    if (renewalFailed) {
+                        // #4 (29 Oct): a renewal is opportunistic and must never make a healthy play worse. The old leg
+                        // stopped at the reconnect, so the play recovers as from a stall of it (standby, re-plan, then
+                        // the same provider without renewal), and renewal is off for the rest of this play.
+                        planned = false;
+                        code = 'renewal-failed';
+                        this.renewalBlocked = true;
+                        const detail = renewalFailed === 'timeout' ? 'its feed did not settle within the renewal deadline' : 'its new leg produced no playlist';
+                        this.log(`renewal on ${this.providerOf(old)} failed (${detail}); recovering as from a stall, renewal off for this play`);
+                        this.note('renewal-failed', `${this.providerOf(old)}: ${detail}`, { provider: this.providerOf(old) });
+                        interruptions().noteLost({ owner: ctx.owner, channel: ctx.channelName, provider: this.providerOf(old), how: 'stall',
+                            providerReason: false, playedSec: (lostAt - old.startedAt) / 1000, reason: code });
+                        // As the renewal budget: this channel only, never the provider-wide breaker.
+                        try { routing().quarantine(old.candidate.providerId, old.candidate.channelKey); } catch (e) { /* observation only */ }
+                        await this.retire(old);
+                        if (this.closed) return;
+                    }
+                }
+                if (!planned) {
+                    // The clock did not tick while the renewal waited (up to 20 s): see where the standby stands now.
+                    if (renewalFailed && this.standby) await this.tendStandby();
+                    if (this.closed) return;
+                    if (renewalFailed && this.standbyReady()) {
+                        next = this.promoteStandby();
+                        this.note('promoted', `standby on ${this.providerOf(next)} took over`, { state: 'promoted', provider: this.providerOf(next) });
+                    } else {
+                        if (this.standby) await this.dropStandby('not ready when it was needed', 'stalled');
+                        next = await this.startCold();
+                        // The primary is still delivering: unavailable backups must
+                        // not turn a renewal limit (or a failed renewal, #4) into the end of an
+                        // otherwise live play. Try it once with renewal disabled, retaining normal
+                        // admission/takeover and resolve-deadline checks.
+                        // A pin ended by anything else (a viewer replacement, shutdown) still ends the play.
+                        const pinUsable = pin && (!pin.endReason || (pin.ingest && this.reclaimedPins.has(pin.ingest.key)));
+                        if (!next && (code === 'renewal-budget' || code === 'renewal-failed') && !this.closed && pinUsable) {
+                            next = await this.startCold([old.candidate]);
+                            if (next) this.note('renewal-primary-fallback', `no backup available; continuing on ${this.providerOf(next)} with renewal disabled`);
+                        }
                     }
                 }
             }
@@ -815,7 +842,7 @@ function playingSessionId(id) {
  * minutes) the ones that ended because nothing could take over. `state` is one of starting |
  * playing | switching | standby-starting | standby-ready | promoted | reclaimed | failed;
  * `lastReason` is { code, detail, at } with code lost | stalled | timestamps | repeating | placeholder | blank |
- * incompatible | standby-incompatible | standby-reclaimed | promoted | no-candidate. Names only.
+ * incompatible | standby-incompatible | standby-reclaimed | promoted | no-candidate | renewal-failed (#4). Names only.
  */
 function list() {
     const now = Date.now();
