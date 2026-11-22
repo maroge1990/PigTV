@@ -270,6 +270,29 @@ rebased the step first (a reconnect showed up only as repeated content, and ever
 - Known limits: the feeds aren't in step (a jump or repeat at a switch); a cold switch still waits for the 20 s stall
   watchdog; the provider in Stream info is the one the play started on. A switch applies to plays started after it changes.
 
+### The relay's transition table (#41)
+
+`Relay.state` is what Status shows: `starting` (leg 0, nothing joined), `playing`, `standby-starting`, `standby-ready`,
+`switching` (inside `switchOver`, transient), `promoted` / `reclaimed` (shown for 60 s), `failed`; a closed relay is gone
+(404). Connections: the **playing leg** holds one (its session on a shared ingest, owner the viewer); the **standby**
+one in another pool (owner `standby:<relay id>`, taken by anybody unasked); during a **planned renewal** the stopped
+old leg stays registered and a `renewal-pin` reader keeps its ingest, which the new leg joins (no new connection).
+The table is not a data structure in the code (that would mean reshaping `tick`/`switchOver`); its rows are asserted
+for every step by the model test `test/stream-relay-model.test.js` (random event sequences against the real relay,
+coordinator and start walk: one connection per pool, no pin or reader left after the end, a monotonic playlist with a
+discontinuity exactly at each leg change, every leg stopped, no timer left).
+
+| Event (where it is seen) | Action |
+|---|---|
+| The playing leg writes (`tick` → `ingest`) | Its segments join the list; `starting` → `playing`. Nothing else |
+| Leg lost: stall, exit, broken timestamps, repeating clip, placeholder (`tick`, `leg.lost`) | `switchOver`: a ready standby is promoted (`promoted`); else the old leg is retired first, the providers are planned again and the first that starts is the next leg (cold). Nothing starts: `failed` (`no-candidate`). Leg 0 as the placeholder: `failed` at once |
+| The playing leg writes nothing for 10 s with a standby ready (`tick`) | The standby is promoted (`stalled`); never without a ready one |
+| Standby due (20 s in, then every 60 s while there is none) | `startStandby`: a lease on a free connection in another pool (or one a warm channel holds), then a standby leg; nothing free, nothing started |
+| Standby lost, or its connection taken (`tendStandby`) | Dropped (`failed` / `reclaimed` shown), retried in 60 s; the play goes on |
+| The shared ingest reconnects on a leg with renewal on (`timeline-restart`) | The session stops itself; within the budget (3 a minute) a **planned renewal**: same feed, same candidate, never the standby, never a re-plan, no interruption counted; a new leg joins the same ingest behind a discontinuity. Over the budget: ordinary failover (`renewal-budget`, the channel quarantined), then the primary once more without renewal. The new leg not starting, or the ingest not settling within 20 s, ends the play today (#4) |
+| The ingest ends under the leg (upstream lost) | As a lost leg |
+| The leg is stopped on request (DELETE, takeover, idle sweep), the viewer plays something else, a cold start finds the viewer's newer stream | The relay ends (not failed); nothing is started for it |
+
 The relay's reconnect renewal and its budget, and the standby reading through the shared ingest, are in
 [`ingest.md`](ingest.md) › How the shared ingest works. Decision D-25 in [`../DECISIONS.md`](../DECISIONS.md) keeps
 renewal off in production until reconnect handling is tested.
