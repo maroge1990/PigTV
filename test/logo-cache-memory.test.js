@@ -96,3 +96,43 @@ test('the memory never runs ahead of the table, including after a failed transac
     for (const it of items(5, 'fail')) assert.ok(have.has(logo.keyForUrl(it.logo)));
     for (const it of [...items(500, 'a'), ...items(499, 'b')]) assert.ok(have.has(logo.keyForUrl(it.logo)));
 });
+
+// #361 (0890): programme artwork alone passes the old 20,000-URL memory, which was then cleared whole, so every page
+// after it was a write transaction again. Now the memory holds more and drops only its oldest; and a URL it has dropped
+// is looked up (a read), never written again.
+const art = (from, n) => Array.from({ length: n }, (_, i) => ({ logo: `https://art.example/p/${from + i}.jpg` }));
+function fill(total) {
+    for (let at = 0; at < total; at += 500) logo.applyLogoCache(art(at, Math.min(500, total - at)));
+}
+
+test('after 25,000 distinct artwork URLs, a repeat of the first page writes nothing', () => {
+    logo._resetMemory?.();
+    fill(25000);
+    c.reset();
+    const again = art(0, 500);
+    logo.applyLogoCache(again);
+    assert.equal(c.runs(/INSERT/), 0, 'no INSERT');
+    assert.equal(c.transactions(), 0, 'no write transaction');
+    assert.equal(again[0].logo, `/api/logo/${logo.keyForUrl('https://art.example/p/0.jpg')}`);
+});
+
+test('past the memory bound it drops its oldest URLs only, and a dropped URL is read, not written', () => {
+    logo._resetMemory?.();
+    const bound = logo.MEMORY_LIMIT;
+    assert.ok(bound >= 50000, `bound ${bound}`);
+    fill(bound + 1000);
+    assert.ok(logo._memorySize() <= bound, `memory holds ${logo._memorySize()} (bound ${bound})`);
+    c.reset();
+    logo.applyLogoCache(art(bound + 500, 500)); // the newest: still remembered
+    assert.equal(c.executions(), 0, 'the newest page is in memory');
+    c.reset();
+    const oldest = art(0, 500); // dropped from memory, stored in the table
+    logo.applyLogoCache(oldest);
+    assert.equal(c.runs(/INSERT/), 0, 'no INSERT for keys the table has');
+    assert.equal(c.transactions(), 0, 'no write transaction');
+    assert.ok(c.alls(/SELECT key FROM logo_cache/) >= 1, 'one read');
+    assert.equal(oldest[499].logo, `/api/logo/${logo.keyForUrl('https://art.example/p/499.jpg')}`);
+    c.reset();
+    assert.match(logo.registerLogo('https://art.example/p/600.jpg'), /^\/api\/logo\/[0-9a-f]{32}$/);
+    assert.equal(c.runs(/INSERT/), 0, 'registerLogo of a stored key does not write either');
+});

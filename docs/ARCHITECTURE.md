@@ -189,6 +189,11 @@ before 0154 is fetched again on its first `size=full`/`640` request.
 
 Logo downloads have one deadline to the last byte (0249).
 
+**Key memory** (`logoCache.js`): URL → key for up to 60,000 committed rows (~16 MB), so a page that registers logos and
+programme artwork it has seen runs no statement. A full memory drops its oldest tenth (0890; it was cleared whole); a
+dropped URL is looked up on its next page (a read), and only keys the table lacks are written, one transaction per page.
+It starts empty for a new database handle; nothing deletes `logo_cache` rows.
+
 ## Log lines and provider addresses
 
 The container log names a provider by its name, never by its address (#307). `redact()` (`server/redact.js`) masks a login
