@@ -249,6 +249,42 @@ test('the failure channels: stall keeps the connection silent, close drops it, o
     b.close();
 });
 
+// #267: the A/V sync meter's channel, on both profiles (a standby on B joins A's stream), in the listings and the M3U,
+// linked A -> B, and breakable like any other channel.
+test('#267: TEST A/V SYNC is in both profiles, their M3Us and the guide, and B backs A\'s up', async () => {
+    const q = `username=${LOGIN.user}&password=${LOGIN.pass}`;
+    for (const [fake, base, name] of [[fakeA, baseA, 'UK| TEST A/V SYNC HD'], [fakeB, baseB, 'UK: TEST A/V SYNC HD']]) {
+        const c = fake.lineup.find(l => l.name === name);
+        assert.ok(c, `${name} in the lineup`);
+        assert.deepEqual([c.kind, c.tvg, c.uhd], ['sync', 'test.sync', false], 'the same size as the other test channels');
+        const text = await (await fetch(`${base}/get.php?${q}&type=m3u_plus&output=ts`)).text();
+        assert.ok(text.includes(`,${name}\n`), `${name} in the M3U`);
+        assert.ok(text.includes(`tvg-id="test.sync"`));
+    }
+    const plan = await providerRouting.plan(sourceA.id, String(fakeA.lineup.find(c => c.name === 'UK| TEST A/V SYNC HD').id));
+    assert.ok(plan.candidates.some(c => c.providerId === sourceB.id), 'B backs it up');
+    // The channels before it keep their ids (it is last in the list).
+    assert.equal(fakeA.lineup.find(c => c.name === 'UK| TEST HE-AAC LABELLED MAIN HD').id, 1026);
+});
+
+test('#267: the A/V sync stream is H.264 + AAC stereo like the others, and stalls on /fake/fail like them', { skip: !hasFfmpeg && 'no ffmpeg' }, async () => {
+    const url = live(fakeA, baseA, 'UK| TEST A/V SYNC HD');
+    const info = analyzeProbeResult(await probeStream(url, 'ffprobe', null, 20000), 'x', {});
+    assert.deepEqual([info.video, info.audio, info.height, info.audioChannels ?? 2], ['h264', 'aac', 360, 2], JSON.stringify(info));
+    const s = await openStream(url);
+    assert.ok(await until(() => s.bytes() > 20000), 'it plays');
+    const id = fakeA.lineup.find(c => c.name === 'UK| TEST A/V SYNC HD').id;
+    const r = await fetch(`${baseA}/fake/fail?stream=${id}&mode=stall`, { method: 'POST' });
+    assert.equal(r.status, 200);
+    await new Promise(res => setTimeout(res, 300));
+    const n = s.bytes();
+    await new Promise(res => setTimeout(res, 1500));
+    assert.equal(s.bytes(), n, 'stalled: nothing more');
+    assert.equal(s.ended(), false, 'the connection kept');
+    await fetch(`${baseA}/fake/fail?stream=${id}&mode=ok`, { method: 'POST' });
+    s.close();
+});
+
 test('HE-AAC channels: one labelled AAC-LC, one labelled AAC Main (the Strong8K FOX case)', { skip: !hasFfmpeg && 'no ffmpeg' }, async () => {
     for (const [name, objectType] of [['UK| TEST HE-AAC AUDIO HD', 2], ['UK| TEST HE-AAC LABELLED MAIN HD', 1]]) {
         const s = await openStream(live(fakeA, baseA, name));

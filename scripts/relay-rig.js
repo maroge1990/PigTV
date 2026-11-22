@@ -7,7 +7,8 @@
  *   node scripts/relay-rig.js stall           ... A stops sending instead (the 20 s watchdog)
  *   node scripts/relay-rig.js standby stall   a hot standby on B; A stops sending after 40 s
  *   node scripts/relay-rig.js reconnect       shared ingest reconnects on A, renewing the timeline
- *   add "ts" for MPEG-TS segments, "long" for a 110 s run
+ *   add "ts" for MPEG-TS segments, "long" for a 110 s run, "sync" for both providers sending the fake provider's
+ *   TEST A/V SYNC channel (#267: with RIG_OUTPUT the consumer's file is kept as consumer.ts, for scripts/avsync-meter.js)
  *
  * An ffmpeg "player" reads the stream the whole way through; the run prints the playlist every
  * 4 s, the relay's log lines, and the final playlist. Needs ffmpeg and ffprobe on the PATH.
@@ -31,6 +32,7 @@ process.chdir(sandbox);
 const mode = { aDead: false };
 const reconnect = process.argv.includes('reconnect');
 const flapping = process.argv.includes('flap');
+const syncChannel = process.argv.includes('sync');
 let firstLossAt = null, firstRenewalMs = null;
 const sample = process.env.RIG_SAMPLE;
 if (process.env.RIG_OUTPUT) {
@@ -66,8 +68,18 @@ const provider = http.createServer((req, res) => {
         return;
     }
     const color = which === 'a' ? 'testsrc2=size=640x360:rate=25' : 'smptebars=size=640x360:rate=25';
-    const ff = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-re', '-f', 'lavfi', '-i', color, '-f', 'lavfi', '-i', `sine=frequency=${which === 'a' ? 440 : 880}`,
-        ...(reconnect && connections > 1 ? ['-output_ts_offset', String(27 + (flapping ? (connections - 2) * 4 : 0))] : []), '-c:v', 'libx264', '-preset', 'ultrafast', '-tune', 'zerolatency', '-g', '25', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-f', 'mpegts', 'pipe:1']);
+    const tsOffset = reconnect && connections > 1 ? ['-output_ts_offset', String(27 + (flapping ? (connections - 2) * 4 : 0))] : [];
+    // #267: the fake provider's own A/V sync generator (its flash and beep), on both providers; each connection starts
+    // its own clock, as a real provider's feed does.
+    const ff = syncChannel
+        ? spawn('ffmpeg', (() => {
+            const args = require('./fake-provider').generatorArgs({ id: which === 'a' ? 1027 : 5027, kind: 'sync', name: `TEST A/V SYNC ${which}` },
+                { size: '640x360', uhdSize: '640x360', fps: 25, videoKbps: 600, caps: { drawtext: false }, title: `Prov${which.toUpperCase()}` });
+            args.splice(args.length - 1, 0, ...tsOffset);
+            return args;
+        })())
+        : spawn('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-re', '-f', 'lavfi', '-i', color, '-f', 'lavfi', '-i', `sine=frequency=${which === 'a' ? 440 : 880}`,
+            ...tsOffset, '-c:v', 'libx264', '-preset', 'ultrafast', '-tune', 'zerolatency', '-g', '25', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-f', 'mpegts', 'pipe:1']);
     ff.stdout.pipe(res);
     const feed = { which, ff, res };
     feeds.add(feed);
@@ -114,9 +126,10 @@ const provider = http.createServer((req, res) => {
     // a consumer reading the stream the whole time
     const out = path.join(sandbox, 'consumer.ts');
     const consumer = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'warning', '-y', '-live_start_index', '0', '-i', playlistUrl, '-t', String(flapping ? 3600 : runSeconds), '-c', 'copy', out]);
+    const consumerStartedAt = Date.now();
     let clog = ''; consumer.stderr.on('data', d => { clog += d; });
     const killAt = process.argv.includes('standby') ? 40000 : 16000;
-    if (!sample && !flapping) setTimeout(() => { console.log('--- KILLING PROVIDER A'); mode.aDead = !reconnect; for (const f of feeds) if (f.which === 'a') { if (process.argv.includes('stall')) { f.ff.stdout.unpipe(f.res); f.ff.kill('SIGSTOP'); } else { f.res.destroy(); } } }, killAt);
+    if (!sample && !flapping) setTimeout(() => { console.log(`--- KILLING PROVIDER A (${((Date.now() - consumerStartedAt) / 1000).toFixed(1)} s after the consumer started)`); mode.aDead = !reconnect; for (const f of feeds) if (f.which === 'a') { if (process.argv.includes('stall')) { f.ff.stdout.unpipe(f.res); f.ff.kill('SIGSTOP'); } else { f.res.destroy(); } } }, killAt);
     let avplayer = null;
     if (process.env.RIG_AVPLAYER) {
         fsSync.mkdirSync(process.env.RIG_OUTPUT, { recursive: true });
@@ -155,6 +168,7 @@ const provider = http.createServer((req, res) => {
             const dest = process.env.RIG_OUTPUT;
             fsSync.mkdirSync(dest, { recursive: true });
             fsSync.writeFileSync(path.join(dest, 'stream.m3u8'), text);
+            if (fsSync.existsSync(out)) fsSync.copyFileSync(out, path.join(dest, 'consumer.ts'));
             const followed = relay.get(decision.sessionId);
             if (followed) for (const leg of followed.legs) {
                 if (leg.removed || !fsSync.existsSync(leg.dir)) continue;

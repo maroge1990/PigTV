@@ -55,6 +55,7 @@ Londres", as RDS names teams), for #296's join by nickname; on the rig, add it t
 | `UK\| TEST OFFLINE 404` | Refused at once: failover to profile b |
 | `UK\| TEST BLACK SCREEN HD` | Black at ~40 kbit/s: the blank-picture check |
 | `UK\| TEST HE-AAC AUDIO HD`, `HE-AAC LABELLED MAIN HD` | HE-AAC labelled AAC-LC, and labelled AAC Main (Strong8K's FOX feeds); looped from `test/fixtures/synthetic-heaac.aac` |
+| `UK\| TEST A/V SYNC HD` (B: `UK: TEST A/V SYNC HD`) | #267's A/V sync meter (`scripts/avsync-meter.js`, [`TESTING.md`](TESTING.md) › A/V sync harness): a dark picture that flashes white and a 1760 Hz beep over a quiet 440 Hz tone, together at every second of one ffmpeg clock, 0.1 s long and 0.3 s every 10th second; the source measures -1.3 ms. Same size, rate and audio layout as the others; breaks with `/fake/fail` like them |
 | `EXTRA\| FILLER nnn HD` | `--channels N` more ordinary channels |
 
 Profile b carries most of these as `VIP: …`, `|UK| …`, `UK: …` names, with ids from 5000; its TEST channels play normally.

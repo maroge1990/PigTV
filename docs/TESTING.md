@@ -97,6 +97,31 @@ Apple app (`configuredTimeOffsetFromLive` 30 s). No server, provider or device i
    rate after the head start; `session.sh` is the 0300 session command from the 28 Oct log; the player starts when
    segment 0 exists, as the server answers.
 
+**The A/V sync meter** (#267): `node scripts/avsync-meter.js <file> [--corner x,y,w,h] [--events <file>] [--quiet]` reads
+a file of the fake provider's `TEST A/V SYNC` channel (a flash and a 1760 Hz beep at each second of one clock, both long
+every 10th second) and prints the sound-minus-picture offset of every flash-and-beep pair, a summary (median, min, max,
+worst, drift, the first time it leaves ±80 ms for 5 s) and one `AVSYNC {json}` line; positive is sound late. The long
+marks catch a whole-second slip. `--events` takes `<seconds into the file> [label]` lines (switch times) and marks them.
+It reads files only: it refuses a URL and never prints one. A file without sound (a `simctl io recordVideo`) gets
+the flash times only. Measured (`test/avsync-meter.test.js`, ffmpeg 8.0 on WSL, 22 Nov): the generator's own file -1.3 ms;
+through the session's own arguments -1.0 ms (fMP4 copy) and -1.3 ms (MPEG-TS, audio encoded); a file with the sound
+moved 250 ms or 1.3 s reads back within 20 ms. On the relay rig, `RIG_OUTPUT=<folder outside the repo> node
+scripts/relay-rig.js standby long sync` (both providers send the channel, A closes at 40 s, the standby on B is joined)
+keeps the consumer's file as `consumer.ts`: -1 ms before the join, 10.7 ms on the first pair after the
+`EXT-X-DISCONTINUITY`, then 0.7 ms (110 pairs, none unpaired but the first beep).
+
+**Mark's device recording (T5),** on the test rig only, never a real channel:
+1. Ask Claude to start the rig (`scripts/unraid-rig.sh up`: both fake providers and the staging server).
+2. On the iPad, use the staging server (`http://<box>:3100`), never production.
+3. Connect the iPad to the Mac by cable. QuickTime Player → File → New Movie Recording; beside the record button choose
+   the iPad as camera and microphone. Start recording and note the clock time.
+4. On the iPad play `UK| TEST A/V SYNC HD` (group TEST| DIAGNOSTICS) and leave it alone for 20 minutes.
+5. Tell Claude when 20 minutes have passed: Claude breaks the channel on provider A (close, with the standby on), then
+   stalls it, and notes each time.
+6. Stop the recording at 25 minutes and save it. Copy the `.mov` to the Unraid test share
+   (`appdata/pigtv-test/avsync/`), never into Git or a chat, and tell Claude its name. Claude runs the meter with the
+   noted times as `--events` and posts the table of offset over time on #3.
+
 ### Sports replay
 
 `replay.js` in [`evidence/2026-10-28-sports-replay/`](evidence/2026-10-28-sports-replay/RESULTS.md) runs the Sports build

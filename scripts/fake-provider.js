@@ -26,6 +26,9 @@
  * --profile b is a second provider with other names ("VIP: SKY SPORTS F1 SD"), other stream ids
  * and the same guide ids, for running two instances as a primary and a backup. Its TEST channels
  * play normally, so a failure on A can fail over to B.
+ *
+ * "TEST A/V SYNC" (both profiles, #267) flashes the picture and beeps at every second of one clock, for
+ * scripts/avsync-meter.js.
  */
 'use strict';
 
@@ -85,7 +88,10 @@ const LINEUP = [
     { cat: 'test', tvg: 'test.offline', a: 'UK| TEST OFFLINE 404', b: 'UK: TEST OFFLINE 404', kind: { a: 'offline' } },
     { cat: 'test', tvg: 'test.black', a: 'UK| TEST BLACK SCREEN HD', b: 'UK: TEST BLACK SCREEN HD', kind: { a: 'black' } },
     { cat: 'test', tvg: 'test.heaac', a: 'UK| TEST HE-AAC AUDIO HD', b: 'UK: TEST HE-AAC AUDIO HD', kind: 'heaac' },
-    { cat: 'test', tvg: 'test.aacmain', a: 'UK| TEST HE-AAC LABELLED MAIN HD', kind: 'aacmain' }
+    { cat: 'test', tvg: 'test.aacmain', a: 'UK| TEST HE-AAC LABELLED MAIN HD', kind: 'aacmain' },
+    // #267: the A/V sync meter's channel (scripts/avsync-meter.js), on both profiles so a standby on B joins it. Last in
+    // the list so no other channel's id moves.
+    { cat: 'test', tvg: 'test.sync', a: 'UK| TEST A/V SYNC HD', b: 'UK: TEST A/V SYNC HD', kind: 'sync' }
 ];
 
 // XMLTV display names, by guide id.
@@ -94,7 +100,8 @@ const GUIDE_NAMES = {
     'skysportspremierleague.uk': 'Sky Sports Premier League', 'tntsports1.uk': 'TNT Sports 1', 'foxfooty.au': 'Fox Footy',
     'foxcricket.au': 'Fox Cricket', 'nflnetwork.us': 'NFL Network', 'espn.us': 'ESPN', 'bbcone.uk': 'BBC One', 'itv1.uk': 'ITV1',
     'channel4.uk': 'Channel 4', 'abcnews.au': 'ABC News', 'nine.au': 'Channel 9', 'test.stall': 'Test: Stall', 'test.close': 'Test: Close',
-    'test.offline': 'Test: Offline', 'test.black': 'Test: Black', 'test.heaac': 'Test: HE-AAC', 'test.aacmain': 'Test: AAC Main label'
+    'test.offline': 'Test: Offline', 'test.black': 'Test: Black', 'test.heaac': 'Test: HE-AAC', 'test.aacmain': 'Test: AAC Main label',
+    'test.sync': 'Test: A/V sync'
 };
 
 /** The channels one profile carries: [{ id, name, tvg, catId, catName, kind, uhd }]. */
@@ -308,18 +315,38 @@ function relabelAdtsMain(buf) {
     return out;
 }
 
+/**
+ * #267: the A/V sync channel's marks. At every whole second of the generator's clock the picture flashes white (full
+ * frame, on a dark background) and the sound beeps (1760 Hz over a quiet 440 Hz carrier), both for SYNC_MARK_SEC;
+ * every SYNC_LONG_EVERY-th second both marks last SYNC_LONG_SEC instead, so a meter can tell a whole-second slip from
+ * none. Picture and sound are expressions of the same `t` in one ffmpeg, so at the source they are in step by
+ * construction.
+ */
+const SYNC_MARK_SEC = 0.1;
+const SYNC_LONG_SEC = 0.3;
+const SYNC_LONG_EVERY = 10;
+const SYNC_BEEP_HZ = 1760;
+const syncMarkOn = `lt(mod(t,1),if(eq(mod(floor(t+0.0001),${SYNC_LONG_EVERY}),0),${SYNC_LONG_SEC},${SYNC_MARK_SEC}))`;
+const syncVideoFilter = `drawbox=x=0:y=0:w=iw:h=ih:color=white:t=fill:enable='${syncMarkOn}'`;
+const syncAudioSource = `aevalsrc='0.05*sin(2*PI*440*t)+${syncMarkOn}*0.6*sin(2*PI*${SYNC_BEEP_HZ}*t)':s=48000:c=stereo`;
+
 function generatorArgs(channel, ctx) {
     const size = channel.uhd ? ctx.uhdSize : ctx.size;
     const [w] = size.split('x').map(Number);
     const kbps = channel.kind === 'black' ? 0 : Math.round(ctx.videoKbps * (w > 700 ? 1.5 : 1));
+    const sync = channel.kind === 'sync';
     // Without drawtext, channels alternate testsrc (its own seconds counter) and testsrc2, told apart
     // by their tone; a hue filter would cost half as much again as the source.
     const pattern = ctx.caps.drawtext || channel.id % 2 === 0 ? 'testsrc2' : 'testsrc';
-    const video = channel.kind === 'black' ? `color=c=black:size=${size}:rate=${ctx.fps}` : `${pattern}=size=${size}:rate=${ctx.fps}`;
-    const filters = channel.kind !== 'black' && ctx.caps.drawtext ? drawtextFilter(ctx.textFile(channel), w, ctx.fontFile) : null;
+    const video = channel.kind === 'black' ? `color=c=black:size=${size}:rate=${ctx.fps}`
+        : sync ? `color=c=0x202020:size=${size}:rate=${ctx.fps}` : `${pattern}=size=${size}:rate=${ctx.fps}`;
+    const overlay = channel.kind !== 'black' && ctx.caps.drawtext ? drawtextFilter(ctx.textFile(channel), w, ctx.fontFile) : null;
+    // The flash is drawn before the name and clock, so the overlay stays readable on it.
+    const filters = sync ? [syncVideoFilter, overlay].filter(Boolean).join(',') : overlay;
     const audioIn = channel.kind === 'heaac' || channel.kind === 'aacmain'
         ? ['-stream_loop', '-1', '-re', '-i', channel.kind === 'heaac' ? ctx.heaacFile : ctx.aacMainFile]
-        : ['-re', '-f', 'lavfi', '-i', `sine=frequency=${300 + (channel.id % 10) * 60}:sample_rate=48000`];
+        : sync ? ['-re', '-f', 'lavfi', '-i', syncAudioSource]
+            : ['-re', '-f', 'lavfi', '-i', `sine=frequency=${300 + (channel.id % 10) * 60}:sample_rate=48000`];
     const audioOut = channel.kind === 'heaac' || channel.kind === 'aacmain' ? ['-c:a', 'copy'] : ['-c:a', 'aac', '-b:a', '64k', '-ac', '2'];
     const rate = kbps ? ['-b:v', `${kbps}k`, '-minrate', `${kbps}k`, '-maxrate', `${kbps}k`, '-bufsize', `${kbps}k`, '-x264-params', 'nal-hrd=cbr']
         : ['-b:v', '40k', '-maxrate', '40k', '-bufsize', '80k'];
@@ -828,4 +855,5 @@ async function main() {
 
 if (require.main === module) main().catch(e => { console.error(e); process.exit(1); });
 
-module.exports = { createFakeProvider, buildLineup, programmesFor, xmltvDocument, relabelAdtsMain, generatorArgs, parseArgs, EVENTS, PROFILES };
+module.exports = { createFakeProvider, buildLineup, programmesFor, xmltvDocument, relabelAdtsMain, generatorArgs, parseArgs, EVENTS, PROFILES,
+    SYNC: { markSec: SYNC_MARK_SEC, longSec: SYNC_LONG_SEC, longEvery: SYNC_LONG_EVERY, beepHz: SYNC_BEEP_HZ } };
