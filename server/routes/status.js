@@ -396,9 +396,11 @@ router.get('/', async (req, res) => {
                 try {
                     const dbBackup = require('../services/dbBackup');
                     return dbBackup.list(require('../db/sqlite').databasePath())
-                        .map(({ file, reason, at, bytes }) => ({ file, reason, at, bytes }));
+                        .map(({ file, reason, at, bytes, compressed }) => ({ file, reason, at, bytes, compressed }));
                 } catch (e) { return []; }
             }),
+            // #43 (0897): a copy waiting for plays to end, the last nightly run (late or forced), the second copy's state.
+            backupState: (() => { try { return require('../services/dbBackup').status(); } catch (e) { return null; } })(),
             disk: detail(() => ({
                 transcodeCache: diskAt(transcodeSession.CACHE_DIR),
                 // #8: the share's line is cached and refreshed off the event loop; a request never touches the share.

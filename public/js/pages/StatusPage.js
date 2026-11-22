@@ -483,6 +483,9 @@ class StatusPage {
         const seg = status.segmentedRecordings;
         if (seg && (seg.waitingToMove || []).length) lines.push(`${e(seg.waitingToMove.length)} finished recording(s) are waiting in appdata for the recordings folder.`);
         if (seg && (seg.failed || []).length) lines.push(`${e(seg.failed.length)} recording(s) could not be finished; their segments are kept in appdata.`);
+        // #43 (0897): the second backup folder is set but cannot be used; the backups in appdata are unaffected.
+        const copy = status.backupState?.copy;
+        if (copy?.enabled && copy.problem) lines.push(`The second backup folder (PIGTV_BACKUP_COPY_DIR) is ${e(copy.problem)}: backups are kept in appdata only until it is fixed.`);
         if (!lines.length) return '';
         return `<div class="settings-section status-section status-warning"><h3>Needs attention</h3>${lines.map(l => `<p class="setting-hint">${l}</p>`).join('')}</div>`;
     }
@@ -604,11 +607,26 @@ class StatusPage {
         const backups = Array.isArray(status.backups) ? status.backups : [];
         add('backups', this.section('Database backups', this.table(['Copy', 'Why', 'When', 'Size'],
             backups.map(b => [e(b.file), e(b.reason), this.amt(e(UI.dateTime(b.at))), b.bytes == null ? '–' : this.bytes(b.bytes)]),
-            'No backups yet. One is taken before a new build\'s migrations and once a day.')));
+            'No backups yet. One is taken before a new build\'s migrations and once a day.')
+            + this.backupStateText(status.backupState)));
         const disk = status.disk || {};
         const diskRow = (name, d) => [e(name), d && d.available ? this.bytes(d.freeBytes) : 'unavailable', d && d.available ? this.bytes(d.totalBytes) : '–'];
         add('disk', this.section('Disk', this.table(['Volume', 'Free', 'Size'],
             [diskRow('Transcode cache', disk.transcodeCache), diskRow('Recordings', disk.recordings)], '')));
+    }
+
+    /** #43 (0897): a nightly copy waiting for plays and recordings, the last one late or forced, and the second copy. */
+    backupStateText(st) {
+        if (!st) return '';
+        const e = (v) => UI.escape(v);
+        const lines = [];
+        if (st.deferredSince) lines.push(`The nightly copy is waiting for plays and recordings to end (due since ${e(UI.dateTime(st.deferredSince))}; it runs anyway after ${e(Math.round((st.deferCapMin || 360) / 60))} h).`);
+        const run = st.lastRun;
+        if (run && run.late) lines.push(`The last nightly copy ran ${e(run.waitedMin)} min late${run.forced ? ', while something played' : ''}${run.ok === false ? ' and failed' : ''}.`);
+        const c = st.copy || {};
+        if (c.enabled && c.lastCopiedAt) lines.push(`Second copy: last made ${e(UI.dateTime(c.lastCopiedAt))}.`);
+        else if (c.enabled && !c.problem) lines.push('Second copy: on; none made yet.');
+        return lines.map(l => `<p class="setting-hint">${l}</p>`).join('');
     }
 
     /** R7 data (0287): per channel and provider over 30 days, worst lag first, against the reconnect limit. */

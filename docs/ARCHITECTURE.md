@@ -44,6 +44,9 @@ share.
   every 6 h, after a sync), recording scheduler and rules (every 15 min and after each EPG sync), recordings folder health
   (startup and every 15 min), sport events rebuild (worker thread, every 5-minute bucket and after sync/follow changes),
   ESPN fixtures (every 30 min and after a sync), nightly database backup, the idle and stall sweeps of live sessions.
+- **Database backups** (`services/dbBackup.js`, #43): `data/backups/content-<stamp>-<reason>.db.gz` (pre-migration copies
+  start as `.db` and are gzipped later); 7 daily + 4 weekly kept; the nightly copy waits while a viewer's play or a recording
+  is active (at most 6 h); `PIGTV_BACKUP_COPY_DIR` adds a verified second copy. `status()` feeds Status's `backupState`.
 
 ## The playback path
 

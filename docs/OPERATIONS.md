@@ -118,15 +118,35 @@ streams, HLS and recording media (`EXCLUDED_ROUTES` in `server/services/slowRequ
 docker exec PigTV sh scripts/backup-db.sh
 ```
 
-Writes an application-consistent, compact copy (`VACUUM INTO`, safe while the server runs; 0489) to
-`/app/data/backups/content-<timestamp>-<reason>.db` and keeps the newest 7. On Unraid that is
-`/mnt/user/appdata/pigtv/data/backups/`.
+Writes an application-consistent, compact copy (`VACUUM INTO`, safe while the server runs; 0489), gzipped (#43), to
+`/app/data/backups/content-<timestamp>-<reason>.db.gz`. On Unraid that is `/mnt/user/appdata/pigtv/data/backups/`.
 
 **Automatic (0213, R12):** the server takes the same copy itself, `pre-migration` before a new build opens the database
 (so a failed migration can be undone) and `nightly` once a day; the Status page lists them. Each copy is checked
-(`quick_check`) before it counts. `PIGTV_DB_BACKUPS=0` turns both off. The copies are only `content.db`: keep
-`data/auth-secret` and the container settings too, and copy `backups/` off the box (a same-disk copy does not survive
-the disk).
+(`quick_check`) before it counts, and a gzipped one is read back against the copy's checksum first. The pre-migration
+copy is written as a plain `.db` (it runs before the server listens) and gzipped a few minutes later. `PIGTV_DB_BACKUPS=0`
+turns both off. The copies are only `content.db`: keep `data/auth-secret` and the container settings too. A backup holds
+the providers' logins: its files are readable by their owner only.
+
+**What is kept (#43):** after each new copy, the newest copy of each of the 7 most recent days that have one, and the
+newest of each of the 4 most recent weeks (ISO weeks, UTC); the newest copy is never removed. Older `.db` files from
+before 0897 are read the same way and gzipped in place.
+
+**Not during plays:** the nightly copy does not start while a play or a recording is active; it runs at the first check
+(every 5 minutes) after they end, and after 6 hours of waiting it runs anyway (the copy runs on a worker thread). Status
+→ Show details → Database backups says when one is waiting or ran late.
+
+**A second copy, off the appdata disk (`PIGTV_BACKUP_COPY_DIR`, off until set):** each finished `.db.gz` is also copied to
+that folder (checked by size and checksum, then renamed into place) and the same retention is applied there; nothing
+else in that folder is touched. If the folder is missing or cannot be written, Status shows it under "Needs attention"
+and the backup in `data/backups` is unaffected. To switch it on (Mark, on Unraid):
+1. Pick a folder on another disk or machine, e.g. a share mounted under `/mnt/remotes/...` or `/mnt/user/backups/pigtv`.
+2. Unraid → Docker → PigTV → Edit → **Add another Path, Port, Variable...** → Config Type **Path**: Container Path
+   `/backups-copy`, Host Path the folder from step 1, Access Mode **Read/Write** (for a remote share: **Read/Write - Slave**).
+3. Again **Add another Path, Port, Variable...** → Config Type **Variable**: Key `PIGTV_BACKUP_COPY_DIR`, Value `/backups-copy`.
+4. Apply. The folder must be writable by `PUID:PGID` (99:100 by default).
+5. The next copy (pre-migration on this start, gzipped a few minutes after it, or the nightly one) appears there; Status →
+   Show details → Database backups says "Second copy: last made ...".
 
 **Segmented recordings (0218, R3; always on since 0494, D-48):** recordings in progress live in
 `/app/data/recordings-work/` (on Unraid `/mnt/user/appdata/pigtv/data/recordings-work/`) until their MP4 is on the
@@ -137,9 +157,10 @@ exclude `recordings-work/` from any appdata backup: it is large, short-lived, an
 ## Restore
 
 1. Stop the container.
-2. In the data folder, remove `content.db-wal` and `content.db-shm` if present, then copy the backup over:
-   `cp backups/content-<timestamp>-<reason>.db content.db` (after a bad deploy: the newest `pre-migration` one, with the
-   container pointed back at the previous image)
+2. In the data folder, remove `content.db-wal` and `content.db-shm` if present, then put the backup in place (after a bad
+   deploy: the newest `pre-migration` one, with the container pointed back at the previous image):
+   a gzipped one with `gunzip -c backups/content-<timestamp>-<reason>.db.gz > content.db`, a plain one (before 0897)
+   with `cp backups/content-<timestamp>-<reason>.db content.db`
 3. Make sure the owner matches (`chown 99:100 content.db`; the entrypoint also corrects this at start).
 4. Start the container and check the log and Status page.
 

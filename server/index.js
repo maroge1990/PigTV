@@ -298,9 +298,14 @@ app.listen(PORT, async (err) => {
         }
     }, 2000);
 
-    // R12: a database copy once a day (the first check 5 min after start).
+    // R12: a database copy once a day (the first check 5 min after start). #43: not while a play (a viewer's session:
+    // warm and standby ones are nobody watching) or a recording is active, for at most 6 h.
     try {
-        require('./services/dbBackup').startNightly(require('./db/sqlite').databasePath(), { busy: () => syncService.isSyncingAny() });
+        require('./services/dbBackup').startNightly(require('./db/sqlite').databasePath(), {
+            busy: () => syncService.isSyncingAny(),
+            active: () => require('./services/transcodeSession').getAllSessions().some(x => !x.warm && !x.standby)
+                || require('./services/recordingEngine').listActive().length > 0
+        });
     } catch (err) {
         console.warn('Nightly database backups failed to start:', err.message);
     }

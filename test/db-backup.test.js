@@ -21,7 +21,13 @@ function fixture({ build = null, rows = 3 } = {}) {
     db.close();
     return { dir, dbPath };
 }
-const rowsIn = (file) => { const d = new Database(file, { readonly: true }); try { return d.prepare('SELECT COUNT(*) c FROM t').get().c; } finally { d.close(); } };
+// #43: a copy may be gzipped (content-...db.gz); read it through a plain temporary file.
+const rowsIn = (file) => {
+    let open = file;
+    if (file.endsWith('.gz')) { open = `${file}.read-${process.pid}.db`; fs.writeFileSync(open, require('node:zlib').gunzipSync(fs.readFileSync(file))); }
+    const d = new Database(open, { readonly: true });
+    try { return d.prepare('SELECT COUNT(*) c FROM t').get().c; } finally { d.close(); if (open !== file) fs.rmSync(open, { force: true }); }
+};
 const DAY = 24 * 60 * 60 * 1000;
 
 test('a copy (sync or online) holds the data, opens cleanly and leaves no .partial behind', async () => {
@@ -35,15 +41,14 @@ test('a copy (sync or online) holds the data, opens cleanly and leaves no .parti
     assert.deepEqual(dbBackup.list(dbPath).map(x => x.reason), ['nightly', 'manual'], 'newest first, with the reason');
 });
 
-test('the newest 7 are kept, and two in the same second do not overwrite each other', () => {
+test('#43: two copies in the same second do not overwrite each other', () => {
     const { dbPath } = fixture();
-    const base = Date.UTC(2026, 9, 1);
-    for (let i = 0; i < 9; i++) dbBackup.backupSync(dbPath, { reason: 'nightly', now: base + i * DAY });
-    const same = dbBackup.backupSync(dbPath, { reason: 'manual', now: base + 8 * DAY });
-    const kept = dbBackup.list(dbPath);
-    assert.equal(kept.length, dbBackup.KEEP);
-    assert.ok(kept.some(k => k.file === path.basename(same)), 'the same-second copy kept its own name');
-    assert.ok(kept.every(k => k.at >= base + 3 * DAY), 'the oldest went first');
+    const now = Date.UTC(2026, 9, 9);
+    const first = dbBackup.backupSync(dbPath, { reason: 'manual', now });
+    const second = dbBackup.backupSync(dbPath, { reason: 'manual', now });
+    assert.notEqual(first, second);
+    assert.match(path.basename(second), /-manual-2\.db$/, 'the second gets its own name');
+    assert.ok(fs.existsSync(second));
 });
 
 test('before migrations: a copy when the build changed or was never recorded, none otherwise', () => {
@@ -101,7 +106,10 @@ test('S3: two copies at once (same second, same reason) both complete under thei
     const results = await Promise.allSettled([dbBackup.backup(dbPath, { reason: 'manual', now }), dbBackup.backup(dbPath, { reason: 'manual', now })]);
     assert.deepEqual(results.map(r => r.status), ['fulfilled', 'fulfilled']);
     assert.notEqual(results[0].value, results[1].value);
-    for (const r of results) assert.equal(rowsIn(r.value), 4);
+    // #43: retention keeps the newest copy of a day, so the other may be gone by now; what is there is whole.
+    const left = results.filter(r => fs.existsSync(r.value));
+    assert.ok(left.length >= 1);
+    for (const r of left) assert.equal(rowsIn(r.value), 4);
     assert.ok(fs.readdirSync(path.dirname(results[0].value)).every(n => !n.endsWith('.partial')));
 });
 

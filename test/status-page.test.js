@@ -430,3 +430,21 @@ test('#44: Status shows a "Restarts" line after a crash in the last 24 h (name, 
     assert.ok(h.page.render({ ...base, crashes: { last24h: 0, lastAt: Date.UTC(2026, 9, 1), lastName: 'Error' } }).includes('No crash in the last 24 hours'),
         'with details open, an older crash is still named');
 });
+
+test('#43: Status raises a second backup folder that is not usable, and the backups section says when a copy waits or ran late', () => {
+    const h = pageHarness();
+    const base = { providers: [], sessions: [], recordings: { active: [], upcoming: [] } };
+    const state = (copy, extra = {}) => ({ deferredSince: null, deferCapMin: 360, lastRun: null, copy, ...extra });
+    const off = { enabled: false, ok: null, problem: null, lastCopiedAt: null };
+    let html = h.page.render({ ...base, backupState: state({ enabled: true, ok: false, problem: 'not writable', lastCopiedAt: null }) });
+    assert.ok(html.includes('Needs attention') && html.includes('The second backup folder (PIGTV_BACKUP_COPY_DIR) is not writable'));
+    assert.ok(!h.page.render({ ...base, backupState: state(off) }).includes('second backup folder'), 'off: nothing raised');
+    h.page.showDetails = true;
+    html = h.page.render({ ...base, backups: [{ file: 'content-x-nightly.db.gz', reason: 'nightly', at: Date.now(), bytes: 10 }],
+        backupState: state(off, { deferredSince: Date.now() - 60000 }) });
+    assert.ok(html.includes('The nightly copy is waiting for plays and recordings to end'));
+    html = h.page.render({ ...base, backups: [], backupState: state({ enabled: true, ok: true, problem: null, lastCopiedAt: Date.now() },
+        { lastRun: { at: Date.now(), late: true, waitedMin: 360, forced: true, ok: true } }) });
+    assert.ok(html.includes('ran 360 min late, while something played'));
+    assert.ok(html.includes('Second copy: last made'));
+});

@@ -342,3 +342,23 @@ test('#44: crash restarts show to an admin (count in 24 h, last time and error n
     assert.equal(viewer.status, 403);
     assert.ok(!viewer.text.includes('crashes'));
 });
+
+test('#43: Status carries the backup state: a missing second folder (never its path) and a copy waiting for a play', async () => {
+    const dbBackup = load('services/dbBackup');
+    const missing = path.join(sandbox, 'second-folder-not-mapped');
+    process.env.PIGTV_BACKUP_COPY_DIR = missing;
+    try {
+        dbBackup._resetState();
+        assert.equal(await dbBackup.nightlyCheck(sqlite.databasePath(), { now: Date.now() + 400 * 86400e3, active: () => true }), null);
+        const { body, text } = await get('/api/status?details=0', adminToken);
+        assert.equal(body.backupState.copy.enabled, true);
+        assert.equal(body.backupState.copy.ok, false);
+        assert.equal(body.backupState.copy.problem, 'missing');
+        assert.ok(body.backupState.deferredSince > 0, 'the due copy is waiting for the play');
+        assert.ok(!text.includes('second-folder-not-mapped'), 'the folder path is never sent');
+        assert.equal((await get('/api/status', viewerToken)).status, 403);
+    } finally {
+        delete process.env.PIGTV_BACKUP_COPY_DIR;
+        dbBackup._resetState();
+    }
+});
