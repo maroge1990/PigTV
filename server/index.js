@@ -1,5 +1,8 @@
 const express = require('express');
 require('dotenv').config();
+// #44 (0896): an uncaught exception or unhandled rejection writes one redacted record to data/crashes.jsonl, logs one
+// redacted line and exits 1, so the container's restart policy restarts PigTV (services/crashLog.js).
+require('./services/crashLog').install();
 // D-57: a database older than this version supports stops the start here, before anything touches the data folder.
 require('./services/dbMinimum').exitIfUnsupported(require('./db/sqlite').databasePath());
 const path = require('path');
@@ -230,6 +233,7 @@ app.listen(PORT, async (err) => {
         process.exit(1);
     }
     console.log(`PigTV server running on http://localhost:${PORT}`);
+    require('./services/crashLog').noteStartup(); // #44: one line when this start follows a crash
 
     // Nothing in transcode-cache can belong to this process yet - sweep
     // whatever a previous run (crash or restart mid-session) left behind

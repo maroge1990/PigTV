@@ -395,6 +395,7 @@ class StatusPage {
         // ---- 0288: always shown: what an admin acts on ----
         add('folder', this.renderRecordingsFolderWarning(status.recordingsFolder));
         add('attention', this.renderAttention(status));
+        add('restarts', this.renderRestarts(status.crashes));
         add('providers', this.renderProviders(status.providers));
 
         const sessions = status.sessions || [];
@@ -442,6 +443,17 @@ class StatusPage {
         const text = String(reason || '');
         if (text.startsWith('placeholder: ')) return `Provider placeholder: ${text.slice('placeholder: '.length)}`;
         return text.startsWith('repeating: ') ? `Feed repeating the same clip: ${text.slice('repeating: '.length)}` : text;
+    }
+
+    /** #44 (0896): PigTV restarted itself after a crash (data/crashes.jsonl). Shown after one in the last 24 h; with details open, the last one ever. */
+    renderRestarts(c) {
+        if (!c || !c.lastAt) return '';
+        const e = (v) => UI.escape(v);
+        const what = `the last at ${e(UI.dateTime(c.lastAt))} (${e(c.lastName || 'Error')})`;
+        if (c.last24h > 0) {
+            return this.section('Restarts', `<p class="setting-hint">PigTV restarted itself after ${e(c.last24h)} crash${c.last24h === 1 ? '' : 'es'} in the last 24 hours; ${what}. The server log has the error line.</p>`);
+        }
+        return this.showDetails ? this.section('Restarts', `<p class="setting-hint">No crash in the last 24 hours; ${what}.</p>`) : '';
     }
 
     /** 0288: things wrong right now that are not in a table above (a provider that failed to sync, recordings stuck in appdata). */

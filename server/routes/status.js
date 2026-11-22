@@ -13,6 +13,7 @@
  *                name, attempts, failures, stalls, minutes watched, stalls/hour,
  *                median first picture, health, score (services/channelHealth.js)
  *   sync         per source and feed: status, last sync, error text
+ *   crashes      #44: crash restarts in the last 24 h, the last one's time, kind and error name
  *   disk         free/total bytes of the transcode cache (the tmpfs) and of the
  *                recordings volume
  *
@@ -337,6 +338,8 @@ router.get('/', async (req, res) => {
         const status = {
             generatedAt: Date.now(),
             mediaTools: req.app.locals.mediaTools || null,
+            // #44 (0896): crash restarts: { last24h, lastAt, lastName, lastKind } from data/crashes.jsonl (never the message).
+            crashes: (() => { try { return require('../services/crashLog').summary(); } catch (e) { return null; } })(),
             build: require('../version'),
             providers: connectionUse(providersStatus(settings)),
             sessions: liveSessions().map(withOwnerName(names)),

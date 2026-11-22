@@ -323,3 +323,22 @@ test('#61: ?details=0 still carries the warming summary (enabled, active) the pa
         warming.status = real;
     }
 });
+
+test('#44: crash restarts show to an admin (count in 24 h, last time and error name, no message) and not to a viewer', async () => {
+    const file = path.join(sandbox, 'data', 'crashes.jsonl');
+    const now = Date.now();
+    fs.writeFileSync(file, [
+        { at: now - 3 * 86400e3, kind: 'uncaughtException', name: 'OldError', message: 'old' },
+        'not json at all',
+        { at: now - 7200e3, kind: 'unhandledRejection', name: 'RangeError', message: `fetch failed ${STREAM_URL}` },
+        { at: now - 600e3, kind: 'uncaughtException', name: 'TypeError', message: `boom ${STREAM_URL}` }
+    ].map(r => (typeof r === 'string' ? r : JSON.stringify(r))).join('\n') + '\n');
+    load('services/crashLog')._reset();
+    const { status, body, text } = await get('/api/status?details=0', adminToken);
+    assert.equal(status, 200);
+    assert.deepEqual(body.crashes, { last24h: 2, lastAt: now - 600e3, lastName: 'TypeError', lastKind: 'uncaughtException' });
+    assert.ok(!text.includes(SECRET) && !text.includes('boom'), 'the message itself never reaches Status');
+    const viewer = await get('/api/status', viewerToken);
+    assert.equal(viewer.status, 403);
+    assert.ok(!viewer.text.includes('crashes'));
+});

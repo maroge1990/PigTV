@@ -415,3 +415,18 @@ test('#268: Status shows an av-desync mark in the recent plays as "Sound out of 
     assert.ok(html.includes('behind 5.8s, rate 0.97, catching up'), 'what the player said');
     assert.match(fs.readFileSync(path.join(__dirname, '../public/css/main.css'), 'utf8'), /\.status-av-desync \{\s*color: var\(--color-warning-text\);/);
 });
+
+test('#44: Status shows a "Restarts" line after a crash in the last 24 h (name, time, count), and nothing without one', () => {
+    const h = pageHarness();
+    const base = { providers: [], sessions: [], recordings: { active: [], upcoming: [] } };
+    const html = h.page.render({ ...base, crashes: { last24h: 2, lastAt: Date.now() - 600e3, lastName: 'Type<Error>', lastKind: 'uncaughtException' } });
+    assert.ok(html.includes('<h3>Restarts</h3>'));
+    assert.ok(html.includes('restarted itself after 2 crashes in the last 24 hours'));
+    assert.ok(html.includes('Type&lt;Error&gt;'), 'escaped');
+    assert.ok(h.page.render({ ...base, crashes: { last24h: 1, lastAt: Date.now(), lastName: 'Error' } }).includes('after 1 crash in'), 'singular');
+    assert.ok(!h.page.render({ ...base, crashes: { last24h: 0, lastAt: null, lastName: null } }).includes('Restarts'));
+    assert.ok(!h.page.render(base).includes('Restarts'), 'an older server: no line');
+    h.page.showDetails = true;
+    assert.ok(h.page.render({ ...base, crashes: { last24h: 0, lastAt: Date.UTC(2026, 9, 1), lastName: 'Error' } }).includes('No crash in the last 24 hours'),
+        'with details open, an older crash is still named');
+});

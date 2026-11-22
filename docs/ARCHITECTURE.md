@@ -214,6 +214,11 @@ address and the host (with port) of each `known` address are replaced (#315). ff
 tails a stalled or timed-out session prints, the proxy's lines (it knows no provider, so they name no address at all), a failed
 sync's log line and stored error, and error texts that can quote an address all go through it.
 
+**Crashes** (#44, `services/crashLog.js`): `index.js` installs the `uncaughtException`/`unhandledRejection` handlers first.
+Each writes one record to `data/crashes.jsonl` (sync, capped at 50, message and frames through `stripUrls()`, counts of
+active plays and recordings only), logs one line and exits 1; the container restarts it. A corrupt or missing file reads
+as its valid lines. Status carries `crashes` (`last24h`, `lastAt`, `lastName`, `lastKind`; never the message).
+
 ## Status page and channel health
 
 **Status page** (0124): the admin page "Status" = `GET /api/status` (admin): live sessions with channel names, active

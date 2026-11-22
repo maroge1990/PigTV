@@ -87,6 +87,25 @@ never touches the share. A bad recordings folder does not fail the check (restar
 share); only an unusable database returns 503. The image `HEALTHCHECK` calls it every 30 s; Unraid shows
 the container as healthy/unhealthy.
 
+## Crashes and restarts
+
+PigTV does not keep itself running after an unexpected error (#44). On an uncaught exception or unhandled rejection it
+writes one record to `data/crashes.jsonl` (time, build, error name, the message with every address and login removed,
+the top stack frames, uptime, how many plays and recordings were active; the newest 50 are kept), logs one
+`[Crash] <kind>: <name>: <message>` line and exits with code 1. Bringing it back is the **container's restart policy**:
+PigTV adds no delay or retry of its own, so a crash loop costs one short file line per start and the container's own
+back-off. After a restart the log says `[Crash] Started after a crash: N in the last 24 h ...`, and the Status page shows
+a **Restarts** line (count in the last 24 h, the last one's time and error name) until a day has passed. Nothing is sent
+anywhere: no alert, no outbound connection.
+
+**Check once (Mark):** the repo does not hold the Unraid template, so its restart policy is not known here. The README's
+compose example has `restart: unless-stopped`; the image has no restart policy of its own, and an unhealthy
+`HEALTHCHECK` does not restart a container.
+1. Unraid → Docker → PigTV → Edit, switch on Advanced View.
+2. In **Extra Parameters**, make sure `--restart=unless-stopped` is there (add it if not), then Apply.
+3. To prove it: from the Unraid terminal, `docker exec PigTV pkill -9 node`, wait a minute, and check the container is
+   running again.
+
 ## Slow requests
 
 The log carries one `slow request: <METHOD> <route pattern> <status> <ms> ms <bytes> bytes` line for each request that took
