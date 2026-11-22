@@ -183,3 +183,32 @@ test('a queued fetch whose requesters all went away is dropped; one requester le
         delayMs = savedDelay;
     }
 });
+
+// #361 (0895): a queued job whose wait has run out by the time a slot frees is refused there (503, not remembered),
+// before any upstream work, even when its timer has not run yet.
+test('a queued fetch past its deadline when the slot frees is a 503 and never reaches the upstream', async () => {
+    const saved = { ...logoRoute.limits };
+    const savedDelay = delayMs;
+    const realNow = logoRoute.clock.now;
+    Object.assign(logoRoute.limits, { concurrent: 1, queueWaitMs: 8000 }); // the timer will not fire in this test
+    delayMs = 300;
+    try {
+        const holder = registerLogo(`${upstreamBase}/deadline/holder.png`);
+        const late = registerLogo(`${upstreamBase}/deadline/late.png`);
+        const holding = get(holder);
+        await sleep(50);
+        const waiting = get(late);
+        await sleep(50);
+        logoRoute.clock.now = () => realNow() + 60000; // its deadline is behind it when the slot frees
+        assert.equal((await holding).status, 200);
+        assert.equal((await waiting).status, 503);
+        assert.equal(hits.get('/deadline/late.png') || 0, 0, 'never fetched');
+        logoRoute.clock.now = realNow;
+        delayMs = 10;
+        assert.equal((await get(late)).status, 200, 'not remembered as failed');
+    } finally {
+        logoRoute.clock.now = realNow;
+        Object.assign(logoRoute.limits, saved);
+        delayMs = savedDelay;
+    }
+});

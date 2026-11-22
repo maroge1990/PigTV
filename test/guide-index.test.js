@@ -23,7 +23,6 @@ const auth = load('auth');
 const sqlite = load('db/sqlite');
 const { bumpLibraryRev } = load('services/libraryRev');
 const library = load('routes/library');
-library._setGuideAnswersEnabled(false); // 0893: compare built answers, not kept ones
 
 let server, base, token, source;
 const HOUR = 3600000;
@@ -276,4 +275,13 @@ test('a row changed with no revision at all is caught by the backstop: that page
     moveBack.run(before.channels[5].sourceId, before.channels[5].id); // its sort key moves
     const again = await both(routeA());
     assert.equal(body(again.now.text), body(again.old.text));
+});
+
+// #361 (0895): the guide's kept answers (0893) were removed; the guide answers with res.json per request again.
+test('no kept guide answers remain: no guideAnswers module, nothing requires it', () => {
+    const root = path.join(__dirname, '../server');
+    assert.ok(!fs.existsSync(path.join(root, 'services/guideAnswers.js')));
+    const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap(e =>
+        e.isDirectory() ? walk(path.join(dir, e.name)) : e.name.endsWith('.js') ? [path.join(dir, e.name)] : []);
+    for (const f of walk(root)) assert.doesNotMatch(fs.readFileSync(f, 'utf8'), /guideAnswers/, f);
 });

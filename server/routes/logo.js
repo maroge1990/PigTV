@@ -49,6 +49,22 @@ const DRAW_RETRY_MS = 24 * 60 * 60 * 1000; // #201: a failed SVG draw is tried a
 
 const logoFile = (key, suffix = '') => path.join(LOGOS_DIR, key + suffix);
 
+/**
+ * 0895 (#361): a stored file is replaced, never rewritten in place: the bytes go to a temporary file beside it (a unique
+ * name, so two writers cannot collide), which is then renamed over it. An answer already streaming from the old file's
+ * open descriptor (serveFile) keeps reading the old bytes to their end; the next request opens the new file.
+ */
+function writeFileAtomic(file, bytes) {
+    const tmp = `${file}.${process.pid}.${require('crypto').randomBytes(6).toString('hex')}.tmp`;
+    try {
+        fs.writeFileSync(tmp, bytes);
+        fs.renameSync(tmp, file);
+    } catch (err) {
+        fs.rmSync(tmp, { force: true });
+        throw err;
+    }
+}
+
 // Every answer here is an image (or a short JSON error): the browser is told not to
 // guess another type, and a logo opened on its own, an SVG especially, gets no
 // scripts, frames, forms or connections.
@@ -229,11 +245,11 @@ async function fetchAndStore(req, row) {
     const { buffer, type: finalType } = await storableLogo(req.app.locals.ffmpegPath, fetched.bytes, contentType);
 
     // 0154: the original beside the resized copy (?size=full); a stale ?size=640 goes.
-    fs.writeFileSync(logoFile(row.key, SIZES.full), fetched.bytes);
+    writeFileAtomic(logoFile(row.key, SIZES.full), fetched.bytes);
     fs.rmSync(logoFile(row.key, SIZES[640]), { force: true });
     fs.rmSync(logoFile(row.key, SIZES[3840]), { force: true });
     fs.rmSync(logoFile(row.key, `${SIZES[3840]}.fail`), { force: true });
-    fs.writeFileSync(logoFile(row.key), buffer);
+    writeFileAtomic(logoFile(row.key), buffer);
     getDb().prepare('UPDATE logo_cache SET content_type = ?, fetched_at = ?, bytes = ?, original_type = ?, original_bytes = ? WHERE key = ?')
         .run(finalType, Date.now(), buffer.length, contentType, fetched.bytes.length, row.key);
 }
@@ -269,10 +285,19 @@ function unqueue(job) {
     clearTimeout(job.timer);
     if (inflight.get(job.key) === job) inflight.delete(job.key);
 }
+/** 0895: the clock queue deadlines are measured on (monotonic; tests set it). */
+const clock = { now: () => performance.now() };
+function expire(job) {
+    unqueue(job);
+    job.settled = true;
+    job.reject(busyError('waited too long for a logo fetch'));
+}
 function startNext() {
     while (active < limits.concurrent && waiting.length) {
         const job = waiting.shift();
         clearTimeout(job.timer);
+        // 0895: a job whose wait ran out before its timer got to run is refused here, before any upstream work
+        if (clock.now() >= job.deadline) { expire(job); continue; }
         job.run();
     }
 }
@@ -312,13 +337,9 @@ function fetchShared(req, res, row) {
         inflight.set(row.key, job);
         if (active < limits.concurrent) job.run();
         else {
+            job.deadline = clock.now() + limits.queueWaitMs;
             waiting.push(job);
-            job.timer = setTimeout(() => {
-                if (job.started) return;
-                unqueue(job);
-                job.settled = true;
-                job.reject(busyError('waited too long for a logo fetch'));
-            }, limits.queueWaitMs);
+            job.timer = setTimeout(() => { if (!job.started) expire(job); }, limits.queueWaitMs);
             job.timer.unref?.();
         }
     }
@@ -406,7 +427,7 @@ async function serveSize(req, res, row, size) {
                 // 0425: bounded (size, heap, deadline), one at a time, a second request for this key sharing the first.
                 const png = await require('../services/svgRaster').draw(row.key, original, 3840);
                 if (!isPng(png)) throw new Error('not a PNG');
-                fs.writeFileSync(file, png);
+                writeFileAtomic(file, png);
                 fs.rmSync(failed, { force: true });
             } catch (err) {
                 if (err.code === 'BUSY') return res.status(503).json({ error: 'Busy drawing other images; try again shortly' });
@@ -416,7 +437,7 @@ async function serveSize(req, res, row, size) {
             }
         } else {
             const { buffer } = await storableLogo(req.app.locals.ffmpegPath, original, row.original_type, Number(size));
-            fs.writeFileSync(file, buffer);
+            writeFileAtomic(file, buffer);
         }
     }
     const head = Buffer.alloc(8);
@@ -470,3 +491,4 @@ module.exports.imageWidth = imageWidth;
 module.exports.limits = limits; // 0891
 module.exports.LOGO_CACHE_CONTROL = LOGO_CACHE_CONTROL; // 0892
 module.exports._resetFetches = _resetFetches;
+module.exports.clock = clock; // 0895

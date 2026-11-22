@@ -16,9 +16,8 @@ const compression = require('compression');
 const perf = require('./helpers/perf');
 
 // tighten in batch 3 (#361): first page under 300 KB
-const BUDGET_PAGE_MS = 150;          // each page, uncompressed fetch (median of 5); measured 72 ms, 36 ms since 0888: wider than 2x for a slow machine
-const BUDGET_COLD_PAGE_MS = 100;        // each page BUILT (kept answers cleared, index kept; 0894); measured 40-44 ms
-const BUDGET_FULL_COLD_PAGE_MS = 130;   // each page built with the visible-order index rebuilt too; measured 50-60 ms
+const BUDGET_PAGE_MS = 100;          // each page, uncompressed fetch (median of 5); measured 72 ms, 36-44 ms since 0888: wider than 2x for a slow machine
+const BUDGET_PAGE_INDEX_REBUILD_MS = 130; // each page with the visible-order index built again first (0888's index, a guide change); measured 50-60 ms
 const BUDGET_TOTAL_MS = 300;         // all pages, uncompressed; measured 183 ms, 82 ms since 0888
 const BUDGET_PAGE_GZIP_MS = 350;     // each page with gzip on (compression time included); measured 143 ms, 108 ms since 0888
 const BUDGET_TOTAL_GZIP_MS = 750;    // all pages with gzip; measured 363 ms, 262 ms since 0888
@@ -46,7 +45,6 @@ const auth = load('auth');
 const sqlite = load('db/sqlite');
 const { shouldCompress } = load('services/compressionFilter');
 const channelNumbers = load('services/channelNumbers');
-const guideAnswers = load('services/guideAnswers');
 const guideIndex = load('services/guideIndex');
 
 let server;
@@ -180,29 +178,26 @@ test('guide paging on a production-shaped database: GUIDE-PERF', { ...perf, time
             assert.equal(b.encoding, 'gzip', 'gzip is honoured on the wire');
             raw.push(a.ms); zipped.push(b.ms); rawBytes = a.bytes; gzipBytes = b.bytes;
         }
-        // 0894: the same page built, not sent from a kept answer: `coldMs` with the index of the visible order kept,
-        // `fullColdMs` with that index built again too (the first page after a guide version change).
-        const cold = [], fullCold = [];
+        // `indexRebuildMs`: the same page with the index of the visible order built again first (the first page after
+        // a guide or lineup change, 0888/0894).
+        const rebuilt = [];
         for (let i = 0; i < FETCHES; i++) {
-            guideAnswers._reset();
-            cold.push((await get(base, route, token, false)).ms);
-            guideAnswers._reset(); guideIndex.invalidate();
-            fullCold.push((await get(base, route, token, false)).ms);
+            guideIndex.invalidate();
+            rebuilt.push((await get(base, route, token, false)).ms);
         }
-        pages.push({ ms: r1(median(raw)), gzipMs: r1(median(zipped)), coldMs: r1(median(cold)), fullColdMs: r1(median(fullCold)), rawBytes, gzipBytes, channels, programmes });
+        pages.push({ ms: r1(median(raw)), gzipMs: r1(median(zipped)), indexRebuildMs: r1(median(rebuilt)), rawBytes, gzipBytes, channels, programmes });
     }
     const sum = k => pages.reduce((n, p) => n + p[k], 0);
     const out = { pages: pages.length };
     pages.forEach((p, i) => { out[`page${i + 1}`] = p; });
-    out.total = { ms: r1(sum('ms')), gzipMs: r1(sum('gzipMs')), coldMs: r1(sum('coldMs')), fullColdMs: r1(sum('fullColdMs')), rawBytes: sum('rawBytes'), gzipBytes: sum('gzipBytes'), programmes: sum('programmes') };
+    out.total = { ms: r1(sum('ms')), gzipMs: r1(sum('gzipMs')), indexRebuildMs: r1(sum('indexRebuildMs')), rawBytes: sum('rawBytes'), gzipBytes: sum('gzipBytes'), programmes: sum('programmes') };
     out.buildMs = buildMs;
     console.log(`GUIDE-PERF ${JSON.stringify(out)}`);
     ctx.diagnostic(`fixture built in ${buildMs} ms`);
 
     for (const [i, p] of pages.entries()) {
         assert.ok(p.ms <= BUDGET_PAGE_MS, `page ${i + 1} took ${p.ms} ms (budget ${BUDGET_PAGE_MS})`);
-        assert.ok(p.coldMs <= BUDGET_COLD_PAGE_MS, `page ${i + 1} took ${p.coldMs} ms to build (budget ${BUDGET_COLD_PAGE_MS})`);
-        assert.ok(p.fullColdMs <= BUDGET_FULL_COLD_PAGE_MS, `page ${i + 1} took ${p.fullColdMs} ms to build with the index (budget ${BUDGET_FULL_COLD_PAGE_MS})`);
+        assert.ok(p.indexRebuildMs <= BUDGET_PAGE_INDEX_REBUILD_MS, `page ${i + 1} took ${p.indexRebuildMs} ms with the index rebuilt (budget ${BUDGET_PAGE_INDEX_REBUILD_MS})`);
         assert.ok(p.gzipMs <= BUDGET_PAGE_GZIP_MS, `page ${i + 1} took ${p.gzipMs} ms with gzip (budget ${BUDGET_PAGE_GZIP_MS})`);
         assert.ok(p.rawBytes <= BUDGET_PAGE_RAW_BYTES, `page ${i + 1} is ${p.rawBytes} raw bytes (budget ${BUDGET_PAGE_RAW_BYTES})`);
         assert.ok(p.gzipBytes <= BUDGET_PAGE_GZIP_BYTES, `page ${i + 1} is ${p.gzipBytes} gzip bytes (budget ${BUDGET_PAGE_GZIP_BYTES})`);

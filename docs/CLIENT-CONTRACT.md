@@ -76,13 +76,6 @@ build 27), and `audioEncode: true` on the one fallback after a `'fmt?'` decode f
 
 - `library/guide` rows: `id, sourceId, name, logo, category, tvgId, programmes[]` with `startTime`/`endTime` in **ms**;
   additive `stableId`, `number`, `health`, and `nextCursor` on the page.
-- `library/guide` with its own `start` (0893, #361, additive): the answer is as of the minute's start: `now` is that minute
-  (not the request's millisecond) and `isNow` is judged at it, so both can be up to a minute behind. It carries
-  `Cache-Control: private, no-cache`, a weak `ETag` and `Vary: Accept-Encoding`; the same request with `If-None-Match`
-  in the same minute, with nothing changed (guide version, measurements, sport live games), gets **304**. Since 0894 the
-  ETag names the body's bytes (the same for gzip and identity), so it validates only that exact body; gzip only when
-  `Accept-Encoding` accepts it (`gzip;q=0` does not). Without
-  `start` nothing changes. A client that sends no `If-None-Match` gets the 200 it always did.
 - `library/guide` programmes (#56, additive, no flag: each key is present only when known): `live: true` when the guide
   flags the airing live (XMLTV `<live/>`) or it is a live sport game's airing (a C-I event of kind `event` on that
   channel, from the server's last built event list; never a replay); `new`: `true` when flagged new or a premiere,

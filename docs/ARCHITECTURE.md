@@ -148,13 +148,6 @@ The `channelNumbers` flag is always sent (its off switch went in 0204).
 - **Measured quality is kept in memory** (0889, `channelMeasurements.all()`): read again only after a write through the module
   (`record`, `forgetPlay`), any write on the server's connection (`total_changes()`) or another process's commit
   (`data_version`: the audit import script), or on a new database handle.
-- **Guide answers are kept per minute** (0893, `guideAnswers.js`, the `/api/sports/events` pattern): the serialised body and
-  its gzip, keyed by the guide version, the lineup revision, the database handle, `channelMeasurements.revision()` (module writes and other
-  processes' commits), the sport live index's identity, the request (start, end, limit, offset, cursor, category) and the
-  minute, whose start is the answer's `now`. At most 8 answers and 40 MB, oldest first. Only requests with their own
-  `start`. What has no revision (health ageing out of its 7 days, the EPG icon index's 5-minute refresh) is a minute late.
-  The weak ETag is a hash of the body (0894), so a rebuilt answer that differs never validates an old ETag; gzip is
-  negotiated (`req.acceptsEncodings`), as on `/api/sports/events`.
 - `/api/library/*` fill a missing logo from the EPG (by tvg-id, then by name).
 - **A guide running out** (0350, #11): a live guide whose last programme ends less than 36 h ahead is on Status's Needs
   attention and sends the `guide-stale` webhook once per episode. At start-up a source is synced when any of its feeds
@@ -209,7 +202,8 @@ It starts empty for a new database handle; nothing deletes `logo_cache` rows.
 most 6 at once with up to 96 queued (0894; beyond that 503, nothing remembered); a queued fetch waits at most 8 s for a
 slot (then 503) and is dropped if every request for it went away, and a key whose fetch failed answers 502 for
 5 minutes without a new fetch (at most 5,000 keys remembered, oldest dropped). Keyed by the logo key; no URL is logged.
-Answers (0892) carry `Content-Length` (0894: the open file's fstat, streamed from that descriptor) and `public, max-age=2592000` with the ETag; not `immutable`, as the key names the URL,
+A stored file is replaced by writing a temporary file beside it and renaming it over (0895), so an answer streaming the old
+one ends whole. Answers (0892) carry `Content-Length` (0894: the open file's fstat, streamed from that descriptor) and `public, max-age=2592000` with the ETag; not `immutable`, as the key names the URL,
 not the bytes.
 
 ## Log lines and provider addresses

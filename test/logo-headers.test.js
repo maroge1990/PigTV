@@ -25,11 +25,13 @@ const { registerLogo } = load('services/logoCache');
 const SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="red"/></svg>';
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 let server, base, imageServer, imageBase;
+let swapBody = null; // 0895: what /swap.bin answers now
 
 before(async () => {
     imageServer = http.createServer((req, res) => {
         if (req.url.endsWith('.svg')) { res.writeHead(200, { 'content-type': 'image/svg+xml' }); return res.end(SVG); }
         if (req.url.endsWith('big.bin')) { res.writeHead(200, { 'content-type': 'image/png' }); return res.end(BIG); }
+        if (req.url.endsWith('swap.bin')) { res.writeHead(200, { 'content-type': 'image/png' }); return res.end(swapBody); }
         res.writeHead(200, { 'content-type': 'image/png' });
         res.end(PNG);
     });
@@ -158,4 +160,43 @@ test('a client that goes away mid-answer leaves no descriptor open', { skip: pro
     let open = openOn(`${key}.orig`);
     for (let t = 0; t < 40 && open > 0; t++) { await new Promise(r => setTimeout(r, 50)); open = openOn(`${key}.orig`); }
     assert.equal(open, 0, 'every descriptor on the file is closed');
+});
+
+// #361 (0895): a logo is replaced by a rename, never rewritten in place, so an answer streaming from the old file
+// delivers all of its Content-Length; the next request gets the new file.
+test('a logo replaced while an answer streams it: that answer is whole, the next one is the new logo', async () => {
+    swapBody = Buffer.concat([PNG, Buffer.alloc(1990 * 1024, 2)]);
+    const route = registerLogo(`${imageBase}/swap.bin`);
+    const key = route.split('/').pop();
+    assert.equal((await fetch(`${base}${route}?size=full`)).status, 200);
+    const old = swapBody;
+
+    let res;
+    const chunks = [];
+    await new Promise((resolve, reject) => {
+        http.get(`${base}${route}?size=full`, r => {
+            res = r;
+            r.once('data', c => { chunks.push(c); r.pause(); resolve(); });
+        }).on('error', reject);
+    });
+    const length = Number(res.headers['content-length']);
+    assert.equal(length, old.length);
+
+    // The logo is fetched again (a lost row state) and the upstream now has a much shorter one.
+    swapBody = Buffer.concat([PNG, Buffer.alloc(100, 3)]);
+    sqlite.getDb().prepare('UPDATE logo_cache SET fetched_at = NULL WHERE key = ?').run(key);
+    assert.equal((await fetch(`${base}${route}`)).status, 200);
+
+    const rest = await new Promise((resolve) => {
+        res.on('data', c => chunks.push(c));
+        res.on('end', () => resolve(Buffer.concat(chunks)));
+        res.on('aborted', () => resolve(Buffer.concat(chunks)));
+        res.on('error', () => resolve(Buffer.concat(chunks)));
+        res.resume();
+    });
+    assert.equal(rest.length, length, 'every advertised byte arrived');
+    assert.deepEqual(rest, old, 'the old logo, whole');
+    const next = await fetch(`${base}${route}?size=full`);
+    assert.deepEqual(Buffer.from(await next.arrayBuffer()), swapBody, 'the next request gets the new logo');
+    assert.equal(fs.readdirSync(path.join(sandbox, 'data', 'logos')).filter(n => n.endsWith('.tmp')).length, 0, 'no temporary file left');
 });
