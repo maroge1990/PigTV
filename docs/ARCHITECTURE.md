@@ -194,6 +194,10 @@ programme artwork it has seen runs no statement. A full memory drops its oldest 
 dropped URL is looked up on its next page (a read), and only keys the table lacks are written, one transaction per page.
 It starts empty for a new database handle; nothing deletes `logo_cache` rows.
 
+**Cold logos** (0891, `routes/logo.js`): one upstream fetch per key at a time (every request for it waits on that one), at
+most 6 at once with up to 200 queued (beyond that 503, nothing remembered), and a key whose fetch failed answers 502 for
+5 minutes without a new fetch (at most 5,000 keys remembered, oldest dropped). Keyed by the logo key; no URL is logged.
+
 ## Log lines and provider addresses
 
 The container log names a provider by its name, never by its address (#307). `redact()` (`server/redact.js`) masks a login

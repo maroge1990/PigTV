@@ -216,6 +216,71 @@ async function fetchAndStore(req, row) {
 }
 
 /**
+ * 0891 (#361): cold logos. A guide page names hundreds of logos at once, so the upstream fetches are
+ *   - shared: one fetch per key at a time; every request for that key waits on it (`inflight`);
+ *   - limited: at most `limits.concurrent` at once, the rest queued in order, at most `limits.queue` waiting
+ *     (beyond that a 503 and nothing remembered);
+ *   - remembered when they fail: a key whose fetch failed is answered 502 for `limits.failMs` without asking the
+ *     upstream again (`failures`, at most `limits.failMax` keys, the oldest dropped first).
+ * Keyed by the logo's key, never its URL, and nothing here logs a URL. Settable for tests.
+ */
+const limits = { concurrent: 6, queue: 200, failMs: 5 * 60 * 1000, failMax: 5000 };
+const inflight = new Map();
+const failures = new Map();
+const waiting = [];
+let active = 0;
+
+function busyError() {
+    const err = new Error('too many logos waiting to be fetched');
+    err.code = 'BUSY';
+    return err;
+}
+function withSlot(fn) {
+    return new Promise((resolve, reject) => {
+        const run = () => {
+            active++;
+            Promise.resolve().then(fn).then(resolve, reject).finally(() => {
+                active--;
+                const next = waiting.shift();
+                if (next) next();
+            });
+        };
+        if (active < limits.concurrent) run();
+        else if (waiting.length < limits.queue) waiting.push(run);
+        else reject(busyError());
+    });
+}
+function rememberFailure(key) {
+    failures.delete(key);
+    while (failures.size >= limits.failMax) failures.delete(failures.keys().next().value);
+    failures.set(key, Date.now() + limits.failMs);
+}
+/** fetchAndStore, shared per key, limited, and not tried again soon after it failed. */
+function fetchShared(req, row) {
+    const until = failures.get(row.key);
+    if (until !== undefined) {
+        if (until > Date.now()) {
+            const err = new Error('this logo failed recently');
+            err.code = 'RECENT_FAILURE';
+            return Promise.reject(err);
+        }
+        failures.delete(row.key);
+    }
+    let shared = inflight.get(row.key);
+    if (shared) return shared;
+    shared = withSlot(() => fetchAndStore(req, row))
+        .catch(err => {
+            if (err.code !== 'BUSY') rememberFailure(row.key);
+            throw err;
+        })
+        .finally(() => inflight.delete(row.key));
+    inflight.set(row.key, shared);
+    return shared;
+}
+/** For tests: forget fetches in flight and failures. */
+function _resetFetches() { inflight.clear(); failures.clear(); }
+
+/**
  * S6 (0249): the logo's bytes, within one absolute deadline from request to last byte. On the
  * deadline, an error response, a wrong type or too many bytes the request is aborted and its body
  * cancelled - nothing is left reading. -> { bytes, contentType }.
@@ -263,7 +328,7 @@ async function serveSize(req, res, row, size) {
     const db = getDb();
     const orig = logoFile(row.key, SIZES.full);
     if (!(row.fetched_at && row.original_bytes && fs.existsSync(orig))) {
-        await fetchAndStore(req, row);
+        await fetchShared(req, row);
         row = db.prepare('SELECT * FROM logo_cache WHERE key = ?').get(row.key);
         if (!row || !row.fetched_at || !fs.existsSync(orig)) return res.status(502).json({ error: 'Could not fetch logo' });
     }
@@ -325,14 +390,15 @@ router.get('/:key', async (req, res) => {
             return serveFromDisk(req, res, file, row);
         }
 
-        await fetchAndStore(req, row);
+        await fetchShared(req, row);
         const updated = db.prepare('SELECT * FROM logo_cache WHERE key = ?').get(key);
         if (!updated || !updated.fetched_at || !fs.existsSync(file)) {
             return res.status(502).json({ error: 'Could not fetch logo' });
         }
         serveFromDisk(req, res, file, updated);
     } catch (err) {
-        console.error('[Logo]', err.message);
+        if (err.code === 'BUSY') return res.status(503).json({ error: 'Busy fetching other logos; try again shortly' });
+        if (err.code !== 'RECENT_FAILURE') console.error('[Logo]', err.message);
         res.status(502).json({ error: 'Could not fetch logo' });
     }
 });
@@ -342,3 +408,5 @@ module.exports = router;
 module.exports.storableLogo = storableLogo;
 module.exports.timeouts = timeouts;
 module.exports.imageWidth = imageWidth;
+module.exports.limits = limits; // 0891
+module.exports._resetFetches = _resetFetches;

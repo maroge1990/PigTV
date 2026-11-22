@@ -139,7 +139,9 @@ build 27), and `audioEncode: true` on the one fallback after a `'fmt?'` decode f
   not in this form, or `{text, build, os, model, kind}` (`kind` `"Apple TV"`, `"iPad"`, `"iPhone"` or null). A password
   login (no device) records nothing.
 - `/api/logo/*` answers carry `X-Content-Type-Options: nosniff` and a `Content-Security-Policy` for an image (no scripts,
-  frames or connections). The bytes and `Content-Type` are unchanged.
+  frames or connections). The bytes and `Content-Type` are unchanged. Since 0891 (#361, additive): a logo not yet fetched
+  can answer **503** `{error}` when too many are waiting to be fetched (try it again later; nothing is remembered), and one
+  whose fetch failed answers **502** for 5 minutes without the server asking its upstream again.
 - `recordings/scheduled` rows: `program_end` can **move later** after scheduling (0214, R4: it follows the guide after a
   sync, never earlier than first scheduled, at most +3 h); a client re-reads it rather than caching it. The additive
   `program_end_original` is the end it was made with (null until it moves).
