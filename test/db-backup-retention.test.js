@@ -223,3 +223,64 @@ test('review of 0898: a symbolic link in the backups folder is ignored by the li
     assert.ok(fs.lstatSync(old).isSymbolicLink() && fs.lstatSync(newer).isSymbolicLink(), 'retention left the links alone');
     assert.equal(fs.readFileSync(outside, 'utf8'), 'not a backup, and not to be touched');
 });
+
+// 0902: a failed fsync (file or folder) must not let retention run: the new copy may not be on disk.
+function injectFsync(kind, code) {
+    const real = fs.fsyncSync;
+    fs.fsyncSync = (fd) => {
+        const isDir = fs.fstatSync(fd).isDirectory();
+        if ((kind === 'dir') === isDir) throw Object.assign(new Error(`${code}: injected`), { code });
+        return real(fd);
+    };
+    return () => { fs.fsyncSync = real; };
+}
+async function eightOldNightlies(dbPath, day0) {
+    for (let d = 0; d < 8; d++) await dbBackup.backup(dbPath, { reason: 'nightly', now: day0 + d * DAY });
+    return dbBackup.list(dbPath).map(b => b.file);
+}
+
+for (const kind of ['dir', 'file']) {
+    test(`0902: EIO on the ${kind} sync: nothing is pruned, the run is reported failed (unconfirmed) and retried`, async () => {
+        const { dbPath } = fixture();
+        const day0 = Date.UTC(2026, 10, 2, 3); // a Monday
+        const before = await eightOldNightlies(dbPath, day0);
+        assert.equal(before.length, 7, 'retention trimmed to 7 dailies before the fault');
+        const restore = injectFsync(kind, 'EIO');
+        const lines = [];
+        const realError = console.error;
+        console.error = (...a) => lines.push(a.join(' '));
+        let result;
+        try {
+            await assert.rejects(dbBackup.backup(dbPath, { reason: 'manual', now: day0 + 9 * DAY }), { code: 'BACKUP_UNCONFIRMED' });
+            result = await dbBackup.nightlyCheck(dbPath, { now: day0 + 10 * DAY });
+        } finally {
+            restore();
+            console.error = realError;
+        }
+        assert.equal(result, null, 'not reported as a success');
+        const after = dbBackup.list(dbPath).map(b => b.file);
+        for (const f of before) assert.ok(after.includes(f), `older snapshot ${f} kept`);
+        assert.ok(after.some(f => f.includes('-manual')) && after.some(f => f.startsWith('content-2026-11-12')), 'the new files are left in place');
+        const st = dbBackup.status();
+        assert.equal(st.lastRun.ok, false);
+        assert.equal(st.lastRun.unconfirmed, true);
+        assert.ok(st.retryAt, 'the back-off applies');
+        assert.equal(lines.length, 1);
+        assert.match(lines[0], /could not be confirmed on disk \(EIO\)$/, 'one line, the error code only');
+        // Once the disk answers again the retry runs (the unconfirmed copy does not count as done) and prunes.
+        assert.ok(await dbBackup.nightlyCheck(dbPath, { now: day0 + 10 * DAY + 5 * 60000 }), 'retried after the back-off');
+        assert.equal(dbBackup.status().lastRun.ok, true);
+    });
+}
+
+test('0902: a folder sync the platform does not support (allow-listed) lets the backup and pruning go ahead', async () => {
+    const { dbPath } = fixture();
+    const day0 = Date.UTC(2026, 10, 2, 3); // a Monday
+    await eightOldNightlies(dbPath, day0);
+    const restore = injectFsync('dir', process.platform === 'win32' ? 'EPERM' : 'EINVAL');
+    try {
+        assert.ok(await dbBackup.nightlyCheck(dbPath, { now: day0 + 9 * DAY }));
+    } finally { restore(); }
+    assert.equal(dbBackup.status().lastRun.ok, true);
+    assert.equal(dbBackup.list(dbPath).length, 7, 'pruned as usual');
+});

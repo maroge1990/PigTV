@@ -271,6 +271,14 @@ function prune(dir, { now = Date.now(), keepAlso = null } = {}) {
 }
 
 /**
+ * 0902: the only errors a folder fsync may give that mean "this platform cannot do it", not "the write may be lost".
+ * fsync(2) on Linux/POSIX: EINVAL (the descriptor's file does not support synchronisation) and ENOTSUP. Windows: Node
+ * cannot open a folder as a file (EISDIR) and refuses FlushFileBuffers on one (EPERM). Anything else (EIO, ENOSPC,
+ * EROFS, EBADF...) is a failure.
+ */
+const DIR_SYNC_UNSUPPORTED = new Set(process.platform === 'win32' ? ['EISDIR', 'EPERM'] : ['EINVAL', 'ENOTSUP']);
+
+/**
  * 0901: how a new snapshot is made durable, in this order: the file fsynced under its temporary name, published under
  * its final one, the folder fsynced, and only then the older ones pruned. An object so a test can watch the order.
  */
@@ -279,16 +287,35 @@ const steps = {
     publish: (target, from, ext) => publish(target, from, ext),
     syncDir(dir) {
         let fd = null;
-        try { fd = fs.openSync(dir, 'r'); fs.fsyncSync(fd); } catch { /* a platform that cannot fsync a folder */ } finally { if (fd !== null) fs.closeSync(fd); }
+        try {
+            fd = fs.openSync(dir, 'r');
+            fs.fsyncSync(fd);
+        } catch (err) {
+            if (!DIR_SYNC_UNSUPPORTED.has(err && err.code)) throw err;
+        } finally {
+            if (fd !== null) try { fs.closeSync(fd); } catch { /* closed */ }
+        }
     },
     prune: (dir, opts) => prune(dir, opts)
 };
 
-/** Fsync `from`, publish it, fsync the folder, prune: steps, in that order. Returns the published path. */
+const codeOf = (err) => (err && typeof err.code === 'string' && /^[A-Z0-9_]{2,24}$/.test(err.code) ? err.code : 'error');
+
+/**
+ * Fsync `from`, publish it, fsync the folder, prune: steps, in that order. Returns the published path.
+ * 0902: pruning runs only when both syncs succeeded. Otherwise the new file is left in place (it may well be fine),
+ * nothing is pruned, and this throws BACKUP_UNCONFIRMED (its message names the error code only) for the caller to
+ * report the run as failed.
+ */
 function commit(target, from, ext) {
-    steps.syncFile(from);
+    let failure = null;
+    try { steps.syncFile(from); } catch (err) { failure = err; }
     const dest = steps.publish(target, from, ext);
-    steps.syncDir(target.dir);
+    if (!failure) { try { steps.syncDir(target.dir); } catch (err) { failure = err; } }
+    if (failure) {
+        throw Object.assign(new Error(`the copy was written but could not be confirmed on disk (${codeOf(failure)})`),
+            { code: 'BACKUP_UNCONFIRMED', file: path.basename(dest) });
+    }
     steps.prune(target.dir, { keepAlso: dest });
     return dest;
 }
@@ -405,7 +432,7 @@ let nightlySkipping = false;
 // #43: the last nightly run, a copy waiting for plays (for Status) and the retry back-off after a failed one.
 // Review of 0898: the deadline is not kept here: a copy falls due a day after the newest backup (any kind), and the 6 h
 // cap counts from then, so it survives a restart with nothing stored. With no backup at all it is overdue: it runs.
-const runState = { waitingFor: null, lastRun: null, failedAt: null, retryMs: 0 };
+const runState = { waitingFor: null, lastRun: null, failedAt: null, retryMs: 0, unconfirmed: new Set() };
 const RETRY_FIRST_MS = 5 * 60 * 1000;
 const RETRY_MAX_MS = 60 * 60 * 1000;
 
@@ -420,7 +447,8 @@ const RETRY_MAX_MS = 60 * 60 * 1000;
 async function nightlyCheck(dbPath, { now = Date.now(), busy, active } = {}) {
     if (nightlyRunning) return nightlyRunning;
     const idle = () => { try { return !(typeof active === 'function' && active()); } catch { return true; } };
-    const newest = list(dbPath)[0];
+    // 0902: a copy written but not confirmed on disk does not count as done (until a restart forgets it).
+    const newest = list(dbPath).find(e => !runState.unconfirmed.has(e.file));
     const dueAt = newest ? newest.at + DAY_MS : null;
     if (dueAt !== null && now < dueAt) {
         runState.waitingFor = null;
@@ -458,7 +486,9 @@ async function nightlyCheck(dbPath, { now = Date.now(), busy, active } = {}) {
             return file;
         })
         .catch(err => {
-            runState.lastRun = { ...run, ok: false };
+            const unconfirmed = err && err.code === 'BACKUP_UNCONFIRMED';
+            if (unconfirmed && err.file) runState.unconfirmed.add(err.file);
+            runState.lastRun = { ...run, ok: false, ...(unconfirmed ? { unconfirmed: true } : {}) };
             runState.failedAt = now;
             runState.retryMs = runState.retryMs ? Math.min(runState.retryMs * 2, RETRY_MAX_MS) : RETRY_FIRST_MS;
             console.error(`[Backup] Nightly copy FAILED (retrying in ${Math.round(runState.retryMs / 60000)} min):`, err.message);
@@ -492,6 +522,7 @@ function _resetState() {
     runState.lastRun = null;
     runState.failedAt = null;
     runState.retryMs = 0;
+    runState.unconfirmed.clear();
     nightlySkipping = false;
 }
 

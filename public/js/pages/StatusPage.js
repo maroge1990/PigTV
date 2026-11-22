@@ -647,6 +647,7 @@ class StatusPage {
         if (st.deferredSince) lines.push(`The nightly copy is waiting for plays and recordings to end (due since ${e(UI.dateTime(st.deferredSince))}; it runs anyway after ${e(Math.round((st.deferCapMin || 360) / 60))} h).`);
         const run = st.lastRun;
         if (run && run.late) lines.push(`The last nightly copy ran ${e(run.waitedMin)} min late${run.forced ? ', while something played' : ''}${run.ok === false ? ' and failed' : ''}.`);
+        if (run && run.ok === false && run.unconfirmed) lines.push('The last nightly copy was written but could not be confirmed on disk: older copies were kept, and it is tried again.');
         if (st.retryAt) lines.push(`It failed; the next try is at ${e(UI.dateTime(st.retryAt))}.`);
         return lines.map(l => `<p class="setting-hint">${l}</p>`).join('');
     }
