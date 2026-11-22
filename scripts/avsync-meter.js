@@ -38,7 +38,20 @@ const OUT_OF_STEP_MS = 80;
 const OUT_OF_STEP_FOR_SEC = 5;
 
 /** Text that came from the input (an event label, a file name), with anything address-like replaced: never printed. */
-const scrub = (text) => String(text).replace(/[a-z][a-z0-9+.-]*:\/\/\S*/gi, '<address>').replace(/\bwww\.\S+/gi, '<address>');
+const { redact } = require(path.join(__dirname, '..', 'server', 'redact'));
+/**
+ * Anything from the input (an event label, a file name) before it is printed, in text or JSON: the server's redact()
+ * (Xtream /live/<user>/<pass>/<id> paths, userinfo, ?token= and password parameters), then any address replaced, then
+ * every word that still looks like a path or carries a query reduced to its last component's stem (no extension),
+ * at most 40 characters: `/live/u/p/123.ts` -> `123`.
+ */
+const scrub = (text) => String(redact(String(text)))
+    .replace(/[a-z][a-z0-9+.-]*:\/\/\S*/gi, '<address>').replace(/\bwww\.\S+/gi, '<address>')
+    .split(/(\s+)/).map((word) => {
+        if (!/[\\/?&=]/.test(word)) return word;
+        const last = word.split(/[?#]/)[0].split(/[\\/]/).filter(Boolean).pop() || '';
+        return last.replace(/\.[^.]*$/, '').slice(0, 40);
+    }).join('').replace(/\s+/g, ' ').trim();
 const isUrl = (s) => /^[a-z][a-z0-9+.-]*:/i.test(String(s)) && !/^[a-z]:[\\/]/i.test(String(s));
 
 // ---- onsets ------------------------------------------------------------------------------------------------
@@ -288,8 +301,8 @@ function reasonOf(err) {
 }
 
 /** The last line of a tool's error output, with anything path- or address-like replaced. */
-const lastLine = (stderr) => scrub(String(stderr || '').trim().split('\n').pop())
-    .replace(/(?:[A-Za-z]:)?(?:[\\/][^\s:'"]+)+/g, '<path>').slice(0, 160);
+const lastLine = (stderr) => scrub(String(stderr || '').trim().split('\n').pop()
+    .replace(/(?:[A-Za-z]:)?(?:[\\/][^\s:'"]+)+/g, '<path>')).slice(0, 160);
 
 function hasStream(file, type) {
     const r = spawnSync('ffprobe', ['-v', 'error', '-select_streams', type, '-show_entries', 'stream=index', '-of', 'csv=p=0', file], { encoding: 'utf8' });

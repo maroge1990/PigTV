@@ -341,6 +341,23 @@ test('0906: a file or tool failure prints a fixed reason, never the path or the 
     fs.chmodSync(locked, 0o600);
 });
 
+test('a label with a relative Xtream path or a token parameter keeps no credentials, in text or quiet JSON', { skip: !hasFfmpeg && 'no ffmpeg' }, () => {
+    const labels = meter.parseEvents('5 switch on /live/xuser1/xpass9/123.ts\n6 token ?token=tk-abc999&username=xuser1&password=xpass9 there\n7 /movie/xuser1/xpass9/77.mkv\n8 /timeshift/xuser1/xpass9/60/2026-11-23:10-00/5.ts\n');
+    const text = JSON.stringify(labels);
+    assert.ok(!/xuser1|xpass9|tk-abc999/.test(text), text);
+    assert.deepEqual(labels.map(l => l.label), ['switch on 123', 'token there', '77', '5']);
+    if (!source) { source = path.join(work, 'sync-source.ts'); generate(source); }
+    const ev = path.join(work, 'events-xtream.txt');
+    fs.writeFileSync(ev, '20.5 switch on /live/xuser1/xpass9/123.ts?token=tk-abc999\n');
+    for (const quiet of [false, true]) {
+        const lines = [];
+        assert.equal(meter.main([source, '--events', ev, ...(quiet ? ['--quiet'] : [])], (l) => lines.push(l)), 0);
+        const out = lines.join('\n');
+        assert.ok(!/xuser1|xpass9|tk-abc999/.test(out), out.slice(-400));
+        assert.match(out, /"label":"switch on 123"/);
+    }
+});
+
 test('a file with no sound: picture onsets only, and it says so', { skip: !hasFfmpeg && 'no ffmpeg' }, () => {
     if (!source) { source = path.join(work, 'sync-source.ts'); generate(source); }
     const silent = path.join(work, 'silent.mp4');
