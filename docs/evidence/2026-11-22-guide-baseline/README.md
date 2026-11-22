@@ -95,4 +95,25 @@ Production-shaped database: 19,000 playlist rows, 1,250 visible channels, about 
 - One frame gap just over 100 ms shows up in nearly every scenario, idle included (all but d-right-10 run 1 and
   f-idle-35s run 3). The cause is unknown, so it is probably not caused by focus moves.
 
+## Run 5: the "before" for batch 2 (Apple 374)
+
+The review of 373 found that the timer stopped at the first chance to draw, before layout and rendering. From 374 a
+focus move and the first screen end on the following frame, at the time it is due on screen, so the milliseconds read
+about two frames (31 ms at 60 Hz) higher than runs 1 to 4. The counts are unchanged. **Batch 2's before and after
+figures compare against this run, not runs 1 to 4.**
+
+| Scenario | Presses | Moves | Focus median ms | Focus worst ms | Body evals per press | Cells per press | Applies | Max gap ms | Gaps over 100 | First screen ms |
+|---|---|---|---|---|---|---|---|---|---|---|
+| a-first-screen | | | | | | | 1 | 233.3 | 2 | 413.1 |
+| b-down-40 | 40 | 40 | 47.0 | 61.0 | 1 | 5.5 | 0 | 120.3 | 1 | |
+| c-up-40 | 40 | 40 | 58.4 | 62.0 | 1 | 6.4 | 0 | 112.8 | 1 | |
+| d-right-10 | 10 | 10 | 58.2 | 61.4 | 1 | 25.4 | 0 | 63.0 | 0 | |
+| e-held-down-100 | held | 88 | 27.0 | 69.9 | | | 0 | 108.8 | 1 | |
+| f-idle-35s (one 30 s tick: 1 body eval, 20 cells) | | | | | | | 0 | 110.8 | 1 | |
+| g0-paged-first-screen | | | | | | | 2 | 190.9 | 1 | 517.5 |
+| g-paged-down-45 | 45 | 46 | 47.2 | **105.1** | 1.1 | 5.5 | 2 (applyMs 134.3) | 120.0 | 2 | |
+
+The one figure over the 100 ms target is the worst focus move while a page of guide data arrives during scrolling
+(105.1 ms): the simulator's only reproduction of a hitch tied to a press.
+
 Targets are fixed in docs/DECISIONS.md D-80. Refs #362, #360, #361.

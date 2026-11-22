@@ -894,7 +894,8 @@ reviews.
 
 - **Context:** D-79 left the targets to be fixed after the baseline
   ([`docs/evidence/2026-11-22-guide-baseline`](evidence/2026-11-22-guide-baseline/README.md)). The MacBook simulator
-  does not reproduce the hang Mark sees: its focus moves take 11 to 33 ms at the median and 59 ms at worst. So its
+  does not reproduce the hang Mark sees: its focus moves take 27 to 58 ms at the median and 70 ms at worst (run 5), or 105 ms when a
+  page of guide data lands mid-scroll. So its
   milliseconds cannot prove a fix; its counts can, because they are the same on every machine.
 - **Choice:** three kinds of target.
   1. **On Mark's Apple TV** (Settings › Guide speed readout, the real proof): the slowest press to its frame under
