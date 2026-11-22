@@ -173,3 +173,48 @@ test('at most 8 answers and the byte cap are kept, the oldest dropped first', as
     const oldest = await countPageQueries(() => get(page('&offset=0')));
     assert.ok(oldest > 0);
 });
+
+// #361 (0894): the ETag names the body; the lineup revision moves the key; gzip is negotiated.
+test('an answer rebuilt differently under the same key does not validate the old ETag', async () => {
+    const first = await get(page());
+    guideAnswers._reset(); // evicted
+    // A decoration that has no revision of its own changes (here a logo, written with no version bump).
+    sqlite.getDb().prepare("UPDATE playlist_items SET stream_icon = 'http://provider.invalid/logo/new.png' WHERE item_id = '2'").run();
+    const second = await get(page(), { 'If-None-Match': first.headers.get('etag') });
+    assert.equal(second.status, 200, 'the old ETag names the old body');
+    assert.notEqual(second.headers.get('etag'), first.headers.get('etag'));
+    assert.notDeepEqual(second.body, first.body);
+});
+
+test('a committed sync batch gives a new answer in the same minute, with no library_rev bump', async () => {
+    const first = JSON.parse((await get(page())).body);
+    const r = sqlite.getDb().prepare("SELECT item_id, name, category_id, sort_order, tvg_id FROM playlist_items WHERE item_id = '4'").get();
+    await load('services/syncService').saveStreams(source.id, 'live',
+        [{ stream_id: 4, name: 'Batch renamed', category_id: r.category_id, sort_order: r.sort_order, tvgId: r.tvg_id }], { skipPurge: true });
+    const second = JSON.parse((await get(page())).body);
+    assert.notEqual(first.channels[4].name, 'Batch renamed');
+    assert.equal(second.channels[4].name, 'Batch renamed');
+});
+
+test('gzip is negotiated: q=0 and no header get identity, gzip gets gzip, one ETag, Vary always', async () => {
+    const cases = [['gzip;q=0, identity;q=1', null], [undefined, null], ['gzip', 'gzip'], ['gzip, deflate, br', 'gzip'], ['identity', null]];
+    const etags = new Set();
+    let plain = null;
+    for (const [ae, want] of cases) {
+        const headers = {};
+        if (ae !== undefined) headers['Accept-Encoding'] = ae;
+        const r = await new Promise((resolve, reject) => {
+            const h = { Authorization: `Bearer ${token}`, ...headers };
+            http.get(`${base}${page()}`, { headers: h }, res => {
+                const chunks = []; res.on('data', c => chunks.push(c));
+                res.on('end', () => resolve({ headers: res.headers, body: Buffer.concat(chunks) }));
+            }).on('error', reject);
+        });
+        assert.equal(r.headers['content-encoding'] || null, want, `Accept-Encoding: ${ae}`);
+        assert.equal(r.headers.vary, 'Accept-Encoding', `Accept-Encoding: ${ae}`);
+        etags.add(r.headers.etag);
+        const raw = want ? zlib.gunzipSync(r.body) : r.body;
+        if (plain) assert.deepEqual(raw, plain); else plain = raw;
+    }
+    assert.equal(etags.size, 1, 'one ETag for every encoding');
+});

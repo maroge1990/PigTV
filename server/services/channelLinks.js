@@ -475,6 +475,7 @@ function writeRows(where, params, rows) {
         db.prepare(`DELETE FROM channel_links WHERE ${where}`).run(...params);
         for (const r of rows) insert.run(r);
     })();
+    require('./libraryRev').bumpLineupRev(); // 0894: siblings decide visibility
 }
 
 const OUT_OF_PLAY = new Set(['broken', 'rejected']);
@@ -597,6 +598,7 @@ function dropStale(all) {
         const ok = primaryIds.has(r.primary_source_id) && (sibling || backupIds.has(r.backup_source_id));
         if (!ok) n += db.prepare('DELETE FROM channel_links WHERE primary_source_id = ? AND backup_source_id = ?').run(r.primary_source_id, r.backup_source_id).changes;
     }
+    if (n) require('./libraryRev').bumpLineupRev(); // 0894
     return n;
 }
 
@@ -667,7 +669,9 @@ function relinkAll() {
 
 /** Every row of a deleted source, on either side. */
 function removeFor(sourceId) {
-    return getDb().prepare('DELETE FROM channel_links WHERE primary_source_id = ? OR backup_source_id = ?').run(sourceId, sourceId).changes;
+    const n = getDb().prepare('DELETE FROM channel_links WHERE primary_source_id = ? OR backup_source_id = ?').run(sourceId, sourceId).changes;
+    require('./libraryRev').bumpLineupRev(); // 0894
+    return n;
 }
 
 /**

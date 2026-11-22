@@ -1,6 +1,6 @@
 const { getDb } = require('../db/sqlite');
 const { stripBadgeSuffix } = require('./textCleanup');
-const { bumpLibraryRev } = require('./libraryRev');
+const { bumpLibraryRev, bumpLineupRev } = require('./libraryRev');
 const { refreshChannelNumbers } = require('./channelNumbers');
 const { stableChannelId, providerStreamId, summarise } = require('./stableIds');
 const { sources, settings } = require('../db'); // For source config and settings
@@ -756,6 +756,7 @@ class SyncService {
         const db = getDb();
         const items = db.prepare('DELETE FROM playlist_items WHERE source_id = ?').run(sourceId).changes;
         const cats = db.prepare('DELETE FROM categories WHERE source_id = ?').run(sourceId).changes;
+        bumpLineupRev(); // 0894
         feedCheck.forget(sourceId, 'playlist');
         if (items + cats === 0) return false;
         console.log(`[Sync] Removed ${items} channels and ${cats} categories of source ${sourceId} from the library (it is a backup now)`);
@@ -961,6 +962,7 @@ class SyncService {
         const BATCH_SIZE = 100;
         for (let i = 0; i < categories.length; i += BATCH_SIZE) {
             insertBatch(categories.slice(i, i + BATCH_SIZE));
+            bumpLineupRev(); // 0894: committed; the guide's index must not serve the old lineup
             // Yield to event loop between batches to allow other requests
             await new Promise(resolve => setImmediate(resolve));
         }
@@ -1045,6 +1047,7 @@ class SyncService {
         const BATCH_SIZE = 100;
         for (let i = 0; i < items.length; i += BATCH_SIZE) {
             insertBatch(items.slice(i, i + BATCH_SIZE));
+            bumpLineupRev(); // 0894: committed; the guide's index must not serve the old lineup
             // Yield to event loop between batches to allow other requests
             await new Promise(resolve => setImmediate(resolve));
         }
@@ -1100,6 +1103,7 @@ class SyncService {
             AND id NOT IN (SELECT id FROM synced_ids)
         `);
         const deleted = deleteStmt.run(sourceId, type);
+        bumpLineupRev(); // 0894
 
         if (deleted.changes > 0) {
             console.log(`[Sync] Purged ${deleted.changes} stale ${type} items`);

@@ -832,6 +832,10 @@ test('/events: ETag and 304 when unchanged; no If-None-Match is a plain 200; the
     assert.equal(zipped.status, 200);
     assert.equal(zipped.headers.get('content-encoding'), 'gzip');
     assert.equal(await zipped.text(), text);
+    // #361 (0894): negotiated, not a substring match: gzip;q=0 is a refusal
+    const refused = await get({ 'Accept-Encoding': 'gzip;q=0, identity;q=1' });
+    assert.equal(refused.headers.get('content-encoding'), null, 'gzip;q=0 gets identity');
+    assert.equal(await refused.text(), text);
 });
 
 // #24 (FR-21): roster inference must not override what the title says, nor pick one league where another stored roster

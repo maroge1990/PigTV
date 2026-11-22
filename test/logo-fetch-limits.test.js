@@ -118,3 +118,68 @@ test('with the queue full a further cold logo is a 503 and is not remembered as 
         Object.assign(logoRoute.limits, saved);
     }
 });
+
+// #361 (0894): a queued cold logo waits at most queueWaitMs for a slot (then 503, nothing remembered), and a queued
+// fetch every requester has given up on is never started; de-duplication still holds for the ones left.
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+test('a cold logo that waits too long for a slot is a 503, not remembered, and the queue is 96 long', async () => {
+    assert.equal(logoRoute.limits.queue, 96);
+    assert.equal(logoRoute.limits.queueWaitMs, 8000);
+    const saved = { ...logoRoute.limits };
+    const savedDelay = delayMs;
+    Object.assign(logoRoute.limits, { concurrent: 1, queueWaitMs: 300 });
+    delayMs = 1500;
+    try {
+        const slow = registerLogo(`${upstreamBase}/wait/slow.png`);
+        const queued = registerLogo(`${upstreamBase}/wait/queued.png`);
+        const holding = get(slow);
+        await sleep(50);
+        const started = Date.now();
+        const waited = await get(queued);
+        assert.equal(waited.status, 503);
+        assert.ok(Date.now() - started < 1400, 'answered when the wait ran out, not when the slot freed');
+        assert.equal(hits.get('/wait/queued.png') || 0, 0, 'never fetched');
+        assert.equal((await holding).status, 200);
+        delayMs = 10;
+        assert.equal((await get(queued)).status, 200, 'not remembered as failed');
+    } finally {
+        Object.assign(logoRoute.limits, saved);
+        delayMs = savedDelay;
+    }
+});
+
+test('a queued fetch whose requesters all went away is dropped; one requester left still shares one fetch', async () => {
+    const saved = { ...logoRoute.limits };
+    const savedDelay = delayMs;
+    Object.assign(logoRoute.limits, { concurrent: 1 });
+    delayMs = 600;
+    const abortable = (route) => {
+        const c = new AbortController();
+        const p = fetch(`${base}${route}`, { signal: c.signal }).then(r => r.status, () => 'aborted');
+        return { c, p };
+    };
+    try {
+        const first = registerLogo(`${upstreamBase}/gone/first.png`);
+        const dropped = registerLogo(`${upstreamBase}/gone/dropped.png`);
+        const shared = registerLogo(`${upstreamBase}/gone/shared.png`);
+        const holding = get(first);
+        await sleep(50);
+        const a = abortable(dropped);
+        const b1 = abortable(shared);
+        const b2 = get(shared);
+        await sleep(100);
+        a.c.abort();
+        b1.c.abort();
+        assert.equal(await a.p, 'aborted');
+        assert.equal((await holding).status, 200);
+        const kept = await b2;
+        assert.equal(kept.status, 200);
+        await sleep(200);
+        assert.equal(hits.get('/gone/dropped.png') || 0, 0, 'nobody waited for it: never fetched');
+        assert.equal(hits.get('/gone/shared.png'), 1, 'one fetch for the requester left');
+    } finally {
+        Object.assign(logoRoute.limits, saved);
+        delayMs = savedDelay;
+    }
+});

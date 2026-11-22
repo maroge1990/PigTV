@@ -18,7 +18,20 @@
  */
 const { getDb } = require('../db/sqlite');
 
+/**
+ * 0894 (#361): the lineup revision. An in-process counter (no write) that moves with every committed change to what
+ * decides the guide's visible set and order: playlist rows (visibility, category, sort order, name), categories'
+ * visibility and sibling links. A sync commits its rows in batches and yields between them, and bumps library_rev only
+ * once it has finished, so the guide's index (guideIndex.js) and kept answers (guideAnswers.js) key on this as well:
+ * each batch, purge and hidden-channel pass bumps it straight after its transaction. Every library_rev bump moves it too.
+ * Only the server process writes those tables (the sport workers open the database read-only).
+ */
+let lineupRev = 0;
+function bumpLineupRev() { lineupRev++; }
+function currentLineupRev() { return lineupRev; }
+
 function bumpLibraryRev() {
+    lineupRev++;
     const db = getDb();
     db.prepare(`
         INSERT INTO meta (key, value) VALUES ('library_rev', '1')
@@ -38,4 +51,4 @@ function currentGuideVersion() {
     return `${build}:${rev}:${gens}`;
 }
 
-module.exports = { bumpLibraryRev, currentGuideVersion };
+module.exports = { bumpLibraryRev, currentGuideVersion, bumpLineupRev, currentLineupRev };

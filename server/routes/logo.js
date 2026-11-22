@@ -100,19 +100,32 @@ function serveFromDisk(req, res, file, row) {
  * 0892 (#361): 30 days, then revalidated by ETag (a 304). Not `immutable`: a path's key is the cache version and the
  * upstream URL, not the bytes, and the bytes behind a path can change (a lost file, or a logo stored before 0154, is
  * fetched again from an upstream that may have changed it). A deliberate change of every stored logo bumps
- * LOGO_CACHE_VERSION, which changes every path. With Content-Length (the file is read whole first: logos are small,
- * at most a few MB at ?size=3840), so a client's URL cache can store the answer as it is.
+ * LOGO_CACHE_VERSION, which changes every path. With Content-Length, so a client's URL cache can store the answer as
+ * it is. 0894: the length is the open file's own (fstat), and the bytes are streamed from that same descriptor with
+ * backpressure, at most that many; the descriptor closes on the end, an error or the client going away.
  */
 const LOGO_CACHE_CONTROL = 'public, max-age=2592000';
 function serveFile(req, res, file, etag, contentType) {
     res.set('Cache-Control', LOGO_CACHE_CONTROL);
     res.set('ETag', etag);
     if (req.headers['if-none-match'] === etag) return res.status(304).end();
-    fs.readFile(file, (err, bytes) => {
+    fs.open(file, 'r', (err, fd) => {
         if (err) { if (!res.headersSent) res.status(500).end(); return; }
-        res.set('Content-Type', contentType || 'image/png');
-        res.set('Content-Length', String(bytes.length));
-        res.end(bytes);
+        fs.fstat(fd, (statErr, st) => {
+            const gone = res.destroyed || res.writableEnded;
+            if (statErr || gone) {
+                fs.close(fd, () => {});
+                if (statErr && !res.headersSent) res.status(500).end();
+                return;
+            }
+            res.set('Content-Type', contentType || 'image/png');
+            res.set('Content-Length', String(st.size));
+            if (st.size === 0) { fs.close(fd, () => {}); return res.end(); }
+            const stream = fs.createReadStream(null, { fd, autoClose: true, start: 0, end: st.size - 1 });
+            stream.on('error', () => { if (!res.headersSent) res.status(500).end(); else res.destroy(); });
+            res.on('close', () => stream.destroy()); // the client went away: the descriptor closes with the stream
+            stream.pipe(res);
+        });
     });
 }
 
@@ -234,39 +247,41 @@ async function fetchAndStore(req, row) {
  *     upstream again (`failures`, at most `limits.failMax` keys, the oldest dropped first).
  * Keyed by the logo's key, never its URL, and nothing here logs a URL. Settable for tests.
  */
-const limits = { concurrent: 6, queue: 200, failMs: 5 * 60 * 1000, failMax: 5000 };
-const inflight = new Map();
+const limits = { concurrent: 6, queue: 96, queueWaitMs: 8000, failMs: 5 * 60 * 1000, failMax: 5000 };
+const inflight = new Map(); // key -> job { waiters, started, promise }
 const failures = new Map();
-const waiting = [];
+const waiting = []; // jobs queued for a slot, oldest first
 let active = 0;
 
-function busyError() {
-    const err = new Error('too many logos waiting to be fetched');
+function busyError(message = 'too many logos waiting to be fetched') {
+    const err = new Error(message);
     err.code = 'BUSY';
     return err;
-}
-function withSlot(fn) {
-    return new Promise((resolve, reject) => {
-        const run = () => {
-            active++;
-            Promise.resolve().then(fn).then(resolve, reject).finally(() => {
-                active--;
-                const next = waiting.shift();
-                if (next) next();
-            });
-        };
-        if (active < limits.concurrent) run();
-        else if (waiting.length < limits.queue) waiting.push(run);
-        else reject(busyError());
-    });
 }
 function rememberFailure(key) {
     failures.delete(key);
     while (failures.size >= limits.failMax) failures.delete(failures.keys().next().value);
     failures.set(key, Date.now() + limits.failMs);
 }
-/** fetchAndStore, shared per key, limited, and not tried again soon after it failed. */
-function fetchShared(req, row) {
+function unqueue(job) {
+    const i = waiting.indexOf(job);
+    if (i >= 0) waiting.splice(i, 1);
+    clearTimeout(job.timer);
+    if (inflight.get(job.key) === job) inflight.delete(job.key);
+}
+function startNext() {
+    while (active < limits.concurrent && waiting.length) {
+        const job = waiting.shift();
+        clearTimeout(job.timer);
+        job.run();
+    }
+}
+/**
+ * fetchAndStore, shared per key, limited, and not tried again soon after it failed. 0894: a job waits at most
+ * `limits.queueWaitMs` for a slot (then its waiters get 503, nothing remembered), and a queued job whose waiters have
+ * all gone away is dropped before it starts. `queue` 96: what 6 slots serve in 8 s at about half a second a logo.
+ */
+function fetchShared(req, res, row) {
     const until = failures.get(row.key);
     if (until !== undefined) {
         if (until > Date.now()) {
@@ -276,19 +291,53 @@ function fetchShared(req, row) {
         }
         failures.delete(row.key);
     }
-    let shared = inflight.get(row.key);
-    if (shared) return shared;
-    shared = withSlot(() => fetchAndStore(req, row))
-        .catch(err => {
-            if (err.code !== 'BUSY') rememberFailure(row.key);
-            throw err;
-        })
-        .finally(() => inflight.delete(row.key));
-    inflight.set(row.key, shared);
-    return shared;
+    let job = inflight.get(row.key);
+    if (!job) {
+        if (active >= limits.concurrent && waiting.length >= limits.queue) return Promise.reject(busyError());
+        job = { key: row.key, waiters: 0, started: false, settled: false, timer: null };
+        job.promise = new Promise((resolve, reject) => { job.resolve = resolve; job.reject = reject; });
+        job.promise.catch(() => { /* each waiter handles it */ });
+        job.run = () => {
+            job.started = true;
+            active++;
+            Promise.resolve().then(() => fetchAndStore(req, row)).then(
+                (v) => { job.settled = true; job.resolve(v); },
+                (err) => { if (err.code !== 'BUSY') rememberFailure(row.key); job.settled = true; job.reject(err); }
+            ).finally(() => {
+                if (inflight.get(row.key) === job) inflight.delete(row.key);
+                active--;
+                startNext();
+            });
+        };
+        inflight.set(row.key, job);
+        if (active < limits.concurrent) job.run();
+        else {
+            waiting.push(job);
+            job.timer = setTimeout(() => {
+                if (job.started) return;
+                unqueue(job);
+                job.settled = true;
+                job.reject(busyError('waited too long for a logo fetch'));
+            }, limits.queueWaitMs);
+            job.timer.unref?.();
+        }
+    }
+    job.waiters++;
+    let done = false;
+    job.promise.then(() => { done = true; }, () => { done = true; });
+    res?.once?.('close', () => {
+        if (done || job.settled) return;
+        job.waiters--;
+        if (job.waiters <= 0 && !job.started) { // nobody is waiting for it any more: never fetched
+            unqueue(job);
+            job.settled = true;
+            job.reject(busyError('every request for it went away'));
+        }
+    });
+    return job.promise;
 }
 /** For tests: forget fetches in flight and failures. */
-function _resetFetches() { inflight.clear(); failures.clear(); }
+function _resetFetches() { inflight.clear(); failures.clear(); for (const j of waiting.splice(0)) clearTimeout(j.timer); }
 
 /**
  * S6 (0249): the logo's bytes, within one absolute deadline from request to last byte. On the
@@ -338,7 +387,7 @@ async function serveSize(req, res, row, size) {
     const db = getDb();
     const orig = logoFile(row.key, SIZES.full);
     if (!(row.fetched_at && row.original_bytes && fs.existsSync(orig))) {
-        await fetchShared(req, row);
+        await fetchShared(req, res, row);
         row = db.prepare('SELECT * FROM logo_cache WHERE key = ?').get(row.key);
         if (!row || !row.fetched_at || !fs.existsSync(orig)) return res.status(502).json({ error: 'Could not fetch logo' });
     }
@@ -400,7 +449,7 @@ router.get('/:key', async (req, res) => {
             return serveFromDisk(req, res, file, row);
         }
 
-        await fetchShared(req, row);
+        await fetchShared(req, res, row);
         const updated = db.prepare('SELECT * FROM logo_cache WHERE key = ?').get(key);
         if (!updated || !updated.fetched_at || !fs.existsSync(file)) {
             return res.status(502).json({ error: 'Could not fetch logo' });

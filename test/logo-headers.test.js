@@ -29,6 +29,7 @@ let server, base, imageServer, imageBase;
 before(async () => {
     imageServer = http.createServer((req, res) => {
         if (req.url.endsWith('.svg')) { res.writeHead(200, { 'content-type': 'image/svg+xml' }); return res.end(SVG); }
+        if (req.url.endsWith('big.bin')) { res.writeHead(200, { 'content-type': 'image/png' }); return res.end(BIG); }
         res.writeHead(200, { 'content-type': 'image/png' });
         res.end(PNG);
     });
@@ -105,4 +106,56 @@ test('every logo answer has its Content-Length and a 30-day Cache-Control; a 304
         assert.equal(again.status, 304, suffix);
         assert.equal(again.headers.get('cache-control'), 'public, max-age=2592000', `${suffix}: 304`);
     }
+});
+
+// #361 (0894): a stored logo is streamed from one open descriptor (its fstat is the Content-Length), never read whole
+// into memory, and the descriptor closes when the client goes away mid-answer.
+const BIG = Buffer.concat([PNG, Buffer.alloc(1900 * 1024, 1)]);
+const openOn = (name) => {
+    if (process.platform !== 'linux') return null;
+    let n = 0;
+    for (const fd of fs.readdirSync('/proc/self/fd')) {
+        try { if (fs.readlinkSync(`/proc/self/fd/${fd}`).endsWith(name)) n++; } catch { /* closed meanwhile */ }
+    }
+    return n;
+};
+
+test('a stored logo is streamed with its Content-Length, not read whole', async () => {
+    const route = registerLogo(`${imageBase}/streamed.png`);
+    assert.equal((await fetch(`${base}${route}`)).status, 200); // fetched and stored
+    const calls = [];
+    const spied = {};
+    for (const m of ['readFile', 'readFileSync', 'createReadStream']) {
+        spied[m] = fs[m];
+        fs[m] = function (...a) { calls.push(m); return spied[m].apply(this, a); };
+    }
+    try {
+        const res = await fetch(`${base}${route}`);
+        const body = Buffer.from(await res.arrayBuffer());
+        assert.equal(res.headers.get('content-length'), String(body.length));
+        assert.deepEqual(body, PNG);
+    } finally { Object.assign(fs, spied); }
+    assert.ok(!calls.includes('readFile') && !calls.includes('readFileSync'), `no whole-file read (${calls.join(',')})`);
+    assert.ok(calls.includes('createReadStream'), 'streamed');
+});
+
+test('a client that goes away mid-answer leaves no descriptor open', { skip: process.platform !== 'linux' && 'needs /proc' }, async () => {
+    const route = registerLogo(`${imageBase}/big.bin`);
+    const key = route.split('/').pop();
+    const first = await fetch(`${base}${route}?size=full`);
+    assert.equal(first.status, 200);
+    assert.equal((await first.arrayBuffer()).byteLength, BIG.length);
+    for (let i = 0; i < 5; i++) {
+        await new Promise((resolve, reject) => {
+            const req = http.get(`${base}${route}?size=full`, res => {
+                assert.equal(res.headers['content-length'], String(BIG.length));
+                res.once('data', () => { req.destroy(); resolve(); });
+            });
+            req.on('error', () => resolve());
+            setTimeout(() => reject(new Error('no data')), 5000).unref();
+        });
+    }
+    let open = openOn(`${key}.orig`);
+    for (let t = 0; t < 40 && open > 0; t++) { await new Promise(r => setTimeout(r, 50)); open = openOn(`${key}.orig`); }
+    assert.equal(open, 0, 'every descriptor on the file is closed');
 });

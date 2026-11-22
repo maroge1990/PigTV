@@ -92,7 +92,7 @@ function before(db, sourceId) {
 function after(db, sourceId, state) {
     ensure(db);
     const now = Date.now();
-    return db.transaction(() => {
+    const listed = db.transaction(() => {
         // Worked out here, not in one correlated UPDATE: on a 19,000-row playlist that took 22 s (rehearsal on a
         // copy of production, 30 Oct). Only rows whose flag changes are written.
         const record = new Map();
@@ -130,6 +130,8 @@ function after(db, sourceId, state) {
         if (listed.length) capture(db, sourceId);
         return listed;
     })();
+    require('./libraryRev').bumpLineupRev(); // 0894: rows' flags changed mid-sync
+    return listed;
 }
 
 /** The groups waiting for review, newest first, with how many channels each has now. */

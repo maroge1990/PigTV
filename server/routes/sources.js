@@ -371,6 +371,7 @@ router.delete('/:id', async (req, res) => {
         deleteEpgState.run(sourceId);
         deleteSyncStatus.run(sourceId);
         deleteNumbers.run(sourceId);
+        require('../services/libraryRev').bumpLineupRev(); // 0894: gone from the guide before the awaits below
         providerAccounts.remove(sourceId); // 0168
         backupChannels.removeFor(sourceId); // 0170
         require('../services/rawChannels').removeFor(sourceId); // 0178

@@ -139,16 +139,22 @@ The `channelNumbers` flag is always sent (its off switch went in 0204).
 - Queries bound `start_time > from − 24 h`.
 - **The guide's order is kept in memory** (0888, #361, `guideIndex.js`): id, sort key, name and category of every visible
   channel in guide order, built on the first page of a guide version (`currentGuideVersion()`) and database handle; `total`
-  and each page's ids come from it, then only the page's rows are read. A change to what is visible that does not move
-  `library_rev` would not show until it does: every such write bumps it. A page whose rows are gone answers by SQL.
+  and each page's ids come from it, then only the page's rows are read. Keyed also by the **lineup revision** (0894,
+  `libraryRev.bumpLineupRev`, in memory): every committed write to playlist rows, categories' visibility or sibling links
+  moves it (each sync batch, purge, hidden-channel pass, promotion, link write; every `library_rev` bump), so a sync that
+  yields between batches, or fails after some, never leaves the index behind. Backstop: a page row no longer there,
+  visible, in the category or at the index's sort key drops the index and that page answers by SQL. A rebuild costs
+  ~18 ms on the 19,000-row perf fixture.
 - **Measured quality is kept in memory** (0889, `channelMeasurements.all()`): read again only after a write through the module
   (`record`, `forgetPlay`), any write on the server's connection (`total_changes()`) or another process's commit
   (`data_version`: the audit import script), or on a new database handle.
 - **Guide answers are kept per minute** (0893, `guideAnswers.js`, the `/api/sports/events` pattern): the serialised body and
-  its gzip, keyed by the guide version, the database handle, `channelMeasurements.revision()` (module writes and other
+  its gzip, keyed by the guide version, the lineup revision, the database handle, `channelMeasurements.revision()` (module writes and other
   processes' commits), the sport live index's identity, the request (start, end, limit, offset, cursor, category) and the
   minute, whose start is the answer's `now`. At most 8 answers and 40 MB, oldest first. Only requests with their own
   `start`. What has no revision (health ageing out of its 7 days, the EPG icon index's 5-minute refresh) is a minute late.
+  The weak ETag is a hash of the body (0894), so a rebuilt answer that differs never validates an old ETag; gzip is
+  negotiated (`req.acceptsEncodings`), as on `/api/sports/events`.
 - `/api/library/*` fill a missing logo from the EPG (by tvg-id, then by name).
 - **A guide running out** (0350, #11): a live guide whose last programme ends less than 36 h ahead is on Status's Needs
   attention and sends the `guide-stale` webhook once per episode. At start-up a source is synced when any of its feeds
@@ -200,9 +206,10 @@ dropped URL is looked up on its next page (a read), and only keys the table lack
 It starts empty for a new database handle; nothing deletes `logo_cache` rows.
 
 **Cold logos** (0891, `routes/logo.js`): one upstream fetch per key at a time (every request for it waits on that one), at
-most 6 at once with up to 200 queued (beyond that 503, nothing remembered), and a key whose fetch failed answers 502 for
+most 6 at once with up to 96 queued (0894; beyond that 503, nothing remembered); a queued fetch waits at most 8 s for a
+slot (then 503) and is dropped if every request for it went away, and a key whose fetch failed answers 502 for
 5 minutes without a new fetch (at most 5,000 keys remembered, oldest dropped). Keyed by the logo key; no URL is logged.
-Answers (0892) carry `Content-Length` and `public, max-age=2592000` with the ETag; not `immutable`, as the key names the URL,
+Answers (0892) carry `Content-Length` (0894: the open file's fstat, streamed from that descriptor) and `public, max-age=2592000` with the ETag; not `immutable`, as the key names the URL,
 not the bytes.
 
 ## Log lines and provider addresses

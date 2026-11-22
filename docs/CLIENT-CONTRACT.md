@@ -79,7 +79,9 @@ build 27), and `audioEncode: true` on the one fallback after a `'fmt?'` decode f
 - `library/guide` with its own `start` (0893, #361, additive): the answer is as of the minute's start: `now` is that minute
   (not the request's millisecond) and `isNow` is judged at it, so both can be up to a minute behind. It carries
   `Cache-Control: private, no-cache`, a weak `ETag` and `Vary: Accept-Encoding`; the same request with `If-None-Match`
-  in the same minute, with nothing changed (guide version, measurements, sport live games), gets **304**. Without
+  in the same minute, with nothing changed (guide version, measurements, sport live games), gets **304**. Since 0894 the
+  ETag names the body's bytes (the same for gzip and identity), so it validates only that exact body; gzip only when
+  `Accept-Encoding` accepts it (`gzip;q=0` does not). Without
   `start` nothing changes. A client that sends no `If-None-Match` gets the 200 it always did.
 - `library/guide` programmes (#56, additive, no flag: each key is present only when known): `live: true` when the guide
   flags the airing live (XMLTV `<live/>`) or it is a live sport game's airing (a C-I event of kind `event` on that
@@ -145,7 +147,8 @@ build 27), and `audioEncode: true` on the one fallback after a `'fmt?'` decode f
   login (no device) records nothing.
 - `/api/logo/*` answers carry `X-Content-Type-Options: nosniff` and a `Content-Security-Policy` for an image (no scripts,
   frames or connections). The bytes and `Content-Type` are unchanged. Since 0891 (#361, additive): a logo not yet fetched
-  can answer **503** `{error}` when too many are waiting to be fetched (try it again later; nothing is remembered), and one
+  can answer **503** `{error}` when too many are waiting to be fetched or it waited 8 s for its turn (0894; try it again
+  later; nothing is remembered), and one
   whose fetch failed answers **502** for 5 minutes without the server asking its upstream again.
   Since 0892 (#361): a logo answer carries `Content-Length` and `Cache-Control: public, max-age=2592000` (30 days; was a
   week), with its `ETag` as before, so `If-None-Match` after that gets a 304. Not `immutable`: a path is keyed by the

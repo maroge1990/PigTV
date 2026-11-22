@@ -226,6 +226,7 @@ function applyIfPlanned(db, sourceId) {
         db.prepare('DELETE FROM provider_promotions').run();
         db.prepare('DELETE FROM new_channel_groups WHERE source_id = ?').run(toId);
     })();
+    require('./libraryRev').bumpLineupRev(); // 0894: flags and numbers moved mid-sync
     if (!own) require('./hiddenChannels').capture(db, toId);
     try { require('./epgMapping').reset(); } catch (e) { /* re-read on its own */ }
     return { fromSourceId: fromId, ...moved };

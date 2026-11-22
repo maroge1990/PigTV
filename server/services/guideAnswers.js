@@ -5,7 +5,7 @@
  *
  * The key is everything that can change the body:
  *   - the guide version (services/libraryRev.js: syncs, EPG generations, hide/show, links, mappings, numbers, health
- *     class flips, the build) and the database handle;
+ *     class flips, the build) and the database handle; the lineup revision (0894: every committed sync batch);
  *   - measured quality: channelMeasurements.revision() (a write through that module, another process's commit; a write
  *     by hand on the server's own connection, which nothing does, would show within the minute);
  *   - the sport live index (programmeFields.liveIndex(): one Map per built event list, so its identity is its revision);
@@ -19,14 +19,13 @@
 const crypto = require('crypto');
 const zlib = require('zlib');
 const { getDb } = require('../db/sqlite');
-const { currentGuideVersion } = require('./libraryRev');
+const { currentGuideVersion, currentLineupRev } = require('./libraryRev');
 const channelMeasurements = require('./channelMeasurements');
 const programmeFields = require('./programmeFields');
 
 const MINUTE_MS = 60 * 1000;
 const MAX_ENTRIES = 8;
 const MAX_BYTES = 40 * 1024 * 1024; // a 500-channel, 24 h page is ~4.1 MB raw + ~0.8 MB gzip: 8 of them fit
-const bootNonce = crypto.randomBytes(3).toString('hex'); // a restart starts the revisions again: ETags must not collide
 
 const entries = new Map(); // key -> entry, oldest first
 let bytes = 0;
@@ -50,7 +49,7 @@ function keyFor({ minute, start, end, limit, offset, cursor, category }) {
     measured = channelMeasurements.revision(db);
     if (measured === null) return null;
     const live = idOf(programmeFields.liveIndex());
-    return JSON.stringify([idOf(db), version, measured, live, minute, start, end, limit, offset, cursor || '', category || '']);
+    return JSON.stringify([idOf(db), version, currentLineupRev(), measured, live, minute, start, end, limit, offset, cursor || '', category || '']);
 }
 
 function drop(key) {
@@ -75,7 +74,9 @@ function get(key) {
 
 /** Keep `body` (a Buffer) under `key` for `minute`; returns { body, etag, gzip() }. */
 function put(key, body, minute) {
-    const etag = `W/"${bootNonce}-${crypto.createHash('sha1').update(key).digest('hex').slice(0, 16)}"`;
+    // 0894: the ETag names the body, not the key: health ageing or the EPG logo refresh can change a body under the
+    // same key, and an evicted answer rebuilt differently must not validate the old one. Shared by both encodings.
+    const etag = `W/"${crypto.createHash('sha1').update(body).digest('hex').slice(0, 24)}"`;
     const entry = { minute, bytes: body.length };
     let gz = null;
     entry.out = {

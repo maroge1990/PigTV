@@ -404,21 +404,30 @@ function decodeGuideCursor(cursor) {
 
 /**
  * One guide page (limit + 1 rows, to know whether there is a next) from the index of the visible order, or null when
- * it cannot be answered exactly that way (then guidePageFromSql). A page whose rows are not all there any more (the
- * table moved before the guide version did) drops the index and is answered by SQL.
+ * it cannot be answered exactly that way (then guidePageFromSql). A page whose rows are not all there any more, or not
+ * visible, in the category or at the index's sort key (0894: the table moved before the revision did), drops the index
+ * and is answered by SQL.
  */
 function guidePageFromIndex(db, { category, cursorKey, offset, limit }) {
     const found = guideIndex.page({ category: category || null, cursorKey, offset, take: limit + 1 });
     if (!found) return null;
-    if (!found.ids.length) return { total: found.total, rows: [] };
+    if (!found.rows.length) return { total: found.total, rows: [] };
+    const ids = found.rows.map(r => r.id);
     const byId = new Map(db.prepare(`
-        SELECT ${GUIDE_ROW_COLUMNS}
+        SELECT ${GUIDE_ROW_COLUMNS}, CASE WHEN ${channelNumbers.VISIBLE_SQL} THEN 1 ELSE 0 END AS visible_now
         FROM playlist_items p
         ${NUMBER_JOIN}
-        WHERE p.id IN (${found.ids.map(() => '?').join(',')})
-    `).all(...found.ids).map(r => [r.id, r]));
-    const rows = found.ids.map(id => byId.get(id));
-    if (rows.some(r => !r)) { guideIndex.invalidate(); return null; }
+        WHERE p.id IN (${ids.map(() => '?').join(',')})
+    `).all(...ids).map(r => [r.id, r]));
+    // 0894: the backstop. Every row still there, still visible, still in the category and still where the index has it.
+    const rows = [];
+    for (const want of found.rows) {
+        const r = byId.get(want.id);
+        if (!r || r.visible_now !== 1 || r.sk !== want.sk || r.name !== want.name
+            || (category && r.category_id !== category)) { guideIndex.invalidate(); return null; }
+        delete r.visible_now;
+        rows.push(r);
+    }
     return { total: found.total, rows };
 }
 
@@ -470,7 +479,8 @@ async function sendKeptGuide(req, res, kept) {
     res.set({ 'Cache-Control': 'private, no-cache', ETag: kept.etag, Vary: 'Accept-Encoding' });
     if (req.fresh) return res.status(304).end();
     res.type('json');
-    if (/\bgzip\b/.test(req.headers['accept-encoding'] || '') && kept.body.length > 1024) {
+    // 0894: negotiated (gzip;q=0 means no), as the compression middleware does
+    if (req.acceptsEncodings('gzip', 'identity') === 'gzip' && kept.body.length > 1024) {
         // the compression middleware leaves a response that already has a Content-Encoding alone
         const gz = await kept.gzip();
         res.set('Content-Encoding', 'gzip');

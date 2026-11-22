@@ -159,7 +159,7 @@ async function countVisibleScans(fn) {
     let scans = 0;
     d.prepare = function (sql) {
         const stmt = prepare.call(this, sql);
-        if (!/c\.is_hidden = 1/.test(sql)) return stmt;
+        if (!/c\.is_hidden = 1/.test(sql) || /p\.id IN \(/.test(sql)) return stmt; // 0894: the backstop reads only the page's rows
         for (const m of ['all', 'get', 'iterate', 'run']) {
             const orig = stmt[m];
             stmt[m] = function (...args) { scans++; return orig.apply(this, args); };
@@ -206,4 +206,74 @@ test('a guide version change rebuilds the index; a row gone before the version m
     const { old, now } = await both(`/api/library/guide?limit=500&start=${START}&end=${END}`);
     assert.equal(body(now.text), body(old.text));
     assert.ok(!JSON.parse(now.text).channels.some(c => c.id === gone.id));
+});
+
+// #361 (0894): a playlist sync commits its rows in batches and yields between them, and bumps library_rev only when it
+// has finished. The index must follow every committed batch (the lineup revision), and a row it serves that is no
+// longer visible, in the category or at its sort key sends that request to the SQL (the backstop).
+const sync = load('services/syncService');
+function itemFor(id, change = {}) {
+    const r = sqlite.getDb().prepare('SELECT item_id, name, category_id, sort_order, tvg_id FROM playlist_items WHERE source_id = ? AND item_id = ?').get(source.id, String(id));
+    return { stream_id: Number(r.item_id), name: r.name, category_id: r.category_id, sort_order: r.sort_order, tvgId: r.tvg_id, ...change };
+}
+const ids = (text) => JSON.parse(text).channels.map(c => c.id);
+const routeA = () => `/api/library/guide?limit=500&start=${START}&end=${END}&category=A`;
+
+test('a category move and a hide made by a sync batch, whose sync then fails, show on the very next page', async () => {
+    const before = JSON.parse((await getRaw(routeA())).text);
+    const [moved, hidden] = before.channels.filter(c => /^[A-Za-z ]+\d$/.test(c.name) && Number(c.id) > 30).map(c => c.id);
+    assert.ok(moved && hidden);
+    // One committed batch, then the sync "fails": no library_rev bump follows.
+    await sync.saveStreams(source.id, 'live', [itemFor(moved, { category_id: 'B' }), itemFor(hidden, { category_id: 'X' })], { skipPurge: true });
+    const { old, now } = await both(routeA());
+    assert.equal(body(now.text), body(old.text));
+    assert.ok(!ids(now.text).includes(moved), 'moved out of A');
+    assert.ok(!ids(now.text).includes(hidden), 'hidden by its new category');
+    const inB = await both(`/api/library/guide?limit=500&start=${START}&end=${END}&category=B`);
+    assert.equal(body(inB.now.text), body(inB.old.text));
+    assert.ok(ids(inB.now.text).includes(moved), 'moved into B');
+});
+
+test('a request between two sync batches answers exactly as the SQL does', async () => {
+    const plain = c => /^[A-Za-z ]+\d$/.test(c.name);
+    const inA = JSON.parse((await getRaw(routeA())).text).channels.filter(plain);
+    const others = JSON.parse((await getRaw(`/api/library/guide?limit=500&start=${START}&end=${END}`)).text).channels
+        .filter(c => c.category !== 'A'); // a name or a 0 sort order the sync rewrites is fine: both paths read the same rows
+    assert.ok(inA.length >= 2 && others.length >= 99, `${inA.length} in A, ${others.length} others`);
+    const all = [inA[0], ...others.slice(0, 99), inA[1]];
+    const items = all.map((c, n) => itemFor(c.id, n === 0 || n === 100 ? { category_id: 'B' } : {}));
+    assert.equal(items.length, 101); // two batches of the sync's 100
+    const realImmediate = global.setImmediate;
+    let release, held = false;
+    const paused = new Promise(r => { release = r; });
+    let reached;
+    const atYield = new Promise(r => { reached = r; });
+    global.setImmediate = function (fn, ...a) {
+        if (!held) { held = true; global.setImmediate = realImmediate; reached(); paused.then(() => fn(...a)); return; }
+        return realImmediate(fn, ...a);
+    };
+    const running = sync.saveStreams(source.id, 'live', items, { skipPurge: true });
+    await atYield; // the first batch is committed, the second is not
+    try {
+        const { old, now } = await both(routeA());
+        assert.equal(body(now.text), body(old.text));
+        assert.ok(!ids(now.text).includes(all[0].id), 'the first batch\'s move shows');
+        assert.ok(ids(now.text).includes(all[100].id), 'the second batch\'s move does not yet');
+    } finally { release(); await running; }
+    const after = await both(routeA());
+    assert.equal(body(after.now.text), body(after.old.text));
+    assert.ok(!ids(after.now.text).includes(all[100].id));
+});
+
+test('a row changed with no revision at all is caught by the backstop: that page is answered by SQL', async () => {
+    const before = JSON.parse((await getRaw(routeA())).text);
+    const victim = before.channels[2];
+    sqlite.getDb().prepare("UPDATE playlist_items SET category_id = 'B' WHERE source_id = ? AND item_id = ?").run(victim.sourceId, victim.id);
+    const { old, now } = await both(routeA());
+    assert.equal(body(now.text), body(old.text));
+    assert.ok(!ids(now.text).includes(victim.id));
+    const moveBack = sqlite.getDb().prepare("UPDATE playlist_items SET sort_order = sort_order + 1000 WHERE source_id = ? AND item_id = ?");
+    moveBack.run(before.channels[5].sourceId, before.channels[5].id); // its sort key moves
+    const again = await both(routeA());
+    assert.equal(body(again.now.text), body(again.old.text));
 });

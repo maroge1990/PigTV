@@ -6,6 +6,8 @@
  * only change when the guide version changes (services/libraryRev.js: a sync, a hide or show, a link, a mapping, numbers,
  * a health flip), so this keeps that order in memory - id, sort key, name, category - built once per guide version and
  * database handle. `total` and each page's ids come from it; the route then loads just the page's rows by id.
+ * 0894: keyed by the lineup revision too (libraryRev.js), which moves with each committed sync batch, and the route
+ * checks every row it loads is still visible, in the category and at the index's sort key (else SQL answers).
  *
  * The order is SQLite's own (the index is read with the guide's ORDER BY), and a cursor is placed in it with a
  * comparison that matches SQLite's row-value compare for the types the index holds (numbers for the sort key, BINARY
@@ -13,7 +15,7 @@
  * route pages by cursor in SQL as before.
  */
 const { getDb } = require('../db/sqlite');
-const { currentGuideVersion } = require('./libraryRev');
+const { currentGuideVersion, currentLineupRev } = require('./libraryRev');
 const { VISIBLE_SQL } = require('./channelNumbers');
 
 // The guide's total order (library.js): NULL sort_order (Xtream, unordered) after every M3U position, then name, then
@@ -32,7 +34,7 @@ function current() {
     const db = getDb();
     // No version, no index (a sandbox without package.json cannot name the build): the route pages in SQL.
     let version;
-    try { version = currentGuideVersion(); } catch { return null; }
+    try { version = `${currentGuideVersion()}|${currentLineupRev()}`; } catch { return null; }
     if (cache && cache.db === db && cache.version === version) return cache;
     const rows = db.prepare(`
         SELECT p.id, p.name, p.category_id AS category, ${GUIDE_SORT_KEY} AS sk
@@ -79,7 +81,7 @@ function firstAfter(rows, key) {
 }
 
 /**
- * One page of the guide's order: { total, ids } with up to `take` ids, after `cursorKey` (keyset) or from `offset`.
+ * One page of the guide's order: { total, rows } with up to `take` index rows ({ id, name, category, sk }), after `cursorKey` (keyset) or from `offset`.
  * Returns null when this index cannot answer it exactly (no guide version, or a cursor against an index that is not
  * `comparable`).
  */
@@ -88,7 +90,7 @@ function page({ category, cursorKey, offset, take }) {
     if (!index || (cursorKey && !index.comparable)) return null;
     const rows = rowsFor(index, category);
     const from = cursorKey ? firstAfter(rows, cursorKey) : offset;
-    return { total: rows.length, ids: rows.slice(from, from + take).map(r => r.id) };
+    return { total: rows.length, rows: rows.slice(from, from + take) };
 }
 
 /** Drop the index (the route found it out of step with the table): the next page builds it again. */

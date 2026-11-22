@@ -126,7 +126,7 @@ router.get('/events', async (req, res) => {
         res.set({ 'Cache-Control': 'private, no-cache', ETag: r.etag, Vary: 'Accept-Encoding' });
         if (req.fresh) return res.status(304).end();
         res.type('json');
-        if (/\bgzip\b/.test(req.headers['accept-encoding'] || '') && r.body.length > 1024) {
+        if (req.acceptsEncodings('gzip', 'identity') === 'gzip' && r.body.length > 1024) { // 0894: negotiated, gzip;q=0 is no
             // compressed once per cached answer, not per request (the compression middleware
             // leaves a response that already has a Content-Encoding alone)
             const gz = await r.gzip();
