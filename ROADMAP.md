@@ -5,31 +5,40 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 22 Nov 2026, batch 0 of the speed and efficiency programme (tracker reset).*
+*Overwritten at the end of every session. 22 Nov 2026, batches 1 and 2 of the speed and efficiency programme done, batch 3
+under way.*
 
-- **Running:** production runs **0886** (read from `/api/version` on 22 Nov; the 20 Nov notes said 0861), which is
-  server main. `:release` stays **v0579**. Apple main **372**; TestFlight **323 = Apple 372** (`tf/372`). Next builds:
-  server **0887**, Apple **373**.
-- **Done 22 Nov (no code):** the speed and efficiency review (https://claude.ai/artifact/6K7yotbLASsn4RMd3Fz5eS) is the
-  plan, recorded as D-79 and #359. 83 built issues closed on trust (D-78), each with a comment naming its builds; #74
-  closed as not reproducible on 0886 (relay rig, timestamps). New issues: #359 the programme, #360 the slow TV Guide on
-  Apple TV, #361 the server's guide data, #362 the MacBook test bench. The MacBook is the test gate for both repos
-  (D-77).
-- **Read-only checks, 22 Nov:** #29 and #273 closed on production's figures (collector parse 7.7 ms at worst; the
-  write-ahead file unchanged in 8 days). Claude can read Status itself now (an admin account whose sign-in is in
-  `~/.config/pigtv/status.env` on the WSL machine, GET requests only). #36's Status panel shows 0 plays since the
-  21 Nov restart; #259 waits for a race. 63 issues are open.
+- **Running:** production runs **0886**; server main is **0895** (in `:latest`, reaches production at Mark's next Force
+  Update). `:release` stays **v0579**. Apple main **382**, sent to TestFlight as `tf/382` on 22 Nov (TestFlight 323 =
+  Apple 372 until that build lands). Next builds: server **0896**, Apple **383** and up (a builder holds 383 to 386).
+- **Batch 1 (#362, done):** the MacBook is the gate for both repos (`scripts/mac-gate.sh`, `Tools/mac-gate.sh`, D-77);
+  an iPad and iPhone unit tier; the Guide measures itself (signposts, `GuidePerfUITests` on a 1,250-channel fixture, a
+  Settings switch "Guide speed readout"); a server guide perf test and a slow-request log line (0887). Baseline in
+  `docs/evidence/2026-11-22-guide-baseline`; targets as numbers in D-80.
+- **Batch 2 (#360, done, Apple 375 to 382):** a press no longer re-evaluates the Guide page (1 to 0 per press); the
+  30 s tick redraws only what changed (1 page + 20 cells to 0); a vertical step no longer redoes the layout (2.8 to
+  0.4 ms per press); logos in memory draw on the first frame. The MacBook simulator never reproduced the hang and its
+  milliseconds barely moved, so the proof is Mark's readout on the Apple TV from `tf/382`. Parked for batch 3: hold
+  grid applies while focus moves (three attempts failed their measurement). Dropped on the measurement: the play-list
+  build (0.4 ms).
+- **Batch 3 (#361, under way):** server 0888 to 0895: guide pages come from an in-memory index of the visible line-up
+  (page 1 built in 33 ms, was 76), measurements and the logo map no longer reread or rewritten per page, cold logos
+  fetched once, six at a time, and written by rename; logo answers carry their length and a 30-day lifetime. A
+  per-minute kept guide answer was built and then removed (little use, and each review found another way for it to go
+  stale). On production's real guide the first page is 975 KB gzipped, and 50 channels for 6 h is 30 KB: the first-page
+  target is met by the app asking for a small first page (Apple 383, in progress), not by a contract change.
+- **Open issues:** see `gh issue list`; new on 22 Nov: #363 (a refused Change recording shows no message on iPhone).
 
 ## Now: the speed and efficiency programme (#359, D-79)
 
 One batch per session, in this order; each ends with a handover comment on its issue. Measure, change, measure: no
 speed fix ships without before and after figures from the same test on the same machine.
 
-1. **Test bench on the MacBook** (#362, with #53 · #346 · #26): one command per repo; an iPad and iPhone unit tier; a
+1. *(done 22 Nov)* **Test bench on the MacBook** (#362, with #53 · #346 · #26): one command per repo; an iPad and iPhone unit tier; a
    Guide scroll test on a production-sized fixture with signposts inside the grid; a server guide perf test and a
    slow-request log line; all six perf files; Apple GitHub CI made non-blocking; the repeat flakers fixed or
    quarantined. Ends with the Guide baseline as evidence and the targets fixed as numbers.
-2. **Guide quick wins, Apple** (#360: G1, G4, G5, G8, hold grid applies while focus moves, the play-list build). Then
+2. *(done 22 Nov, awaiting Mark's readout from `tf/382`)* **Guide quick wins, Apple** (#360: G1, G4, G5, G8, hold grid applies while focus moves, the play-list build). Then
    Mark's look on his Apple TV and one `tf/` tag.
 3. **Guide data** (#361 server S1 to S8, an additive client-contract change with a Codex round; then #360's G2 proper,
    G3, G6, G7 and #55's saved guide first).
@@ -39,8 +48,8 @@ speed fix ships without before and after figures from the same test on the same 
    #35 · #25 · #308 · #240's check with more plays.
 7. **Playback reliability** (released alone): #3 · #4 · #267 · #268 · #30 · #27 · #38 · #41.
 
-**Targets** (numbers fixed after batch 1's baseline): a single focus move with no hitch over 100 ms; the Guide's first
-screen within 1 s of opening the tab; a first guide page under 300 KB.
+**Targets** (D-80): on Mark's Apple TV, the slowest press under 100 ms and the typical one under 50 ms, the Guide's first
+screen within 1 s; in the tests, the counts in D-80; a first guide page under 300 KB.
 
 ## Next: leftovers, folded into whichever batch touches the same files
 
