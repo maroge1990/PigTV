@@ -3011,6 +3011,21 @@ body.ui-dialog-open {
   color: var(--color-warning-text);
 }
 
+/* #45: the Server log panel (redacted log ring) */
+.status-log {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: var(--text-xs);
+  max-height: 28rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: var(--space-sm) 0 0;
+}
+
+.status-log:empty {
+  display: none;
+}
+
 /* 0147: EPG categories panel (collapsed list) */
 .status-epg-categories summary {
   cursor: pointer;

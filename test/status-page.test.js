@@ -448,3 +448,100 @@ test('#43: Status raises a second backup folder that is not usable, and the back
     assert.ok(html.includes('ran 360 min late, while something played'));
     assert.ok(html.includes('Second copy: last made'));
 });
+
+// #45 (0898): the newest backup can be downloaded from Status (details), only after a warning that it holds the
+// providers' logins is confirmed, with the normal sign-in header (never a token in the URL); and a "Server log" panel
+// loads the redacted log ring on request, auto-refresh off until ticked. On 0897 neither exists.
+function downloadHarness({ confirmAnswer }) {
+    const handlers = {};
+    const requests = [];
+    const clicked = [];
+    const confirms = [];
+    const copied = [];
+    const logPre = { textContent: '' };
+    const autoBox = { checked: false };
+    const panel = {
+        innerHTML: '', style: {},
+        addEventListener: (t, fn) => { (handlers[`panel:${t}`] ||= []).push(fn); },
+        querySelector: (sel) => (sel.includes('data-log-text') ? logPre : sel.includes('data-log-auto') ? autoBox : null)
+    };
+    const content = { innerHTML: '', querySelector: () => null, querySelectorAll: () => [], addEventListener: (t, fn) => { (handlers[`content:${t}`] ||= []).push(fn); } };
+    const elements = { 'status-content': content, 'status-updated': { textContent: '' }, 'status-log-panel': panel };
+    const intervals = [];
+    const context = vm.createContext({
+        console, localStorage: { getItem: (k) => (k === 'authToken' ? 'tok-123' : null), setItem() {} },
+        confirm: (msg) => { confirms.push(msg); return confirmAnswer; },
+        navigator: { clipboard: { writeText: async (t) => { copied.push(t); } } },
+        URL: { createObjectURL: () => 'blob:x', revokeObjectURL() {} },
+        document: {
+            hidden: false, getElementById: (id) => elements[id] || null, addEventListener() {},
+            createElement: () => ({ style: {}, classList: { add() {}, remove() {}, toggle() {} }, setAttribute() {}, appendChild() {}, addEventListener() {},
+                click() { clicked.push({ href: this.href, download: this.download }); }, remove() {} }),
+            body: { appendChild() {} }
+        },
+        setInterval: (fn, ms) => { intervals.push(ms); return intervals.length; }, clearInterval() {}, setTimeout: () => 0,
+        fetch: async (url, opts = {}) => {
+            requests.push({ url, auth: opts.headers?.Authorization || null });
+            if (url.startsWith('/api/status/backup/latest')) {
+                return { ok: true, status: 200, headers: { get: (h) => (h.toLowerCase() === 'content-disposition' ? 'attachment; filename="content-2026-11-22T03-00-00Z-nightly.db.gz"' : 'application/gzip') }, blob: async () => ({ size: 3 }) };
+            }
+            if (url.startsWith('/api/status/logs')) {
+                return { ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => ({ lines: [{ seq: 7, at: Date.UTC(2026, 10, 22, 3), level: 'warn', text: '<b>[Sync] held</b>' }], next: 7, cap: 2000 }) };
+            }
+            return { ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => ({ generatedAt: 1, providers: [], sessions: [], recordings: { active: [], upcoming: [] } }) };
+        }
+    });
+    context.window = context;
+    loadUi(context);
+    vm.runInContext(js('api.js'), context);
+    loadUi(context);
+    vm.runInContext(js('pages/StatusPage.js'), context);
+    const page = new context.StatusPage({});
+    const click = async (attrs) => {
+        const button = { dataset: attrs, disabled: false };
+        const attr = (k) => `data-${k.replace(/[A-Z]/g, c => `-${c.toLowerCase()}`)}`;
+        const target = { closest: (sel) => (Object.keys(attrs).some(k => sel.includes(`[${attr(k)}]`)) ? button : null) };
+        for (const fn of [...(handlers['content:click'] || []), ...(handlers['panel:click'] || [])]) fn({ target });
+        for (let i = 0; i < 5; i++) await tick();
+    };
+    return { page, requests, clicked, confirms, click, logPre, autoBox, intervals, handlers, panel, copied };
+}
+
+test('#45: "Download newest backup" warns about the logins, needs a confirm, and fetches with the sign-in header', async () => {
+    const no = downloadHarness({ confirmAnswer: false });
+    no.page.showDetails = true;
+    const html = no.page.render({ providers: [], sessions: [], recordings: { active: [], upcoming: [] },
+        backups: [{ file: 'content-2026-11-22T03-00-00Z-nightly.db.gz', reason: 'nightly', at: Date.now(), bytes: 3 }] });
+    assert.ok(html.includes('data-backup-download') && html.includes('Download newest backup'));
+    await no.click({ backupDownload: '' });
+    assert.equal(no.confirms.length, 1);
+    assert.match(no.confirms[0], /contains your providers' logins/);
+    assert.equal(no.requests.length, 0, 'cancelled: nothing fetched');
+
+    const yes = downloadHarness({ confirmAnswer: true });
+    await yes.click({ backupDownload: '' });
+    assert.deepEqual(yes.requests, [{ url: '/api/status/backup/latest', auth: 'Bearer tok-123' }], 'the header, never a token in the URL');
+    assert.deepEqual(yes.clicked, [{ href: 'blob:x', download: 'content-2026-11-22T03-00-00Z-nightly.db.gz' }]);
+});
+
+test('#45: the Server log panel loads on request (text, not html), copies, and auto-refresh is off until ticked', async () => {
+    const h = downloadHarness({ confirmAnswer: false });
+    h.page.showDetails = true;
+    h.page.show();
+    for (let i = 0; i < 5; i++) await tick();
+    assert.ok(h.panel.innerHTML.includes('Server log') && h.panel.innerHTML.includes('data-log-copy') && h.panel.innerHTML.includes('data-log-auto'));
+    assert.ok(!h.panel.innerHTML.includes('checked'), 'auto-refresh is off by default');
+    assert.ok(!h.requests.some(r => r.url.startsWith('/api/status/logs')), 'nothing loaded until asked');
+    const before = h.intervals.length;
+    await h.click({ logLoad: '' });
+    assert.ok(h.requests.some(r => r.url === '/api/status/logs' && r.auth === 'Bearer tok-123'));
+    assert.match(h.logPre.textContent, /WARN <b>\[Sync\] held<\/b>$/, 'shown as text: the pre is never given html');
+    await h.click({ logLoad: '' });
+    assert.ok(h.requests.some(r => r.url === '/api/status/logs?since=7'), 'the next load asks only for newer lines');
+    assert.equal(h.intervals.length, before, 'loading does not start a timer');
+    await h.click({ logCopy: '' });
+    assert.deepEqual(h.copied, [h.logPre.textContent], 'Copy puts the shown text on the clipboard');
+    h.autoBox.checked = true;
+    for (const fn of h.handlers['panel:change'] || []) fn({ target: { dataset: { logAuto: '' }, checked: true } });
+    assert.equal(h.intervals.length, before + 1, 'ticking it starts the refresh');
+});

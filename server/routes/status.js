@@ -13,6 +13,8 @@
  *                name, attempts, failures, stalls, minutes watched, stalls/hour,
  *                median first picture, health, score (services/channelHealth.js)
  *   sync         per source and feed: status, last sync, error text
+ * GET /api/status/logs and /api/status/backup/latest (#45, admin): the server log ring and the newest backup.
+ *
  *   crashes      #44: crash restarts in the last 24 h, the last one's time, kind and error name
  *   disk         free/total bytes of the transcode cache (the tmpfs) and of the
  *                recordings volume
@@ -413,6 +415,45 @@ router.get('/', async (req, res) => {
         console.error('[Status] failed:', err.message);
         res.status(500).json({ error: 'Could not read the server status' });
     }
+});
+
+/**
+ * #45 (0898): the last lines the server logged (services/logRing.js), each redacted before it was kept. Oldest first
+ * (newest last); `?since=<seq>` returns only lines after that one; `next` is the cursor for the next call.
+ */
+router.get('/logs', (req, res) => {
+    const ring = require('../services/logRing').ring();
+    const lines = ring.since(req.query.since);
+    res.set('Cache-Control', 'no-store');
+    res.json({ lines, next: lines.length ? lines[lines.length - 1].seq : Math.max(0, Number(req.query.since) || 0), cap: ring.cap });
+});
+
+/**
+ * #45 (0898): the newest database backup as a download. Admin only, by the same bearer header as every other call here
+ * (router.use above; requireAuth never reads a query token). It holds the providers' logins: the web app warns before
+ * it asks. One download at a time (429 meanwhile). An audit line names who, when, the file name and its size; never a
+ * path or anything in it. No parameter is read: only the newest regular file in data/backups can be sent.
+ */
+let backupDownloading = false;
+router.get('/backup/latest', (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    if (backupDownloading) return res.status(429).set('Retry-After', '30').json({ error: 'A backup download is already in progress' });
+    const entry = require('../services/dbBackup').openNewest(require('../db/sqlite').databasePath());
+    if (!entry) return res.status(404).json({ error: 'No backup yet' });
+    backupDownloading = true;
+    let released = false;
+    const release = () => { if (!released) { released = true; backupDownloading = false; } };
+    res.once('close', release);
+    res.set({
+        'Content-Type': entry.compressed ? 'application/gzip' : 'application/vnd.sqlite3',
+        'Content-Length': String(entry.size),
+        'Content-Disposition': `attachment; filename="${entry.file}"`,
+        'X-Content-Type-Options': 'nosniff'
+    });
+    const who = String(req.user?.username || `user ${req.user?.id}`).replace(/[^\w.@ -]/g, '?').slice(0, 64);
+    console.log(`[Audit] Backup downloaded by ${who} at ${new Date().toISOString()}: ${entry.file}, ${entry.size} bytes`);
+    // pipeline() destroys the file stream (closing its descriptor) when the client goes away mid-download.
+    require('stream').pipeline(fs.createReadStream(null, { fd: entry.fd, autoClose: true }), res, release);
 });
 
 router._scrubUrls = scrubUrls;

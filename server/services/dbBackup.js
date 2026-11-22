@@ -77,6 +77,30 @@ const list = (dbPath) => listDir(backupsDir(dbPath));
 /** The newest complete backup (plain or gzipped), or null. */
 const newest = (dbPath) => list(dbPath)[0] || null;
 
+/**
+ * #45: the newest backup that is a regular file inside the backups folder itself (never a symbolic link or anything
+ * resolving elsewhere), opened read-only without following links: { file, compressed, fd, size } or null. The
+ * caller owns `fd`. For the admin download.
+ */
+function openNewest(dbPath) {
+    let realDir;
+    try { realDir = fs.realpathSync(backupsDir(dbPath)); } catch { return null; }
+    for (const entry of list(dbPath)) {
+        let fd = null;
+        try {
+            if (!fs.lstatSync(entry.path).isFile()) continue;
+            if (path.dirname(fs.realpathSync(entry.path)) !== realDir) continue;
+            fd = fs.openSync(entry.path, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0));
+            const st = fs.fstatSync(fd);
+            if (!st.isFile()) { fs.closeSync(fd); continue; }
+            return { file: entry.file, compressed: entry.compressed, fd, size: st.size };
+        } catch {
+            if (fd !== null) try { fs.closeSync(fd); } catch { /* closed */ }
+        }
+    }
+    return null;
+}
+
 const dayKey = (at) => new Date(at).toISOString().slice(0, 10);
 /** The Thursday of `at`'s ISO week names that week (and its ISO year). */
 function weekKey(at) {
@@ -494,6 +518,6 @@ function _resetState() {
 }
 
 module.exports = {
-    RETENTION, list, newest, retain, backup, backupSync, compressPending, extract, beforeMigrations, recordBuild,
+    RETENTION, list, newest, openNewest, retain, backup, backupSync, compressPending, extract, beforeMigrations, recordBuild,
     nightlyCheck, startNightly, prune, status, whenCopied, _resetState
 };

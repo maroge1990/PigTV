@@ -106,6 +106,18 @@ compose example has `restart: unless-stopped`; the image has no restart policy o
 3. To prove it: from the Unraid terminal, `docker exec PigTV pkill -9 node`, wait a minute, and check the container is
    running again.
 
+## Diagnose without SSH
+
+Both are admin only (the normal sign-in; a viewer gets 403, no sign-in 401) and live on Status → **Show details** (#45):
+
+- **Server log** (`GET /api/status/logs[?since=<seq>]`): the last 2,000 lines the server logged, each with logins,
+  addresses and hosts removed before it is kept (at most 1,000 characters a line), oldest first. **Load** asks for them,
+  **Copy** puts them on the clipboard, **Refresh every 5 s** is off until ticked. In memory: a restart empties it, and
+  `docker logs` (unchanged) still has everything.
+- **Download newest backup** (`GET /api/status/backup/latest`): the newest file in `data/backups` (normally a
+  `.db.gz`), after a warning that it contains the providers' logins. One download at a time (429 meanwhile). The log
+  gets `[Audit] Backup downloaded by <account> at <time>: <file name>, <bytes> bytes`. Restore it as in "Restore" below.
+
 ## Slow requests
 
 The log carries one `slow request: <METHOD> <route pattern> <status> <ms> ms <bytes> bytes` line for each request that took

@@ -167,7 +167,20 @@ const API = {
     // Server status (admin; 0124)
     status: {
         // #129 (0370): `details: false` asks only for what the page shows with "Show details" closed.
-        get: ({ details = true } = {}) => API.request('GET', details ? '/status' : '/status?details=0')
+        get: ({ details = true } = {}) => API.request('GET', details ? '/status' : '/status?details=0'),
+        // #45 (0898): the server's last log lines (redacted), after cursor `since`.
+        logs: (since) => API.request('GET', since ? `/status/logs?since=${encodeURIComponent(since)}` : '/status/logs'),
+        // #45: the newest database backup as { blob, name }, fetched with the sign-in header.
+        async downloadBackup() {
+            const r = await API.authFetch('/api/status/backup/latest');
+            if (!r.ok) {
+                let message = `Server responded with ${r.status}`;
+                try { message = (await r.json()).error || message; } catch (e) { /* not json */ }
+                throw Object.assign(new Error(message), { status: r.status });
+            }
+            const m = /filename="([^"]+)"/.exec(r.headers.get('content-disposition') || '');
+            return { blob: await r.blob(), name: m ? m[1] : 'pigtv-backup.db.gz' };
+        }
     },
 
     // Sport (C-I; admin)

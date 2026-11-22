@@ -362,3 +362,75 @@ test('#43: Status carries the backup state: a missing second folder (never its p
         dbBackup._resetState();
     }
 });
+
+test('#45: the admin log view: a credential logged is redacted in the ring and the answer; 401 without a token, 403 for a viewer', async () => {
+    const logRing = load('services/logRing');
+    logRing.install();
+    const marker = `log-ring-${Date.now()}`;
+    console.log(`${marker} resolve failed for ${STREAM_URL}`);
+    console.warn(`${marker} sync: http://provider.invalid/get.php?username=viewer&password=${SECRET}&token=${SECRET}`);
+    assert.equal((await get('/api/status/logs')).status, 401);
+    assert.equal((await get('/api/status/logs', viewerToken)).status, 403);
+    assert.equal((await get(`/api/status/logs?token=${adminToken}`)).status, 401, 'never a token in the query string');
+    const { status, body, text } = await get('/api/status/logs', adminToken);
+    assert.equal(status, 200);
+    const mine = body.lines.filter(l => l.text.startsWith(marker));
+    assert.equal(mine.length, 2);
+    assert.ok(!text.includes(SECRET), 'nothing secret in the answer');
+    assert.ok(!JSON.stringify(logRing.ring().since(0)).includes(SECRET), 'nor in the ring itself');
+    assert.ok(body.lines.every((l, i, a) => i === 0 || a[i - 1].seq < l.seq), 'newest last');
+    const after = await get(`/api/status/logs?since=${mine[1].seq}`, adminToken);
+    assert.ok(after.body.lines.every(l => l.seq > mine[1].seq), 'since: only newer lines');
+    assert.equal(typeof body.next, 'number');
+});
+
+test('#45: the admin backup download streams the newest backup byte for byte, one at a time, audited; refused to anyone else', async () => {
+    const dbBackup = load('services/dbBackup');
+    dbBackup._resetState();
+    const first = await dbBackup.backup(sqlite.databasePath(), { reason: 'manual', now: Date.UTC(2090, 0, 1) });
+    const dir = path.dirname(first);
+    // A big newest one, so a download is still running while a second is asked for.
+    const big = path.join(dir, 'content-2090-01-03T00-00-00Z-nightly.db.gz');
+    fs.writeFileSync(big, require('node:crypto').randomBytes(24 * 1024 * 1024));
+    // A symbolic link that looks newer and points outside the backups folder is never served.
+    const outside = path.join(sandbox, 'outside-secret.txt');
+    fs.writeFileSync(outside, 'not a backup');
+    fs.symlinkSync(outside, path.join(dir, 'content-2099-01-01T00-00-00Z-nightly.db.gz'));
+    const audit = [];
+    const realLog = console.log;
+    console.log = (...a) => { audit.push(a.join(' ')); realLog(...a); };
+    try {
+        assert.equal((await get('/api/status/backup/latest')).status, 401);
+        assert.equal((await get('/api/status/backup/latest', viewerToken)).status, 403);
+        assert.equal((await get(`/api/status/backup/latest?token=${adminToken}`)).status, 401);
+
+        const auth = { headers: { Authorization: `Bearer ${adminToken}` } };
+        const r1 = await fetch(`${base}/api/status/backup/latest?file=../content.db`, auth);
+        assert.equal(r1.status, 200);
+        const r2 = await fetch(`${base}/api/status/backup/latest`, auth);
+        assert.equal(r2.status, 429, 'one download at a time');
+        await r2.text();
+        assert.equal(r1.headers.get('content-disposition'), 'attachment; filename="content-2090-01-03T00-00-00Z-nightly.db.gz"');
+        assert.equal(r1.headers.get('cache-control'), 'no-store');
+        assert.equal(Number(r1.headers.get('content-length')), fs.statSync(big).size);
+        const bytes = Buffer.from(await r1.arrayBuffer());
+        assert.ok(bytes.equals(fs.readFileSync(big)), 'byte for byte, and not the symlink nor ?file=');
+
+        fs.rmSync(big);
+        const r3 = await fetch(`${base}/api/status/backup/latest`, auth);
+        assert.equal(r3.status, 200, 'free again once the first has finished');
+        assert.ok(Buffer.from(await r3.arrayBuffer()).equals(fs.readFileSync(first)));
+        assert.equal((await fetch(`${base}/api/status/backup/%2e%2e%2f%2e%2e%2fcontent.db`, auth)).status, 404);
+        assert.equal((await fetch(`${base}/api/status/backup/latest/..%2f..%2fcontent.db`, auth)).status, 404);
+
+        const lines = audit.filter(l => l.includes('[Audit]'));
+        assert.equal(lines.length, 2, lines.join('\n'));
+        assert.match(lines[0], /\[Audit\] Backup downloaded by owner at \d{4}-\d{2}-\d{2}T[\d:.]+Z: content-2090-01-03T00-00-00Z-nightly\.db\.gz, \d+ bytes/);
+        assert.ok(lines.every(l => !l.includes(sandbox) && !l.includes('/app/')), 'no path');
+    } finally {
+        console.log = realLog;
+        for (const f of fs.readdirSync(dir)) if (f.startsWith('content-2099') || f.startsWith('content-2090')) fs.rmSync(path.join(dir, f), { force: true });
+    }
+    const none = await fetch(`${base}/api/status/backup/latest`, { headers: { Authorization: `Bearer ${adminToken}` } });
+    assert.ok(none.status === 200 || none.status === 404);
+});

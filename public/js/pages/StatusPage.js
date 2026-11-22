@@ -29,11 +29,90 @@ class StatusPage {
         // 0182: stopping a stuck stream moved here from Settings -> Debug. The table is rebuilt
         // every 5 s, so the buttons are handled where they bubble to.
         document.getElementById('status-content')?.addEventListener('click', (e) => {
-            const button = e.target?.closest?.('button[data-status-details], button[data-kill-session], button[data-kill-all]');
+            const button = e.target?.closest?.('button[data-status-details], button[data-kill-session], button[data-kill-all], button[data-backup-download]');
             if (!button) return;
             if (button.dataset?.statusDetails !== undefined) this.toggleDetails();
+            else if (button.dataset?.backupDownload !== undefined) this.downloadBackup(button);
             else this.kill(button);
         });
+        // #45 (0898): the Server log panel sits outside the 5 s redraw, like the guide categories.
+        this.logLines = [];
+        this.logCursor = 0;
+        this.logTimer = null;
+        const logPanel = document.getElementById('status-log-panel');
+        logPanel?.addEventListener('click', (e) => {
+            const button = e.target?.closest?.('button[data-log-load], button[data-log-copy]');
+            if (!button) return;
+            if (button.dataset?.logLoad !== undefined) this.loadLogs();
+            else this.copyLogs();
+        });
+        logPanel?.addEventListener('change', (e) => {
+            if (e.target?.dataset?.logAuto !== undefined) this.setLogAuto(!!e.target.checked);
+        });
+    }
+
+    /**
+     * #45 (0898): the newest database backup, after a warning: it holds the providers' logins. Fetched with this
+     * browser's sign-in header (never a token in the address) and saved from the answer.
+     */
+    async downloadBackup(button) {
+        if (!confirm(StatusPage.BACKUP_WARNING)) return;
+        button.disabled = true;
+        try {
+            const { blob, name } = await API.status.downloadBackup();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = name;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 60000);
+        } catch (err) {
+            UI.toast(UI.errorText(err, 'Could not download the backup.'), { kind: 'error' });
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    /** #45: the Server log panel's frame, drawn once; its lines are loaded on request. */
+    renderLogPanel() {
+        return this.section('Server log',
+            '<p class="setting-hint">The last lines the server logged (up to 2,000; logins and addresses removed). A restart empties it.</p>'
+            + '<p class="status-log-actions"><button type="button" class="btn btn-sm btn-secondary" data-log-load>Load</button> '
+            + '<button type="button" class="btn btn-sm btn-secondary" data-log-copy>Copy</button> '
+            + '<label class="setting-hint"><input type="checkbox" data-log-auto> Refresh every 5 s</label></p>'
+            + '<pre class="status-log" data-log-text></pre>');
+    }
+
+    async loadLogs() {
+        const panel = document.getElementById('status-log-panel');
+        const pre = panel?.querySelector?.('[data-log-text]');
+        try {
+            const r = await API.status.logs(this.logCursor);
+            this.logLines = this.logLines.concat(r.lines || []).slice(-2000);
+            if (Number.isFinite(r.next)) this.logCursor = r.next;
+            // textContent: a log line is shown as text, never as markup.
+            if (pre) pre.textContent = this.logLines.map(l => `${UI.clock(l.at)} ${l.level === 'log' || l.level === 'info' ? '' : `${String(l.level).toUpperCase()} `}${l.text}`).join('\n');
+        } catch (err) {
+            UI.toast(UI.errorText(err, 'Could not load the server log.'), { kind: 'error' });
+        }
+    }
+
+    copyLogs() {
+        const text = document.getElementById('status-log-panel')?.querySelector?.('[data-log-text]')?.textContent || '';
+        const done = () => UI.toast('Server log copied.');
+        if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(done, () => UI.toast('Could not copy: select the text instead.', { kind: 'error' }));
+        else UI.toast('Copying needs HTTPS or localhost: select the text instead.', { kind: 'error' });
+    }
+
+    setLogAuto(on) {
+        clearInterval(this.logTimer);
+        this.logTimer = null;
+        if (on && this.shown && this.showDetails) {
+            this.loadLogs();
+            this.logTimer = setInterval(() => this.loadLogs(), 5000);
+        }
     }
 
     async init() { }
@@ -56,6 +135,17 @@ class StatusPage {
     syncEpgPanel() {
         const panel = document.getElementById('status-epg-categories');
         if (panel && panel.style) panel.style.display = this.showDetails ? '' : 'none';
+        // #45: the Server log panel too; drawn the first time it is shown, its refresh stops when it is hidden.
+        const log = document.getElementById('status-log-panel');
+        if (log) {
+            if (log.style) log.style.display = this.showDetails ? '' : 'none';
+            if (this.showDetails && !log.innerHTML) log.innerHTML = this.renderLogPanel();
+            if (!this.showDetails && this.logTimer) {
+                this.setLogAuto(false);
+                const box = log.querySelector?.('[data-log-auto]');
+                if (box) box.checked = false;
+            }
+        }
     }
 
     async kill(button) {
@@ -93,6 +183,11 @@ class StatusPage {
     hide() {
         this.shown = false;
         this.stopTimer();
+        if (this.logTimer) {
+            this.setLogAuto(false);
+            const box = document.getElementById('status-log-panel')?.querySelector?.('[data-log-auto]');
+            if (box) box.checked = false;
+        }
     }
 
     /**
@@ -608,7 +703,9 @@ class StatusPage {
         add('backups', this.section('Database backups', this.table(['Copy', 'Why', 'When', 'Size'],
             backups.map(b => [e(b.file), e(b.reason), this.amt(e(UI.dateTime(b.at))), b.bytes == null ? '–' : this.bytes(b.bytes)]),
             'No backups yet. One is taken before a new build\'s migrations and once a day.')
-            + this.backupStateText(status.backupState)));
+            + this.backupStateText(status.backupState)
+            // #45 (0898): the newest one as a download (admin; a warning first, see downloadBackup()).
+            + (backups.length ? '<p><button type="button" class="btn btn-sm btn-secondary" data-backup-download>Download newest backup</button></p>' : '')));
         const disk = status.disk || {};
         const diskRow = (name, d) => [e(name), d && d.available ? this.bytes(d.freeBytes) : 'unavailable', d && d.available ? this.bytes(d.totalBytes) : '–'];
         add('disk', this.section('Disk', this.table(['Volume', 'Free', 'Size'],
@@ -644,5 +741,8 @@ class StatusPage {
 }
 
 StatusPage.DETAILS_KEY = 'pigtv.statusDetails';
+// #45: shown before a backup is downloaded; the confirm must be clicked.
+StatusPage.BACKUP_WARNING = 'This backup contains your providers\' logins (user names and passwords) and everything else PigTV stores. '
+    + 'Anyone with the file can use your provider accounts: keep it private and delete it when you are done. Download it?';
 
 window.StatusPage = StatusPage;

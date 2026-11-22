@@ -222,6 +222,10 @@ Each writes one record to `data/crashes.jsonl` (sync, capped at 50, message and 
 active plays and recordings only), logs one line and exits 1; the container restarts it. A corrupt or missing file reads
 as its valid lines. Status carries `crashes` (`last24h`, `lastAt`, `lastName`, `lastKind`; never the message).
 
+**Log ring** (#45, `services/logRing.js`): `index.js` wraps `console.log/info/warn/error/debug` once; each call still goes to
+the original method unchanged, and a copy, formatted, passed through `stripUrls()` and then cut to 1,000 characters, is kept
+in a 2,000-line ring for `GET /api/status/logs` (admin). The ring never holds an unredacted line.
+
 ## Status page and channel health
 
 **Status page** (0124): the admin page "Status" = `GET /api/status` (admin): live sessions with channel names, active

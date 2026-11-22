@@ -229,6 +229,9 @@ const ROWS = [
     { file: 'js/pages/StatusPage.js', text: 'renderRecordingsFolderWarning(folder)', why: '0157: the recordings folder is checked for real (missing, not writable, an unmounted share, low space): and shown as a warning banner on the web Status page' },
     { file: 'js/pages/StatusPage.js', text: 'renderSportFixtures(fx)', why: '0161: cricket league recognition, ESPN fixtures, the ESPN live/replay rule (C-I): and the web Status page shows it' },
     { file: 'js/pages/StatusPage.js', text: 'Blank picture', why: '0191: reconnect timestamp loop, blank pictures, raw captures: Status shows it' },
+    { file: 'js/pages/StatusPage.js', text: 'contains your providers\\\' logins', why: '0898 (#45): the backup download warns that the file holds provider logins before it asks' },
+    { file: 'js/pages/StatusPage.js', text: "this.section('Server log',", why: '0898 (#45): the admin Server log panel (redacted log ring) on Status' },
+    { file: 'index.html', text: 'id="status-log-panel"', why: '0898 (#45): the Server log panel sits outside the 5 s Status redraw' },
 
     // public/js/theme.js
     { file: 'js/theme.js', text: 'prefers-color-scheme', why: '0022: HE-AAC, categories, themes, compression: theme follows system' },
