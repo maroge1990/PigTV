@@ -356,6 +356,7 @@ const TABLE = {
     viewerLeaves: (b, a) => a.closed || 'the viewer leaving ends the play',
     // 0905 (Codex high): the device asks for something else while a failed renewal's fallback is in flight (its lease is
     // held during the switch): this play ends and nothing of it is promoted or started.
+    budgetSuperseded: (b, a) => !world.supersededTaken || (a.closed && !a.failed) || 'a newer play of the device during a budget failover ends this one',
     renewalSuperseded: (b, a) => !world.supersededTaken || (a.closed && !a.failed) || 'a newer play of the device during the fallback ends this one',
     stopped: (b, a) => a.closed || 'a leg stopped on request (a DELETE, a takeover, the idle sweep) ends the play'
 };
@@ -389,7 +390,7 @@ async function runSeed(seed, steps = 30) {
     // A newer request of the same device, arriving while the relay reads a playlist mid-switch (renewalSuperseded).
     const read = r.readPlaylist.bind(r);
     r.readPlaylist = async (leg) => {
-        if (world.supersedeOnRead && r.switching && r.renewalBlocked) {
+        if (world.supersedeOnRead && r.switching && (r.renewalBlocked || world.supersedeAnyRead)) {
             world.supersedeOnRead = false;
             world.supersededTaken = true;
             supersededHits++;
@@ -411,7 +412,7 @@ async function runSeed(seed, steps = 30) {
             const ev = rand() < 0.03 ? pick(['viewerLeaves', 'stopped', 'viewerElsewhere'])
                 : pick(['write', 'write', 'write', 'tick', 'lost', 'quiet', 'renewal', 'renewal', 'renewal', 'standbyDue', 'standbyDue', 'standbyReady',
                     'standbyReady', 'standbyLost', 'standbyTaken', 'ingestEnded', 'pause', 'resume', 'startModes', 'quarantineLifted', 'quarantineLifted',
-                    'renewalSuperseded']);
+                    'renewalSuperseded', 'budgetSuperseded']);
             let detail = '';
             const leg = r.active.session;
             switch (ev) {
@@ -454,6 +455,16 @@ async function runSeed(seed, steps = 30) {
                     break;
                 }
                 case 'viewerLeaves': await relay.close(r.id); break;
+                case 'budgetSuperseded': {
+                    // 0906: the reconnect that exhausts the renewal budget (ordinary failover), with a newer request of the
+                    // device admitted while the relay reads the playlist.
+                    r.renewalTimes = [Date.now(), Date.now(), Date.now()];
+                    world.supersedeOnRead = true;
+                    world.supersedeAnyRead = true;
+                    world.supersededTaken = false;
+                    if (leg.feed) leg.feed.ingest.reconnect();
+                    break;
+                }
                 case 'renewalSuperseded': {
                     world.startMode.set(r.active.candidate.url, 'noPlaylist');
                     world.supersedeOnRead = true;
@@ -467,7 +478,7 @@ async function runSeed(seed, steps = 30) {
             // is still in flight. The table is checked only between settled steps; the invariants after every step.
             const hurried = rand() < 0.3;
             world.trace.push(`${i}: ${ev}${detail ? ` (${detail})` : ''}${hurried ? ' [next event while in flight]' : ''}`);
-            if (hurried && ev !== 'renewalSuperseded') { await new Promise(res => setImmediate(res)); checkConnections(); await checkPlaylist(r); world.unsettled = true; continue; }
+            if (hurried && ev !== 'renewalSuperseded' && ev !== 'budgetSuperseded') { await new Promise(res => setImmediate(res)); checkConnections(); await checkPlaylist(r); world.unsettled = true; continue; }
             await settle(r);
             for (const ingest of world.stuck.splice(0)) if (!ingest.closed) ingest.state = 'live';
             const wasUnsettled = world.unsettled;
@@ -480,6 +491,7 @@ async function runSeed(seed, steps = 30) {
             const row = wasUnsettled ? true : TABLE[ev](before, after);
             if (row !== true) world.violation(`table: ${ev} from ${before.state}: ${row}`);
             world.supersedeOnRead = false;
+            world.supersedeAnyRead = false;
             world.supersededTaken = false;
             // The newer play moves on (its own start is not this play's to account for).
             for (const l of world.foreignLeases.splice(0)) coordinator.releaseUnbound(l);

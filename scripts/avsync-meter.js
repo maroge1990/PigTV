@@ -93,7 +93,8 @@ const round1 = (x) => (x === null || x === undefined || !Number.isFinite(x) ? nu
  * it, within half a period; one beep pairs with one flash at most.
  * -> { pairs: [{ t, offsetMs, long }], missingBeeps: [t], missingFlashes: [t], kindMismatches, ambiguous, coarseMs }
  */
-function pairOnsets(flashes, beeps, { period = PERIOD, longEvery = LONG_EVERY, start = null, end = null } = {}) {
+function pairOnsets(flashes, beeps, { period = PERIOD, longEvery = LONG_EVERY, start = null, end = null,
+    flashStart = start, flashEnd = end, beepStart = start, beepEnd = end } = {}) {
     const F = [...flashes].sort((a, b) => a.t - b.t);
     const B = [...beeps].sort((a, b) => a.t - b.t);
     const nearest = (list, t, within, filter = () => true) => {
@@ -120,6 +121,7 @@ function pairOnsets(flashes, beeps, { period = PERIOD, longEvery = LONG_EVERY, s
     const missingBeeps = [];
     let kindMismatches = 0;
     const mismatchAt = [];
+    const missingBeepAt = [];
     for (const f of F) {
         // A long flash re-anchors on the long beep nearest the expected place (a slip of a whole second is caught here).
         let b = null;
@@ -127,7 +129,7 @@ function pairOnsets(flashes, beeps, { period = PERIOD, longEvery = LONG_EVERY, s
             b = nearest(longB, f.t + expect, (longEvery * period) / 2, x => !used.has(x));
         }
         if (!b) b = nearest(B, f.t + expect, period / 2, x => !used.has(x));
-        if (!b) { missingBeeps.push(f.t); continue; }
+        if (!b) { missingBeeps.push(f.t); missingBeepAt.push({ t: f.t, expectAt: f.t + expect, long: !!f.long }); continue; }
         used.add(b);
         if (!!b.long !== !!f.long) { kindMismatches++; mismatchAt.push(f.t); }
         const offset = b.t - f.t;
@@ -140,8 +142,21 @@ function pairOnsets(flashes, beeps, { period = PERIOD, longEvery = LONG_EVERY, s
     // neighbouring second's flash. Such a stretch, from the long pair before it to the long pair after it, is ambiguous:
     // its pairs are marked and the verdict cannot be "in step". A mark missing only at the very start or end of the
     // file (cut by the recording) is not evidence of a slip.
-    const edge = (t) => (start !== null && t - start < period) || (end !== null && end - t < period);
-    const suspects = [...missingBeeps, ...missingFlashes, ...mismatchAt].filter(t => !edge(t)).sort((x, y) => x - y);
+    // 0906 (Codex medium): only a mark that could really have been cut by the track's edge is exempt: its expected onset
+    // at or before the track's first reading (lit already, no onset seen), or the mark still lit at its last (a mark still lit at the end has no length,
+    // so onsets() leaves it out). A long mark paired with a short one is always evidence.
+    const markSec = (long) => (long ? 0.3 : 0.1) + 0.05;
+    const cut = (onset, long, from, to) => (from !== null && from !== undefined && onset <= from) || (to !== null && to !== undefined && onset + markSec(long) > to);
+    const offsetNear = (t) => {
+        let best = null;
+        for (const pr of pairs) if (!best || Math.abs(pr.t - t) < Math.abs(best.t - t)) best = pr;
+        return best ? best.offsetMs / 1000 : coarse;
+    };
+    const suspects = [
+        ...missingBeepAt.filter(m => !cut(m.expectAt, m.long, beepStart, beepEnd)).map(m => m.t),
+        ...B.filter(b => !used.has(b)).filter(b => !cut(b.t - offsetNear(b.t), b.long, flashStart, flashEnd)).map(b => b.t),
+        ...mismatchAt
+    ].sort((x, y) => x - y);
     const anchors = pairs.filter(pr => pr.anchor).map(pr => pr.t);
     const ambiguousIntervals = [];
     for (const t of suspects) {
@@ -188,8 +203,8 @@ function summarise(result, events = []) {
     return {
         pairs: offs.length,
         medianMs: round1(median(offs)),
-        minMs: offs.length ? Math.min(...offs) : null,
-        maxMs: offs.length ? Math.max(...offs) : null,
+        minMs: offs.length ? offs.reduce((m, x) => (x < m ? x : m), Infinity) : null,
+        maxMs: offs.length ? offs.reduce((m, x) => (x > m ? x : m), -Infinity) : null,
         worstMs: worst,
         driftMsPerMin: driftMsPerMin(result.pairs),
         firstOutOfStepSec: firstOutOfStep(result.pairs),
@@ -251,9 +266,27 @@ function parseMetadataPrint(text, key) {
     return out;
 }
 
+/** An error whose message is ours and fixed: safe to print. */
+const fixed = (text) => Object.assign(new Error(text), { fixed: true });
+
+/** Why a file or a tool failed, as a fixed phrase keyed on the error code: never the error's own text (it holds the path). */
+function reasonOf(err) {
+    if (err && err.fixed) return err.message;
+    switch (err && err.code) {
+        case 'ENOENT': return 'not found';
+        case 'EACCES': case 'EPERM': return 'not readable (permission denied)';
+        case 'EISDIR': return 'a folder, not a file';
+        default: return 'could not be read';
+    }
+}
+
+/** The last line of a tool's error output, with anything path- or address-like replaced. */
+const lastLine = (stderr) => scrub(String(stderr || '').trim().split('\n').pop())
+    .replace(/(?:[A-Za-z]:)?(?:[\\/][^\s:'"]+)+/g, '<path>').slice(0, 160);
+
 function hasStream(file, type) {
     const r = spawnSync('ffprobe', ['-v', 'error', '-select_streams', type, '-show_entries', 'stream=index', '-of', 'csv=p=0', file], { encoding: 'utf8' });
-    if (r.error) throw new Error('ffprobe was not found on the PATH');
+    if (r.error) throw fixed(r.error.code === 'ENOENT' ? 'ffprobe was not found on the PATH' : 'ffprobe could not be run');
     return r.status === 0 && r.stdout.trim().length > 0;
 }
 
@@ -261,7 +294,7 @@ function hasStream(file, type) {
 function readSeries(file, { corner = null } = {}) {
     const video = hasStream(file, 'v');
     const audio = hasStream(file, 'a');
-    if (!video) throw new Error('the file has no picture');
+    if (!video) throw fixed('the file has no picture (or ffprobe could not read it)');
     const work = fs.mkdtempSync(path.join(os.tmpdir(), 'pigtv-avsync-'));
     const vOut = path.join(work, 'v.txt');
     const aOut = path.join(work, 'a.txt');
@@ -277,8 +310,8 @@ function readSeries(file, { corner = null } = {}) {
         '-map', '[v]', ...(audio ? ['-map', '[a]'] : []), '-f', 'null', '-'];
     try {
         const r = spawnSync('ffmpeg', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-        if (r.error) throw new Error('ffmpeg was not found on the PATH');
-        if (r.status !== 0) throw new Error(`ffmpeg could not read the file: ${String(r.stderr || '').trim().split('\n').pop().replace(/[a-z][a-z0-9+.-]*:\/\/\S+/gi, '<address>').slice(0, 200)}`);
+        if (r.error) throw fixed(r.error.code === 'ENOENT' ? 'ffmpeg was not found on the PATH' : 'ffmpeg could not be run');
+        if (r.status !== 0) throw fixed(`ffmpeg could not read the file (${lastLine(r.stderr)})`);
         const luma = parseMetadataPrint(fs.readFileSync(vOut, 'utf8'), 'lavfi.signalstats.YAVG');
         const level = audio ? parseMetadataPrint(fs.readFileSync(aOut, 'utf8'), 'lavfi.astats.Overall.RMS_level') : null;
         return { luma, level };
@@ -287,14 +320,25 @@ function readSeries(file, { corner = null } = {}) {
     }
 }
 
+/** The first and last reading of a series, in one pass (a 25-minute capture has ~300,000: never spread into a call). */
+function seriesBounds(series) {
+    let start = null, end = null;
+    for (const { t } of series) {
+        if (start === null || t < start) start = t;
+        if (end === null || t > end) end = t;
+    }
+    return { start, end };
+}
+
 /** The whole measurement of one file: { flashes, beeps, result, summary, audio }. */
 function measure(file, { corner = null, events = [] } = {}) {
     const { luma, level } = readSeries(file, { corner });
     const flashes = onsets(luma, { minSpread: 20 });
     if (!level) return { audio: false, flashes, beeps: [], result: null, summary: null };
     const beeps = onsets(level, { minSpread: 12 }); // dB
-    const times = [...luma, ...level].map(x => x.t);
-    const result = pairOnsets(flashes, beeps, { start: Math.min(...times), end: Math.max(...times) });
+    const v = seriesBounds(luma);
+    const a = seriesBounds(level);
+    const result = pairOnsets(flashes, beeps, { flashStart: v.start, flashEnd: v.end, beepStart: a.start, beepEnd: a.end });
     return { audio: true, flashes, beeps, result, summary: summarise(result, events) };
 }
 
@@ -331,9 +375,11 @@ function main(argv = process.argv.slice(2), out = console.log) {
     try { stat = fs.statSync(o.file); } catch { /* reported below */ }
     if (!stat || !stat.isFile()) { out('No such file.'); return 2; }
     let events = [];
-    try { if (o.events) events = parseEvents(fs.readFileSync(o.events, 'utf8')); } catch (e) { out(`Could not read the events file: ${e.message}`); return 2; }
+    let eventsText = null;
+    try { if (o.events) eventsText = fs.readFileSync(o.events, 'utf8'); } catch (e) { out(`The events file is ${reasonOf(e)}.`); return 2; }
+    try { if (eventsText !== null) events = parseEvents(eventsText); } catch (e) { out(`The events file could not be used: ${reasonOf(fixed(e.message))}.`); return 2; }
     let m;
-    try { m = measure(o.file, { corner: o.corner, events }); } catch (e) { out(`avsync-meter: ${e.message}`); return 1; }
+    try { m = measure(o.file, { corner: o.corner, events }); } catch (e) { out(`avsync-meter: ${reasonOf(e)}.`); return 1; }
     const name = scrub(path.basename(o.file));
     if (!m.audio) {
         out(`${name}: no sound in this file; picture onsets only (${m.flashes.length}):`);
@@ -364,4 +410,4 @@ function main(argv = process.argv.slice(2), out = console.log) {
 
 if (require.main === module) process.exitCode = main();
 
-module.exports = { scrub, onsets, pairOnsets, summarise, driftMsPerMin, firstOutOfStep, parseEvents, parseMetadataPrint, measure, main, isUrl };
+module.exports = { scrub, reasonOf, seriesBounds, onsets, pairOnsets, summarise, driftMsPerMin, firstOutOfStep, parseEvents, parseMetadataPrint, measure, main, isUrl };

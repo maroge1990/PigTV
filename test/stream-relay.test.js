@@ -1118,3 +1118,57 @@ test('0905: the failed feed is tried once, last, even when the plan puts the qua
         assert.equal(r.lastReason.code, 'no-candidate');
     } finally { routing.plan = plan; }
 });
+
+// ---- 0906: Codex sign-off of 0905 -------------------------------------------------------------------------------------
+
+test('0906: a newer request admitted while an exhausted renewal budget reads the playlist: no promotion; relay, standby and pin all released', async () => {
+    const samePool = coordinator.samePool, free = coordinator.hasFreeConnection;
+    coordinator.samePool = (a, b) => a === b;
+    coordinator.hasFreeConnection = () => true;
+    coordinator._leases.clear();
+    let newer = null;
+    try {
+        const front = fakeSession(); write(front, 0, 2);
+        const r = relay.adopt(front, ctx({ settings: { ...withStandby, sharedIngestEnabled: true } }));
+        clearInterval(r.timer); await r.ingest();
+        const backup = fakeSession({ providerId: 2, standby: true, owner: `standby:${r.id}` }); write(backup, 0, 2);
+        r.standby = r.addLeg(backup, B); r.standby.tail = [{ seq: 1 }, { seq: 2 }]; r.standby.lastSegAt = Date.now();
+        r.renewalTimes = [Date.now(), Date.now(), Date.now()]; // this reconnect exhausts the budget: ordinary failover
+        const read = r.readPlaylist.bind(r);
+        r.readPlaylist = async (leg) => {
+            // The device asks for another channel while the relay reads its last segments: admitted, a lease held.
+            if (r.switching && !newer) newer = coordinator.takeLease(1, 'viewer', { owner: 'device:tv' });
+            return read(leg);
+        };
+        const pin = { endReason: null, ingest: { key: 'k-a', state: 'live' }, left: 0, leave() { this.left++; } };
+        await silently(() => r.switchOver('reconnected', 'reconnected', pin));
+        assert.ok(newer, 'the newer request arrived during the switch');
+        assert.equal(r.closed, true, 'the old play ends');
+        assert.equal(r.failed, false, 'quietly');
+        assert.notEqual(r.active.session, backup, 'the standby was not promoted');
+        assert.equal(registry.has(backup.id) || registry.has(front.id), false, 'standby and old leg released');
+        assert.equal(pin.left, 1, 'the pin released');
+        assert.deepEqual(coordinator.listLeases().map(l => l.id), [newer.id], 'exactly one play remains: the newer one');
+    } finally { if (newer) coordinator.releaseUnbound(newer); coordinator.samePool = samePool; coordinator.hasFreeConnection = free; }
+});
+
+test('0906: a newer request arriving while a cold start waits for its admission: that start opens no connection', async () => {
+    coordinator._leases.clear();
+    const front = fakeSession(); write(front, 0, 2);
+    const r = await silently(() => relay.adopt(front, ctx()));
+    clearInterval(r.timer);
+    const admit = coordinator.admitViewer;
+    let newer = null;
+    coordinator.admitViewer = async (opts) => {
+        const verdict = await admit(opts);
+        newer = coordinator.takeLease(1, 'viewer', { owner: 'device:tv' }); // admitted meanwhile (the teardown wait)
+        return verdict;
+    };
+    try {
+        const leg = await silently(() => r.startCold([B], front.id));
+        assert.equal(leg, null);
+        assert.deepEqual(started, [], 'no provider connection opened by the stale start');
+        assert.equal(r.closed, true);
+        assert.deepEqual(coordinator.listLeases().map(l => l.id), [newer.id], 'the stale attempt\'s lease given back');
+    } finally { coordinator.admitViewer = admit; if (newer) coordinator.releaseUnbound(newer); }
+});

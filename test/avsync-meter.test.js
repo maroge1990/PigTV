@@ -122,6 +122,44 @@ test('0905: a one-second sound slip for eight seconds between long marks is ambi
     assert.equal(meter.summarise(cut).verdict, 'in step');
 });
 
+test('0906: only a mark the track edge could really have cut is exempt; a slip before the first long mark is not hidden', () => {
+    // A capture starting at 0.5 s, the beep of second 1 missing, every mark matching from 2 s.
+    const a = meter.pairOnsets(marks(30, { from: 1 }), marks(29, { from: 2 }), { start: 0.5, end: 31 });
+    const sa = meter.summarise(a);
+    assert.notEqual(sa.verdict, 'in step');
+    assert.ok(sa.ambiguousIntervals.length > 0, JSON.stringify(sa));
+    // The first nine beeps a second late, the ninth landing on the long beep at 10 s.
+    const beeps = [...marks(8, { from: 2 }), ...marks(21, { from: 10 })];
+    const b = meter.pairOnsets(marks(30, { from: 1 }), beeps, { start: 0, end: 31 });
+    const sb = meter.summarise(b);
+    assert.notEqual(sb.verdict, 'in step');
+    assert.ok(sb.ambiguousIntervals.length > 0, JSON.stringify(sb));
+    // A long mark paired with a short one at the very start is still evidence.
+    const flashes = marks(30, { from: 0 });
+    const shortFirst = marks(30, { from: 0 }).map((m, i) => (i === 0 ? { ...m, long: false } : m));
+    assert.notEqual(meter.summarise(meter.pairOnsets(flashes, shortFirst, { start: 0, end: 31 })).verdict, 'in step');
+    // What the edge really cuts stays exempt: the flash lit before the first frame (its beep at 0.005, the first frame
+    // at 0.021) and the last mark still lit when the file ends.
+    const generator = meter.pairOnsets(marks(29, { from: 1 }), [{ t: 0.005, long: true }, ...marks(29, { from: 1 })],
+        { flashStart: 0.021, flashEnd: 29.9, beepStart: 0, beepEnd: 29.9 });
+    assert.equal(meter.summarise(generator).verdict, 'in step');
+});
+
+test('0906: a 30-minute capture\'s readings (about 470,000) are measured without overflowing the stack', () => {
+    const started = Date.now();
+    const luma = [], level = [];
+    for (let i = 0; i < 30 * 60 * 60; i++) { const t = i / 60; luma.push({ t, v: t % 1 < 0.1 ? 230 : 30 }); }
+    for (let i = 0; i < 30 * 60 * 200; i++) { const t = i / 200; level.push({ t, v: t % 1 < 0.1 ? -10 : -60 }); }
+    assert.throws(() => Math.min(...level.map(x => x.t)), RangeError, 'spreading them into one call overflows (0905 did)');
+    assert.deepEqual(meter.seriesBounds(level), { start: 0, end: (level.length - 1) / 200 });
+    const flashes = meter.onsets(luma, { minSpread: 20 });
+    const beeps = meter.onsets(level, { minSpread: 12 });
+    const r = meter.pairOnsets(flashes, beeps, { flashStart: 0, flashEnd: meter.seriesBounds(luma).end, beepStart: 0, beepEnd: meter.seriesBounds(level).end });
+    const s = meter.summarise(r);
+    assert.ok(s.pairs >= 1790, String(s.pairs));
+    assert.ok(Date.now() - started < 15000, `${Date.now() - started} ms`);
+});
+
 test('T1: events files and metadata lines parse', () => {
     assert.deepEqual(meter.parseEvents('# rig\n120 close on A\n2:30 stall\n\n1:00:00\n'),
         [{ t: 120, label: 'close on A' }, { t: 150, label: 'stall' }, { t: 3600, label: null }]);
@@ -253,6 +291,31 @@ test('0905: a label with an address never reaches the output, in text or JSON, q
         assert.ok(!/invalid|secret/.test(text), text.slice(-400));
         assert.match(text, /"label":"switch on <address>"/);
     }
+});
+
+test('0906: a file or tool failure prints a fixed reason, never the path or the tool\'s own words', { skip: !hasFfmpeg && 'no ffmpeg' }, () => {
+    if (!source) { source = path.join(work, 'sync-source.ts'); generate(source); }
+    const odd = path.join(work, 'user:secret@x.invalid');
+    fs.mkdirSync(odd, { recursive: true });
+    const cases = [
+        [[source, '--events', path.join(odd, 'missing.txt')], /The events file is not found\./],
+        [[source, '--events', odd], /The events file is a folder, not a file\./]
+    ];
+    const locked = path.join(odd, 'locked.txt');
+    fs.writeFileSync(locked, '1 x\n'); fs.chmodSync(locked, 0o000);
+    let readable = true; try { fs.readFileSync(locked); } catch { readable = false; }
+    if (!readable) cases.push([[source, '--events', locked], /The events file is not readable \(permission denied\)\./]);
+    const junk = path.join(odd, 'http-x.invalid.mov');
+    fs.writeFileSync(junk, 'not media at all');
+    cases.push([[junk], /^avsync-meter: (the file has no picture|ffmpeg could not read the file)/]);
+    for (const [argv, want] of cases) {
+        const lines = [];
+        assert.notEqual(meter.main(argv, (l) => lines.push(l)), 0);
+        const text = lines.join('\n');
+        assert.match(text, want);
+        assert.ok(!/invalid|secret/.test(text), text);
+    }
+    fs.chmodSync(locked, 0o600);
 });
 
 test('a file with no sound: picture onsets only, and it says so', { skip: !hasFfmpeg && 'no ffmpeg' }, () => {
