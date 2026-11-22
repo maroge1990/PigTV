@@ -259,6 +259,13 @@ function prune(dir, { now = Date.now(), keepAlso = null } = {}) {
             fs.unlinkSync(file); removed.push(n);
         } catch { /* in use or gone */ }
     }
+    // 0903: a copy that could not be confirmed and not removed either, once it is 7 days old.
+    for (const n of names.filter(f => /^content-.*\.unconfirmed$/.test(f))) {
+        try {
+            if (now - fs.lstatSync(path.join(dir, n)).mtimeMs < UNCONFIRMED_KEEP_MS) continue;
+            fs.unlinkSync(path.join(dir, n)); removed.push(n);
+        } catch { /* gone */ }
+    }
     const entries = listDir(dir);
     const keep = retain(entries);
     if (keepAlso) keep.add(path.basename(keepAlso));
@@ -301,20 +308,40 @@ const steps = {
 
 const codeOf = (err) => (err && typeof err.code === 'string' && /^[A-Z0-9_]{2,24}$/.test(err.code) ? err.code : 'error');
 
+// 0903: the last failed attempt of any kind (nightly, manual, pre-migration), for Status: { at, code }.
+let lastFailure = null;
+const UNCONFIRMED_KEEP_MS = 7 * DAY_MS;
+
+function unconfirmedError(err) {
+    const code = codeOf(err);
+    lastFailure = { at: Date.now(), code };
+    return Object.assign(new Error(`the copy could not be confirmed on disk (${code}); nothing of it was kept`), { code: 'BACKUP_UNCONFIRMED', cause: code });
+}
+
 /**
  * Fsync `from`, publish it, fsync the folder, prune: steps, in that order. Returns the published path.
- * 0902: pruning runs only when both syncs succeeded. Otherwise the new file is left in place (it may well be fine),
- * nothing is pruned, and this throws BACKUP_UNCONFIRMED (its message names the error code only) for the caller to
- * report the run as failed.
+ * 0903: a backup either completes confirmed or leaves nothing behind. The file is synced under its temporary name; if
+ * that fails it is deleted. Only then is it published; if the folder sync then fails (other than DIR_SYNC_UNSUPPORTED)
+ * the published file is removed again, or, should even that fail, renamed `<name>.unconfirmed`, which nothing lists,
+ * keeps, schedules from or sends, and a later successful run deletes once it is 7 days old. Either way nothing is
+ * pruned and this throws BACKUP_UNCONFIRMED (its message names the error code only). So no file under a backup's name
+ * exists unless both syncs succeeded.
  */
 function commit(target, from, ext) {
-    let failure = null;
-    try { steps.syncFile(from); } catch (err) { failure = err; }
+    try {
+        steps.syncFile(from);
+    } catch (err) {
+        try { fs.unlinkSync(from); } catch { /* gone */ }
+        throw unconfirmedError(err);
+    }
     const dest = steps.publish(target, from, ext);
-    if (!failure) { try { steps.syncDir(target.dir); } catch (err) { failure = err; } }
-    if (failure) {
-        throw Object.assign(new Error(`the copy was written but could not be confirmed on disk (${codeOf(failure)})`),
-            { code: 'BACKUP_UNCONFIRMED', file: path.basename(dest) });
+    try {
+        steps.syncDir(target.dir);
+    } catch (err) {
+        try { fs.unlinkSync(dest); } catch {
+            try { fs.renameSync(dest, `${dest}.unconfirmed`); } catch { /* left: it has synced data, at worst a lost name */ }
+        }
+        throw unconfirmedError(err);
     }
     steps.prune(target.dir, { keepAlso: dest });
     return dest;
@@ -432,7 +459,7 @@ let nightlySkipping = false;
 // #43: the last nightly run, a copy waiting for plays (for Status) and the retry back-off after a failed one.
 // Review of 0898: the deadline is not kept here: a copy falls due a day after the newest backup (any kind), and the 6 h
 // cap counts from then, so it survives a restart with nothing stored. With no backup at all it is overdue: it runs.
-const runState = { waitingFor: null, lastRun: null, failedAt: null, retryMs: 0, unconfirmed: new Set() };
+const runState = { waitingFor: null, lastRun: null, failedAt: null, retryMs: 0 };
 const RETRY_FIRST_MS = 5 * 60 * 1000;
 const RETRY_MAX_MS = 60 * 60 * 1000;
 
@@ -447,8 +474,7 @@ const RETRY_MAX_MS = 60 * 60 * 1000;
 async function nightlyCheck(dbPath, { now = Date.now(), busy, active } = {}) {
     if (nightlyRunning) return nightlyRunning;
     const idle = () => { try { return !(typeof active === 'function' && active()); } catch { return true; } };
-    // 0902: a copy written but not confirmed on disk does not count as done (until a restart forgets it).
-    const newest = list(dbPath).find(e => !runState.unconfirmed.has(e.file));
+    const newest = list(dbPath)[0]; // 0903: every listed copy is confirmed by construction
     const dueAt = newest ? newest.at + DAY_MS : null;
     if (dueAt !== null && now < dueAt) {
         runState.waitingFor = null;
@@ -486,9 +512,7 @@ async function nightlyCheck(dbPath, { now = Date.now(), busy, active } = {}) {
             return file;
         })
         .catch(err => {
-            const unconfirmed = err && err.code === 'BACKUP_UNCONFIRMED';
-            if (unconfirmed && err.file) runState.unconfirmed.add(err.file);
-            runState.lastRun = { ...run, ok: false, ...(unconfirmed ? { unconfirmed: true } : {}) };
+            runState.lastRun = { ...run, ok: false, error: err && err.code === 'BACKUP_UNCONFIRMED' ? err.cause : codeOf(err) };
             runState.failedAt = now;
             runState.retryMs = runState.retryMs ? Math.min(runState.retryMs * 2, RETRY_MAX_MS) : RETRY_FIRST_MS;
             console.error(`[Backup] Nightly copy FAILED (retrying in ${Math.round(runState.retryMs / 60000)} min):`, err.message);
@@ -512,7 +536,8 @@ function status() {
         deferredSince: runState.waitingFor,
         deferCapMin: DEFER_CAP_MS / 60000,
         lastRun: runState.lastRun,
-        retryAt: runState.failedAt !== null ? runState.failedAt + runState.retryMs : null
+        retryAt: runState.failedAt !== null ? runState.failedAt + runState.retryMs : null,
+        lastFailure
     };
 }
 
@@ -522,7 +547,7 @@ function _resetState() {
     runState.lastRun = null;
     runState.failedAt = null;
     runState.retryMs = 0;
-    runState.unconfirmed.clear();
+    lastFailure = null;
     nightlySkipping = false;
 }
 

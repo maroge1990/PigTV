@@ -444,8 +444,9 @@ test('#43: the backups section says when a copy waits, ran late, or failed and w
     html = h.page.render({ ...base, backups: [], backupState: state({ retryAt: Date.now() + 300000, lastRun: { at: Date.now(), late: true, waitedMin: 360, forced: true, ok: false } }) });
     assert.ok(html.includes('and failed') && html.includes('the next try is at'), 'review of 0898: a failed forced run and its retry');
     assert.ok(!html.includes('Second copy') && !html.includes('second backup folder'), '0900: no second folder');
-    html = h.page.render({ ...base, backups: [], backupState: state({ retryAt: Date.now() + 300000, lastRun: { at: Date.now(), late: false, waitedMin: 0, forced: false, ok: false, unconfirmed: true } }) });
-    assert.ok(html.includes('written but could not be confirmed on disk'), '0902: an unconfirmed copy is not shown as done');
+    html = h.page.render({ ...base, backups: [], backupState: state({ retryAt: Date.now() + 300000, lastFailure: { at: Date.now(), code: 'EIO' },
+        lastRun: { at: Date.now(), late: false, waitedMin: 0, forced: false, ok: false, error: 'EIO' } }) });
+    assert.ok(html.includes('The last backup attempt failed at') && html.includes('(EIO): nothing of it was kept'), '0903: a failed attempt, its time and code');
 });
 
 // #45 (0898): the newest backup can be downloaded from Status (details), only after a warning that it holds the

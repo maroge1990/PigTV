@@ -239,39 +239,85 @@ async function eightOldNightlies(dbPath, day0) {
     return dbBackup.list(dbPath).map(b => b.file);
 }
 
-for (const kind of ['dir', 'file']) {
-    test(`0902: EIO on the ${kind} sync: nothing is pruned, the run is reported failed (unconfirmed) and retried`, async () => {
-        const { dbPath } = fixture();
-        const day0 = Date.UTC(2026, 10, 2, 3); // a Monday
-        const before = await eightOldNightlies(dbPath, day0);
-        assert.equal(before.length, 7, 'retention trimmed to 7 dailies before the fault');
-        const restore = injectFsync(kind, 'EIO');
-        const lines = [];
-        const realError = console.error;
-        console.error = (...a) => lines.push(a.join(' '));
-        let result;
-        try {
-            await assert.rejects(dbBackup.backup(dbPath, { reason: 'manual', now: day0 + 9 * DAY }), { code: 'BACKUP_UNCONFIRMED' });
-            result = await dbBackup.nightlyCheck(dbPath, { now: day0 + 10 * DAY });
-        } finally {
-            restore();
-            console.error = realError;
-        }
+const quietErrors = async (fn) => {
+    const lines = [];
+    const real = { error: console.error, warn: console.warn };
+    console.error = (...a) => lines.push(a.join(' '));
+    console.warn = (...a) => lines.push(a.join(' '));
+    try { return { result: await fn(), lines }; } finally { Object.assign(console, real); }
+};
+const traces = (dir) => fs.readdirSync(dir).filter(n => /partial|unconfirmed/.test(n));
+
+test('0903: EIO on the file sync of a same-day manual backup leaves no trace; the confirmed copy stays and the next day runs', async () => {
+    const { dbPath } = fixture();
+    const day0 = Date.UTC(2026, 10, 2, 3); // a Monday
+    const confirmed = await dbBackup.backup(dbPath, { reason: 'nightly', now: day0 });
+    const dir = path.dirname(confirmed);
+    const restore = injectFsync('file', 'EIO');
+    try {
+        const { lines } = await quietErrors(() => assert.rejects(dbBackup.backup(dbPath, { reason: 'manual', now: day0 + 2 * HOUR }), { code: 'BACKUP_UNCONFIRMED' }));
+        assert.ok(lines.every(l => !l.includes(dir)), 'no path logged');
+    } finally { restore(); }
+    assert.deepEqual(dbBackup.list(dbPath).map(b => b.file), [path.basename(confirmed)], 'only the confirmed copy');
+    assert.deepEqual(traces(dir), [], 'no trace of the failed one');
+    assert.equal(dbBackup.status().lastFailure.code, 'EIO');
+    assert.equal(await dbBackup.nightlyCheck(dbPath, { now: day0 + 20 * HOUR }), null, 'not due: the schedule counts from the confirmed copy');
+    assert.ok(await dbBackup.nightlyCheck(dbPath, { now: day0 + DAY + 60000 }), 'due a day after the confirmed copy, not delayed by the failure');
+    assert.ok(fs.existsSync(confirmed));
+});
+
+test('0903: EIO on the folder sync removes the published file again and prunes nothing', async () => {
+    const { dbPath } = fixture();
+    const day0 = Date.UTC(2026, 10, 2, 3);
+    const before = await eightOldNightlies(dbPath, day0);
+    const dir = path.dirname(dbBackup.list(dbPath)[0].path);
+    const restore = injectFsync('dir', 'EIO');
+    try {
+        await quietErrors(() => assert.rejects(dbBackup.backup(dbPath, { reason: 'manual', now: day0 + 9 * DAY }), { code: 'BACKUP_UNCONFIRMED' }));
+        const { result } = await quietErrors(() => dbBackup.nightlyCheck(dbPath, { now: day0 + 10 * DAY }));
         assert.equal(result, null, 'not reported as a success');
-        const after = dbBackup.list(dbPath).map(b => b.file);
-        for (const f of before) assert.ok(after.includes(f), `older snapshot ${f} kept`);
-        assert.ok(after.some(f => f.includes('-manual')) && after.some(f => f.startsWith('content-2026-11-12')), 'the new files are left in place');
-        const st = dbBackup.status();
-        assert.equal(st.lastRun.ok, false);
-        assert.equal(st.lastRun.unconfirmed, true);
-        assert.ok(st.retryAt, 'the back-off applies');
-        assert.equal(lines.length, 1);
-        assert.match(lines[0], /could not be confirmed on disk \(EIO\)$/, 'one line, the error code only');
-        // Once the disk answers again the retry runs (the unconfirmed copy does not count as done) and prunes.
-        assert.ok(await dbBackup.nightlyCheck(dbPath, { now: day0 + 10 * DAY + 5 * 60000 }), 'retried after the back-off');
-        assert.equal(dbBackup.status().lastRun.ok, true);
-    });
-}
+    } finally { restore(); }
+    assert.deepEqual(dbBackup.list(dbPath).map(b => b.file), before, 'exactly the older snapshots, none pruned, none added');
+    assert.deepEqual(traces(dir), []);
+    const st = dbBackup.status();
+    assert.equal(st.lastRun.ok, false);
+    assert.equal(st.lastRun.error, 'EIO');
+    assert.ok(st.retryAt, 'the back-off applies');
+    assert.ok(await dbBackup.nightlyCheck(dbPath, { now: day0 + 10 * DAY + 5 * 60000 }), 'retried once the disk answers');
+});
+
+test('0903: a failed pre-migration copy leaves nothing, the start carries on (as before this batch), and the nightly is not delayed', async () => {
+    const { dbPath } = fixture();
+    const day0 = Date.UTC(2026, 10, 2, 3);
+    const confirmed = await dbBackup.backup(dbPath, { reason: 'nightly', now: day0 });
+    const restore = injectFsync('file', 'EIO');
+    let r;
+    try { ({ result: r } = await quietErrors(() => dbBackup.beforeMigrations(dbPath, '9999', { now: day0 + HOUR }))); } finally { restore(); }
+    assert.equal(r.taken, false);
+    assert.equal(r.why, 'failed', 'reported, not thrown: getDb() goes on to migrate');
+    assert.deepEqual(dbBackup.list(dbPath).map(b => b.file), [path.basename(confirmed)]);
+    assert.ok(await dbBackup.nightlyCheck(dbPath, { now: day0 + DAY + 60000 }));
+});
+
+test('0903: after a restart the schedule counts from the newest confirmed copy; a leftover .unconfirmed file is ignored and later removed', async () => {
+    const { dbPath } = fixture();
+    const day0 = Date.UTC(2026, 10, 2, 3);
+    const confirmed = await dbBackup.backup(dbPath, { reason: 'nightly', now: day0 });
+    const dir = path.dirname(confirmed);
+    // What a failed removal leaves: a newer copy renamed .unconfirmed, 8 days old on disk.
+    const left = path.join(dir, 'content-2026-11-02T20-00-00Z-manual.db.gz.unconfirmed');
+    fs.copyFileSync(confirmed, left);
+    const old = (Date.now() - 8 * DAY) / 1000;
+    fs.utimesSync(left, old, old);
+    dbBackup._resetState(); // a restart
+    assert.deepEqual(dbBackup.list(dbPath).map(b => b.file), [path.basename(confirmed)], 'not listed');
+    const opened = dbBackup.openNewest(dbPath);
+    assert.equal(opened.file, path.basename(confirmed), 'not downloaded');
+    fs.closeSync(opened.fd);
+    assert.equal(await dbBackup.nightlyCheck(dbPath, { now: day0 + DAY - 60000 }), null);
+    assert.ok(await dbBackup.nightlyCheck(dbPath, { now: day0 + DAY + 60000 }), 'due from the confirmed copy');
+    assert.ok(!fs.existsSync(left), 'a later successful run removed the 7-day-old leftover');
+});
 
 test('0902: a folder sync the platform does not support (allow-listed) lets the backup and pruning go ahead', async () => {
     const { dbPath } = fixture();
