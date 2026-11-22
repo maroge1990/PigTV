@@ -167,13 +167,14 @@ function bestWithinName(channels, keyOf = (ch) => ch.nameKey ?? nameKey(ch.name)
  */
 let writes = 0;
 let kept = null; // { db, stamp, map }
-let stampStmt = null, stampDb = null;
+let stampStmt = null, stampDb = null, lastStamp = null;
 function stampOf(db) {
     if (stampDb !== db) {
         stampDb = db;
         stampStmt = db.prepare('SELECT total_changes() AS t, (SELECT data_version FROM pragma_data_version) AS v');
     }
     const r = stampStmt.get();
+    lastStamp = r;
     return `${writes}:${r.t}:${r.v}`;
 }
 function changed() { writes++; kept = null; }
@@ -208,10 +209,18 @@ function applyMeasured(rows, db) {
     return rows;
 }
 
-/** The kept Map's stamp right now (it changes whenever a measurement may have): for answers kept on top of it. */
+/**
+ * A revision of the stored measurements for answers kept on top of them (0893, the guide's kept answers): it moves with
+ * every write through this module and every other connection's commit (`data_version`), not with every write on the
+ * server's own connection (that would be every play and recording tick); nothing else writes this table on it. Null
+ * when it cannot be read.
+ */
 function revision(db) {
     const handle = db || getDb();
-    try { return stampOf(handle); } catch { return null; }
+    try {
+        stampOf(handle);
+        return `${writes}:${lastStamp.v}`;
+    } catch { return null; }
 }
 
 module.exports = { revision, labelFor, roundFps, measuredOf, record, recordPlay, forgetPlay, auditMeasurement, importAudit, all, applyMeasured, nameKey, bestWithinName };

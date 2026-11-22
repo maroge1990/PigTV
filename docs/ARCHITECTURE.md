@@ -144,6 +144,11 @@ The `channelNumbers` flag is always sent (its off switch went in 0204).
 - **Measured quality is kept in memory** (0889, `channelMeasurements.all()`): read again only after a write through the module
   (`record`, `forgetPlay`), any write on the server's connection (`total_changes()`) or another process's commit
   (`data_version`: the audit import script), or on a new database handle.
+- **Guide answers are kept per minute** (0893, `guideAnswers.js`, the `/api/sports/events` pattern): the serialised body and
+  its gzip, keyed by the guide version, the database handle, `channelMeasurements.revision()` (module writes and other
+  processes' commits), the sport live index's identity, the request (start, end, limit, offset, cursor, category) and the
+  minute, whose start is the answer's `now`. At most 8 answers and 40 MB, oldest first. Only requests with their own
+  `start`. What has no revision (health ageing out of its 7 days, the EPG icon index's 5-minute refresh) is a minute late.
 - `/api/library/*` fill a missing logo from the EPG (by tvg-id, then by name).
 - **A guide running out** (0350, #11): a live guide whose last programme ends less than 36 h ahead is on Status's Needs
   attention and sends the `guide-stale` webhook once per episode. At start-up a source is synced when any of its feeds

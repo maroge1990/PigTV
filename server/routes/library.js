@@ -28,6 +28,7 @@ const programmeFields = require('../services/programmeFields');
 const librarySearch = require('../services/librarySearch');
 const { likeAnywhere } = require('../services/programmeSearch');
 const guideIndex = require('../services/guideIndex');
+const guideAnswers = require('../services/guideAnswers');
 
 // The longest programme the guide will still show when it began before the
 // window. Every EPG query bounds start_time from below by this, because the
@@ -379,6 +380,7 @@ const { GUIDE_SORT_KEY, GUIDE_ORDER_BY } = guideIndex;
 const GUIDE_ROW_COLUMNS = `p.item_id, p.source_id, p.name, p.stream_icon, p.category_id, p.sort_order, p.data, p.stable_id, p.tvg_id, p.id, ${GUIDE_SORT_KEY} AS sk,
                        n.number AS channel_number`;
 let guideIndexEnabled = true; // tests compare the answers with and without it
+let guideAnswersEnabled = true; // 0893: the kept answers (tests turn them off to compare)
 
 /**
  * Opaque cursor: base64 of the last row's sort key, for keyset paging.
@@ -461,6 +463,23 @@ function guidePageFromSql(db, { category, cursorKey, offset, limit }) {
 }
 
 /**
+ * 0893 (#361): a kept guide answer, as /api/sports/events sends its own: `private, no-cache` so a client may keep the
+ * body and revalidate it, the weak ETag (If-None-Match -> 304), and gzip made once per answer.
+ */
+async function sendKeptGuide(req, res, kept) {
+    res.set({ 'Cache-Control': 'private, no-cache', ETag: kept.etag, Vary: 'Accept-Encoding' });
+    if (req.fresh) return res.status(304).end();
+    res.type('json');
+    if (/\bgzip\b/.test(req.headers['accept-encoding'] || '') && kept.body.length > 1024) {
+        // the compression middleware leaves a response that already has a Content-Encoding alone
+        const gz = await kept.gzip();
+        res.set('Content-Encoding', 'gzip');
+        return res.send(gz);
+    }
+    res.send(kept.body);
+}
+
+/**
  * GET /api/library/guide?start=&end=&category=&limit=&offset=|cursor=
  *
  * The grid: channels in provider order, each with its programmes across a
@@ -477,15 +496,21 @@ function guidePageFromSql(db, { category, cursorKey, offset, limit }) {
  * older clients; passing both prefers `cursor`. `nextCursor` is always
  * included so a client can switch onto keyset paging from either mode.
  */
-router.get('/guide', (req, res) => {
+router.get('/guide', async (req, res) => {
     try {
         const db = getDb();
         const limit = clamp(req.query.limit, 1, 500, 25);
         const offset = clamp(req.query.offset, 0, 1e7, 0);
         const { category, cursor } = req.query;
 
-        const now = Date.now();
-        const start = parseInt(req.query.start, 10) || now;
+        // 0893 (#361): a request with its own start is answered as of its minute (services/guideAnswers.js), so a
+        // repeat in that minute is the kept body; one without starts its window at its own millisecond, as before.
+        const ownStart = parseInt(req.query.start, 10);
+        const keepable = guideAnswersEnabled && !!ownStart
+            && (!category || typeof category === 'string') && (!cursor || typeof cursor === 'string');
+        const minute = guideAnswers.minuteOf(guideAnswers.clock.now());
+        const now = keepable ? minute : Date.now();
+        const start = ownStart || now;
         const requestedEnd = parseInt(req.query.end, 10) || (start + 3 * 60 * 60 * 1000);
         const end = Math.min(requestedEnd, start + 24 * 60 * 60 * 1000);
 
@@ -494,6 +519,10 @@ router.get('/guide', (req, res) => {
             cursorKey = decodeGuideCursor(cursor);
             if (!cursorKey) return res.status(400).json({ error: 'Invalid cursor' });
         }
+
+        const keptKey = keepable ? guideAnswers.keyFor({ minute, start, end, limit, offset, cursor, category }) : null;
+        const kept = keptKey && guideAnswers.get(keptKey);
+        if (kept) return await sendKeptGuide(req, res, kept);
 
         // 0888 (#361): the page's ids and `total` from the in-memory index of the visible order, then the page's rows
         // by id; the SQL below (the old way) only when the index cannot answer exactly.
@@ -546,7 +575,9 @@ router.get('/guide', (req, res) => {
             programmeFields.applyImages(shaped);
         }
 
-        res.json({ total, limit, offset, start, end, now, channels, nextCursor });
+        const answer = { total, limit, offset, start, end, now, channels, nextCursor };
+        if (keptKey) return await sendKeptGuide(req, res, guideAnswers.put(keptKey, Buffer.from(JSON.stringify(answer)), minute));
+        res.json(answer);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -651,6 +682,7 @@ router.get('/recent', (req, res) => {
 
 // Tests: answer the guide without the index (0888), to compare.
 router._setGuideIndexEnabled = (on) => { guideIndexEnabled = !!on; };
+router._setGuideAnswersEnabled = (on) => { guideAnswersEnabled = !!on; };
 // Exposed so tests can force the icon index to be rebuilt.
 router._resetEpgIconIndex = () => { epgIconIndex = null; };
 // 0148: the sport events' channels get their logos the same way (routes/sports.js).

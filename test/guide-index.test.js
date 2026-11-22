@@ -23,6 +23,7 @@ const auth = load('auth');
 const sqlite = load('db/sqlite');
 const { bumpLibraryRev } = load('services/libraryRev');
 const library = load('routes/library');
+library._setGuideAnswersEnabled(false); // 0893: compare built answers, not kept ones
 
 let server, base, token, source;
 const HOUR = 3600000;
