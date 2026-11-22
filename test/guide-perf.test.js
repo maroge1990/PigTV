@@ -16,10 +16,10 @@ const compression = require('compression');
 const perf = require('./helpers/perf');
 
 // tighten in batch 3 (#361): first page under 300 KB
-const BUDGET_PAGE_MS = 250;          // each page, uncompressed fetch (median of 5); measured 72 ms: wider than 2x for a slow machine
-const BUDGET_TOTAL_MS = 500;         // all pages, uncompressed; measured 183 ms
-const BUDGET_PAGE_GZIP_MS = 450;     // each page with gzip on (compression time included); measured 143 ms
-const BUDGET_TOTAL_GZIP_MS = 1000;   // all pages with gzip; measured 363 ms
+const BUDGET_PAGE_MS = 150;          // each page, uncompressed fetch (median of 5); measured 72 ms, 36 ms since 0888: wider than 2x for a slow machine
+const BUDGET_TOTAL_MS = 300;         // all pages, uncompressed; measured 183 ms, 82 ms since 0888
+const BUDGET_PAGE_GZIP_MS = 350;     // each page with gzip on (compression time included); measured 143 ms, 108 ms since 0888
+const BUDGET_TOTAL_GZIP_MS = 750;    // all pages with gzip; measured 363 ms, 262 ms since 0888
 // tighten in batch 3 (#361): first page under 300 KB
 const BUDGET_PAGE_RAW_BYTES = 4750000;   // each page, uncompressed; measured 4.14 MB
 const BUDGET_TOTAL_RAW_BYTES = 11900000; // whole guide, uncompressed; measured 10.33 MB

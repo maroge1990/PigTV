@@ -137,6 +137,10 @@ The `channelNumbers` flag is always sent (its off switch went in 0204).
   reaching under half as far ahead, is not applied. The sync row says `held` with the counts (Status, Providers); the next
   sync at the usual size applies, or **Accept the smaller list…** (`POST /api/sources/:id/sync {acceptSmaller: true}`).
 - Queries bound `start_time > from − 24 h`.
+- **The guide's order is kept in memory** (0888, #361, `guideIndex.js`): id, sort key, name and category of every visible
+  channel in guide order, built on the first page of a guide version (`currentGuideVersion()`) and database handle; `total`
+  and each page's ids come from it, then only the page's rows are read. A change to what is visible that does not move
+  `library_rev` would not show until it does: every such write bumps it. A page whose rows are gone answers by SQL.
 - `/api/library/*` fill a missing logo from the EPG (by tvg-id, then by name).
 - **A guide running out** (0350, #11): a live guide whose last programme ends less than 36 h ahead is on Status's Needs
   attention and sends the `guide-stale` webhook once per episode. At start-up a source is synced when any of its feeds

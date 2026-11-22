@@ -27,6 +27,7 @@ const sportCategories = require('../services/sportCategories');
 const programmeFields = require('../services/programmeFields');
 const librarySearch = require('../services/librarySearch');
 const { likeAnywhere } = require('../services/programmeSearch');
+const guideIndex = require('../services/guideIndex');
 
 // The longest programme the guide will still show when it began before the
 // window. Every EPG query bounds start_time from below by this, because the
@@ -373,9 +374,11 @@ router.get('/favourites', (req, res) => {
 // exactly with OFFSET paging. Rather than a NULL-laden tuple compare (SQLite's
 // row-value NULL semantics are awkward to keyset against), NULL sort_order is
 // coalesced to a sentinel larger than any real playlist position.
-const SORT_SENTINEL = 999999999;
-const GUIDE_SORT_KEY = `COALESCE(p.sort_order, ${SORT_SENTINEL})`;
-const GUIDE_ORDER_BY = `ORDER BY ${GUIDE_SORT_KEY} ASC, p.name ASC, p.id ASC`;
+// 0888 (#361): defined with the in-memory index of that order (services/guideIndex.js).
+const { GUIDE_SORT_KEY, GUIDE_ORDER_BY } = guideIndex;
+const GUIDE_ROW_COLUMNS = `p.item_id, p.source_id, p.name, p.stream_icon, p.category_id, p.sort_order, p.data, p.stable_id, p.tvg_id, p.id, ${GUIDE_SORT_KEY} AS sk,
+                       n.number AS channel_number`;
+let guideIndexEnabled = true; // tests compare the answers with and without it
 
 /**
  * Opaque cursor: base64 of the last row's sort key, for keyset paging.
@@ -395,6 +398,66 @@ function decodeGuideCursor(cursor) {
     } catch {
         return null;
     }
+}
+
+/**
+ * One guide page (limit + 1 rows, to know whether there is a next) from the index of the visible order, or null when
+ * it cannot be answered exactly that way (then guidePageFromSql). A page whose rows are not all there any more (the
+ * table moved before the guide version did) drops the index and is answered by SQL.
+ */
+function guidePageFromIndex(db, { category, cursorKey, offset, limit }) {
+    const found = guideIndex.page({ category: category || null, cursorKey, offset, take: limit + 1 });
+    if (!found) return null;
+    if (!found.ids.length) return { total: found.total, rows: [] };
+    const byId = new Map(db.prepare(`
+        SELECT ${GUIDE_ROW_COLUMNS}
+        FROM playlist_items p
+        ${NUMBER_JOIN}
+        WHERE p.id IN (${found.ids.map(() => '?').join(',')})
+    `).all(...found.ids).map(r => [r.id, r]));
+    const rows = found.ids.map(id => byId.get(id));
+    if (rows.some(r => !r)) { guideIndex.invalidate(); return null; }
+    return { total: found.total, rows };
+}
+
+/** One guide page in SQL: COUNT for `total`, then the page by keyset cursor or OFFSET (the way before 0888). */
+function guidePageFromSql(db, { category, cursorKey, offset, limit }) {
+    // The one rule for a visible channel (channelNumbers.VISIBLE_SQL), linked siblings excluded.
+    const where = [channelNumbers.VISIBLE_SQL];
+    const params = [];
+    if (category) { where.push('p.category_id = ?'); params.push(category); }
+    const clause = where.join(' AND ');
+
+    const total = db.prepare(`SELECT COUNT(*) n FROM playlist_items p WHERE ${clause}`).get(...params).n;
+
+    const pageWhere = [...where];
+    const pageParams = [...params];
+    if (cursorKey) {
+        pageWhere.push(`(${GUIDE_SORT_KEY}, p.name, p.id) > (?, ?, ?)`);
+        pageParams.push(cursorKey.sk, cursorKey.name, cursorKey.id);
+    }
+    const pageClause = pageWhere.join(' AND ');
+
+    // Fetch one extra row (keyset mode) to know whether a next page exists,
+    // without a separate COUNT. OFFSET mode keeps its exact old query shape.
+    const rows = cursorKey
+        ? db.prepare(`
+            SELECT ${GUIDE_ROW_COLUMNS}
+            FROM playlist_items p
+            ${NUMBER_JOIN}
+            WHERE ${pageClause}
+            ${GUIDE_ORDER_BY}
+            LIMIT ?
+        `).all(...pageParams, limit + 1)
+        : db.prepare(`
+            SELECT ${GUIDE_ROW_COLUMNS}
+            FROM playlist_items p
+            ${NUMBER_JOIN}
+            WHERE ${pageClause}
+            ${GUIDE_ORDER_BY}
+            LIMIT ? OFFSET ?
+        `).all(...pageParams, limit + 1, offset);
+    return { total, rows };
 }
 
 /**
@@ -426,46 +489,17 @@ router.get('/guide', (req, res) => {
         const requestedEnd = parseInt(req.query.end, 10) || (start + 3 * 60 * 60 * 1000);
         const end = Math.min(requestedEnd, start + 24 * 60 * 60 * 1000);
 
-        // The one rule for a visible channel (channelNumbers.VISIBLE_SQL), linked siblings excluded.
-        const where = [channelNumbers.VISIBLE_SQL];
-        const params = [];
-        if (category) { where.push('p.category_id = ?'); params.push(category); }
-        const clause = where.join(' AND ');
-
-        const total = db.prepare(`SELECT COUNT(*) n FROM playlist_items p WHERE ${clause}`).get(...params).n;
-
         let cursorKey = null;
-        const pageWhere = [...where];
-        const pageParams = [...params];
         if (cursor) {
             cursorKey = decodeGuideCursor(cursor);
             if (!cursorKey) return res.status(400).json({ error: 'Invalid cursor' });
-            pageWhere.push(`(${GUIDE_SORT_KEY}, p.name, p.id) > (?, ?, ?)`);
-            pageParams.push(cursorKey.sk, cursorKey.name, cursorKey.id);
         }
-        const pageClause = pageWhere.join(' AND ');
 
-        // Fetch one extra row (keyset mode) to know whether a next page exists,
-        // without a separate COUNT. OFFSET mode keeps its exact old query shape.
-        const rows = cursor
-            ? db.prepare(`
-                SELECT p.item_id, p.source_id, p.name, p.stream_icon, p.category_id, p.sort_order, p.data, p.stable_id, p.tvg_id, p.id, ${GUIDE_SORT_KEY} AS sk,
-                       n.number AS channel_number
-                FROM playlist_items p
-                ${NUMBER_JOIN}
-                WHERE ${pageClause}
-                ${GUIDE_ORDER_BY}
-                LIMIT ?
-            `).all(...pageParams, limit + 1)
-            : db.prepare(`
-                SELECT p.item_id, p.source_id, p.name, p.stream_icon, p.category_id, p.sort_order, p.data, p.stable_id, p.tvg_id, p.id, ${GUIDE_SORT_KEY} AS sk,
-                       n.number AS channel_number
-                FROM playlist_items p
-                ${NUMBER_JOIN}
-                WHERE ${pageClause}
-                ${GUIDE_ORDER_BY}
-                LIMIT ? OFFSET ?
-            `).all(...pageParams, limit + 1, offset);
+        // 0888 (#361): the page's ids and `total` from the in-memory index of the visible order, then the page's rows
+        // by id; the SQL below (the old way) only when the index cannot answer exactly.
+        const page = guideIndexEnabled && (!category || typeof category === 'string')
+            ? guidePageFromIndex(db, { category, cursorKey, offset, limit }) : null;
+        const { total, rows } = page || guidePageFromSql(db, { category, cursorKey, offset, limit });
 
         const hasMore = rows.length > limit;
         const pageRows = hasMore ? rows.slice(0, limit) : rows;
@@ -615,6 +649,8 @@ router.get('/recent', (req, res) => {
     }
 });
 
+// Tests: answer the guide without the index (0888), to compare.
+router._setGuideIndexEnabled = (on) => { guideIndexEnabled = !!on; };
 // Exposed so tests can force the icon index to be rebuilt.
 router._resetEpgIconIndex = () => { epgIconIndex = null; };
 // 0148: the sport events' channels get their logos the same way (routes/sports.js).
