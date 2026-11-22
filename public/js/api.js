@@ -168,8 +168,6 @@ const API = {
     status: {
         // #129 (0370): `details: false` asks only for what the page shows with "Show details" closed.
         get: ({ details = true } = {}) => API.request('GET', details ? '/status' : '/status?details=0'),
-        // #45 (0898): the server's last log lines (redacted), after cursor `since`.
-        logs: (since, generation) => API.request('GET', since ? `/status/logs?since=${encodeURIComponent(since)}${generation ? `&generation=${encodeURIComponent(generation)}` : ''}` : '/status/logs'),
         // #45: the newest database backup as { blob, name }, fetched with the sign-in header.
         async downloadBackup() {
             const r = await API.authFetch('/api/status/backup/latest');

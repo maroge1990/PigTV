@@ -343,48 +343,20 @@ test('#44: crash restarts show to an admin (count in 24 h, last time and error n
     assert.ok(!viewer.text.includes('crashes'));
 });
 
-test('#43: Status carries the backup state: a missing second folder (never its path) and a copy waiting for a play', async () => {
+test('#43: Status carries the backup state: a copy waiting for a play (no second folder since 0900)', async () => {
     const dbBackup = load('services/dbBackup');
-    const missing = path.join(sandbox, 'second-folder-not-mapped');
-    process.env.PIGTV_BACKUP_COPY_DIR = missing;
     try {
         dbBackup._resetState();
         const t = Date.now() + 400 * 86400e3;
         assert.ok(await dbBackup.nightlyCheck(sqlite.databasePath(), { now: t, active: () => true }), 'no backup yet: it runs');
-        await dbBackup.whenCopied();
         assert.equal(await dbBackup.nightlyCheck(sqlite.databasePath(), { now: t + 86400e3 + 60000, active: () => true }), null);
-        const { body, text } = await get('/api/status?details=0', adminToken);
-        assert.equal(body.backupState.copy.enabled, true);
-        assert.equal(body.backupState.copy.ok, false);
-        assert.equal(body.backupState.copy.problem, 'missing');
+        const { body } = await get('/api/status?details=0', adminToken);
         assert.ok(body.backupState.deferredSince > 0, 'the due copy is waiting for the play');
-        assert.ok(!text.includes('second-folder-not-mapped'), 'the folder path is never sent');
+        assert.equal(body.backupState.copy, undefined);
         assert.equal((await get('/api/status', viewerToken)).status, 403);
     } finally {
-        delete process.env.PIGTV_BACKUP_COPY_DIR;
         dbBackup._resetState();
     }
-});
-
-test('#45: the admin log view: a credential logged is redacted in the ring and the answer; 401 without a token, 403 for a viewer', async () => {
-    const logRing = load('services/logRing');
-    logRing.install();
-    const marker = `log-ring-${Date.now()}`;
-    console.log(`${marker} resolve failed for ${STREAM_URL}`);
-    console.warn(`${marker} sync: http://provider.invalid/get.php?username=viewer&password=${SECRET}&token=${SECRET}`);
-    assert.equal((await get('/api/status/logs')).status, 401);
-    assert.equal((await get('/api/status/logs', viewerToken)).status, 403);
-    assert.equal((await get(`/api/status/logs?token=${adminToken}`)).status, 401, 'never a token in the query string');
-    const { status, body, text } = await get('/api/status/logs', adminToken);
-    assert.equal(status, 200);
-    const mine = body.lines.filter(l => l.text.startsWith(marker));
-    assert.equal(mine.length, 2);
-    assert.ok(!text.includes(SECRET), 'nothing secret in the answer');
-    assert.ok(!JSON.stringify(logRing.ring().since(0)).includes(SECRET), 'nor in the ring itself');
-    assert.ok(body.lines.every((l, i, a) => i === 0 || a[i - 1].seq < l.seq), 'newest last');
-    const after = await get(`/api/status/logs?since=${mine[1].seq}`, adminToken);
-    assert.ok(after.body.lines.every(l => l.seq > mine[1].seq), 'since: only newer lines');
-    assert.equal(typeof body.next, 'number');
 });
 
 test('#45: the admin backup download streams the newest backup byte for byte, one at a time, audited; refused to anyone else', async () => {
@@ -438,13 +410,11 @@ test('#45: the admin backup download streams the newest backup byte for byte, on
     assert.ok(none.status === 200 || none.status === 404);
 });
 
-test('review of 0898: a malformed JSON sign-in with a password reaches neither the error handler\'s line, the ring nor the endpoint', async () => {
-    const logRing = load('services/logRing');
-    logRing.install();
+test('review of 0898: a malformed JSON sign-in with a password never reaches the error handler\'s line on stdout', async () => {
     const PW = 'pw-never-logged-7731';
     const lines = [];
     const realError = console.error;
-    console.error = (...a) => { lines.push(require('node:util').format(...a)); return realError(...a); }; // through the ring's wrapper
+    console.error = (...a) => { lines.push(require('node:util').format(...a)); };
     const app = express();
     app.use(express.json());
     app.post('/api/auth/login', (req, res) => res.json({ ok: true }));
@@ -465,24 +435,7 @@ test('review of 0898: a malformed JSON sign-in with a password reaches neither t
     const mine = lines.filter(l => l.startsWith('Server error'));
     assert.equal(mine.length, 1, lines.join('\n'));
     assert.match(mine[0], /^Server error: name=SyntaxError type=entity\.parse\.failed status=400 .*route=POST/);
-    assert.ok(!lines.join('\n').includes(PW), 'the handler\'s stdout line holds no password');
-    assert.ok(!JSON.stringify(logRing.ring().since(0)).includes(PW), 'nor the ring');
-    const { text } = await get('/api/status/logs', adminToken);
-    assert.ok(!text.includes(PW), 'nor the endpoint');
-});
-
-test('review of 0898: the log view names its process; a cursor from before a restart (or past the newest line) gets the whole ring', async () => {
-    const logRing = load('services/logRing');
-    logRing.install();
-    console.log('generation-test line');
-    const all = await get('/api/status/logs', adminToken);
-    assert.equal(typeof all.body.generation, 'string');
-    assert.ok(all.body.generation.length >= 8);
-    const n = all.body.lines.length;
-    const far = await get(`/api/status/logs?since=${all.body.next + 100000}&generation=${all.body.generation}`, adminToken);
-    assert.equal(far.body.lines.length, n, 'a cursor beyond the newest: the whole ring');
-    const other = await get(`/api/status/logs?since=${all.body.next}&generation=not-this-process`, adminToken);
-    assert.equal(other.body.lines.length, n, 'another generation: the whole ring');
-    const same = await get(`/api/status/logs?since=${all.body.next}&generation=${all.body.generation}`, adminToken);
-    assert.deepEqual(same.body.lines, [], 'same process, up to date: nothing new');
+    assert.ok(!lines.join('\n').includes(PW), 'the handler\'s line holds no password');
+    assert.ok(!lines.join('\n').includes('owner'), 'nor anything else from the body');
+    assert.equal((await get('/api/status/logs', adminToken)).status, 404, '0900: no log view');
 });

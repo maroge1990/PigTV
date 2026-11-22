@@ -35,20 +35,6 @@ class StatusPage {
             else if (button.dataset?.backupDownload !== undefined) this.downloadBackup(button);
             else this.kill(button);
         });
-        // #45 (0898): the Server log panel sits outside the 5 s redraw, like the guide categories.
-        this.logLines = [];
-        this.logCursor = 0;
-        this.logTimer = null;
-        const logPanel = document.getElementById('status-log-panel');
-        logPanel?.addEventListener('click', (e) => {
-            const button = e.target?.closest?.('button[data-log-load], button[data-log-copy]');
-            if (!button) return;
-            if (button.dataset?.logLoad !== undefined) this.loadLogs();
-            else this.copyLogs();
-        });
-        logPanel?.addEventListener('change', (e) => {
-            if (e.target?.dataset?.logAuto !== undefined) this.setLogAuto(!!e.target.checked);
-        });
     }
 
     /**
@@ -75,49 +61,6 @@ class StatusPage {
         }
     }
 
-    /** #45: the Server log panel's frame, drawn once; its lines are loaded on request. */
-    renderLogPanel() {
-        return this.section('Server log',
-            '<p class="setting-hint">The last lines the server logged (up to 2,000; logins and addresses removed). A restart empties it.</p>'
-            + '<p class="status-log-actions"><button type="button" class="btn btn-sm btn-secondary" data-log-load>Load</button> '
-            + '<button type="button" class="btn btn-sm btn-secondary" data-log-copy>Copy</button> '
-            + '<label class="setting-hint"><input type="checkbox" data-log-auto> Refresh every 5 s</label></p>'
-            + '<pre class="status-log" data-log-text></pre>');
-    }
-
-    async loadLogs() {
-        const panel = document.getElementById('status-log-panel');
-        const pre = panel?.querySelector?.('[data-log-text]');
-        try {
-            const r = await API.status.logs(this.logCursor, this.logGeneration);
-            // Review of 0898: another generation is a restarted server: its lines replace the old ones.
-            const restarted = r.generation && this.logGeneration && r.generation !== this.logGeneration;
-            this.logLines = (restarted ? [] : this.logLines).concat(r.lines || []).slice(-2000);
-            if (r.generation) this.logGeneration = r.generation;
-            if (Number.isFinite(r.next)) this.logCursor = r.next;
-            // textContent: a log line is shown as text, never as markup.
-            if (pre) pre.textContent = this.logLines.map(l => `${UI.clock(l.at)} ${l.level === 'log' || l.level === 'info' ? '' : `${String(l.level).toUpperCase()} `}${l.text}`).join('\n');
-        } catch (err) {
-            UI.toast(UI.errorText(err, 'Could not load the server log.'), { kind: 'error' });
-        }
-    }
-
-    copyLogs() {
-        const text = document.getElementById('status-log-panel')?.querySelector?.('[data-log-text]')?.textContent || '';
-        const done = () => UI.toast('Server log copied.');
-        if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(done, () => UI.toast('Could not copy: select the text instead.', { kind: 'error' }));
-        else UI.toast('Copying needs HTTPS or localhost: select the text instead.', { kind: 'error' });
-    }
-
-    setLogAuto(on) {
-        clearInterval(this.logTimer);
-        this.logTimer = null;
-        if (on && this.shown && this.showDetails) {
-            this.loadLogs();
-            this.logTimer = setInterval(() => this.loadLogs(), 5000);
-        }
-    }
-
     async init() { }
 
     /** 0288: show or hide the troubleshooting sections; remembered in this browser. */
@@ -138,17 +81,6 @@ class StatusPage {
     syncEpgPanel() {
         const panel = document.getElementById('status-epg-categories');
         if (panel && panel.style) panel.style.display = this.showDetails ? '' : 'none';
-        // #45: the Server log panel too; drawn the first time it is shown, its refresh stops when it is hidden.
-        const log = document.getElementById('status-log-panel');
-        if (log) {
-            if (log.style) log.style.display = this.showDetails ? '' : 'none';
-            if (this.showDetails && !log.innerHTML) log.innerHTML = this.renderLogPanel();
-            if (!this.showDetails && this.logTimer) {
-                this.setLogAuto(false);
-                const box = log.querySelector?.('[data-log-auto]');
-                if (box) box.checked = false;
-            }
-        }
     }
 
     async kill(button) {
@@ -186,11 +118,6 @@ class StatusPage {
     hide() {
         this.shown = false;
         this.stopTimer();
-        if (this.logTimer) {
-            this.setLogAuto(false);
-            const box = document.getElementById('status-log-panel')?.querySelector?.('[data-log-auto]');
-            if (box) box.checked = false;
-        }
     }
 
     /**
@@ -581,9 +508,6 @@ class StatusPage {
         const seg = status.segmentedRecordings;
         if (seg && (seg.waitingToMove || []).length) lines.push(`${e(seg.waitingToMove.length)} finished recording(s) are waiting in appdata for the recordings folder.`);
         if (seg && (seg.failed || []).length) lines.push(`${e(seg.failed.length)} recording(s) could not be finished; their segments are kept in appdata.`);
-        // #43 (0897): the second backup folder is set but cannot be used; the backups in appdata are unaffected.
-        const copy = status.backupState?.copy;
-        if (copy?.enabled && copy.problem) lines.push(`The second backup folder (PIGTV_BACKUP_COPY_DIR) is ${e(copy.problem)}: backups are kept in appdata only until it is fixed.`);
         if (!lines.length) return '';
         return `<div class="settings-section status-section status-warning"><h3>Needs attention</h3>${lines.map(l => `<p class="setting-hint">${l}</p>`).join('')}</div>`;
     }
@@ -715,7 +639,7 @@ class StatusPage {
             [diskRow('Transcode cache', disk.transcodeCache), diskRow('Recordings', disk.recordings)], '')));
     }
 
-    /** #43 (0897): a nightly copy waiting for plays and recordings, the last one late or forced, and the second copy. */
+    /** #43 (0897): a nightly copy waiting for plays and recordings, the last one late, forced or failed. */
     backupStateText(st) {
         if (!st) return '';
         const e = (v) => UI.escape(v);
@@ -724,11 +648,6 @@ class StatusPage {
         const run = st.lastRun;
         if (run && run.late) lines.push(`The last nightly copy ran ${e(run.waitedMin)} min late${run.forced ? ', while something played' : ''}${run.ok === false ? ' and failed' : ''}.`);
         if (st.retryAt) lines.push(`It failed; the next try is at ${e(UI.dateTime(st.retryAt))}.`);
-        const c = st.copy || {};
-        if (c.enabled && c.running) lines.push('Second copy: being made now.');
-        if (c.enabled && c.skippedAt) lines.push(`Second copy: one was skipped at ${e(UI.dateTime(c.skippedAt))} (the previous one was still running).`);
-        if (c.enabled && c.lastCopiedAt) lines.push(`Second copy: last made ${e(UI.dateTime(c.lastCopiedAt))}.`);
-        else if (c.enabled && !c.problem) lines.push('Second copy: on; none made yet.');
         return lines.map(l => `<p class="setting-hint">${l}</p>`).join('');
     }
 

@@ -53,8 +53,8 @@ const CHUNK = 1024 * 1024;
 const tuning = { syncBytes: 32 * 1024 * 1024 };
 
 /** `to` created exclusively (never over a file), then each source appended in turn: { size }. */
-function* copyInto(to, sources, mode = 0o666) {
-    const out = fs.openSync(to, 'wx', mode); // #43: a backup's copy is owner-only (0600)
+function* copyInto(to, sources) {
+    const out = fs.openSync(to, 'wx');
     const buf = Buffer.allocUnsafe(CHUNK);
     let size = 0;
     let unsynced = 0;
@@ -109,7 +109,7 @@ function* sameBytes(file, sources) {
 }
 
 const LONG = {
-    copyInto: (file, extra) => copyInto(file, extra.sources || [], Number.isInteger(extra.mode) ? extra.mode : 0o666),
+    copyInto: (file, extra) => copyInto(file, extra.sources || []),
     sameBytes: (file, extra) => sameBytes(file, extra.sources || [])
 };
 

@@ -3,8 +3,6 @@ require('dotenv').config();
 // #44 (0896): an uncaught exception or unhandled rejection writes one redacted record to data/crashes.jsonl, logs one
 // redacted line and exits 1, so the container's restart policy restarts PigTV (services/crashLog.js).
 require('./services/crashLog').install();
-// #45 (0898): keep the last 2,000 log lines, redacted, for the admin "Server log" panel (stdout is unchanged).
-require('./services/logRing').install();
 // D-57: a database older than this version supports stops the start here, before anything touches the data folder.
 require('./services/dbMinimum').exitIfUnsupported(require('./db/sqlite').databasePath());
 const path = require('path');

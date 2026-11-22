@@ -24,12 +24,8 @@
  *   - size: the online copy is gzipped (`.db.gz`, checked by reading it back against the copy's SHA-256 first); the
  *     synchronous pre-migration copy stays a plain `.db` (it delays the start) and compressPending() gzips it later,
  *     off the start path. list(), newest() and extract() read both kinds.
- *   - a second copy: PIGTV_BACKUP_COPY_DIR (unset = off) names a folder each finished `.db.gz` is copied to (a partial,
- *     size and byte-for-byte checked, then renamed), with the same retention there, every call in a helper process with
- *     a deadline (it may be a hung share). A missing, relative or unwritable folder is reported by status() and never
- *     fails or delays the primary copy. Only names matching NAME are ever pruned there.
  *   - review of 0898: pre-migration snapshots have their own retention (the newest 3), outside the daily/weekly one;
- *     only regular files count (a symbolic link is never listed, compressed, pruned, copied or sent).
+ *     only regular files count (a symbolic link is never listed, compressed, pruned or sent).
  *   - every file is created owner-only (0600): a backup holds provider logins. Nothing about its contents is logged.
  *
  * This copies content.db only. It is not a whole-installation backup (data/auth-secret and the
@@ -244,7 +240,7 @@ function prune(dir, { now = Date.now(), keepAlso = null } = {}) {
     // S3: only partials nobody is writing: never this process's own, never a recent one (another
     // process's copy in progress), only those left behind long enough ago.
     // 0489: and what SQLite left beside one (-shm, -wal, -journal from opening it to check it).
-    // #43: only a backup's own partials (content-...), as the second folder may hold other files.
+    // #43: only a backup's own partials (content-...).
     for (const n of names.filter(f => /^content-.*\.partial(?:-shm|-wal|-journal)?$/.test(f))) {
         const file = path.join(dir, n);
         if (ours.has(file.replace(/-(?:shm|wal|journal)$/, ''))) continue;
@@ -301,8 +297,7 @@ function vacuumIntoInWorker(src, dest) {
 
 /**
  * Asynchronous compact copy (safe while the server writes), gzipped (#43). Resolves the backup's path. Should the
- * compression fail, the checked plain copy is published instead: a bigger backup beats none. The second copy (if
- * configured) is started afterwards and not waited for: whenCopied().
+ * compression fail, the checked plain copy is published instead: a bigger backup beats none.
  */
 async function backup(dbPath, { reason = 'manual', now = Date.now() } = {}) {
     const target = prepare(dbPath, reason, now);
@@ -330,7 +325,6 @@ async function backup(dbPath, { reason = 'manual', now = Date.now() } = {}) {
         ours.delete(target.partial);
     }
     prune(target.dir, { keepAlso: dest });
-    if (dest.endsWith('.gz')) scheduleCopy(dest);
     return dest;
 }
 
@@ -353,7 +347,6 @@ async function compressPending(dbPath) {
             fs.unlinkSync(gz);
             fs.unlinkSync(entry.path);
             done.push(dest);
-            scheduleCopy(dest);
         } catch (err) {
             try { fs.unlinkSync(gz); } catch { /* none */ }
             compressFailed.add(entry.path);
@@ -365,100 +358,6 @@ async function compressPending(dbPath) {
     }
     return done;
 }
-
-// ---- #43: the second copy (PIGTV_BACKUP_COPY_DIR) ----
-//
-// Review of 0898 (high): the folder may be a network share, and a call on a hung mount blocks in the kernel for minutes.
-// So nothing in this process touches it: every call (the probe, the copy, the byte-for-byte check, the rename, the
-// listing and the pruning) runs in a helper process through shareFs.js (#8, the recordings share's isolation): short
-// calls on withOwnHelper (each with a deadline), the copy and the check on helpers of their own (shareFs.copyInto and
-// sameBytes, killed when they stop making progress or at the hard deadline). One run at a time; a copy asked for while
-// one runs is skipped and recorded. Status shows the cached result of the last run and never touches the folder.
-
-const shareFs = require('./shareFs');
-const copyTuning = { callMs: 15000, stallMs: 60000, hardMs: 30 * 60 * 1000 };
-const copyState = { ok: null, problem: null, lastCopiedAt: null, lastAttemptAt: null, skippedAt: null };
-let copyRunning = null;
-
-/** From the environment only (no file call): { enabled: false } | { enabled: true, problem } | { enabled: true, dir }. */
-function copyConfig() {
-    const raw = process.env.PIGTV_BACKUP_COPY_DIR;
-    if (!raw || !raw.trim()) return { enabled: false };
-    if (!path.isAbsolute(raw)) return { enabled: true, problem: 'not an absolute path' };
-    return { enabled: true, dir: path.resolve(raw) };
-}
-
-function copyFailed(problem) {
-    if (copyState.problem !== problem) console.warn(`[Backup] The second copy was not made: the folder in PIGTV_BACKUP_COPY_DIR is ${problem}. The backup in appdata is fine.`);
-    copyState.ok = false;
-    copyState.problem = problem;
-}
-
-const problemOf = (err) => (err && (err.code === 'SHARE_UNRESPONSIVE' || err.name === 'AbortError')
-    ? 'not answering (the copy was stopped)' : 'failing (the copy could not be written or checked)');
-
-/** Copy one finished backup to the second folder, in helpers: probe, copy, compare, rename, then retention there. */
-async function copyOut(file) {
-    const target = copyConfig();
-    if (!target.enabled) return null;
-    copyState.lastAttemptAt = Date.now();
-    if (target.problem) { copyFailed(target.problem); return null; }
-    const name = path.basename(file);
-    if (!NAME.test(name)) return null; // only ever a backup's own name: nothing from outside can steer the path
-    if (path.resolve(path.dirname(file)) === target.dir) { copyFailed('the backups folder itself'); return null; }
-    const dest = path.join(target.dir, name);
-    const partial = path.join(target.dir, `${name}.${random()}.partial`);
-    const controller = new AbortController();
-    const hard = setTimeout(() => controller.abort(), copyTuning.hardMs);
-    hard.unref?.();
-    const own = (work) => shareFs.withOwnHelper(work, { timeoutMs: copyTuning.callMs, path: target.dir });
-    try {
-        const problem = await own(async (io) => {
-            if (!(await io.exists(target.dir))) return 'missing';
-            if (!(await io.writeProbe(target.dir))) return 'not writable';
-            return null;
-        });
-        if (problem) { copyFailed(problem); return null; }
-        const size = fs.statSync(file).size; // the local backup
-        const opts = { signal: controller.signal, stallMs: copyTuning.stallMs };
-        const copied = await shareFs.copyInto(partial, [file], { ...opts, mode: OWNER_ONLY });
-        if (!copied || copied.size !== size) throw new Error('size differs');
-        if (!(await shareFs.sameBytes(partial, [file], opts))) throw new Error('the copy is not the same');
-        await own(async (io) => {
-            await io.rename(partial, dest);
-            const names = (await io.readdir(target.dir)) || [];
-            // Our partials only (a killed run's); then retention over the backups' names (nothing else there is touched).
-            for (const n of names.filter(f => /^content-.*\.partial$/.test(f))) await io.unlink(path.join(target.dir, n));
-            const entries = fromNames(names);
-            const keep = retain(entries);
-            keep.add(name);
-            for (const e of entries) if (!keep.has(e.file)) await io.unlink(path.join(target.dir, e.file));
-        });
-        copyState.ok = true;
-        copyState.problem = null;
-        copyState.lastCopiedAt = Date.now();
-        return dest;
-    } catch (err) {
-        copyFailed(problemOf(err));
-        return null;
-    } finally {
-        clearTimeout(hard);
-    }
-}
-
-function scheduleCopy(file) {
-    if (copyRunning) {
-        if (copyConfig().enabled) {
-            copyState.skippedAt = Date.now();
-            console.warn(`[Backup] The second copy of ${path.basename(file)} was skipped: the previous one is still running.`);
-        }
-        return copyRunning;
-    }
-    copyRunning = copyOut(file).catch(() => null).finally(() => { copyRunning = null; });
-    return copyRunning;
-}
-/** Resolves once the second copy running now (if any) has finished (or failed). */
-const whenCopied = () => copyRunning || Promise.resolve(null);
 
 /**
  * Before getDb() runs the schema: back up when the database exists and was last opened by a
@@ -577,21 +476,13 @@ function startNightly(dbPath, { busy, active } = {}) {
     setTimeout(() => nightlyCheck(dbPath, { busy, active }), 5 * 60 * 1000).unref?.();
 }
 
-/** #43, for Status, from memory only (never a file call, never a path): the waiting copy, the last run, the second copy. */
+/** #43, for Status, from memory only (never a file call, never a path): the waiting copy and the last run. */
 function status() {
-    const target = copyConfig();
-    const copy = { enabled: target.enabled, ok: null, problem: null, lastCopiedAt: null };
-    if (target.enabled) {
-        const problem = target.problem || copyState.problem;
-        Object.assign(copy, { ok: problem ? false : copyState.ok, problem, lastCopiedAt: copyState.lastCopiedAt,
-            lastAttemptAt: copyState.lastAttemptAt, running: !!copyRunning, skippedAt: copyState.skippedAt });
-    }
     return {
         deferredSince: runState.waitingFor,
         deferCapMin: DEFER_CAP_MS / 60000,
         lastRun: runState.lastRun,
-        retryAt: runState.failedAt !== null ? runState.failedAt + runState.retryMs : null,
-        copy
+        retryAt: runState.failedAt !== null ? runState.failedAt + runState.retryMs : null
     };
 }
 
@@ -601,11 +492,10 @@ function _resetState() {
     runState.lastRun = null;
     runState.failedAt = null;
     runState.retryMs = 0;
-    Object.assign(copyState, { ok: null, problem: null, lastCopiedAt: null, lastAttemptAt: null, skippedAt: null });
     nightlySkipping = false;
 }
 
 module.exports = {
     RETENTION, list, newest, openNewest, retain, backup, backupSync, compressPending, extract, beforeMigrations, recordBuild,
-    nightlyCheck, startNightly, prune, status, whenCopied, _resetState, copyTuning
+    nightlyCheck, startNightly, prune, status, _resetState
 };

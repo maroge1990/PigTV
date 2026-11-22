@@ -47,8 +47,7 @@ share.
 - **Database backups** (`services/dbBackup.js`, #43): `data/backups/content-<stamp>-<reason>.db.gz` (pre-migration copies
   start as `.db` and are gzipped later); the newest 3 pre-migration + 7 daily + 4 weekly kept (regular files only); the
   nightly copy waits while a viewer's play or a recording is active, at most 6 h after it fell due (newest backup + 1 day,
-  so a restart keeps the deadline); `PIGTV_BACKUP_COPY_DIR` adds a verified second copy, every call to that folder in a
-  shareFs helper process with a deadline. `status()` (memory only) feeds Status's `backupState`.
+  so a restart keeps the deadline). `status()` (memory only) feeds Status's `backupState`.
 
 ## The playback path
 
@@ -220,15 +219,13 @@ tails a stalled or timed-out session prints, the proxy's lines (it knows no prov
 sync's log line and stored error, and error texts that can quote an address all go through it.
 
 **Crashes** (#44, `services/crashLog.js`): `index.js` installs the `uncaughtException`/`unhandledRejection` handlers first.
-Each writes one record to `data/crashes.jsonl` (sync, capped at 50, message and frames through `stripUrls()`, counts of
+Each writes one record to `data/crashes.jsonl` (sync, capped at 50, message and frames through `stripUrls()` and
+`secretMask.js` (best effort; message cut at 300), counts of
 active plays and recordings only), logs one line and exits 1; the container restarts it. A corrupt or missing file reads
 as its valid lines. Status carries `crashes` (`last24h`, `lastAt`, `lastName`, `lastKind`; never the message).
 
-**Log ring** (#45, `services/logRing.js`): `index.js` wraps `console.log/info/warn/error/debug` once; each call still goes to
-the original method unchanged, and a copy, formatted, passed through `stripUrls()` and then cut to 1,000 characters, is kept
-in a 2,000-line ring for `GET /api/status/logs` (admin). Credential-looking keys and `Bearer`/`Basic` values are masked
-too, and an Error is kept as name, message and top frames only. The ring never holds an unredacted line. The Express
-error handler (`services/serverErrors.js`) logs allow-listed fields only, never the error (a failed JSON body rides on it).
+**Server errors** (`services/serverErrors.js`): the Express error handler logs one line of allow-listed fields (name,
+type, status, code, route pattern), never the error itself: a JSON body that did not parse rides on it.
 
 ## Status page and channel health
 

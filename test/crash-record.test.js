@@ -128,3 +128,19 @@ test('the real server starts with a corrupt crash file, and a crash in it is rec
         try { fs.rmSync(sandbox, { recursive: true, force: true }); } catch { /* temp */ }
     }
 });
+
+test('0900: a message quoting a JSON password or a Bearer value with no URL is masked in the record and the log line, and cut at 300', async () => {
+    const file = path.join(tmp(), 'crashes.jsonl');
+    const msg = `Unexpected token in JSON at position 40: {"username":"owner","password":"${SECRET}"} sent with Bearer ${SECRET}x9 ` + 'z'.repeat(600);
+    const r = await run(`
+        require(${JSON.stringify(MODULE)}).install({ file: ${JSON.stringify(file)} });
+        setTimeout(() => { throw new SyntaxError(${JSON.stringify(msg)}); }, 10);
+    `);
+    assert.notEqual(r.code, 0);
+    const rec = JSON.parse(lines(file)[0]);
+    assert.ok(!lines(file)[0].includes(SECRET), lines(file)[0]);
+    assert.ok(!r.out.includes(SECRET), r.out);
+    assert.match(rec.message, /"password":\*\*\*/);
+    assert.match(rec.message, /Bearer \*\*\*/);
+    assert.ok(rec.message.length <= 300);
+});

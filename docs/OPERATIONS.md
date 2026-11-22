@@ -90,13 +90,17 @@ the container as healthy/unhealthy.
 ## Crashes and restarts
 
 PigTV does not keep itself running after an unexpected error (#44). On an uncaught exception or unhandled rejection it
-writes one record to `data/crashes.jsonl` (time, build, error name, the message with every address and login removed,
-the top stack frames, uptime, how many plays and recordings were active; the newest 50 are kept), logs one
+writes one record to `data/crashes.jsonl` (time, build, error name, the error message, the top stack frames, uptime, how many plays and recordings were active; the newest 50 are kept), logs one
 `[Crash] <kind>: <name>: <message>` line and exits with code 1. Bringing it back is the **container's restart policy**:
 PigTV adds no delay or retry of its own, so a crash loop costs one short file line per start and the container's own
 back-off. After a restart the log says `[Crash] Started after a crash: N in the last 24 h ...`, and the Status page shows
 a **Restarts** line (count in the last 24 h, the last one's time and error name) until a day has passed. Nothing is sent
 anywhere: no alert, no outbound connection.
+
+The error message in the record is redacted on a best-effort basis: addresses, logins in addresses, and anything that
+looks like a password, token, cookie or `Bearer`/`Basic` value are removed, and it is cut at 300 characters. A secret
+quoted with nothing like that around it would not be recognised. The file is in the data folder (owner-only), and the
+Status page shows only the error's name: treat `crashes.jsonl` as admin-only, like the backups.
 
 **Check once (Mark):** the repo does not hold the Unraid template, so its restart policy is not known here. The README's
 compose example has `restart: unless-stopped`; the image has no restart policy of its own, and an unhealthy
@@ -108,16 +112,11 @@ compose example has `restart: unless-stopped`; the image has no restart policy o
 
 ## Diagnose without SSH
 
-Both are admin only (the normal sign-in; a viewer gets 403, no sign-in 401) and live on Status → **Show details** (#45):
-
-- **Server log** (`GET /api/status/logs[?since=<seq>]`): the last 2,000 lines the server logged, each with logins,
-  addresses, hosts and anything that looks like a password, token, cookie or Authorization value removed before it is
-  kept (at most 1,000 characters a line), oldest first; after a restart the panel starts again from the new server's lines. **Load** asks for them,
-  **Copy** puts them on the clipboard, **Refresh every 5 s** is off until ticked. In memory: a restart empties it, and
-  `docker logs` (unchanged) still has everything.
-- **Download newest backup** (`GET /api/status/backup/latest`): the newest file in `data/backups` (normally a
-  `.db.gz`), after a warning that it contains the providers' logins. One download at a time (429 meanwhile). The log
-  gets `[Audit] Backup downloaded by <account> at <time>: <file name>, <bytes> bytes`. Restore it as in "Restore" below.
+**Download newest backup** (#45; Status → **Show details** → Database backups; admin only: the normal sign-in, a viewer
+gets 403, no sign-in 401; `GET /api/status/backup/latest`): the newest file in `data/backups` (normally a `.db.gz`), after
+a warning that it contains the providers' logins. One download at a time (429 meanwhile). The log gets `[Audit] Backup
+downloaded by <account> at <time>: <file name>, <bytes> bytes`. Restore it as in "Restore" below. The server log itself
+is still read with `docker logs PigTV`.
 
 ## Slow requests
 
@@ -152,18 +151,8 @@ anyway (on a worker thread). The 6 hours count from the newest backup's time, so
 that fails is tried again after 5 minutes, then 10, 20... up to an hour. Status → Show details → Database backups says
 when one is waiting, ran late or failed.
 
-**A second copy, off the appdata disk (`PIGTV_BACKUP_COPY_DIR`, off until set):** each finished `.db.gz` is also copied to
-that folder (checked by size and byte for byte, then renamed into place) and the same retention is applied there;
-nothing else in that folder is touched. Every file call there runs in a helper process with a deadline, so a share that
-stops answering stalls only the copy (it is stopped and shown as "not answering"), never PigTV; one copy runs at a time. If the folder is missing or cannot be written, Status shows it under "Needs attention"
-and the backup in `data/backups` is unaffected. To switch it on (Mark, on Unraid):
-1. Pick a folder on another disk or machine, e.g. a share mounted under `/mnt/remotes/...` or `/mnt/user/backups/pigtv`.
-2. Unraid → Docker → PigTV → Edit → **Add another Path, Port, Variable...** → Config Type **Path**: Container Path
-   `/backups-copy`, Host Path the folder from step 1, Access Mode **Read/Write** (for a remote share: **Read/Write - Slave**).
-3. Again **Add another Path, Port, Variable...** → Config Type **Variable**: Key `PIGTV_BACKUP_COPY_DIR`, Value `/backups-copy`.
-4. Apply. The folder must be writable by `PUID:PGID` (99:100 by default).
-5. The next copy (pre-migration on this start, gzipped a few minutes after it, or the nightly one) appears there; Status →
-   Show details → Database backups says "Second copy: last made ...".
+The copies sit on the appdata disk: copy `backups/` off the box now and then (a same-disk copy does not survive the
+disk). Status → Show details → Database backups → **Download newest backup** is one way (see "Diagnose without SSH").
 
 **Segmented recordings (0218, R3; always on since 0494, D-48):** recordings in progress live in
 `/app/data/recordings-work/` (on Unraid `/mnt/user/appdata/pigtv/data/recordings-work/`) until their MP4 is on the
@@ -173,23 +162,33 @@ exclude `recordings-work/` from any appdata backup: it is large, short-lived, an
 
 ## Restore
 
-Nothing is overwritten until the backup has been checked. On the Unraid terminal (data folder
-`/mnt/user/appdata/pigtv/data`; after a bad deploy, use the newest `pre-migration` copy and point the container back at
+Nothing is overwritten until the backup has been checked, and each attempt keeps the database it replaced in a folder of
+its own. On the Unraid terminal (after a bad deploy, use the newest `pre-migration` copy and point the container back at
 the previous image first):
 
 1. Stop the container (Unraid → Docker → PigTV → Stop).
-2. Put the live database aside: `cd /mnt/user/appdata/pigtv/data && mkdir -p before-restore && cp content.db* before-restore/`
-   (this copies `content.db` and, if present, `content.db-wal` and `content.db-shm`).
-3. Unpack the chosen backup to a new file: `gunzip -c backups/content-<timestamp>-<reason>.db.gz > restore.db`
+2. Go to the data folder and make a new rollback folder named with the date and time:
+   `cd /mnt/user/appdata/pigtv/data && R=before-restore-$(date +%Y%m%d-%H%M%S) && mkdir "$R"`
+3. Copy the live database and whichever of its side files exist into it, and list what was saved:
+   `for f in content.db content.db-wal content.db-shm; do [ -e "$f" ] && cp -p "$f" "$R/"; done; ls -l "$R"`.
+   `content.db` must be in the list; if it is not, stop here.
+4. Unpack the chosen backup to a new file: `gunzip -c backups/content-<timestamp>-<reason>.db.gz > restore.db`
    (a plain `.db` from before 0897: `cp backups/content-<timestamp>-<reason>.db restore.db`).
-4. Check it: `docker run --rm -v /mnt/user/appdata/pigtv/data:/app/data --entrypoint node ghcr.io/maroge1990/pigtv:latest
+5. Check it: `docker run --rm -v /mnt/user/appdata/pigtv/data:/app/data --entrypoint node ghcr.io/maroge1990/pigtv:latest
    -e "console.log(new (require('better-sqlite3'))('/app/data/restore.db',{readonly:true}).pragma('quick_check',{simple:true}))"`.
    It must print `ok`. Anything else: stop here, delete `restore.db`, and try an older backup.
-5. Only now put it in place: `rm -f content.db-wal content.db-shm && mv restore.db content.db && chown 99:100 content.db`.
-6. Start the container and check the log and the Status page.
+6. Only now put it in place: `rm -f content.db-wal content.db-shm && mv restore.db content.db && chown 99:100 content.db`.
+7. Start the container and check the log and the Status page. Write down the folder name (`echo "$R"`).
 
-**Rolling back the restore:** stop the container, then `rm -f content.db content.db-wal content.db-shm && cp
-before-restore/content.db* .`, and start it again. Delete `before-restore/` once the restored database is fine.
+**Rolling back that restore** (from the same folder, `before-restore-<date-time>`):
+
+1. Stop the container, then `cd /mnt/user/appdata/pigtv/data && R=before-restore-<date-time>` (the name from step 7).
+2. Confirm the saved database is there: `ls -l "$R/content.db"`. If it is not, stop here and ask for help.
+3. Remove the live database and any side file the saved set does not have:
+   `rm -f content.db; for f in content.db-wal content.db-shm; do [ -e "$R/$f" ] || rm -f "$f"; done`
+4. Copy the saved set back: `cp -p "$R"/content.db* . && chown 99:100 content.db*`, then start the container.
+
+Delete the `before-restore-*` folder once the database you kept is fine.
 
 **Oldest database (D-57):** this version opens a database last opened by build 0476 or later. An older backup, or a
 data folder from before 0213 or with a `db.json` from before 0135, stops the start: the log says `[Database] Not

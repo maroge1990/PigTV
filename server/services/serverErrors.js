@@ -2,7 +2,7 @@
  * The Express error handler (server/index.js, last middleware).
  *
  * Review of 0898 (high): it logged the whole error. A JSON body that does not parse reaches it with the raw body on
- * `err.body` and quoted in `err.message`, so a sign-in's password went to stdout (and the log ring). Now one fixed line
+ * `err.body` and quoted in `err.message`, so a sign-in's password went to stdout. Now one fixed line
  * with allow-listed fields only: the error's name, `type` (body-parser's kind, e.g. entity.parse.failed), status, a short
  * `code`, and the route pattern. Never the body, the message, headers, the URL or the query. The answer is unchanged.
  */

@@ -7,7 +7,8 @@
  * PigTV again" (no restart delay or retry here: the container owns that), but on the way out the process now
  *
  *   1. writes ONE record, synchronously, to data/crashes.jsonl (JSON lines, append-only, the newest KEEP kept):
- *      time, build, kind, error name, the message through stripUrls() (redact() plus every URL and host removed),
+ *      time, build, kind, error name, the message through stripUrls() (redact() plus every URL and host removed) and
+ *      maskSecrets() (credential-looking keys, Bearer/Basic values; best effort), at most 300 characters,
  *      the top few stack frames (the "at ..." lines only, app paths made relative), uptime, and how many playback
  *      sessions and recordings were active (counts only);
  *   2. logs one redacted line;
@@ -19,6 +20,11 @@
 const fs = require('fs');
 const path = require('path');
 const { stripUrls } = require('../redact');
+const { maskSecrets } = require('./secretMask');
+
+// 0900: a message can quote a secret with no URL around it (a JSON body's "password", a Bearer value): masked as well,
+// best effort, then cut. Admins only see it (data/crashes.jsonl; Status shows only the error name).
+const clean = (text, max) => String(maskSecrets(stripUrls(String(text))) || '').slice(0, max);
 
 const KEEP = 50;
 const FRAMES = 5;
@@ -73,7 +79,7 @@ function activeCounts() {
 function frames(err) {
     const stack = typeof err?.stack === 'string' ? err.stack : '';
     return stack.split('\n').map(l => l.trim()).filter(l => l.startsWith('at ')).slice(0, FRAMES)
-        .map(l => stripUrls(l.split(APP_ROOT + path.sep).join('').replace(/file:\/\//g, '')).slice(0, 200));
+        .map(l => clean(l.split(APP_ROOT + path.sep).join('').replace(/file:\/\//g, ''), 200));
 }
 
 function buildRecord(kind, err, { now = Date.now() } = {}) {
@@ -85,7 +91,7 @@ function buildRecord(kind, err, { now = Date.now() } = {}) {
         build,
         kind,
         name: String(isError ? (err.name || 'Error') : typeof err).slice(0, 60),
-        message: String(stripUrls(isError ? err.message : String(err)) || '').slice(0, 300),
+        message: clean(isError ? err.message : String(err), 300),
         stack: frames(err),
         uptimeSec: Math.round(process.uptime()),
         active: activeCounts()

@@ -13,7 +13,7 @@
  *                name, attempts, failures, stalls, minutes watched, stalls/hour,
  *                median first picture, health, score (services/channelHealth.js)
  *   sync         per source and feed: status, last sync, error text
- * GET /api/status/logs and /api/status/backup/latest (#45, admin): the server log ring and the newest backup.
+ * GET /api/status/backup/latest (#45, admin): the newest backup as a download.
  *
  *   crashes      #44: crash restarts in the last 24 h, the last one's time, kind and error name
  *   disk         free/total bytes of the transcode cache (the tmpfs) and of the
@@ -415,20 +415,6 @@ router.get('/', async (req, res) => {
         console.error('[Status] failed:', err.message);
         res.status(500).json({ error: 'Could not read the server status' });
     }
-});
-
-/**
- * #45 (0898): the last lines the server logged (services/logRing.js), each redacted before it was kept. Oldest first
- * (newest last); `?since=<seq>&generation=<id>` returns only lines after that one; `next` is the cursor for the next call.
- */
-router.get('/logs', (req, res) => {
-    const logRing = require('../services/logRing');
-    const ring = logRing.ring();
-    // Review of 0898: `generation` names this process; a cursor from another one (a restart) gets the whole ring.
-    const sameProcess = req.query.generation === undefined || req.query.generation === logRing.GENERATION;
-    const lines = ring.since(sameProcess ? req.query.since : 0);
-    res.set('Cache-Control', 'no-store');
-    res.json({ generation: logRing.GENERATION, lines, next: lines.length ? lines[lines.length - 1].seq : Math.min(ring.last(), Math.max(0, Number(req.query.since) || 0)), cap: ring.cap });
 });
 
 /**
