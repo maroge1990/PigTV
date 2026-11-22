@@ -419,13 +419,16 @@ router.get('/', async (req, res) => {
 
 /**
  * #45 (0898): the last lines the server logged (services/logRing.js), each redacted before it was kept. Oldest first
- * (newest last); `?since=<seq>` returns only lines after that one; `next` is the cursor for the next call.
+ * (newest last); `?since=<seq>&generation=<id>` returns only lines after that one; `next` is the cursor for the next call.
  */
 router.get('/logs', (req, res) => {
-    const ring = require('../services/logRing').ring();
-    const lines = ring.since(req.query.since);
+    const logRing = require('../services/logRing');
+    const ring = logRing.ring();
+    // Review of 0898: `generation` names this process; a cursor from another one (a restart) gets the whole ring.
+    const sameProcess = req.query.generation === undefined || req.query.generation === logRing.GENERATION;
+    const lines = ring.since(sameProcess ? req.query.since : 0);
     res.set('Cache-Control', 'no-store');
-    res.json({ lines, next: lines.length ? lines[lines.length - 1].seq : Math.max(0, Number(req.query.since) || 0), cap: ring.cap });
+    res.json({ generation: logRing.GENERATION, lines, next: lines.length ? lines[lines.length - 1].seq : Math.min(ring.last(), Math.max(0, Number(req.query.since) || 0)), cap: ring.cap });
 });
 
 /**

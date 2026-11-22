@@ -44,14 +44,17 @@ test('retention keeps exactly 7 daily + 4 weekly (newest per UTC day / ISO week)
         if (premigration.has(d)) dbBackup.backupSync(dbPath, { reason: 'pre-migration', now: at(d, 15) });
         const kept = dbBackup.list(dbPath);
         assert.equal(kept[0].at, premigration.has(d) ? at(d, 15) : at(d, 3), `day ${d}: the newest is always kept`);
-        assert.ok(kept.length <= 11, `day ${d}: at most 7 + 4`);
+        assert.ok(kept.length <= 14, `day ${d}: at most 7 + 4 + 3`);
     }
     const kept = dbBackup.list(dbPath).map(k => (k.at - day0) / HOUR);
+    // Review of 0898: pre-migration snapshots have their own retention (the newest 3); the daily and weekly picks are
+    // made among the other copies, so day 39's nightly is a daily one beside day 39's pre-migration copy.
     const expected = [
-        39 * 24 + 15, // day 39's newest (a pre-migration copy): daily, and its week's newest
-        ...[38, 37, 36, 35, 34, 33].map(d => d * 24 + 3), // the other six daily
+        39 * 24 + 15, // pre-migration
+        ...[39, 38, 37, 36, 35, 34, 33].map(d => d * 24 + 3), // seven daily (days 39 and 34: also their weeks' newest)
         27 * 24 + 3, // week of days 21-27
-        20 * 24 + 15 // week of days 14-20: its newest is day 20's pre-migration copy
+        20 * 24 + 15, 20 * 24 + 3, // pre-migration; and the week of days 14-20's newest nightly
+        10 * 24 + 15 // pre-migration
     ];
     assert.deepEqual(kept, expected);
 });
@@ -86,31 +89,137 @@ test('the uncompressed pre-migration copy is gzipped later (verified first), off
     assert.deepEqual(dump(out), before);
 });
 
-test('a backup due during a play or recording waits, runs when it ends, and runs anyway after 6 h; Status says so', async () => {
+test('a backup due during a play or recording waits, runs when it ends, and runs anyway 6 h after it fell due; Status says so', async () => {
     const { dbPath } = fixture();
     const t0 = Date.UTC(2026, 10, 5, 3);
     let playing = true;
     const active = () => playing;
-    assert.equal(await dbBackup.nightlyCheck(dbPath, { now: t0, active }), null, 'none yet but something plays: waits');
-    assert.equal(dbBackup.list(dbPath).length, 0);
-    assert.equal(dbBackup.status().deferredSince, t0);
-    assert.equal(await dbBackup.nightlyCheck(dbPath, { now: t0 + HOUR, active }), null);
+    assert.ok(await dbBackup.nightlyCheck(dbPath, { now: t0, active }), 'no backup at all: overdue, it runs even during a play');
+    const due = t0 + DAY;
+    assert.equal(await dbBackup.nightlyCheck(dbPath, { now: due + 60000, active }), null, 'due, but something plays: waits');
+    assert.equal(dbBackup.status().deferredSince, due, 'Status: waiting since it fell due');
+    assert.equal(await dbBackup.nightlyCheck(dbPath, { now: due + HOUR, active }), null);
     playing = false;
-    assert.ok(await dbBackup.nightlyCheck(dbPath, { now: t0 + 2 * HOUR, active }), 'idle again: copies');
+    assert.ok(await dbBackup.nightlyCheck(dbPath, { now: due + 2 * HOUR, active }), 'idle again: copies');
     let s = dbBackup.status();
     assert.equal(s.deferredSince, null);
     assert.deepEqual({ late: s.lastRun.late, waitedMin: s.lastRun.waitedMin, forced: s.lastRun.forced }, { late: true, waitedMin: 120, forced: false });
 
     playing = true;
-    const t1 = t0 + 2 * HOUR + DAY + 60000;
-    assert.equal(await dbBackup.nightlyCheck(dbPath, { now: t1, active }), null);
-    assert.equal(await dbBackup.nightlyCheck(dbPath, { now: t1 + 5 * HOUR, active }), null);
-    assert.ok(await dbBackup.nightlyCheck(dbPath, { now: t1 + 6 * HOUR, active }), 'at the cap: runs while it plays');
+    const due2 = due + 2 * HOUR + DAY;
+    assert.equal(await dbBackup.nightlyCheck(dbPath, { now: due2 + 60000, active }), null);
+    assert.equal(await dbBackup.nightlyCheck(dbPath, { now: due2 + 5 * HOUR, active }), null);
+    assert.ok(await dbBackup.nightlyCheck(dbPath, { now: due2 + 6 * HOUR, active }), 'at the cap: runs while it plays');
     s = dbBackup.status();
     assert.equal(s.lastRun.forced, true);
     assert.equal(s.lastRun.waitedMin, 360);
-    assert.equal(dbBackup.list(dbPath).length, 2);
-    assert.ok(await dbBackup.nightlyCheck(dbPath, { now: t1 + 6 * HOUR + DAY + 60000, active: () => { throw new Error('x'); } }), 'a failing active() never stops backups');
+    assert.equal(dbBackup.list(dbPath).length, 3);
+    const due3 = due2 + 6 * HOUR + DAY;
+    assert.ok(await dbBackup.nightlyCheck(dbPath, { now: due3 + 60000, active: () => { throw new Error('x'); } }), 'a failing active() never stops backups');
+});
+
+test('review of 0898: the 6 h deadline survives a restart, and a failed forced run keeps it and retries after 5, then 10 min', async () => {
+    const { dir, dbPath } = fixture();
+    const t0 = Date.UTC(2026, 10, 9, 3);
+    await dbBackup.backup(dbPath, { reason: 'nightly', now: t0 });
+    const due = t0 + DAY;
+    const active = () => true;
+    assert.equal(await dbBackup.nightlyCheck(dbPath, { now: due + 3 * HOUR, active }), null);
+    dbBackup._resetState(); // a restart: nothing in memory
+    assert.equal(await dbBackup.nightlyCheck(dbPath, { now: due + 5 * HOUR, active }), null, 'still inside the 6 h');
+    // The database cannot be read: the forced run fails.
+    fs.renameSync(dbPath, path.join(dir, 'away.db'));
+    const t = due + 6 * HOUR;
+    assert.equal(await dbBackup.nightlyCheck(dbPath, { now: t, active }), null);
+    assert.equal(dbBackup.status().lastRun.ok, false);
+    assert.equal(dbBackup.status().lastRun.forced, true);
+    assert.equal(await dbBackup.nightlyCheck(dbPath, { now: t + 60000, active }), null);
+    assert.equal(dbBackup.status().lastRun.at, t, 'inside the back-off: not tried again');
+    await dbBackup.nightlyCheck(dbPath, { now: t + 5 * 60000, active });
+    assert.equal(dbBackup.status().lastRun.at, t + 5 * 60000, 'tried again after 5 min, the deadline still expired');
+    assert.equal(dbBackup.status().lastRun.ok, false);
+    await dbBackup.nightlyCheck(dbPath, { now: t + 14 * 60000, active });
+    assert.equal(dbBackup.status().lastRun.at, t + 5 * 60000, 'then 10 min');
+    fs.renameSync(path.join(dir, 'away.db'), dbPath);
+    assert.ok(await dbBackup.nightlyCheck(dbPath, { now: t + 15 * 60000, active }));
+    assert.equal(dbBackup.status().lastRun.ok, true);
+    assert.equal(dbBackup.status().retryAt, null);
+});
+
+test('review of 0898: the newest 3 pre-migration snapshots outlast a same-day manual copy and 40 days of nightlies, in both folders', async () => {
+    const { dbPath } = fixture();
+    const second = tmp('pigtv-copy-');
+    process.env.PIGTV_BACKUP_COPY_DIR = second;
+    const day0 = Date.UTC(2026, 10, 2);
+    const pre = [];
+    for (const d of [0, 1, 2, 3]) {
+        dbBackup.backupSync(dbPath, { reason: 'pre-migration', now: day0 + d * DAY + 15 * HOUR });
+        const [gz] = await dbBackup.compressPending(dbPath);
+        await dbBackup.whenCopied();
+        pre.push(path.basename(gz));
+    }
+    await dbBackup.backup(dbPath, { reason: 'manual', now: day0 + 3 * DAY + 16 * HOUR });
+    await dbBackup.whenCopied();
+    for (let d = 4; d < 44; d++) { await dbBackup.backup(dbPath, { reason: 'nightly', now: day0 + d * DAY + 3 * HOUR }); await dbBackup.whenCopied(); }
+    const premig = (names) => names.filter(n => /-pre-migration\.db\.gz$/.test(n)).sort();
+    assert.deepEqual(premig(dbBackup.list(dbPath).map(b => b.file)), pre.slice(1).sort(), 'appdata: the newest 3');
+    assert.deepEqual(premig(fs.readdirSync(second)), pre.slice(1).sort(), 'second folder: the newest 3');
+});
+
+test('review of 0898: a symbolic link in the backups folder is ignored by the listing, compression, retention, copy and download', async () => {
+    const { dir, dbPath } = fixture();
+    const second = tmp('pigtv-copy-');
+    process.env.PIGTV_BACKUP_COPY_DIR = second;
+    const real = await dbBackup.backup(dbPath, { reason: 'nightly', now: Date.UTC(2026, 10, 1) });
+    await dbBackup.whenCopied();
+    const outside = path.join(dir, 'outside.txt');
+    fs.writeFileSync(outside, 'not a backup, and not to be touched');
+    const old = path.join(path.dirname(real), 'content-2020-01-01T00-00-00Z-pre-migration.db');
+    const newer = path.join(path.dirname(real), 'content-2099-01-01T00-00-00Z-nightly.db');
+    fs.symlinkSync(outside, old);
+    fs.symlinkSync(outside, newer);
+    assert.deepEqual(dbBackup.list(dbPath).map(b => b.file), [path.basename(real)], 'listed: only the regular file');
+    assert.deepEqual(await dbBackup.compressPending(dbPath), [], 'nothing compressed through a link');
+    const opened = dbBackup.openNewest(dbPath);
+    assert.equal(opened.file, path.basename(real), 'the download takes the regular file');
+    fs.closeSync(opened.fd);
+    for (let d = 2; d < 12; d++) { await dbBackup.backup(dbPath, { reason: 'nightly', now: Date.UTC(2026, 10, d) }); await dbBackup.whenCopied(); }
+    assert.ok(fs.lstatSync(old).isSymbolicLink() && fs.lstatSync(newer).isSymbolicLink(), 'retention left the links alone');
+    assert.equal(fs.readFileSync(outside, 'utf8'), 'not a backup, and not to be touched');
+    assert.ok(!fs.readdirSync(second).some(n => n.includes('2099') || n.includes('2020')), 'never copied');
+});
+
+test('review of 0898: a second folder that hangs does not block the event loop; the copy is stopped and Status answers from memory', async () => {
+    const { dbPath } = fixture();
+    const second = tmp('pigtv-hang-');
+    process.env.PIGTV_BACKUP_COPY_DIR = second;
+    process.env.PIGTV_TEST_SHARE_HANG = second; // the helper process blocks on any call there (shareFsWorker.js)
+    const saved = { ...dbBackup.copyTuning };
+    Object.assign(dbBackup.copyTuning, { callMs: 1500, stallMs: 1500, hardMs: 3000 });
+    try {
+        let worst = 0, last = Date.now();
+        const tick = setInterval(() => { const n = Date.now(); worst = Math.max(worst, n - last); last = n; }, 20);
+        const file = await dbBackup.backup(dbPath, { reason: 'nightly', now: Date.UTC(2026, 10, 7) });
+        assert.ok(fs.existsSync(file), 'the primary backup is whole');
+        const t = Date.now();
+        const st = dbBackup.status();
+        assert.ok(Date.now() - t < 50, 'Status answers at once');
+        assert.equal(st.copy.running, true);
+        await dbBackup.whenCopied();
+        clearInterval(tick);
+        assert.ok(worst < 500, `the event loop was never held (worst gap ${worst} ms)`);
+        const s = dbBackup.status().copy;
+        assert.equal(s.ok, false);
+        assert.match(s.problem, /not answering/);
+        assert.equal(s.running, false);
+        // The killed helper goes away (SIGKILL ends even a wait on the mount in this test).
+        const until = Date.now() + 5000;
+        while (require('../server/services/shareFs')._ownHelpers.size && Date.now() < until) await new Promise(r => setTimeout(r, 50));
+        assert.equal(require('../server/services/shareFs')._ownHelpers.size, 0, 'the helper was killed');
+    } finally {
+        delete process.env.PIGTV_TEST_SHARE_HANG;
+        Object.assign(dbBackup.copyTuning, saved);
+    }
 });
 
 test('PIGTV_BACKUP_COPY_DIR: each copy appears there verified (size and checksum) and is pruned the same way', async () => {
@@ -173,4 +282,5 @@ test('with PIGTV_BACKUP_COPY_DIR unset nothing is written anywhere new', async (
     await dbBackup.whenCopied();
     assert.deepEqual(fs.readdirSync(dir).filter(n => !/^content\.db/.test(n)), ['backups']);
     assert.deepEqual(dbBackup.status().copy, { enabled: false, ok: null, problem: null, lastCopiedAt: null });
+    assert.equal(dbBackup.status().copy.running, undefined);
 });

@@ -111,7 +111,8 @@ compose example has `restart: unless-stopped`; the image has no restart policy o
 Both are admin only (the normal sign-in; a viewer gets 403, no sign-in 401) and live on Status → **Show details** (#45):
 
 - **Server log** (`GET /api/status/logs[?since=<seq>]`): the last 2,000 lines the server logged, each with logins,
-  addresses and hosts removed before it is kept (at most 1,000 characters a line), oldest first. **Load** asks for them,
+  addresses, hosts and anything that looks like a password, token, cookie or Authorization value removed before it is
+  kept (at most 1,000 characters a line), oldest first; after a restart the panel starts again from the new server's lines. **Load** asks for them,
   **Copy** puts them on the clipboard, **Refresh every 5 s** is off until ticked. In memory: a restart empties it, and
   `docker logs` (unchanged) still has everything.
 - **Download newest backup** (`GET /api/status/backup/latest`): the newest file in `data/backups` (normally a
@@ -140,17 +141,21 @@ copy is written as a plain `.db` (it runs before the server listens) and gzipped
 turns both off. The copies are only `content.db`: keep `data/auth-secret` and the container settings too. A backup holds
 the providers' logins: its files are readable by their owner only.
 
-**What is kept (#43):** after each new copy, the newest copy of each of the 7 most recent days that have one, and the
-newest of each of the 4 most recent weeks (ISO weeks, UTC); the newest copy is never removed. Older `.db` files from
-before 0897 are read the same way and gzipped in place.
+**What is kept (#43):** after each new copy: the newest 3 `pre-migration` copies (one per build change, kept apart, so
+a same-day manual or nightly copy never replaces them); among the other copies, the newest of each of the 7 most recent
+days that have one and the newest of each of the 4 most recent weeks (ISO weeks, UTC); and always the newest copy. Older
+`.db` files from before 0897 are read the same way and gzipped in place. Only regular files count: a link is ignored.
 
-**Not during plays:** the nightly copy does not start while a play or a recording is active; it runs at the first check
-(every 5 minutes) after they end, and after 6 hours of waiting it runs anyway (the copy runs on a worker thread). Status
-→ Show details → Database backups says when one is waiting or ran late.
+**Not during plays:** a nightly copy falls due a day after the newest backup. It does not start while a play or a
+recording is active; it runs at the first check (every 5 minutes) after they end, and 6 hours after it fell due it runs
+anyway (on a worker thread). The 6 hours count from the newest backup's time, so a restart does not reset them. A copy
+that fails is tried again after 5 minutes, then 10, 20... up to an hour. Status → Show details → Database backups says
+when one is waiting, ran late or failed.
 
 **A second copy, off the appdata disk (`PIGTV_BACKUP_COPY_DIR`, off until set):** each finished `.db.gz` is also copied to
-that folder (checked by size and checksum, then renamed into place) and the same retention is applied there; nothing
-else in that folder is touched. If the folder is missing or cannot be written, Status shows it under "Needs attention"
+that folder (checked by size and byte for byte, then renamed into place) and the same retention is applied there;
+nothing else in that folder is touched. Every file call there runs in a helper process with a deadline, so a share that
+stops answering stalls only the copy (it is stopped and shown as "not answering"), never PigTV; one copy runs at a time. If the folder is missing or cannot be written, Status shows it under "Needs attention"
 and the backup in `data/backups` is unaffected. To switch it on (Mark, on Unraid):
 1. Pick a folder on another disk or machine, e.g. a share mounted under `/mnt/remotes/...` or `/mnt/user/backups/pigtv`.
 2. Unraid → Docker → PigTV → Edit → **Add another Path, Port, Variable...** → Config Type **Path**: Container Path
@@ -168,13 +173,23 @@ exclude `recordings-work/` from any appdata backup: it is large, short-lived, an
 
 ## Restore
 
-1. Stop the container.
-2. In the data folder, remove `content.db-wal` and `content.db-shm` if present, then put the backup in place (after a bad
-   deploy: the newest `pre-migration` one, with the container pointed back at the previous image):
-   a gzipped one with `gunzip -c backups/content-<timestamp>-<reason>.db.gz > content.db`, a plain one (before 0897)
-   with `cp backups/content-<timestamp>-<reason>.db content.db`
-3. Make sure the owner matches (`chown 99:100 content.db`; the entrypoint also corrects this at start).
-4. Start the container and check the log and Status page.
+Nothing is overwritten until the backup has been checked. On the Unraid terminal (data folder
+`/mnt/user/appdata/pigtv/data`; after a bad deploy, use the newest `pre-migration` copy and point the container back at
+the previous image first):
+
+1. Stop the container (Unraid → Docker → PigTV → Stop).
+2. Put the live database aside: `cd /mnt/user/appdata/pigtv/data && mkdir -p before-restore && cp content.db* before-restore/`
+   (this copies `content.db` and, if present, `content.db-wal` and `content.db-shm`).
+3. Unpack the chosen backup to a new file: `gunzip -c backups/content-<timestamp>-<reason>.db.gz > restore.db`
+   (a plain `.db` from before 0897: `cp backups/content-<timestamp>-<reason>.db restore.db`).
+4. Check it: `docker run --rm -v /mnt/user/appdata/pigtv/data:/app/data --entrypoint node ghcr.io/maroge1990/pigtv:latest
+   -e "console.log(new (require('better-sqlite3'))('/app/data/restore.db',{readonly:true}).pragma('quick_check',{simple:true}))"`.
+   It must print `ok`. Anything else: stop here, delete `restore.db`, and try an older backup.
+5. Only now put it in place: `rm -f content.db-wal content.db-shm && mv restore.db content.db && chown 99:100 content.db`.
+6. Start the container and check the log and the Status page.
+
+**Rolling back the restore:** stop the container, then `rm -f content.db content.db-wal content.db-shm && cp
+before-restore/content.db* .`, and start it again. Delete `before-restore/` once the restored database is fine.
 
 **Oldest database (D-57):** this version opens a database last opened by build 0476 or later. An older backup, or a
 data folder from before 0213 or with a `db.json` from before 0135, stops the start: the log says `[Database] Not

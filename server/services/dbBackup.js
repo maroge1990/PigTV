@@ -25,8 +25,11 @@
  *     synchronous pre-migration copy stays a plain `.db` (it delays the start) and compressPending() gzips it later,
  *     off the start path. list(), newest() and extract() read both kinds.
  *   - a second copy: PIGTV_BACKUP_COPY_DIR (unset = off) names a folder each finished `.db.gz` is copied to (a partial,
- *     size and SHA-256 checked, then renamed), with the same retention there. A missing, relative or unwritable folder
- *     is reported by status() and never fails or delays the primary copy. Only names matching NAME are ever pruned there.
+ *     size and byte-for-byte checked, then renamed), with the same retention there, every call in a helper process with
+ *     a deadline (it may be a hung share). A missing, relative or unwritable folder is reported by status() and never
+ *     fails or delays the primary copy. Only names matching NAME are ever pruned there.
+ *   - review of 0898: pre-migration snapshots have their own retention (the newest 3), outside the daily/weekly one;
+ *     only regular files count (a symbolic link is never listed, compressed, pruned, copied or sent).
  *   - every file is created owner-only (0600): a backup holds provider logins. Nothing about its contents is logged.
  *
  * This copies content.db only. It is not a whole-installation backup (data/auth-secret and the
@@ -42,7 +45,7 @@ const { pipeline } = require('stream/promises');
 const { Worker } = require('worker_threads');
 const Database = require('better-sqlite3');
 
-const RETENTION = Object.freeze({ daily: 7, weekly: 4 });
+const RETENTION = Object.freeze({ daily: 7, weekly: 4, preMigration: 3 });
 const DAY_MS = 24 * 60 * 60 * 1000;
 const CHECK_EVERY_MS = 5 * 60 * 1000;
 // #43: a copy that is due while something plays or records waits at most this long, then runs anyway.
@@ -58,18 +61,45 @@ const ours = new Set(); // partials this process is writing now
 const stamp = (now) => new Date(now).toISOString().replace(/[:.]/g, '-').replace(/-\d{3}Z$/, 'Z');
 const random = () => `${process.pid}-${crypto.randomBytes(4).toString('hex')}`;
 
-/** Complete backups in `dir`, newest first: [{ file, path, reason, at, bytes, compressed }]. */
-function listDir(dir) {
-    let names = [];
-    try { names = fs.readdirSync(dir); } catch { return []; }
+/** Backups named in `names` (any folder; nothing is read), newest first: [{ file, reason, at, compressed }]. */
+function fromNames(names) {
     return names.filter(n => NAME.test(n)).map(file => {
         const [, when, reason, n, gz] = file.match(NAME);
         const at = Date.parse(when.replace(/T(\d{2})-(\d{2})-(\d{2})Z$/, 'T$1:$2:$3Z'));
-        let bytes = null;
-        try { bytes = fs.statSync(path.join(dir, file)).size; } catch { /* removed meanwhile */ }
-        return { file, path: path.join(dir, file), reason: reason || 'manual', at, bytes, compressed: !!gz, seq: Number(n || 1) };
+        return { file, reason: reason || 'manual', at, compressed: !!gz, seq: Number(n || 1) };
     }).sort((a, b) => (b.at - a.at) || (b.seq - a.seq) || (a.file < b.file ? 1 : -1))
         .map(({ seq, ...entry }) => entry);
+}
+
+/**
+ * Complete backups in `dir` (local), newest first: [{ file, path, reason, at, bytes, compressed }]. Review of 0898: only
+ * regular files (lstat: a symbolic link, wherever it points, is never listed, so never compressed, pruned, copied or sent).
+ */
+function listDir(dir) {
+    let names = [];
+    try { names = fs.readdirSync(dir); } catch { return []; }
+    const out = [];
+    for (const entry of fromNames(names)) {
+        const file = path.join(dir, entry.file);
+        try {
+            const st = fs.lstatSync(file);
+            if (!st.isFile()) continue;
+            out.push({ ...entry, path: file, bytes: st.size });
+        } catch { /* removed meanwhile */ }
+    }
+    return out;
+}
+
+/** Open a listed backup without following links; its descriptor only if it is a regular file there. Else null. */
+function openRegular(file) {
+    let fd = null;
+    try {
+        fd = fs.openSync(file, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0));
+        const st = fs.fstatSync(fd);
+        if (st.isFile()) return { fd, size: st.size };
+    } catch { /* a link, or gone */ }
+    if (fd !== null) try { fs.closeSync(fd); } catch { /* closed */ }
+    return null;
 }
 
 /** Complete backups of this database, newest first. */
@@ -83,20 +113,9 @@ const newest = (dbPath) => list(dbPath)[0] || null;
  * caller owns `fd`. For the admin download.
  */
 function openNewest(dbPath) {
-    let realDir;
-    try { realDir = fs.realpathSync(backupsDir(dbPath)); } catch { return null; }
     for (const entry of list(dbPath)) {
-        let fd = null;
-        try {
-            if (!fs.lstatSync(entry.path).isFile()) continue;
-            if (path.dirname(fs.realpathSync(entry.path)) !== realDir) continue;
-            fd = fs.openSync(entry.path, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0));
-            const st = fs.fstatSync(fd);
-            if (!st.isFile()) { fs.closeSync(fd); continue; }
-            return { file: entry.file, compressed: entry.compressed, fd, size: st.size };
-        } catch {
-            if (fd !== null) try { fs.closeSync(fd); } catch { /* closed */ }
-        }
+        const opened = openRegular(entry.path);
+        if (opened) return { file: entry.file, compressed: entry.compressed, ...opened };
     }
     return null;
 }
@@ -109,13 +128,19 @@ function weekKey(at) {
     return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - dow + 3)).toISOString().slice(0, 10);
 }
 
-/** #43: which of `entries` (newest first) to keep: newest per day for 7 days, newest per ISO week for 4 weeks, and the newest. */
-function retain(entries, { daily = RETENTION.daily, weekly = RETENTION.weekly } = {}) {
+/**
+ * #43: which of `entries` (newest first) to keep: the newest; the newest 3 pre-migration snapshots (review of 0898: their
+ * own policy, so a same-day manual or nightly copy never displaces the copy taken before a migration); and among the
+ * others, the newest per UTC day for 7 days and per ISO week for 4 weeks.
+ */
+function retain(entries, { daily = RETENTION.daily, weekly = RETENTION.weekly, preMigration = RETENTION.preMigration } = {}) {
     const keep = new Set();
     if (entries[0]) keep.add(entries[0].file);
+    for (const e of entries.filter(x => x.reason === 'pre-migration').slice(0, preMigration)) keep.add(e.file);
+    const others = entries.filter(x => x.reason !== 'pre-migration');
     const pick = (keyOf, limit) => {
         const seen = new Set();
-        for (const e of entries) {
+        for (const e of others) {
             const k = keyOf(e.at);
             if (seen.has(k)) continue;
             if (seen.size >= limit) break;
@@ -191,10 +216,14 @@ async function sha256(file, { gunzip = false } = {}) {
     return h.digest();
 }
 
-/** #43: gzip `src` into `dest` (created owner-only), then read it back: it must give `src`'s SHA-256, or this throws. */
+/**
+ * #43: gzip `src` (a path, or { fd } from openRegular(), read from its start and left open) into `dest` (created
+ * owner-only), then read it back: it must give `src`'s SHA-256, or this throws.
+ */
 async function gzipVerified(src, dest) {
     const h = hasher();
-    await pipeline(fs.createReadStream(src), h, zlib.createGzip({ level: 6 }), fs.createWriteStream(dest, { flags: 'wx', mode: OWNER_ONLY }));
+    const input = typeof src === 'object' ? fs.createReadStream(null, { fd: src.fd, start: 0, autoClose: false }) : fs.createReadStream(src);
+    await pipeline(input, h, zlib.createGzip({ level: 6 }), fs.createWriteStream(dest, { flags: 'wx', mode: OWNER_ONLY }));
     const want = h.digest();
     if (await sha256(dest, { gunzip: true }) !== want) throw new Error('the compressed copy did not read back the same');
 }
@@ -312,9 +341,12 @@ async function compressPending(dbPath) {
     for (const entry of list(dbPath).filter(e => !e.compressed && !compressFailed.has(e.path))) {
         const dir = path.dirname(entry.path);
         const gz = path.join(dir, `${entry.file}.gz.${random()}.partial`);
+        // Review of 0898: read from a descriptor opened without following links and checked to be a regular file.
+        const opened = openRegular(entry.path);
+        if (!opened) continue;
         ours.add(gz);
         try {
-            await gzipVerified(entry.path, gz);
+            await gzipVerified(opened, gz);
             const dest = path.join(dir, `${entry.file}.gz`);
             fs.linkSync(gz, dest);
             try { fs.chmodSync(dest, OWNER_ONLY); } catch { /* no modes */ }
@@ -328,27 +360,32 @@ async function compressPending(dbPath) {
             if (fs.existsSync(entry.path)) console.warn('[Backup] Could not compress an older copy; it is kept as it is:', err.code || err.message);
         } finally {
             ours.delete(gz);
+            try { fs.closeSync(opened.fd); } catch { /* closed */ }
         }
     }
     return done;
 }
 
 // ---- #43: the second copy (PIGTV_BACKUP_COPY_DIR) ----
+//
+// Review of 0898 (high): the folder may be a network share, and a call on a hung mount blocks in the kernel for minutes.
+// So nothing in this process touches it: every call (the probe, the copy, the byte-for-byte check, the rename, the
+// listing and the pruning) runs in a helper process through shareFs.js (#8, the recordings share's isolation): short
+// calls on withOwnHelper (each with a deadline), the copy and the check on helpers of their own (shareFs.copyInto and
+// sameBytes, killed when they stop making progress or at the hard deadline). One run at a time; a copy asked for while
+// one runs is skipped and recorded. Status shows the cached result of the last run and never touches the folder.
 
-const copyState = { ok: null, problem: null, lastCopiedAt: null };
-let copying = Promise.resolve();
+const shareFs = require('./shareFs');
+const copyTuning = { callMs: 15000, stallMs: 60000, hardMs: 30 * 60 * 1000 };
+const copyState = { ok: null, problem: null, lastCopiedAt: null, lastAttemptAt: null, skippedAt: null };
+let copyRunning = null;
 
-/** Where the second copy goes: { enabled: false } | { enabled: true, problem } | { enabled: true, dir }. Never throws. */
-function copyTarget() {
+/** From the environment only (no file call): { enabled: false } | { enabled: true, problem } | { enabled: true, dir }. */
+function copyConfig() {
     const raw = process.env.PIGTV_BACKUP_COPY_DIR;
     if (!raw || !raw.trim()) return { enabled: false };
     if (!path.isAbsolute(raw)) return { enabled: true, problem: 'not an absolute path' };
-    const dir = path.resolve(raw);
-    let st;
-    try { st = fs.statSync(dir); } catch { return { enabled: true, problem: 'missing' }; }
-    if (!st.isDirectory()) return { enabled: true, problem: 'not a folder' };
-    try { fs.accessSync(dir, fs.constants.W_OK); } catch { return { enabled: true, problem: 'not writable' }; }
-    return { enabled: true, dir };
+    return { enabled: true, dir: path.resolve(raw) };
 }
 
 function copyFailed(problem) {
@@ -357,43 +394,71 @@ function copyFailed(problem) {
     copyState.problem = problem;
 }
 
-/** Copy one finished backup to the second folder: a partial, size and SHA-256 checked, renamed; then retention there. */
+const problemOf = (err) => (err && (err.code === 'SHARE_UNRESPONSIVE' || err.name === 'AbortError')
+    ? 'not answering (the copy was stopped)' : 'failing (the copy could not be written or checked)');
+
+/** Copy one finished backup to the second folder, in helpers: probe, copy, compare, rename, then retention there. */
 async function copyOut(file) {
-    const target = copyTarget();
+    const target = copyConfig();
     if (!target.enabled) return null;
+    copyState.lastAttemptAt = Date.now();
     if (target.problem) { copyFailed(target.problem); return null; }
     const name = path.basename(file);
     if (!NAME.test(name)) return null; // only ever a backup's own name: nothing from outside can steer the path
     if (path.resolve(path.dirname(file)) === target.dir) { copyFailed('the backups folder itself'); return null; }
     const dest = path.join(target.dir, name);
     const partial = path.join(target.dir, `${name}.${random()}.partial`);
-    ours.add(partial);
+    const controller = new AbortController();
+    const hard = setTimeout(() => controller.abort(), copyTuning.hardMs);
+    hard.unref?.();
+    const own = (work) => shareFs.withOwnHelper(work, { timeoutMs: copyTuning.callMs, path: target.dir });
     try {
-        const want = await sha256(file);
-        await pipeline(fs.createReadStream(file), fs.createWriteStream(partial, { flags: 'wx', mode: OWNER_ONLY }));
-        if (fs.statSync(partial).size !== fs.statSync(file).size) throw new Error('size differs');
-        if (await sha256(partial) !== want) throw new Error('checksum differs');
-        fs.renameSync(partial, dest);
+        const problem = await own(async (io) => {
+            if (!(await io.exists(target.dir))) return 'missing';
+            if (!(await io.writeProbe(target.dir))) return 'not writable';
+            return null;
+        });
+        if (problem) { copyFailed(problem); return null; }
+        const size = fs.statSync(file).size; // the local backup
+        const opts = { signal: controller.signal, stallMs: copyTuning.stallMs };
+        const copied = await shareFs.copyInto(partial, [file], { ...opts, mode: OWNER_ONLY });
+        if (!copied || copied.size !== size) throw new Error('size differs');
+        if (!(await shareFs.sameBytes(partial, [file], opts))) throw new Error('the copy is not the same');
+        await own(async (io) => {
+            await io.rename(partial, dest);
+            const names = (await io.readdir(target.dir)) || [];
+            // Our partials only (a killed run's); then retention over the backups' names (nothing else there is touched).
+            for (const n of names.filter(f => /^content-.*\.partial$/.test(f))) await io.unlink(path.join(target.dir, n));
+            const entries = fromNames(names);
+            const keep = retain(entries);
+            keep.add(name);
+            for (const e of entries) if (!keep.has(e.file)) await io.unlink(path.join(target.dir, e.file));
+        });
         copyState.ok = true;
         copyState.problem = null;
         copyState.lastCopiedAt = Date.now();
-        prune(target.dir, { keepAlso: dest });
         return dest;
     } catch (err) {
-        try { fs.unlinkSync(partial); } catch { /* none */ }
-        copyFailed(err && err.code === 'EACCES' ? 'not writable' : 'failing (the copy could not be written or checked)');
+        copyFailed(problemOf(err));
         return null;
     } finally {
-        ours.delete(partial);
+        clearTimeout(hard);
     }
 }
 
 function scheduleCopy(file) {
-    copying = copying.then(() => copyOut(file)).catch(() => null);
-    return copying;
+    if (copyRunning) {
+        if (copyConfig().enabled) {
+            copyState.skippedAt = Date.now();
+            console.warn(`[Backup] The second copy of ${path.basename(file)} was skipped: the previous one is still running.`);
+        }
+        return copyRunning;
+    }
+    copyRunning = copyOut(file).catch(() => null).finally(() => { copyRunning = null; });
+    return copyRunning;
 }
-/** Resolves once every second copy started so far has finished (or failed). */
-const whenCopied = () => copying;
+/** Resolves once the second copy running now (if any) has finished (or failed). */
+const whenCopied = () => copyRunning || Promise.resolve(null);
 
 /**
  * Before getDb() runs the schema: back up when the database exists and was last opened by a
@@ -434,29 +499,35 @@ let nightlyTimer = null;
 let nightlyRunning = null;
 let nightlySkipping = false;
 let compressing = null;
-// #43: a due copy waiting for plays and recordings to end, and the last nightly run (for Status).
-const runState = { deferredSince: null, lastRun: null };
+// #43: the last nightly run, a copy waiting for plays (for Status) and the retry back-off after a failed one.
+// Review of 0898: the deadline is not kept here: a copy falls due a day after the newest backup (any kind), and the 6 h
+// cap counts from then, so it survives a restart with nothing stored. With no backup at all it is overdue: it runs.
+const runState = { waitingFor: null, lastRun: null, failedAt: null, retryMs: 0 };
+const RETRY_FIRST_MS = 5 * 60 * 1000;
+const RETRY_MAX_MS = 60 * 60 * 1000;
 
 /**
  * One nightly check: a backup when the newest is over a day old. Resolves the path or null.
  * #273 C-3: `busy()` (a guide sync is running) skips the copy, which holds a read transaction that keeps the WAL from
  * checkpointing; the next check retries. One log line per skipped streak. A `busy` that throws counts as idle.
- * #43: `active()` (a play or recording) defers it too, for at most DEFER_CAP_MS from when it fell due; then it runs
- * anyway (in its worker thread, as always). A late or forced run is kept in status(). An `active` that throws counts
- * as idle. With nothing due, an idle check gzips any plain copy left by a pre-migration backup.
+ * #43: `active()` (a play or recording) defers it too, until DEFER_CAP_MS after it fell due; then it runs anyway (in
+ * its worker thread, as always). A failed run is retried after 5 min, then 10, 20... up to 1 h, the deadline kept.
+ * An `active` that throws counts as idle. With nothing due, an idle check gzips any plain pre-migration copy.
  */
 async function nightlyCheck(dbPath, { now = Date.now(), busy, active } = {}) {
     if (nightlyRunning) return nightlyRunning;
     const idle = () => { try { return !(typeof active === 'function' && active()); } catch { return true; } };
     const newest = list(dbPath)[0];
-    if (newest && now - newest.at < DAY_MS) {
-        runState.deferredSince = null;
+    const dueAt = newest ? newest.at + DAY_MS : null;
+    if (dueAt !== null && now < dueAt) {
+        runState.waitingFor = null;
         if (!compressing && list(dbPath).some(e => !e.compressed && !compressFailed.has(e.path)) && idle()) {
             compressing = compressPending(dbPath).finally(() => { compressing = null; });
             await compressing;
         }
         return null;
     }
+    if (runState.failedAt !== null && now - runState.failedAt < runState.retryMs) return null;
     let syncing = false;
     try { syncing = typeof busy === 'function' && !!busy(); } catch { syncing = false; }
     if (syncing) {
@@ -465,25 +536,35 @@ async function nightlyCheck(dbPath, { now = Date.now(), busy, active } = {}) {
         return null;
     }
     nightlySkipping = false;
+    const overdueMs = dueAt === null ? 0 : now - dueAt;
     let forced = false;
     if (!idle()) {
-        if (runState.deferredSince === null) {
-            runState.deferredSince = now;
-            console.log('[Backup] Nightly copy waits: something is playing or recording. It runs when they end, or in 6 h at the latest.');
+        if (dueAt !== null && overdueMs < DEFER_CAP_MS) {
+            if (runState.waitingFor !== dueAt) console.log('[Backup] Nightly copy waits: something is playing or recording. It runs when they end, or 6 h after it fell due at the latest.');
+            runState.waitingFor = dueAt;
+            return null;
         }
-        if (now - runState.deferredSince < DEFER_CAP_MS) return null;
-        forced = true;
+        forced = dueAt !== null;
     }
-    const waitedMin = runState.deferredSince === null ? 0 : Math.round((now - runState.deferredSince) / 60000);
-    runState.deferredSince = null;
-    const run = { at: now, late: waitedMin > 0, waitedMin, forced };
+    const waited = runState.waitingFor !== null || forced;
+    const waitedMin = waited ? Math.round(overdueMs / 60000) : 0;
+    runState.waitingFor = null;
+    const run = { at: now, late: waited, waitedMin, forced };
     nightlyRunning = backup(dbPath, { reason: 'nightly', now })
         .then(file => {
             runState.lastRun = { ...run, ok: true };
-            console.log(`[Backup] Nightly copy written: ${path.basename(file)}${forced ? ' (after waiting 6 h for plays and recordings to end)' : waitedMin ? ` (${waitedMin} min late: waited for plays and recordings to end)` : ''}`);
+            runState.failedAt = null;
+            runState.retryMs = 0;
+            console.log(`[Backup] Nightly copy written: ${path.basename(file)}${forced ? ' (6 h after it fell due, while plays or recordings went on)' : waited ? ` (${waitedMin} min late: waited for plays and recordings to end)` : ''}`);
             return file;
         })
-        .catch(err => { runState.lastRun = { ...run, ok: false }; console.error('[Backup] Nightly copy FAILED:', err.message); return null; })
+        .catch(err => {
+            runState.lastRun = { ...run, ok: false };
+            runState.failedAt = now;
+            runState.retryMs = runState.retryMs ? Math.min(runState.retryMs * 2, RETRY_MAX_MS) : RETRY_FIRST_MS;
+            console.error(`[Backup] Nightly copy FAILED (retrying in ${Math.round(runState.retryMs / 60000)} min):`, err.message);
+            return null;
+        })
         .finally(() => { nightlyRunning = null; });
     return nightlyRunning;
 }
@@ -496,28 +577,35 @@ function startNightly(dbPath, { busy, active } = {}) {
     setTimeout(() => nightlyCheck(dbPath, { busy, active }), 5 * 60 * 1000).unref?.();
 }
 
-/** #43, for Status: a copy waiting for plays to end, the last nightly run, the second copy's state. Never a path. */
+/** #43, for Status, from memory only (never a file call, never a path): the waiting copy, the last run, the second copy. */
 function status() {
-    const target = copyTarget();
-    const problem = target.enabled ? (target.problem || copyState.problem) : null;
+    const target = copyConfig();
+    const copy = { enabled: target.enabled, ok: null, problem: null, lastCopiedAt: null };
+    if (target.enabled) {
+        const problem = target.problem || copyState.problem;
+        Object.assign(copy, { ok: problem ? false : copyState.ok, problem, lastCopiedAt: copyState.lastCopiedAt,
+            lastAttemptAt: copyState.lastAttemptAt, running: !!copyRunning, skippedAt: copyState.skippedAt });
+    }
     return {
-        deferredSince: runState.deferredSince,
+        deferredSince: runState.waitingFor,
         deferCapMin: DEFER_CAP_MS / 60000,
         lastRun: runState.lastRun,
-        copy: { enabled: target.enabled, ok: target.enabled ? (problem ? false : copyState.ok) : null, problem, lastCopiedAt: target.enabled ? copyState.lastCopiedAt : null }
+        retryAt: runState.failedAt !== null ? runState.failedAt + runState.retryMs : null,
+        copy
     };
 }
 
-/** For tests. */
+/** For tests (and a restart: nothing here survives one). */
 function _resetState() {
-    runState.deferredSince = null;
+    runState.waitingFor = null;
     runState.lastRun = null;
-    copyState.ok = null; copyState.problem = null; copyState.lastCopiedAt = null;
-    copying = Promise.resolve();
+    runState.failedAt = null;
+    runState.retryMs = 0;
+    Object.assign(copyState, { ok: null, problem: null, lastCopiedAt: null, lastAttemptAt: null, skippedAt: null });
     nightlySkipping = false;
 }
 
 module.exports = {
     RETENTION, list, newest, openNewest, retain, backup, backupSync, compressPending, extract, beforeMigrations, recordBuild,
-    nightlyCheck, startNightly, prune, status, whenCopied, _resetState
+    nightlyCheck, startNightly, prune, status, whenCopied, _resetState, copyTuning
 };

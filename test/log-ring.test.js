@@ -61,3 +61,20 @@ test('installing the ring leaves what goes to stdout and stderr exactly as befor
     assert.deepEqual(kept.slice(0, 2), ['plain line 42', 'warned line']);
     assert.ok(!kept[2].includes(SECRET));
 });
+
+test('review of 0898: a Bearer header, an object with a password and an Error with request extras never enter the ring', () => {
+    const ring = require(MODULE).createRing();
+    ring.push('log', [`request headers: Authorization: Bearer eyJ${SECRET}.abc`]);
+    ring.push('log', ['headers', { authorization: `Bearer ${SECRET}`, cookie: `sid=${SECRET}` }]);
+    ring.push('error', [{ username: 'owner', password: SECRET, nested: { access_token: SECRET, refresh_token: SECRET } }]);
+    const err = Object.assign(new SyntaxError('Unexpected end of JSON input'), {
+        body: `{"username":"owner","password":"${SECRET}"`, type: 'entity.parse.failed',
+        headers: { authorization: `Basic ${SECRET}` }, config: { auth: { password: SECRET } }, request: { secret: SECRET }
+    });
+    ring.push('error', ['Server error:', err]);
+    ring.push('log', [`raw: {"user":"owner","passwd":"${SECRET}","api_key":"${SECRET}"} Cookie: a=${SECRET}; b=${SECRET}`]);
+    const text = JSON.stringify(ring.since(0));
+    assert.ok(!text.includes(SECRET), text);
+    assert.match(ring.since(0)[3].text, /SyntaxError: Unexpected end of JSON input/, 'the error itself is still there');
+    assert.ok(!ring.since(0)[3].text.includes('entity.parse.failed'), 'but none of its extras');
+});

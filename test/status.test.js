@@ -349,7 +349,10 @@ test('#43: Status carries the backup state: a missing second folder (never its p
     process.env.PIGTV_BACKUP_COPY_DIR = missing;
     try {
         dbBackup._resetState();
-        assert.equal(await dbBackup.nightlyCheck(sqlite.databasePath(), { now: Date.now() + 400 * 86400e3, active: () => true }), null);
+        const t = Date.now() + 400 * 86400e3;
+        assert.ok(await dbBackup.nightlyCheck(sqlite.databasePath(), { now: t, active: () => true }), 'no backup yet: it runs');
+        await dbBackup.whenCopied();
+        assert.equal(await dbBackup.nightlyCheck(sqlite.databasePath(), { now: t + 86400e3 + 60000, active: () => true }), null);
         const { body, text } = await get('/api/status?details=0', adminToken);
         assert.equal(body.backupState.copy.enabled, true);
         assert.equal(body.backupState.copy.ok, false);
@@ -433,4 +436,53 @@ test('#45: the admin backup download streams the newest backup byte for byte, on
     }
     const none = await fetch(`${base}/api/status/backup/latest`, { headers: { Authorization: `Bearer ${adminToken}` } });
     assert.ok(none.status === 200 || none.status === 404);
+});
+
+test('review of 0898: a malformed JSON sign-in with a password reaches neither the error handler\'s line, the ring nor the endpoint', async () => {
+    const logRing = load('services/logRing');
+    logRing.install();
+    const PW = 'pw-never-logged-7731';
+    const lines = [];
+    const realError = console.error;
+    console.error = (...a) => { lines.push(require('node:util').format(...a)); return realError(...a); }; // through the ring's wrapper
+    const app = express();
+    app.use(express.json());
+    app.post('/api/auth/login', (req, res) => res.json({ ok: true }));
+    app.use(load('services/serverErrors').errorHandler);
+    const srv = app.listen(0, '127.0.0.1');
+    await once(srv, 'listening');
+    try {
+        const r = await fetch(`http://127.0.0.1:${srv.address().port}/api/auth/login`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${PW}` },
+            body: `{"username":"owner","password":"${PW}",`
+        });
+        assert.equal(r.status, 500);
+        assert.ok(!(await r.text()).includes(PW));
+    } finally {
+        console.error = realError;
+        srv.close();
+    }
+    const mine = lines.filter(l => l.startsWith('Server error'));
+    assert.equal(mine.length, 1, lines.join('\n'));
+    assert.match(mine[0], /^Server error: name=SyntaxError type=entity\.parse\.failed status=400 .*route=POST/);
+    assert.ok(!lines.join('\n').includes(PW), 'the handler\'s stdout line holds no password');
+    assert.ok(!JSON.stringify(logRing.ring().since(0)).includes(PW), 'nor the ring');
+    const { text } = await get('/api/status/logs', adminToken);
+    assert.ok(!text.includes(PW), 'nor the endpoint');
+});
+
+test('review of 0898: the log view names its process; a cursor from before a restart (or past the newest line) gets the whole ring', async () => {
+    const logRing = load('services/logRing');
+    logRing.install();
+    console.log('generation-test line');
+    const all = await get('/api/status/logs', adminToken);
+    assert.equal(typeof all.body.generation, 'string');
+    assert.ok(all.body.generation.length >= 8);
+    const n = all.body.lines.length;
+    const far = await get(`/api/status/logs?since=${all.body.next + 100000}&generation=${all.body.generation}`, adminToken);
+    assert.equal(far.body.lines.length, n, 'a cursor beyond the newest: the whole ring');
+    const other = await get(`/api/status/logs?since=${all.body.next}&generation=not-this-process`, adminToken);
+    assert.equal(other.body.lines.length, n, 'another generation: the whole ring');
+    const same = await get(`/api/status/logs?since=${all.body.next}&generation=${all.body.generation}`, adminToken);
+    assert.deepEqual(same.body.lines, [], 'same process, up to date: nothing new');
 });

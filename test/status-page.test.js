@@ -447,6 +447,10 @@ test('#43: Status raises a second backup folder that is not usable, and the back
         { lastRun: { at: Date.now(), late: true, waitedMin: 360, forced: true, ok: true } }) });
     assert.ok(html.includes('ran 360 min late, while something played'));
     assert.ok(html.includes('Second copy: last made'));
+    html = h.page.render({ ...base, backups: [], backupState: state({ enabled: true, ok: null, problem: null, lastCopiedAt: null, running: true, skippedAt: Date.now() },
+        { retryAt: Date.now() + 300000, lastRun: { at: Date.now(), late: true, waitedMin: 360, forced: true, ok: false } }) });
+    assert.ok(html.includes('and failed') && html.includes('the next try is at'), 'review of 0898: a failed forced run and its retry');
+    assert.ok(html.includes('Second copy: being made now.') && html.includes('was skipped at'));
 });
 
 // #45 (0898): the newest backup can be downloaded from Status (details), only after a warning that it holds the
@@ -468,6 +472,7 @@ function downloadHarness({ confirmAnswer }) {
     const content = { innerHTML: '', querySelector: () => null, querySelectorAll: () => [], addEventListener: (t, fn) => { (handlers[`content:${t}`] ||= []).push(fn); } };
     const elements = { 'status-content': content, 'status-updated': { textContent: '' }, 'status-log-panel': panel };
     const intervals = [];
+    let generation = 'g1';
     const context = vm.createContext({
         console, localStorage: { getItem: (k) => (k === 'authToken' ? 'tok-123' : null), setItem() {} },
         confirm: (msg) => { confirms.push(msg); return confirmAnswer; },
@@ -486,7 +491,7 @@ function downloadHarness({ confirmAnswer }) {
                 return { ok: true, status: 200, headers: { get: (h) => (h.toLowerCase() === 'content-disposition' ? 'attachment; filename="content-2026-11-22T03-00-00Z-nightly.db.gz"' : 'application/gzip') }, blob: async () => ({ size: 3 }) };
             }
             if (url.startsWith('/api/status/logs')) {
-                return { ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => ({ lines: [{ seq: 7, at: Date.UTC(2026, 10, 22, 3), level: 'warn', text: '<b>[Sync] held</b>' }], next: 7, cap: 2000 }) };
+                return { ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => ({ generation, lines: [{ seq: 7, at: Date.UTC(2026, 10, 22, 3), level: 'warn', text: '<b>[Sync] held</b>' }], next: 7, cap: 2000 }) };
             }
             return { ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => ({ generatedAt: 1, providers: [], sessions: [], recordings: { active: [], upcoming: [] } }) };
         }
@@ -504,7 +509,7 @@ function downloadHarness({ confirmAnswer }) {
         for (const fn of [...(handlers['content:click'] || []), ...(handlers['panel:click'] || [])]) fn({ target });
         for (let i = 0; i < 5; i++) await tick();
     };
-    return { page, requests, clicked, confirms, click, logPre, autoBox, intervals, handlers, panel, copied };
+    return { page, requests, clicked, confirms, click, logPre, autoBox, intervals, handlers, panel, copied, setGeneration: (g) => { generation = g; } };
 }
 
 test('#45: "Download newest backup" warns about the logins, needs a confirm, and fetches with the sign-in header', async () => {
@@ -537,7 +542,11 @@ test('#45: the Server log panel loads on request (text, not html), copies, and a
     assert.ok(h.requests.some(r => r.url === '/api/status/logs' && r.auth === 'Bearer tok-123'));
     assert.match(h.logPre.textContent, /WARN <b>\[Sync\] held<\/b>$/, 'shown as text: the pre is never given html');
     await h.click({ logLoad: '' });
-    assert.ok(h.requests.some(r => r.url === '/api/status/logs?since=7'), 'the next load asks only for newer lines');
+    assert.ok(h.requests.some(r => r.url === '/api/status/logs?since=7&generation=g1'), 'the next load asks only for newer lines of this process');
+    assert.equal(h.logPre.textContent.split('\n').length, 2, 'same process: appended');
+    h.setGeneration('g2'); // the server restarted
+    await h.click({ logLoad: '' });
+    assert.equal(h.logPre.textContent.split('\n').length, 1, 'a new process: the old lines are cleared');
     assert.equal(h.intervals.length, before, 'loading does not start a timer');
     await h.click({ logCopy: '' });
     assert.deepEqual(h.copied, [h.logPre.textContent], 'Copy puts the shown text on the clipboard');

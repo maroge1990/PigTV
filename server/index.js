@@ -221,10 +221,9 @@ app.get('/{*splat}', (req, res) => {
 });
 
 // Error handling
-app.use((err, req, res, next) => {
-    console.error('Server error:', err);
-    res.status(500).json({ error: 'Internal server error' });
-});
+// Review of 0898: one line of allow-listed fields (services/serverErrors.js), never the error itself: a body that did not
+// parse carries the raw request (a sign-in's password) on it.
+app.use(require('./services/serverErrors').errorHandler);
 
 app.listen(PORT, async (err) => {
     // Express 5 (0137) hands a listen failure (e.g. the port in use) to this

@@ -89,8 +89,11 @@ class StatusPage {
         const panel = document.getElementById('status-log-panel');
         const pre = panel?.querySelector?.('[data-log-text]');
         try {
-            const r = await API.status.logs(this.logCursor);
-            this.logLines = this.logLines.concat(r.lines || []).slice(-2000);
+            const r = await API.status.logs(this.logCursor, this.logGeneration);
+            // Review of 0898: another generation is a restarted server: its lines replace the old ones.
+            const restarted = r.generation && this.logGeneration && r.generation !== this.logGeneration;
+            this.logLines = (restarted ? [] : this.logLines).concat(r.lines || []).slice(-2000);
+            if (r.generation) this.logGeneration = r.generation;
             if (Number.isFinite(r.next)) this.logCursor = r.next;
             // textContent: a log line is shown as text, never as markup.
             if (pre) pre.textContent = this.logLines.map(l => `${UI.clock(l.at)} ${l.level === 'log' || l.level === 'info' ? '' : `${String(l.level).toUpperCase()} `}${l.text}`).join('\n');
@@ -720,7 +723,10 @@ class StatusPage {
         if (st.deferredSince) lines.push(`The nightly copy is waiting for plays and recordings to end (due since ${e(UI.dateTime(st.deferredSince))}; it runs anyway after ${e(Math.round((st.deferCapMin || 360) / 60))} h).`);
         const run = st.lastRun;
         if (run && run.late) lines.push(`The last nightly copy ran ${e(run.waitedMin)} min late${run.forced ? ', while something played' : ''}${run.ok === false ? ' and failed' : ''}.`);
+        if (st.retryAt) lines.push(`It failed; the next try is at ${e(UI.dateTime(st.retryAt))}.`);
         const c = st.copy || {};
+        if (c.enabled && c.running) lines.push('Second copy: being made now.');
+        if (c.enabled && c.skippedAt) lines.push(`Second copy: one was skipped at ${e(UI.dateTime(c.skippedAt))} (the previous one was still running).`);
         if (c.enabled && c.lastCopiedAt) lines.push(`Second copy: last made ${e(UI.dateTime(c.lastCopiedAt))}.`);
         else if (c.enabled && !c.problem) lines.push('Second copy: on; none made yet.');
         return lines.map(l => `<p class="setting-hint">${l}</p>`).join('');

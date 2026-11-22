@@ -14,7 +14,7 @@
  * code; #287), nlink (how many names a file has, or null; #287) and rename (a file moved to a new name, replacing one already
  * there: the publish of a remux, an adoption or a compression). Paths only; nothing here knows what the share holds.
  * `local` makes the same calls in this process, for a path on a local disk (appdata); `withOwnHelper` makes them on a
- * helper of their own (a path an admin typed in Settings).
+ * helper of their own (a path an admin typed in Settings; the second backup folder, #43).
  *
  * #289: the long calls, copyInto (files in appdata joined into a new file on the share) and sameBytes (is a file on the
  * share byte for byte those files?), each run on a helper of its own with a deadline on progress, not on the whole call
@@ -219,7 +219,7 @@ function long(op, file, extra, { signal = null, stallMs = tuning.copyStallMs } =
 }
 
 /** #289: `sources` (files in appdata) joined into `to`, a new file on the share (never over one): { size }. */
-const copyInto = (to, sources, opts) => long('copyInto', to, { sources: sources.map(String) }, opts);
+const copyInto = (to, sources, opts) => long('copyInto', to, { sources: sources.map(String), ...(opts && opts.mode ? { mode: opts.mode } : {}) }, opts);
 /** #289: is `file` byte for byte `sources` (files in appdata), joined? Sizes first; false when it is missing. */
 const sameBytes = (file, sources, opts) => long('sameBytes', file, { sources: sources.map(String) }, opts);
 
@@ -280,8 +280,8 @@ async function withOwnHelper(work, { timeoutMs = tuning.timeoutMs, path: typed =
     const waiting = new Map(); // id -> { resolve, reject, timer }
     let next = 1;
     const fail = (err) => { for (const [id, w] of waiting) { waiting.delete(id); clearTimeout(w.timer); w.reject(err); } };
-    const ask = (op, file) => {
-        if (inProcess) return runHere(op, file, {});
+    const ask = (op, file, extra = {}) => {
+        if (inProcess) return runHere(op, file, extra);
         if (lost) return Promise.reject(unanswered(lost, null));
         if (!helper) {
             helper = spawner.fork(path.join(__dirname, 'shareFsWorker.js'));
@@ -316,7 +316,7 @@ async function withOwnHelper(work, { timeoutMs = tuning.timeoutMs, path: typed =
                 reject(unanswered(lost, settled));
             }, timeoutMs);
             waiting.set(id, { resolve, reject, timer });
-            try { mine.send({ id, op, file: String(file) }); } catch (err) {
+            try { mine.send({ ...extra, id, op, file: String(file) }); } catch (err) {
                 waiting.delete(id);
                 clearTimeout(timer);
                 lost = 'The folder check could not be started';
@@ -324,7 +324,9 @@ async function withOwnHelper(work, { timeoutMs = tuning.timeoutMs, path: typed =
             }
         });
     };
-    const io = { exists: (f) => ask('exists', f), stat: (f) => ask('stat', f), statfs: (f) => ask('statfs', f), writeProbe: (f) => ask('writeProbe', f) };
+    const io = { exists: (f) => ask('exists', f), stat: (f) => ask('stat', f), statfs: (f) => ask('statfs', f), writeProbe: (f) => ask('writeProbe', f),
+        // #43 review of 0898: the second backup folder's listing, rename and pruning.
+        readdir: (f) => ask('readdir', f), unlink: (f) => ask('unlink', f), rename: (f, to) => ask('rename', f, { to: String(to) }) };
     try {
         return await work(io);
     } finally {
