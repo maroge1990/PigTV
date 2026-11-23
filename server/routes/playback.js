@@ -781,6 +781,8 @@ const clientEventLimiter = createLimiter({ windowMs: 60 * 1000, max: 30 });
 // change is a lot of traffic when someone is flicking through channels, and it must
 // never use up the allowance that media-error and start-timeout reports depend on.
 const measurementLimiter = createLimiter({ windowMs: 60 * 1000, max: 120 });
+// #36 (0908): a play-start's zapMs above this is not a real wait (the client gives up a start after 20 s).
+const ZAP_LIMIT_MS = 120 * 1000;
 
 router.post('/client-event', requireToken, (req, res) => {
     const key = req.socket?.remoteAddress || 'unknown';
@@ -848,10 +850,14 @@ router.post('/client-event', requireToken, (req, res) => {
             // #36 (0487): where the start went (resolve, ready, mode, frame; optional, an older client sends none)
             const phases = startPhases.clean(body.phases);
             const phaseText = startPhases.logText(phases);
-            console.log(`[Player] play-start via ${how} resolve=${secs(body.resolveMs)} first-picture=${secs(body.totalMs)} ${from}${origin ? ` origin=${origin}` : ''}${phaseText ? ` phases=${phaseText}` : ''}`);
+            // #36 (0908): the press to the first picture, the whole wait (totalMs starts at the resolve). Optional; a value
+            // that is not a whole number of ms from 0 to 120000 is ignored, never refused.
+            const zapSec = Number.isInteger(body.zapMs) && body.zapMs >= 0 && body.zapMs <= ZAP_LIMIT_MS
+                ? sec(body.zapMs) : null;
+            console.log(`[Player] play-start via ${how} resolve=${secs(body.resolveMs)} first-picture=${secs(body.totalMs)} ${from}${origin ? ` origin=${origin}` : ''}${phaseText ? ` phases=${phaseText}` : ''}${zapSec === null ? '' : ` zap=${zapSec.toFixed(1)}s`}`);
             playbackEvents.record({ type: 'play-start', owner, channel: last.channel, start: last.start, provider: last.provider,
                 strategy: text(body.strategy, 20), videoMode: body.videoMode ? text(body.videoMode, 10) : last.videoMode,
-                firstPictureSec: sec(body.totalMs), resolveSec: sec(body.resolveMs), origin, phases });
+                firstPictureSec: sec(body.totalMs), resolveSec: sec(body.resolveMs), origin, phases, zapSec });
             channelHealth.clientStarted(owner, sec(body.totalMs));
         } else {
             console.log(`[Player] play-end via ${how} watched=${num(body.watchedSec)}s stalls=${num(body.stalls)} ${from}`);

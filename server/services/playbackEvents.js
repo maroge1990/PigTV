@@ -37,6 +37,7 @@ function record(event) {
         videoMode: clean(event.videoMode, 10),
         firstPictureSec: num(event.firstPictureSec),
         resolveSec: num(event.resolveSec),
+        zapSec: num(event.zapSec), // #36 (0908): the press to the first picture (play-start only)
         watchedSec: num(event.watchedSec),
         stalls: num(event.stalls),
         reason: clean(event.reason, 200),

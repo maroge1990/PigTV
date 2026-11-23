@@ -60,6 +60,42 @@ test('an older client (no phases) and nonsense phases change nothing', async () 
     assert.ok(playbackEvents.recent().every(e => e.phases === null));
 });
 
+// #36 (0908): `zapMs`, the press to the first `.playing` (the whole wait, release and resolve included), is logged as
+// zap= and kept with the play as zapSec, beside the first-picture time. Optional; anything unusable is ignored.
+test('zapMs is logged on the play-start line and kept with the play', async () => {
+    playbackEvents.reset(); logged.length = 0;
+    const r = await post(start({ zapMs: 6120 }));
+    assert.equal(r.status, 204);
+    const line = logged.find(l => l.includes('[Player] play-start'));
+    assert.match(line, / zap=6\.1s$/);
+    assert.equal(playbackEvents.recent()[0].zapSec, 6.1);
+    assert.equal(playbackEvents.recent()[0].firstPictureSec, 5.4, 'the first-picture time is unchanged');
+});
+
+test('a play-start without zapMs, or with an unusable one, is answered and kept as before', async () => {
+    playbackEvents.reset(); logged.length = 0;
+    for (const zapMs of [undefined, 'soon', -1, 120001, 1e12, null, true, [5], { ms: 5 }, Number.NaN, 49.9]) {
+        const r = await post(start(zapMs === undefined ? {} : { zapMs }));
+        assert.equal(r.status, 204, `zapMs ${JSON.stringify(zapMs)}`);
+    }
+    const lines = logged.filter(l => l.includes('[Player] play-start'));
+    assert.equal(lines.length, 11);
+    for (const line of lines) assert.doesNotMatch(line, /zap=/);
+    assert.ok(playbackEvents.recent().every(e => e.zapSec === null && e.firstPictureSec === 5.4));
+    playbackEvents.reset(); logged.length = 0;
+    await post(start({ zapMs: 0 }));
+    await post(start({ zapMs: 120000 }));
+    assert.deepEqual(playbackEvents.recent().map(e => e.zapSec), [120, 0], 'the bounds are kept');
+});
+
+test('a fractional zapMs is not a whole number of ms: answered 204, not logged, not kept', async () => {
+    playbackEvents.reset(); logged.length = 0;
+    const r = await post(start({ zapMs: 49.9 }));
+    assert.equal(r.status, 204);
+    assert.doesNotMatch(logged.find(l => l.includes('[Player] play-start')), / zap=/);
+    assert.equal(playbackEvents.recent()[0].zapSec, null);
+});
+
 test('the steps: server answer, loading the stream, display mode, first picture; median and p90 over the plays', () => {
     assert.deepEqual(startPhases.steps({ resolve: 4.3, ready: 5.0, mode: 5.2, frame: 5.4 }),
         { answer: 4.3, loading: 0.7, mode: 0.2, picture: 0.2 });
