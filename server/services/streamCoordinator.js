@@ -923,7 +923,7 @@ function ownerKey(user) {
  * abandoned ones, then this owner's own earlier stream, and only then
  * something somebody else may be watching.
  */
-function requestForViewer({ force = false, settings = {}, owner = null, providerId = undefined, adopt = null, joinIngest = null } = {}) {
+function requestForViewer({ force = false, settings = {}, owner = null, providerId = undefined, adopt = null, joinIngest = null, joinOnly = false } = {}) {
     // Everything below is within the pool of the provider asked for (0173): its
     // streams, its recordings, its limit. No providerId is the primary's pool,
     // which with no backup configured is every stream, as before.
@@ -958,6 +958,9 @@ function requestForViewer({ force = false, settings = {}, owner = null, provider
     // Wave 5: joining an ingest that already holds a connection here asks for no new one, and
     // that ingest is never released to make room for joining it.
     const joining = ingestInPool(joinIngest, pool, dir, running);
+    // #371: a relay's planned renewal joins the feed its pin holds, or is not admitted: never a lease, never anything
+    // released (an idle stream, the owner's own) to make room, and never a connection of its own.
+    if (joinOnly) return joining ? { allowed: true, release: [], joining: true } : { allowed: false, release: [] };
     const streams = streamsInPool(pool, dir, running).filter(s => !adopt || s.id !== adopt)
         .filter(s => !(joining && s.ingestKey === joinIngest))
         .sort((a, b) => (b.warm === true) - (a.warm === true) || (b.standby === true) - (a.standby === true) || b.idleMs - a.idleMs);
@@ -1048,8 +1051,8 @@ function requestForViewer({ force = false, settings = {}, owner = null, provider
  * replaced - with no 409 and no force? Non-mutating: for walking a channel's
  * providers in order (P6) before admitViewer is called on the one chosen.
  */
-function canAdmitWithoutDisturbing({ providerId = undefined, owner = null, settings = {}, joinIngest = null } = {}) {
-    return requestForViewer({ force: false, providerId, owner, settings, joinIngest }).allowed === true;
+function canAdmitWithoutDisturbing({ providerId = undefined, owner = null, settings = {}, joinIngest = null, joinOnly = false } = {}) {
+    return requestForViewer({ force: false, providerId, owner, settings, joinIngest, joinOnly }).allowed === true;
 }
 
 /**

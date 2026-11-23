@@ -118,6 +118,8 @@ async function probedAnalysis({ url, ffprobePath, userAgent, caps, cacheKey, dea
                 console.warn(`[Playback] resolve probe on ${providerLabel(providerId)}: the shared ingest had nothing by the resolve's deadline`);
                 throw deadlineSpentError();
             }
+            // #371: a renewal's feed has gone: no probe of our own (it would be a connection), and no start.
+            if (err.ingestJoinGone) throw err;
             // I1/PB1 (0230): the ingest was closed while it connected (a takeover released it,
             // shutdown): a cancellation - no probe of our own, no provider failure.
             if (err.ingestCancelled) throw supersededError();
@@ -215,6 +217,12 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, owner = 
     //    client handles and both codecs are decodable.
     if (info.compatible) return directDecision(url, info, probeNote, timingNote);
 
+    // #371 (Codex): a relay's renewal reads its pinned feed or nothing: a session that would not read it (a finite
+    // analysis, cached by another resolve) is never created, so no ffmpeg reads the provider's address for it.
+    if (ingestSource && ingestSource.joinOnly != null && (ingestSource.refused || info.finite === true)) {
+        throw Object.assign(new Error('Shared ingest not used: a renewal\'s session would not read its feed'), { ingestJoinGone: true, providerReason: false });
+    }
+
     // 2. Everything else is an HLS session.
     const plan = sessionPlan({ info, caps, settings, userAgent, owner, live, audioEncode, fromProfile, fullWindow: analysis.fullWindow === true });
     // Which provider's connection the session holds (0173): the coordinator counts it in that
@@ -232,7 +240,8 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, owner = 
         // Wave 5: not for a source that ends (paced, seekable), nor once the ingest refused the stream.
         // The names go too (0287's feed_lag): a play from a cached analysis or a profile has no probe, so its session opens the ingest.
         ...(ingestSource && !ingestSource.refused && info.finite !== true ? { ingestSource: { pool: ingestSource.pool, url: ingestSource.url, userAgent: ingestSource.userAgent, providerId: ingestSource.providerId,
-            channelKey: ingestSource.channelKey ?? null, channel: ingestSource.channel ?? null, providerName: ingestSource.providerName ?? null } } : {}),
+            channelKey: ingestSource.channelKey ?? null, channel: ingestSource.channel ?? null, providerName: ingestSource.providerName ?? null,
+            ...(ingestSource.joinOnly != null ? { joinOnly: ingestSource.joinOnly } : {}) } } : {}),
         // Codex (#348): the session's own ingest wait (no probe went first) ends at the resolve's deadline.
         ...(deadlineAt ? { startDeadlineAt: deadlineAt } : {}),
         // 0189: extra session options from the relay (a standby is marked as one).
@@ -249,6 +258,11 @@ async function resolve({ url, capabilities = {}, settings, ffprobePath, owner = 
     try {
         await session.start();
     } catch (err) {
+        if (err.ingestJoinGone) {
+            // #371: the renewal's feed went before its session read it: the session goes, nothing else is opened.
+            try { await transcodeSession.removeSession(session.id); } catch (e) { /* already gone */ }
+            throw err;
+        }
         if (!err.resolveDeadline) throw err;
         // Codex (#348): the shared ingest had nothing by the deadline: a failed start for a provider reason; the
         // registered session goes (after its teardown) before the walk gives the lease back.

@@ -476,6 +476,71 @@ test('FR-22: zero-linger renewal holds the viewer slot without a recording, and 
 });
 
 
+// 0909 (#371): a renewal joins the feed its pin holds, through admission, probe and transcode start, or opens nothing.
+for (const cached of [true, false]) test(`0909 (#371): the pin's feed closes after the renewal's admission, before its start (${cached ? 'cached analysis' : 'probe'}): no replacement feed is opened`, async () => {
+    await db.settings.update({ relayEnabled: true, ingestReconnectRenewal: true });
+    relay.tuning.reconnectSettleMs = 100;
+    Object.assign(ingest.tuning, { backoffMs: [40] });
+    const r = await play('pos_1', 'tv');
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    const followed = relay.get(r.body.sessionId);
+    const strategy = load('services/playbackStrategy');
+    const resolve = strategy.resolve;
+    let closedAt = null;
+    strategy.resolve = async opts => {
+        if (opts.sessionOptions?.relayTimeline && closedAt === null) {
+            // Admitted (a join: no lease); now the feed goes, before the probe and the session read it.
+            closedAt = { connections: connections['/1.ts'], leases: coordinator.listLeases().filter(l => l.purpose === 'viewer' && !l.sessionId).length };
+            if (!cached) probeCache.clear();
+            ingest.closeKey(opts.ingestSource.key, 'test: gone before the renewal read it');
+        }
+        return resolve(opts);
+    };
+    try {
+        responses.get('/1.ts').destroy();
+        await until(() => closedAt !== null && !followed.switching, 'the renewal began and finished');
+        await sleep(300);
+        assert.deepEqual(closedAt, { connections: 2, leases: 0 }, 'the renewal was admitted as a join');
+        assert.equal(connections['/1.ts'], 2, 'no replacement feed opened (9a703d1: a third connection)');
+        assert.equal(tools().filter(t => t.tool === 'ffmpeg' && !t.args.includes('pipe:0')).length, 0, 'never a direct read of the URL');
+        assert.equal(tools().filter(t => t.tool === 'ffprobe' && t.args[t.args.length - 1] !== 'pipe:0').length, 0, 'never a direct probe');
+        assert.equal(coordinator.listLeases().filter(l => l.purpose === 'viewer').length, 0, 'no lease');
+        assert.equal(ingest.list().length, 0, 'no ingest open');
+        assert.equal(followed.closed, true, 'the play ends with its feed, as when the pin ends during any renewal');
+    } finally { strategy.resolve = resolve; }
+});
+
+// 0909 (#371, Codex): a finite analysis cached by another resolve would have the session read the URL itself: a renewal fails.
+test('0909 (#371): a renewal meeting a cached finite analysis starts no session and no direct read; renewal-failed', async () => {
+    await db.settings.update({ relayEnabled: true, ingestReconnectRenewal: true });
+    relay.tuning.reconnectSettleMs = 100;
+    Object.assign(ingest.tuning, { backoffMs: [40] });
+    const r = await play('pos_1', 'tv');
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    const followed = relay.get(r.body.sessionId);
+    for (const entry of probeCache.values()) entry.result = { ...entry.result, finite: true }; // as a direct probe of a file would cache
+    const strategy = load('services/playbackStrategy');
+    const resolve = strategy.resolve;
+    const renewal = [];
+    const notes = [];
+    const note = followed.note.bind(followed); followed.note = (code, ...rest) => { notes.push(code); return note(code, ...rest); };
+    strategy.resolve = async opts => {
+        if (!opts.sessionOptions?.relayTimeline) return resolve(opts);
+        const before = { sessions: sessionsNow().length, ffmpeg: tools().filter(t => t.tool === 'ffmpeg').length };
+        try { return await resolve(opts); } catch (err) {
+            renewal.push({ joinGone: err.ingestJoinGone === true, sessions: sessionsNow().length - before.sessions,
+                ffmpeg: tools().filter(t => t.tool === 'ffmpeg').length - before.ffmpeg, connections: connections['/1.ts'] });
+            throw err;
+        }
+    };
+    try {
+        responses.get('/1.ts').destroy();
+        await until(() => notes.includes('renewal-failed'), 'the renewal failed');
+        assert.deepEqual(renewal, [{ joinGone: true, sessions: 0, ffmpeg: 0, connections: 2 }],
+            'refused before any session or ffmpeg (a4c2d90: an ffmpeg reading the provider address)');
+    } finally { strategy.resolve = resolve; }
+});
+
 test('R1-H3: renewal is explicitly opt-in even when relay recovery and shared ingest are enabled', async () => {
     await db.settings.update({ relayEnabled: true, ingestReconnectRenewal: false });
     Object.assign(ingest.tuning, { backoffMs: [40] });

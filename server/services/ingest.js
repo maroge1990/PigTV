@@ -753,11 +753,15 @@ function rememberChannel(key, ref) {
  * refuses the first connection - the caller then uses its usual path.
  */
 async function subscribe({ pool, url, userAgent, providerId = null, purpose = null, owner = null, channel = null, providerName = null, channelKey = null, channelRef = null, height = null,
-    deadlineAt = null, signal = null }) {
+    deadlineAt = null, signal = null, joinOnly = null }) {
     const key = keyOf(pool, url);
     channelRef = channelRef || channelRefs.get(key) || null;
     let ingest = registry.get(key);
     let opened = false;
+    // #371: `joinOnly` (an ingest id: a relay's planned renewal) joins that very ingest, live, or nothing: never one opened
+    // in its place, and the caller never reads the URL itself instead.
+    const joinGone = () => Object.assign(new Error('Shared ingest not used: the feed to join has gone'), { ingestJoinGone: true, providerReason: false });
+    if (joinOnly !== null && (!ingest || ingest.closed || ingest.id !== joinOnly)) throw joinGone();
     if (!ingest || ingest.closed) {
         closeIdleInPool(pool, key); // a lingering connection in this pool would make this one a second
         ingest = new Ingest({ key, pool, url, userAgent, providerId, channel, providerName, channelKey, channelRef });
@@ -801,6 +805,7 @@ async function subscribe({ pool, url, userAgent, providerId = null, purpose = nu
         if (signal && onAbort) signal.removeEventListener('abort', onAbort);
         ingest.waiters--;
     }
+    if (ingest.closed && joinOnly !== null) throw joinGone();
     if (ingest.closed) throw Object.assign(new Error('Shared ingest not used: it closed'), { ingestRefused: true, providerReason: true });
     ingest.channel ??= channel;
     ingest.channelRef ??= channelRef;

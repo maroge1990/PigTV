@@ -396,6 +396,9 @@ class Relay {
                 why = 'three renewals within a minute; trying normal failover';
             } else this.renewalTimes.push(lostAt);
         }
+        // #371: the plays of this owner already running as the renewal begins (one play: a relay and its legs). Only a
+        // play not among them is a newer one that supersedes this renewal: another tab of the same login is not.
+        const knownPlays = planned ? ownPlays(ctx.owner, this.id) : null;
         let followPin = null;
         try {
             this.log(`${this.providerOf(old)} ${why}; switching`);
@@ -452,11 +455,29 @@ class Relay {
                             continue;
                         }
                         const generation = source.reconnectedAt;
-                        next = await this.startCold([old.candidate], old.session.id, renewalStartedAt + tuning.reconnectTotalMaxMs, true);
+                        const renewalOf = { ingest: source, known: knownPlays, gone: false };
+                        next = await this.startCold([old.candidate], old.session.id, renewalStartedAt + tuning.reconnectTotalMaxMs, true, { renewalOf });
                         if (this.closed || pin.endReason) break;
+                        // #371: the feed the pin holds is no longer the one the channel's key leads to (or it went): no
+                        // other connection is opened for a renewal, which falls back to the ordinary recovery.
+                        if (renewalOf.gone && !next) { renewalFailed = 'feed-gone'; break; }
+                        // #371 (Codex): a newer play may have arrived while the new leg started (its first playlist). The
+                        // same rule as before admission; the new leg is this play's own (playOf), so never counted.
+                        if (next && newerPlay(ctx.owner, old.session.id, knownPlays)) {
+                            await this.retire(next, true);
+                            next = null;
+                            await this.close('the viewer is watching something else');
+                            return;
+                        }
                         if (generation === source.reconnectedAt && source.state === 'live' || next && forced) break;
                         if (next) await this.retire(next, true);
                         next = null;
+                    }
+                    // #371 (Codex): the pin's feed ended for the provider's reason (its reconnects ran out): a lost feed, so
+                    // the ordinary recovery, as with renewal off. A release (a reclaim, a takeover, shutdown) still ends it quietly.
+                    if (!renewalFailed && !this.closed && pin.endReason && pin.endReason.providerReason === true) {
+                        if (next) { await this.retire(next, true); next = null; }
+                        renewalFailed = 'feed-lost';
                     }
                     if (!renewalFailed && !next && !this.closed && !pin.endReason) renewalFailed = 'no-playlist';
                     if (renewalFailed) {
@@ -466,11 +487,13 @@ class Relay {
                         planned = false;
                         code = 'renewal-failed';
                         this.renewalBlocked = true;
-                        const detail = renewalFailed === 'timeout' ? 'its feed did not settle within the renewal deadline' : 'its new leg produced no playlist';
+                        const detail = renewalFailed === 'timeout' ? 'its feed did not settle within the renewal deadline'
+                            : renewalFailed === 'feed-gone' ? 'the feed it holds is no longer there to join'
+                                : renewalFailed === 'feed-lost' ? 'its feed was lost' : 'its new leg produced no playlist';
                         this.log(`renewal on ${this.providerOf(old)} failed (${detail}); recovering as from a stall, renewal off for this play`);
                         this.note('renewal-failed', `${this.providerOf(old)}: ${detail}`, { provider: this.providerOf(old) });
                         interruptions().noteLost({ owner: ctx.owner, channel: ctx.channelName, provider: this.providerOf(old), how: 'stall',
-                            providerReason: false, playedSec: (lostAt - old.startedAt) / 1000, reason: code });
+                            providerReason: renewalFailed === 'feed-lost', playedSec: (lostAt - old.startedAt) / 1000, reason: code });
                         // As the renewal budget: this channel only, never the provider-wide breaker.
                         try { routing().quarantine(old.candidate.providerId, old.candidate.channelKey); } catch (e) { /* observation only */ }
                         await this.retire(old);
@@ -600,9 +623,11 @@ class Relay {
     }
 
     /** Start one candidate as a leg: probe, session, first segment. Null when it cannot be used. */
-    async startLeg(candidate, { owner, standby = false, lease = null, deadlineAt = null, renewal = false } = {}) {
+    async startLeg(candidate, { owner, standby = false, lease = null, deadlineAt = null, renewal = false, renewalOf = null } = {}) {
         const { ctx } = this;
         let decision;
+        // #371: a planned renewal's probe and start read the feed its pin holds, that very one, or nothing.
+        const source = ingest().sourceFor(candidate, ctx.settings, { sourceId: ctx.sourceId, channelId: ctx.channelId });
         try {
             decision = await strategy().resolve({
                 url: candidate.url,
@@ -617,13 +642,14 @@ class Relay {
                 lease, // R11: bound to the leg's session when it exists
                 // R7: with the shared connection on, a later leg and the standby read through it too, so
                 // their feeds are judged by how far behind real time they are, as the first leg's is.
-                ingestSource: ingest().sourceFor(candidate, ctx.settings, { sourceId: ctx.sourceId, channelId: ctx.channelId }),
+                ingestSource: renewalOf && source ? { ...source, joinOnly: renewalOf.ingest.id } : source,
                 refusedRetryDelaysMs: [1000],
                 deadlineAt: Math.min(deadlineAt ?? Infinity, Date.now() + START_DEADLINE_MS),
                 timingNote: `, relay ${this.id} ${standby ? 'standby' : 'takeover'} on ${candidate.providerName}`,
                 sessionOptions: { relayTimeline: renewal && !standby && this.renewalEnabled(), channelName: ctx.channelName || null, ...(standby ? { standby: true } : {}) }
             });
         } catch (err) {
+            if (renewalOf && err && err.ingestJoinGone) renewalOf.gone = true;
             // #4 (0905, Codex high): a planned renewal's attempt is not a start the provider failed. The relay quarantines
             // the channel itself if the renewal cannot land; the provider-wide breaker never hears of it.
             if (routing().isProviderFailure(err) && !renewal) {
@@ -648,7 +674,7 @@ class Relay {
     }
 
     /** Cold start: re-plan providers, or renew only the supplied candidate using the retained slot. */
-    async startCold(sameCandidate = null, adopt = null, deadlineAt = null, renewal = false, { exclude = null } = {}) {
+    async startCold(sameCandidate = null, adopt = null, deadlineAt = null, renewal = false, { exclude = null, renewalOf = null } = {}) {
         const { ctx } = this;
         let candidates;
         try {
@@ -665,6 +691,7 @@ class Relay {
             before: (candidate) => {
                 if (this.closed) return STOP;
                 if (this.unusable.has(candidate.providerId)) return SKIP;
+                if (renewalOf) return this.renewalMayStart(candidate, adopt, renewalOf);
                 // The viewer has started something else since: this play is over, and admitting
                 // it again would stop what they are watching now.
                 // A newer request still probing holds only an unbound viewer lease (Codex review of 0320):
@@ -676,8 +703,11 @@ class Relay {
                 }
                 return undefined;
             },
-            ask: (candidate) => ({ force: false, adopt, settings: ctx.settings, owner: ctx.owner, providerId: candidate.providerId,
-                joinIngest: ingest().sourceFor(candidate, ctx.settings)?.key || null }),
+            ask: (candidate) => (renewalOf
+                // #371: join-only: the pin's own feed, admitted only as a join (no lease, nothing released) or not at all.
+                ? { force: false, adopt, settings: ctx.settings, owner: ctx.owner, providerId: candidate.providerId, joinIngest: renewalOf.ingest.key, joinOnly: true }
+                : { force: false, adopt, settings: ctx.settings, owner: ctx.owner, providerId: candidate.providerId,
+                    joinIngest: ingest().sourceFor(candidate, ctx.settings)?.key || null }),
             // C-2: the running recordings could not be read (a database error): nobody is admitted
             // on this attempt, as a recording may hold the connection. Not a crash; logged once.
             admissionFailed: (err) => {
@@ -690,8 +720,30 @@ class Relay {
             },
             // R11: the lease taken with the admission is bound to the leg's session, or given back.
             // A leg that cannot be used (null) goes on to the next candidate.
-            start: (candidate, i, lease) => this.startLeg(candidate, { owner: ctx.owner, lease, deadlineAt, renewal })
+            start: (candidate, i, lease) => this.startLeg(candidate, { owner: ctx.owner, lease, deadlineAt, renewal, ...(renewalOf ? { renewalOf } : {}) })
         });
+    }
+
+    /**
+     * #371: the start walk's check for a planned renewal (renewal on only), in the tick of its admission. A play of this
+     * owner that was not running when the renewal began (or a viewer lease taken since, still probing) supersedes it:
+     * the relay ends, as for any cold start. The feed the pin holds must still be the live one the candidate's key leads
+     * to; when it is not, the renewal is abandoned before admission (`renewalOf.gone`), and nothing else is opened.
+     */
+    renewalMayStart(candidate, adopt, renewalOf) {
+        const { ctx } = this;
+        if (newerPlay(ctx.owner, adopt, renewalOf.known)) {
+            this.close('the viewer is watching something else');
+            return STOP;
+        }
+        const feed = renewalOf.ingest;
+        const source = ingest().sourceFor(candidate, ctx.settings);
+        if (!feed || !source || source.key !== feed.key || feed.closed || ingest().liveFor(feed.pool, feed.url) !== feed) {
+            renewalOf.gone = true;
+            this.log(`renewal on ${candidate.providerName || 'the provider'} not started: the feed it holds is no longer there to join`);
+            return STOP;
+        }
+        return undefined;
     }
 
     // ---- the standby -----------------------------------------------------------------------
@@ -805,6 +857,42 @@ class Relay {
 }
 
 // ---- the module -------------------------------------------------------------------------
+
+/** #371: the play a session belongs to: the relay that has it as a leg, else the session itself. */
+function playOf(sessionId) {
+    for (const r of relays.values()) if (r.id === sessionId || r.legs.some(l => l.session.id === sessionId)) return r.id;
+    return sessionId;
+}
+
+/**
+ * #371: the plays of `owner` running now (by play, see playOf) and its viewer leases not yet bound to a session (a start
+ * still probing), as a planned renewal of play `self` begins. A paired device watches one thing (as the coordinator's
+ * FR-11 rule): any other play of it is newer, so none is known but this one. A plain login is one owner across every
+ * browser and tab it is open in: the plays its other tabs had going are known.
+ */
+function ownPlays(owner, self) {
+    const plays = new Set([self]);
+    const leases = new Set();
+    if (owner && !String(owner).startsWith('device:')) {
+        for (const s of coordinator().activeStreams()) if (s.owner === owner) plays.add(playOf(s.id));
+        for (const l of coordinator().listLeases()) if (l.purpose === 'viewer' && l.owner === owner && !l.sessionId) leases.add(l.id);
+    }
+    return { plays, leases };
+}
+
+/**
+ * #371: has `owner` started a play since `known` was taken? A stream of a play not known then (a session whose lease was
+ * known, still probing then, counts as known), or a viewer lease taken since and not yet bound. Not `adopt`, nor a
+ * warm session. A plain login is one owner across its tabs: a tab already playing is known, so never "newer".
+ */
+function newerPlay(owner, adopt, known) {
+    if (!owner || !known) return false;
+    const leases = coordinator().listLeases();
+    const knownLeaseSession = new Set(leases.filter(l => known.leases.has(l.id) && l.sessionId).map(l => l.sessionId));
+    return coordinator().activeStreams().some(s => s.owner === owner && s.id !== adopt && !s.warm
+            && !known.plays.has(playOf(s.id)) && !knownLeaseSession.has(s.id))
+        || leases.some(l => l.purpose === 'viewer' && l.owner === owner && !l.sessionId && !known.leases.has(l.id));
+}
 
 function pruneAliases(now = Date.now()) {
     for (const [id, a] of aliases) if (now - a.at > ALIAS_TTL_MS) aliases.delete(id);

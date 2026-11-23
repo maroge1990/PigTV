@@ -270,7 +270,9 @@ class TranscodeSession extends EventEmitter {
                     height: this.options.height || null, signal: abort.signal,
                     // Codex (#348): a resolve's start (a cached analysis or a profile: no probe went first) waits on the
                     // ingest no longer than the resolve's deadline; a later restart is not bound by it.
-                    deadlineAt: this.timings.playlistReady ? null : (this.options.startDeadlineAt || null) });
+                    deadlineAt: this.timings.playlistReady ? null : (this.options.startDeadlineAt || null),
+                    // #371: a renewal's first start joins its pin's feed or nothing; a later restart is an ordinary one.
+                    joinOnly: this.timings.playlistReady ? null : (src.joinOnly ?? null) });
             } catch (err) {
                 // Past the resolve's deadline: a failed start (the resolve removes the session), never a direct read.
                 if (err.resolveDeadline && !this.ended()) {
@@ -281,6 +283,12 @@ class TranscodeSession extends EventEmitter {
                 // PB1: stopped meanwhile, or the ingest was closed under us (released, shutdown): a
                 // cancellation, never a reason to open a connection of our own.
                 if (this.ended() || err.ingestCancelled) return this.abandonStart(null);
+                // #371: a renewal's feed went: a failed start (the resolve removes the session), never a direct read.
+                if (err.ingestJoinGone) {
+                    this.status = 'error';
+                    this.error = 'the feed it was to join has gone';
+                    throw err;
+                }
                 console.warn(`[TranscodeSession ${this.id}] Shared ingest not used: ${stripUrls(err.message, [this.url])}`);
                 this.options.ingestSource = null;
             } finally {

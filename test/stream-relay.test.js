@@ -19,6 +19,7 @@ const routing = load('services/providerRouting');
 const strategy = load('services/playbackStrategy');
 const interruptions = load('services/playbackInterruptions');
 const relay = load('services/streamRelay');
+const ingestMod = load('services/ingest');
 
 const real = { getAll: sessions.getAllSessions, remove: sessions.removeSession, get: sessions.getSession,
     plan: routing.plan, resolve: strategy.resolve, noteFailure: routing.noteFailure, watch: routing.watchSession };
@@ -74,10 +75,23 @@ const ctx = (extra = {}) => ({ sourceId: 1, channelId: 'pos_1', capabilities: { 
     owner: 'device:tv', channelName: 'Fox Footy', primaryKey: 'k', candidate: A, ...extra });
 const silently = async (fn) => { const log = console.log, warn = console.warn; console.log = console.warn = () => {}; try { return await fn(); } finally { console.log = log; console.warn = warn; } };
 const segs = (text) => text.split('\n').filter(l => l && !l.startsWith('#'));
+const shared = (settings = ctx().settings) => ({ ...settings, sharedIngestEnabled: true });
+let feedSeq = 0;
+/**
+ * #371: the shared ingest a renewal pin holds, as the ingest registry has it for the candidate's key (a renewal joins that
+ * very feed or nothing). A stand-in: no connection; the registry is cleared before each test.
+ */
+function heldFeed(extra = {}, candidate = A) {
+    const src = ingestMod.sourceFor(candidate, { sharedIngestEnabled: true });
+    const feed = { id: `feed-${++feedSeq}`, key: src.key, pool: src.pool, url: src.url, state: 'live', reconnectedAt: Date.now() - 10000, closed: false, subs: new Set(), ...extra };
+    ingestMod._registry.set(feed.key, feed);
+    return feed;
+}
 
 beforeEach(async () => {
     await silently(() => relay.closeAll());
     registry.clear();
+    ingestMod._registry.clear();
     quarantined = []; started = [];
     routing.reset();
     interruptions.reset();
@@ -629,7 +643,7 @@ test('FR-22: planned restart never promotes a ready standby or re-plans provider
     r.standby = r.addLeg(backup, B);
     r.standby.tail = [{ seq: 1 }, { seq: 2 }]; r.standby.lastSegAt = Date.now();
     let left = false;
-    const pin = { endReason: null, ingest: { state: 'live', reconnectedAt: Date.now() - 10000 }, leave() { left = true; } };
+    const pin = { endReason: null, ingest: heldFeed(), leave() { left = true; } };
     const peek = sessions.peekSession;
     sessions.peekSession = id => registry.get(id);
     const plan = routing.plan;
@@ -651,12 +665,12 @@ test('FR-22: planned restart never promotes a ready standby or re-plans provider
 test('R1-H2: sustained reconnects cannot extend settlement past the first renewal deadline', async () => {
     const s = fakeSession(); write(s, 0, 2);
     s.stop = async () => { s.stopRequested = true; };
-    const r = relay.adopt(s, ctx()); clearInterval(r.timer); await r.ingest();
+    const r = relay.adopt(s, ctx({ settings: shared() })); clearInterval(r.timer); await r.ingest();
     const t = { ...relay.tuning };
     relay.tuning.reconnectSettleMs = 10000;
     relay.tuning.reconnectWaitMaxMs = 150;
     relay.tuning.reconnectTotalMaxMs = 1500;
-    const source = { state: 'live', reconnectedAt: Date.now() };
+    const source = heldFeed({ reconnectedAt: Date.now() });
     const pulse = setInterval(() => { source.reconnectedAt = Date.now(); }, 20);
     const peek = sessions.peekSession; sessions.peekSession = id => registry.get(id);
     const pin = { ingest: source, endReason: null, leave() {} };
@@ -698,11 +712,11 @@ test('review L2: rejected switch calls release a transferred follow-on pin exact
 
 test('review M4: repeated pre-ready epochs exhaust one relay budget and fall back without another renewal', async () => {
     const front = fakeSession(); write(front, 0, 2); front.stop = async () => {};
-    const r = relay.adopt(front, ctx()); clearInterval(r.timer); await r.ingest();
+    const r = relay.adopt(front, ctx({ settings: shared() })); clearInterval(r.timer); await r.ingest();
     const peek = sessions.peekSession; sessions.peekSession = id => registry.get(id);
     let calls = 0; const notes = [];
     const note = r.note.bind(r); r.note = (...a) => { notes.push(a[0]); note(...a); };
-    const source = { state: 'live', reconnectedAt: Date.now() - 10000, subscribe() { return pin(); } };
+    const source = heldFeed({ subscribe() { return pin(); } });
     const pin = () => ({ ingest: source, endReason: null, resume() {}, leave() {} });
     strategy.resolve = async opts => {
         const s = fakeSession(); s.stop = async () => {};
@@ -946,7 +960,7 @@ test('D-7: a candidate whose leg cannot start is given up and the next one is st
 // reason no-candidate). A renewal is opportunistic and must never make a healthy play worse: the old leg stopped at the
 // reconnect, so the play recovers as from a stall of it (a ready standby, else the provider walk, else the same provider
 // without renewal), renewal is off for the rest of the play, and only that ordinary path finding nothing ends it.
-async function renewalThatNeverPlays({ settings = { ...withStandby, sharedIngestEnabled: true }, resolveAfter, ingest = { key: 'k-a', state: 'live', reconnectedAt: Date.now() - 10000 },
+async function renewalThatNeverPlays({ settings = { ...withStandby, sharedIngestEnabled: true }, resolveAfter, ingest = null,
     renewalError = () => new Error('FFmpeg ended before producing a playlist'), ctxExtra = {}, setup = null } = {}) {
     const s = fakeSession({ owner: ctxExtra.owner || 'device:tv' }); write(s, 0, 2);
     // As TranscodeSession.handleIngestReconnect: the session stops its own ffmpeg at the reconnect (a planned boundary).
@@ -955,7 +969,7 @@ async function renewalThatNeverPlays({ settings = { ...withStandby, sharedIngest
     clearInterval(r.timer);
     await r.ingest();
     if (setup) await setup(r);
-    const pin = { endReason: null, ingest, left: 0, leave() { this.left++; } };
+    const pin = { endReason: null, ingest: ingest || heldFeed(), left: 0, leave() { this.left++; } };
     const resolve = strategy.resolve;
     const peek = sessions.peekSession;
     sessions.peekSession = id => registry.get(id);
@@ -1037,7 +1051,7 @@ test('#4: a renewal whose feed never settles (the renewal deadline) falls back t
     const t = { ...relay.tuning };
     relay.tuning.reconnectTotalMaxMs = 250;
     try {
-        const { r, notes } = await renewalThatNeverPlays({ ingest: { key: 'k-a', state: 'reconnecting', reconnectedAt: Date.now() }, resolveAfter: (opts, resolve) => resolve(opts) });
+        const { r, notes } = await renewalThatNeverPlays({ ingest: heldFeed({ state: 'reconnecting', reconnectedAt: Date.now() }), resolveAfter: (opts, resolve) => resolve(opts) });
         assert.equal(r.closed, false, 'not "timeline renewal timed out"');
         assert.ok(notes.includes('renewal-failed'));
         assert.equal(r.active.candidate, B);
@@ -1066,7 +1080,7 @@ test('0905: a renewal that times out for the provider\'s reason quarantines its 
         for (const key of ['ch-1', 'ch-2']) {
             const candidate = { ...A, channelKey: key, url: `http://a.invalid/${key}.ts` };
             const { r } = await renewalThatNeverPlays({ renewalError: () => Object.assign(new Error('The provider did not respond in time.'), { providerReason: true }),
-                ctxExtra: { owner: `device:${key}`, candidate, primaryKey: key }, resolveAfter: (opts, resolve) => resolve(opts) });
+                ctxExtra: { owner: `device:${key}`, candidate, primaryKey: key }, ingest: heldFeed({}, candidate), resolveAfter: (opts, resolve) => resolve(opts) });
             assert.equal(routing.isQuarantined(1, key), true, 'the renewal\'s channel is quarantined on that provider');
             await silently(() => r.close('test over'));
         }
@@ -1128,4 +1142,187 @@ test('0907: a failed renewal whose fallback walk finds a newer request of the de
         assert.equal(r.failed, false, 'quietly: the viewer moved on');
         assert.deepEqual(started.filter(x => !x.renewal), [], 'nothing started for it');
     } finally { if (newer) coordinator.releaseUnbound(newer); }
+});
+
+// ---- 0909 (#371): a renewal joins the feed its pin holds or nothing; supersession by play, not by owner ----------------
+
+/** A planned renewal of a play on A (owner `owner`), with its pin on `feed`; `during(r)` runs once the renewal has begun. */
+async function renewal({ owner = 'device:tv', settings = shared(ctx().settings), feed = heldFeed(), during = null, spy = null } = {}) {
+    const s = fakeSession({ owner }); write(s, 0, 2);
+    s.stop = async () => { s.stopRequested = true; s.status = 'stopped'; };
+    const r = relay.adopt(s, ctx({ settings, owner }));
+    clearInterval(r.timer);
+    await r.ingest();
+    const pin = { endReason: null, ingest: feed, left: 0, leave() { this.left++; } };
+    const peek = sessions.peekSession;
+    sessions.peekSession = id => registry.get(id);
+    const resolve = strategy.resolve;
+    strategy.resolve = async (opts) => { if (opts.sessionOptions?.relayTimeline) started.push({ provider: opts.providerId, renewal: true, joinOnly: opts.ingestSource?.joinOnly ?? null }); return resolve(opts); };
+    if (spy) { const cold = r.startCold.bind(r); r.startCold = async (...a) => { const out = await cold(...a); if (a[3]) spy(out); return out; }; }
+    const notes = [];
+    const note = r.note.bind(r); r.note = (code, ...rest) => { notes.push(code); return note(code, ...rest); };
+    try {
+        await silently(async () => {
+            const going = r.switchOver('reconnected; renewing its timeline', 'reconnected', pin);
+            if (during) { await new Promise(res => setTimeout(res, 20)); await during(r); feed.reconnectedAt = Date.now() - 10000; }
+            await going;
+        });
+    } finally { strategy.resolve = resolve; sessions.peekSession = peek; }
+    return { r, s, pin, notes };
+}
+
+test('0909 (#371): a renewal whose feed is not the one its key leads to takes no lease and reclaims no idle viewer at a limit of 1', async () => {
+    coordinator._leases.clear();
+    const settings = { maxProviderStreams: 1, relayEnabled: true, ingestReconnectRenewal: true, sharedIngestEnabled: true };
+    // Another device on the same provider, idle long enough to be reclaimed by an ordinary admission.
+    const phone = fakeSession({ owner: 'device:phone', providerId: 1 }); write(phone, 0, 1);
+    phone.lastAccess = Date.now() - 60 * 60 * 1000;
+    // The pin holds a feed the registry no longer has under the candidate's key (a remap, or it went): nothing to join.
+    const feed = heldFeed(); ingestMod._registry.delete(feed.key);
+    let atRenewal = null;
+    const { r, notes } = await renewal({ settings, feed, spy: (out) => {
+        atRenewal = { leg: !!out, phone: registry.has(phone.id), leases: coordinator.listLeases().filter(l => l.purpose === 'viewer').length,
+            renewalStarts: started.filter(x => x.renewal).length };
+    } });
+    try {
+        assert.ok(atRenewal, 'the renewal walked');
+        assert.deepEqual(atRenewal, { leg: false, phone: true, leases: 0, renewalStarts: 0 },
+            'no leg, the idle viewer left alone, no lease, nothing started (9a703d1: the phone was reclaimed and a lease issued)');
+        assert.ok(notes.includes('renewal-failed'), `abandoned as renewal-failed: ${notes.join()}`);
+        assert.equal(r.renewalBlocked, true);
+        // The ordinary recovery after it is ordinary admission (it may reclaim the idle viewer, as any stall's would).
+        assert.equal(r.closed, false, 'the ordinary recovery carries the play on');
+        assert.equal(r.active.candidate, B, 'the provider walk, without the failed feed');
+    } finally { await silently(() => r.close('test over')); }
+});
+
+test('0909 (#371): a renewal lands on the feed its pin holds: joined, no lease, nothing released', async () => {
+    coordinator._leases.clear();
+    const settings = { maxProviderStreams: 1, relayEnabled: true, ingestReconnectRenewal: true, sharedIngestEnabled: true };
+    const phone = fakeSession({ owner: 'device:phone', providerId: 1 }); write(phone, 0, 1);
+    phone.lastAccess = Date.now() - 60 * 60 * 1000;
+    const feed = heldFeed();
+    const { r, notes } = await renewal({ settings, feed });
+    try {
+        assert.equal(r.closed, false);
+        assert.equal(r.active.candidate, A);
+        assert.ok(notes.includes('reconnected') && !notes.includes('renewal-failed'), notes.join());
+        assert.deepEqual(started.filter(x => x.renewal).map(x => x.joinOnly), [feed.id], 'the start is bound to that very feed');
+        assert.equal(registry.has(phone.id), true, 'the idle viewer is not reclaimed');
+        assert.equal(coordinator.listLeases().filter(l => l.purpose === 'viewer').length, 0, 'a join takes no lease');
+    } finally { await silently(() => r.close('test over')); }
+});
+
+test('0909 (#371): an older tab of the same login is untouched while a renewal lands in another tab, which keeps playing', async () => {
+    coordinator._leases.clear();
+    // The first tab, playing something on the same provider before the renewal began (a play of the same plain login).
+    const olderTab = fakeSession({ owner: 'user:1', providerId: 1 }); write(olderTab, 0, 1);
+    // ... and a third tab still probing (its viewer lease not yet bound) when the renewal began.
+    const probing = coordinator.takeLease(1, 'viewer', { owner: 'user:1' });
+    try {
+        const { r, notes } = await renewal({ owner: 'user:1' });
+        assert.equal(r.closed, false, `the renewing tab keeps playing (9a703d1: "${r.lastReason && r.lastReason.code}", ended as "watching something else")`);
+        assert.equal(r.switches, 1);
+        assert.ok(notes.includes('reconnected'), notes.join());
+        assert.equal(started.filter(x => x.renewal).length, 1, 'the renewal started');
+        assert.equal(r.active.candidate, A);
+        assert.equal(registry.has(olderTab.id), true, 'the older tab is untouched');
+        assert.equal(olderTab.stopRequested, undefined);
+        assert.equal(coordinator.leaseAlive(probing), true, 'the probing tab\'s lease is untouched');
+        await silently(() => r.close('test over'));
+    } finally { coordinator.releaseUnbound(probing); }
+});
+
+test('0909 (#371): a newer play of the same login while the renewal settles still cancels it; an older tab stays untouched', async () => {
+    for (const newer of ['session', 'lease']) {
+        coordinator._leases.clear();
+        registry.clear(); started = [];
+        const olderTab = fakeSession({ owner: 'user:1', providerId: 1 }); write(olderTab, 0, 1);
+        let made = null;
+        const feed = heldFeed({ reconnectedAt: Date.now() }); // not settled yet: the renewal waits
+        const { r } = await renewal({ owner: 'user:1', feed, during: () => {
+            made = newer === 'session' ? fakeSession({ owner: 'user:1', providerId: 2 }) : coordinator.takeLease(1, 'viewer', { owner: 'user:1' });
+        } });
+        try {
+            assert.equal(r.closed, true, `${newer}: the renewal is cancelled`);
+            assert.equal(r.failed, false, `${newer}: quietly, the viewer moved on`);
+            assert.deepEqual(started, [], `${newer}: nothing started for it`);
+            assert.equal(registry.has(olderTab.id), true, `${newer}: the older tab is untouched`);
+            if (newer === 'session') assert.equal(registry.has(made.id), true, 'the newer play is untouched');
+        } finally { if (newer === 'lease') coordinator.releaseUnbound(made); }
+    }
+});
+
+// ---- 0909 (#371), Codex review of a4c2d90 ----------------------------------------------------------------------------
+
+/** A renewal on A with a ready standby on B; `onStart(pin, opts)` runs inside the renewal's start (its first playlist pending). */
+async function renewalWithStandby({ owner = 'device:tv', onStart }) {
+    const samePool = coordinator.samePool, free = coordinator.hasFreeConnection;
+    coordinator.samePool = (a, b) => a === b;
+    coordinator.hasFreeConnection = () => true;
+    const s = fakeSession({ owner }); write(s, 0, 2);
+    s.stop = async () => { s.stopRequested = true; s.status = 'stopped'; };
+    const r = relay.adopt(s, ctx({ settings: shared(withStandby), owner }));
+    clearInterval(r.timer);
+    await r.ingest();
+    const backup = fakeSession({ providerId: 2, standby: true, owner: `standby:${r.id}` }); write(backup, 0, 2);
+    r.standby = r.addLeg(backup, B); r.standby.tail = [{ seq: 1 }, { seq: 2 }]; r.standby.lastSegAt = Date.now();
+    const feed = heldFeed();
+    const pin = { endReason: null, ingest: feed, left: 0, leave() { this.left++; } };
+    const peek = sessions.peekSession; sessions.peekSession = id => registry.get(id);
+    const resolve = strategy.resolve;
+    const renewalLegs = [];
+    strategy.resolve = async (opts) => {
+        const out = await resolve(opts);
+        if (opts.sessionOptions?.relayTimeline) { renewalLegs.push(out.sessionId); await onStart(pin, feed); }
+        return out;
+    };
+    const notes = [];
+    const note = r.note.bind(r); r.note = (code, ...rest) => { notes.push(code); return note(code, ...rest); };
+    try { await silently(() => r.switchOver('reconnected; renewing its timeline', 'reconnected', pin)); } finally {
+        strategy.resolve = resolve; sessions.peekSession = peek; coordinator.samePool = samePool; coordinator.hasFreeConnection = free;
+    }
+    return { r, backup, notes, renewalLegs };
+}
+
+test('0909 (#371, Codex): the pin\'s feed lost for the provider\'s reason while the renewal starts: the ready standby takes over, the loss is counted', async () => {
+    const { r, backup, notes, renewalLegs } = await renewalWithStandby({ onStart: (pin, feed) => {
+        feed.closed = true; ingestMod._registry.delete(feed.key);
+        pin.endReason = { reason: 'upstream-lost', providerReason: true };
+    } });
+    try {
+        assert.equal(r.closed, false, `the play goes on (a4c2d90: ended "${r.lastReason && r.lastReason.code}")`);
+        assert.equal(r.active.session, backup, 'the standby is promoted');
+        assert.ok(notes.includes('renewal-failed') && notes.includes('promoted'), notes.join());
+        assert.equal(registry.has(renewalLegs[0]), false, 'the renewal\'s own leg is retired');
+        const row = interruptions.summary().recent[0];
+        assert.ok(row, 'the loss is counted');
+        assert.equal(row.reason, 'renewal-failed');
+    } finally { await silently(() => r.close('test over')); }
+});
+
+test('0909 (#371, Codex): the pin\'s feed released (a reclaim) while the renewal starts: the play ends quietly, as before', async () => {
+    const { r, backup, notes } = await renewalWithStandby({ onStart: (pin, feed) => {
+        feed.closed = true; ingestMod._registry.delete(feed.key);
+        pin.endReason = { reason: 'closed', providerReason: false };
+    } });
+    assert.equal(r.closed, true);
+    assert.equal(r.failed, false);
+    assert.ok(!notes.includes('renewal-failed') && !notes.includes('promoted'), notes.join());
+    assert.equal(registry.has(backup.id), false, 'the standby goes with the play');
+    assert.equal(interruptions.summary().count, 0, 'not counted as a lost play');
+});
+
+test('0909 (#371, Codex): a newer play arriving while the renewal\'s first playlist is pending: the renewal does not publish', async () => {
+    let newer = null;
+    const { r, notes, renewalLegs } = await renewalWithStandby({ owner: 'user:1', onStart: () => {
+        newer = fakeSession({ owner: 'user:1', providerId: 2 }); write(newer, 0, 1);
+    } });
+    assert.equal(renewalLegs.length, 1, 'the renewal started');
+    assert.equal(r.closed, true, 'the renewal is cancelled');
+    assert.equal(r.failed, false);
+    assert.equal(r.switches, 0, 'nothing published');
+    assert.ok(!notes.includes('promoted'), notes.join());
+    assert.equal(registry.has(renewalLegs[0]), false, 'the provisional leg is retired');
+    assert.equal(registry.has(newer.id), true, 'the newer play is untouched');
 });
