@@ -5,18 +5,16 @@ Current state, then what comes next by issue. Open work lives in [GitHub Issues]
 
 ## Current state
 
-*Overwritten at the end of every session. 23 Nov 2026, speed and efficiency programme: batches 1 to 5 done, batch 6's
-first part and batch 7's server part done; the player button layout (Mark's option B) is being built; one TestFlight
-build goes out at the very end.*
+*Overwritten at the end of every session. 24 Nov 2026, speed and efficiency programme: every batch that can be built
+without a device readout or real plays is built and pushed; `tf/411` is tagged for the one TestFlight build.*
 
 - **Running:** production runs **0886**; server main is **0909** (in `:latest`, reaches production at Mark's next Force
-  Update). `:release` stays **v0579**. Apple main **405**; TestFlight has **382** (`tf/382`); one more `tf/` build goes
-  out after the last Apple build of the programme (Mark's choice, 23 Nov). Next builds: server **0910**, Apple **406**.
+  Update). `:release` stays **v0579**. Apple main **411**, tagged `tf/411` on 24 Nov (Xcode Cloud numbers it itself;
+  confirm the upload with Mark). Next builds: server **0910**, Apple **412**.
 - **The Guide on Mark's Apple TV:** the "quarter-second press-to-focus gap" in his 382 readout was the readout's own
-  fault (each move was timed from the previous press); Apple 402 pairs a move with its own press. His "0 slow frames,
-  longest stall 98 ms" stands. On the simulator a press reaches focus in about 30 ms. The hang he sees on the device is
-  still unexplained and can only be measured from the next TestFlight build's readout: ask him for it then. D-80's
-  targets are unproven on the device until that readout.
+  fault (each move was timed from the previous press); Apple 402 pairs a move with its own press. On the simulator a
+  press reaches focus in about 30 ms. The hang he sees on the device is still unexplained: **ask him for the Guide
+  speed readout from the `tf/411` build**; D-80's targets are unproven on the device until then.
 - **Batches 1 to 5 (done):** the MacBook gate and Guide measurements (#362); Guide quick wins and structure (#360, #361,
   server 0888 to 0895, Apple 383 to 391); `@Observable` stores and a clean session end (#50, #51, #54, Apple 392 to
   397); crash record and database backups (#43, #44, server 0896 to 0903; left over: #364, #365, #366).
@@ -30,11 +28,15 @@ build goes out at the very end.*
 - **Also shipped 23 Nov:** Settings no longer re-reads sport follows on every visit (#368, Apple 398); the Sport front
   page is asked for alongside the preferences at launch, splash unchanged (#55, Apple 403); divider channels are drawn
   as a slim section heading the remote passes over (#372, Apple 404 and 405, three mediums recorded on the issue).
-- **In progress:** the player buttons, option B (#58, #308, #369): time-moving buttons on the progress bar, the rest
-  in one equal-width, always-named row, the same on all three player kinds and devices; Start over on live TV when a
-  recording of the programme exists; Auto-skip breaks on iPad and iPhone.
-- **Needs a capture or a device:** #3 · #27 · #38 (provider captures: Mark allows one connection at a time, under two
-  minutes, never while someone is watching or a recording runs) · #25 · #240 · #331.
+- **Player buttons, option B (#58, #308, #369, Apple 406 to 411):** time-moving buttons on the progress bar, the rest in
+  one equal-width, always-named row on all three player kinds and devices; Start over on live TV when a recording of
+  the programme is running; Auto-skip breaks on iPad and iPhone. Six review rounds; one medium recorded on #308.
+- **Provider series for #3 (24 Nov):** ten cold starts of one channel began in step within 11 ms, so the offset is
+  made after the first bytes: test the early pause, reconnect and standby cases on the relay rig (with #370).
+- **Needs real plays or a device:** #36's speed-ups (read `zapMs` after some days of viewing; bench on the audit's
+  saved samples) · #25 · #27 · #240 (more profiled plays in the log) · #331. #38 can be measured on the saved 4K sample.
+- **Test bench:** the MacBook's iPad/iPhone tier fails a different unrelated test on most full runs (#362); the push
+  tier is the gate.
 - **Open issues:** see `gh issue list`; new on 22 and 23 Nov: #363 to #372.
 
 ## Now: the speed and efficiency programme (#359, D-79)
