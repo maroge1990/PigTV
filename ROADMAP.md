@@ -39,27 +39,29 @@ without a device readout or real plays is built and pushed; `tf/411` is tagged f
   tier is the gate.
 - **Open issues:** see `gh issue list`; new on 22 and 23 Nov: #363 to #372.
 
-## Now: the speed and efficiency programme (#359, D-79)
+## Now: finishing the speed and efficiency programme (#359, D-79)
 
-One batch per session, in this order; each ends with a handover comment on its issue. Measure, change, measure: no
-speed fix ships without before and after figures from the same test on the same machine.
+Batches 1 to 7 are built as far as they can go without a device readout or real plays (22 to 24 Nov; the story is in
+#359's handover comments and each issue). What is left, in the order Mark agreed on 24 Nov. Measure, change, measure:
+no speed fix ships without before and after figures from the same test on the same machine.
 
-1. *(done 22 Nov)* **Test bench on the MacBook** (#362, with #53 · #346 · #26): one command per repo; an iPad and iPhone unit tier; a
-   Guide scroll test on a production-sized fixture with signposts inside the grid; a server guide perf test and a
-   slow-request log line; all six perf files; Apple GitHub CI made non-blocking; the repeat flakers fixed or
-   quarantined. Ends with the Guide baseline as evidence and the targets fixed as numbers.
-2. *(done 22 Nov, awaiting Mark's readout from `tf/382`)* **Guide quick wins, Apple** (#360: G1, G4, G5, G8, hold grid applies while focus moves, the play-list build). Then
-   Mark's look on his Apple TV and one `tf/` tag.
-3. *(done 22 Nov)* **Guide data** (#361 server S1 to S8, an additive client-contract change with a Codex round; then #360's G2 proper,
-   G3, G6, G7 and #55's saved guide first).
-4. *(done 23 Nov bar #55 and #58, which wait on Mark)* **Apple structure and launch:** #50 · #51 · #55 · #54 · #58.
-5. *(done 22 Nov bar #331)* **Operations** (may run beside 2 to 4; needs Mark's choices on alerts and where backups go): #44 · #43 · #45 · #331.
-6. **Player and channel change** (playback path: capture first, ask Mark before any real provider connection): #36 ·
-   #35 · #25 · #308 · #240's check with more plays.
-7. *(server part done 23 Nov)* **Playback reliability** (released alone): #3 · #4 · #267 · #268 · #30 · #27 · #38 · #41.
+1. **The Guide hang on Mark's Apple TV.** Get his Guide speed readout from the `tf/411` build (Settings, after a
+   minute of single presses in the Guide). Slow frames or long stalls: fix what the readout points at (#360, #361).
+   A quick app with the hang still there: the cause is outside what the readout measures (the remote, the TV, the
+   focus engine), so test those one at a time. D-80's targets are judged on this readout.
+2. **Faster channel change** (#36, with #240 and #38; playback path: bench first). Read `zapMs` and the start phases
+   from Status after some days of Mark's viewing; bench the candidates (`-hls_init_time`, parallel leg close, audio
+   during the resolve) on the channel audit's saved samples; measure #38's byte budget on the saved 4K sample.
+3. **Renewal on by default** (#371, then D-81's parked change on the local branch `held/renewal-default`; with #370
+   and #3). Fix #371's two mediums; find the -50 ms after a renewal on the relay rig (#370); run #3's remaining cases
+   there (an early pause, a reconnect, a standby promotion): the provider's own start measured in step on 24 Nov.
+   Released alone, with its own Codex round.
+4. **Tidy-up batch:** the mediums recorded and not fixed (#372 three, #308 one, #55 one, #366 one) and the flaky
+   MacBook tests (#362: the iPad/iPhone tier fails a different unrelated test on most full runs).
+5. **Close the programme:** the closing handover on #359 and the issues whose builds Mark has on his devices (D-78).
 
-**Targets** (D-80): on Mark's Apple TV, the slowest press under 100 ms and the typical one under 50 ms, the Guide's first
-screen within 1 s; in the tests, the counts in D-80; a first guide page under 300 KB.
+Cannot be scheduled (they move when the fault happens again): #25 · #27. Set aside: #30 (Mark, 23 Nov) · #364 (until
+Mark maps a second folder) · #365 · #331.
 
 ## Next: leftovers, folded into whichever batch touches the same files
 
@@ -73,6 +75,11 @@ screen within 1 s; in the tests, the counts in D-80; a first guide page under 30
 ## Waiting on Mark
 
 - **At a real event:** #259 (the next F1 race: is it marked live?).
+- **The Guide speed readout** from the `tf/411` build on his Apple TV (step 1 under Now).
+- **Two small choices on the Guide heading (#372):** should the iPhone's portrait On now list show section labels, and
+  should the "N of M channels" count leave dividers out?
+- **Review rounds:** Claude suggested stopping a batch's Codex rounds after two unless a high remains (the player
+  batch took six); not yet agreed.
 - **Decisions:** #294 (brand kit icons) · #21 (how to close the sport rebuild).
 - **Only a device can tell** (`needs-device-test`): #28 (hardware encodes on PassyFlix) · #101 (audio and subtitle
   tracks).
